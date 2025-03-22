@@ -2,6 +2,8 @@
 	import logo from '$lib/assets/logo.png';
 	import Github from '~icons/tabler/brand-github';
 	import Discord from '~icons/tabler/brand-discord';
+	import Heartbeat from '~icons/tabler/heartbeat';
+	import Alert from '~icons/tabler/alert-hexagon';
 	import Users from '~icons/tabler/users';
 	import Settings from '~icons/tabler/settings';
 	import Health from '~icons/tabler/stethoscope';
@@ -10,6 +12,8 @@
 	import Router from '~icons/tabler/router';
 	import AP from '~icons/tabler/access-point';
 	import Remote from '~icons/tabler/network';
+	import Affiliate from '~icons/tabler/affiliate';
+	import Detector from '~icons/tabler/alarm-smoke';
 	import Control from '~icons/tabler/adjustments';
 	import Avatar from '~icons/tabler/user-circle';
 	import Logout from '~icons/tabler/logout';
@@ -45,10 +49,29 @@
 
 	let menuItems = $state([
 		{
-			title: 'Demo App',
-			icon: Control,
-			href: '/demo',
+			title: 'Overview',
+			icon: Heartbeat,
+			href: '/overview',
 			feature: true
+		},
+		{
+			title: 'Gateway',
+			icon: Affiliate,
+			feature: true,
+			submenu: [
+				{
+					title: 'Alerting',
+					icon: Alert,
+					href: '/gateway/alerting',
+					feature: true
+				},
+				{
+					title: 'Smoke Detectors',
+					icon: Detector,
+					href: '/gateway/smoke-detectors',
+					feature: true
+				}
+			]
 		},
 		{
 			title: 'Connections',

@@ -16,6 +16,8 @@
 #include <LightMqttSettingsService.h>
 #include <LightStateService.h>
 #include <PsychicHttpServer.h>
+#include <GatewayDevicesService.h>
+#include <GatewaySettingsService.h>
 
 #define SERIAL_BAUD_RATE 115200
 
@@ -30,6 +32,9 @@ LightStateService lightStateService = LightStateService(&server,
                                                         &esp32sveltekit,
                                                         &lightMqttSettingsService);
 
+GatewayDevicesService gatewayDevices = GatewayDevicesService(&server, &esp32sveltekit);
+GatewaySettingsService gatewaySettings = GatewaySettingsService(&server, &esp32sveltekit);
+
 void setup()
 {
     // start serial and filesystem
@@ -42,6 +47,9 @@ void setup()
     lightStateService.begin();
     // start the light service
     lightMqttSettingsService.begin();
+
+    gatewayDevices.begin();
+    gatewaySettings.begin();
 }
 
 void loop()

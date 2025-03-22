@@ -15,7 +15,7 @@
 	import EditUser from './EditUser.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Delete from '~icons/tabler/trash';
-	import AddUser from '~icons/tabler/user-plus';
+	import AddGeneric from '~icons/tabler/circle-plus';
 	import Edit from '~icons/tabler/pencil';
 	import Admin from '~icons/tabler/key';
 	import Users from '~icons/tabler/users';
@@ -167,7 +167,7 @@
 						class="btn btn-primary text-primary-content btn-md absolute -top-14 right-0"
 						onclick={handleNewUser}
 					>
-						<AddUser class="h-6 w-6" /></button
+						<AddGeneric class="h-6 w-6" /></button
 					>
 
 					<div class="overflow-x-auto" transition:slide|local={{ duration: 300, easing: cubicOut }}>
