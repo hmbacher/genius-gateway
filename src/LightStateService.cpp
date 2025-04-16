@@ -91,6 +91,7 @@ void LightStateService::registerConfig()
     doc["~"] = settings.mqttPath;
     doc["name"] = settings.name;
     doc["unique_id"] = settings.uniqueId; });
+    
     doc["cmd_t"] = "~/set";
     doc["stat_t"] = "~/state";
     doc["schema"] = "json";

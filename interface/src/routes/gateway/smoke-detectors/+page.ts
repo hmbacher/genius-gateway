@@ -2,6 +2,6 @@ import type { PageLoad } from './$types';
 
 export const load = (async () => {
     return {
-        title: 'Smoke detectors'
+        title: 'Genius Smoke Detectors'
     };
 }) satisfies PageLoad;

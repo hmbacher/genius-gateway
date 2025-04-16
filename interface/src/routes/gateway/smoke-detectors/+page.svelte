@@ -5,10 +5,12 @@
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { user } from '$lib/stores/user';
-	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
+	import type { HekatronDevices } from '$lib/types/models';
+	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import InfoDialog from '$lib/components/InfoDialog.svelte';
 	import EditSomeDetector from './EditSmokeDetector.svelte';
 	import AlarmLog from './AlarmLog.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -16,12 +18,13 @@
 	import Add from '~icons/tabler/circle-plus';
 	import Edit from '~icons/tabler/pencil';
 	import Logs from '~icons/tabler/logs';
-	import SmokeDetector from '~icons/custom-icons/hekatron';
-	//import SmokeDetector from '~icons/my-icons/test';
+	import SmokeDetector from '~icons/custom-icons/smoke-detector-m';
 	import Cancel from '~icons/tabler/x';
 	import Check from '~icons/tabler/check';
 	import Number from '~icons/tabler/number';
 	import Factory from '~icons/tabler/building-factory-2';
+	import Download from '~icons/tabler/download';
+	import Upload from '~icons/tabler/upload';
 
 	interface Props {
 		data: PageData;
@@ -29,49 +32,14 @@
 
 	let { data }: Props = $props();
 
-	type HekatronAlarm = {
-		startTime: Date;
-		endTime: Date;
-		endingReason: number;
-	}
-
-	type HekatronComponent = {
-		model: number;
-		sn: number;
-		productionDate: Date;
-	};
-
-	type HekatronDevice = {
-		smokeDetector: HekatronComponent;
-		radioModule: HekatronComponent;
-		location: string;
-		alarms: HekatronAlarm[];
-	};
-
-	type HekatronDevices = {
-		devices: HekatronDevice[];
-	};
-
-	let hekatronDevices: HekatronDevices = $state();
-
-	function jsonDateReviver(key, value) {
-		// plug this regex into regex101.com to understand how it works
-		// matches 2019-06-20T12:29:43.288Z (with milliseconds) and 2019-06-20T12:29:43Z (without milliseconds)
-		var dateFormat = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,}|)Z$/;
-
-		if (typeof value === 'string' && dateFormat.exec(value)) {
-			return new Date(value);
-		}
-
-		return value;
-	}
+	let hekatronDevices: HekatronDevices = $state({ devices: [] });
 
 	async function getHekatronDevices() {
 		try {
 			const response = await fetch('/rest/gateway-devices', {
 				method: 'GET',
 				headers: {
-					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				}
 			});
@@ -83,15 +51,15 @@
 		return;
 	}
 
-	async function postHekatronDevices(data: HekatronDevices) {
+	async function postHekatronDevices(devices: HekatronDevices) {
 		try {
 			const response = await fetch('/rest/gateway-devices', {
 				method: 'POST',
 				headers: {
-					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(data)
+				body: JSON.stringify(devices)
 			});
 
 			if (response.status == 200) {
@@ -131,7 +99,8 @@
 	function handleEdit(index: number) {
 		modals.open(EditSomeDetector, {
 			title: 'Edit smoke detector',
-			hekatronDevice: { ...hekatronDevices.devices[index] }, // Shallow Copy
+			//hekatronDevice: { ...hekatronDevices.devices[index] }, // Shallow Copy
+			hekatronDevice: $state.snapshot(hekatronDevices.devices[index]), // Deep copy
 			onSaveHekatronDevice: (editedHekatronDevice: HekatronDevice) => {
 				hekatronDevices.devices[index] = editedHekatronDevice;
 				modals.close();
@@ -155,33 +124,81 @@
 	function handleAlarmLog(index: number) {
 		modals.open(AlarmLog, {
 			title: 'Alarms log',
-			hekatronDevice: { ...hekatronDevices.devices[index] } // Shallow Copy
+			hekatronDevice: hekatronDevices.devices[index]
 		});
 	}
+
+	let files = $state();
+
+	$effect(() => {
+		if (files) {
+			// Note that `files` is of type `FileList`, not an Array:
+			// https://developer.mozilla.org/en-US/docs/Web/API/FileList
+			console.log(files);
+
+			const reader = new FileReader();
+			reader.onload = () => {
+				console.log(reader.result);
+			};
+			reader.onerror = () => {
+				console.log('Error reading the file. Please try again.', 'error');
+			};
+
+			for (const file of files) {
+				console.log(`${file.name}: ${file.size} bytes`);
+				reader.readAsText(file);
+			}
+		}
+	});
 </script>
 
 {#if $user.admin}
-	<div
-		class="mx-0 my-1 flex flex-col space-y-4
-     sm:mx-8 sm:my-8"
-	>
+	<div class="mx-0 my-1 flex flex-col space-y-4 sm:mx-8 sm:my-8">
 		<SettingsCard collapsible={false}>
 			{#snippet icon()}
 				<SmokeDetector class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 			{/snippet}
 			{#snippet title()}
-				<span>Hekatron devices</span>
+				<span>Installed Devices</span>
 			{/snippet}
 			{#await getHekatronDevices()}
 				<Spinner />
 			{:then nothing}
 				<div class="relative w-full overflow-visible">
-					<button
-						class="btn btn-primary text-primary-content btn-md absolute -top-14 right-0"
-						onclick={handleNewHekatronDevice}
+					<div
+						class="tooltip tooltip-left absolute -top-14 right-32"
+						data-tip="Add smoke detector"
 					>
-						<Add class="h-6 w-6" />
-					</button>
+						<button
+							class="btn btn-primary text-primary-content btn-md"
+							onclick={handleNewHekatronDevice}
+						>
+							<Add class="h-6 w-6" />
+						</button>
+					</div>
+					<div
+						class="tooltip tooltip-left absolute -top-14 right-16"
+						data-tip="Export smoke detector configuration"
+					>
+						<button
+							class="btn btn-primary text-primary-content btn-md"
+							onclick={() => downloadObjectAsJson(hekatronDevices, 'genius-devices')}
+						>
+							<Download class="h-6 w-6" />
+						</button>
+					</div>
+					<div
+						class="tooltip tooltip-left absolute -top-14 right-0"
+						data-tip="Import smoke detector configuration"
+					>
+						<label
+							for="upload"
+							class="btn btn-primary text-primary-content btn-md"
+						>
+							<Upload class="h-6 w-6" />
+						</label>
+						<input bind:files id="upload" type="file" class="hidden" />
+					</div>
 
 					<div class="overflow-x-auto" transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<table class="table w-full table-auto">
@@ -200,22 +217,40 @@
 										<td align="left" class="font-bold">{device.location}</td>
 										<td align="left">
 											<span class="inline-flex items-baseline">
-												<Number class="lex-shrink-0 mr-2 h-4 w-4 self-end" />{device.smokeDetector.sn}
-											</span><br/>
+												<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.smokeDetector.sn}
+											</span><br />
 											<span class="inline-flex items-baseline">
-												<Factory class="lex-shrink-0 mr-2 h-4 w-4 self-end" />{device.smokeDetector.productionDate.toLocaleDateString()}
+												<Factory
+													class="lex-shrink-0 mr-2 h-4 w-4"
+												/>{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
+													day: '2-digit',
+													month: '2-digit',
+													year: 'numeric'
+												})}
 											</span>
 										</td>
-										<td align="left"
-											>SN {device.radioModule.sn}<br
-											/>{device.radioModule.productionDate.toLocaleDateString()}</td
-										>
+										<td align="left">
+											<span class="inline-flex items-baseline">
+												<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.radioModule.sn}
+											</span><br />
+											<span class="inline-flex items-baseline">
+												<Factory
+													class="lex-shrink-0 mr-2 h-4 w-4"
+												/>{device.radioModule.productionDate.toLocaleDateString('de-DE', {
+													day: '2-digit',
+													month: '2-digit',
+													year: 'numeric'
+												})}
+											</span>
+										</td>
 										<td align="center">
 											{device.alarms.length}<br />
 											{#if device.alarms.length > 0}
-												{device.alarms[device.alarms.length - 1].startTime.toLocaleDateString()}
+												{device.alarms[device.alarms.length - 1].startTime.toLocaleDateString(
+													'de-DE',
+													{ day: '2-digit', month: '2-digit', year: 'numeric' }
+												)}
 											{/if}
-
 										</td>
 
 										<td align="right">

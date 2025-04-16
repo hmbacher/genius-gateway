@@ -1,10 +1,9 @@
 #include <GatewaySettingsService.h>
 
-GatewaySettingsService::GatewaySettingsService(PsychicHttpServer *server,
-                                               ESP32SvelteKit *sveltekit) : _httpEndpoint(GatewaySettings::read,
+GatewaySettingsService::GatewaySettingsService(ESP32SvelteKit *sveltekit) : _httpEndpoint(GatewaySettings::read,
                                                                                           GatewaySettings::update,
                                                                                           this,
-                                                                                          server,
+                                                                                          sveltekit->getServer(),
                                                                                           GATEWAY_SETTINGS_SERVICE_PATH,
                                                                                           sveltekit->getSecurityManager(),
                                                                                           AuthenticationPredicates::IS_ADMIN),

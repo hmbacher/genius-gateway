@@ -8,7 +8,7 @@
 #include <SecurityManager.h>
 #include <PsychicHttp.h>
 #include <ESP32SvelteKit.h>
-#include <Utils.h>
+#include <Utils.hpp>
 
 #define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"
 #define GATEWAY_DEVICES_SERVICE_PATH "/rest/gateway-devices"
@@ -184,11 +184,6 @@ public:
 
                 hekatronDevices.devices.push_back(newDevice);
 
-                // Smoke detector
-                ESP_LOGE(HekatronDevices::TAG, "Smoke detector productionDate: '%s' in secs: %lld", smokeDetector["productionDate"].as<String>().c_str(), Utils::iso8601_to_time_t(smokeDetector["productionDate"].as<String>()));
-                // Radio module
-                ESP_LOGE(HekatronDevices::TAG, "Radio module productionDate: '%s' in secs: %lld", radioModule["productionDate"].as<String>().c_str(), Utils::iso8601_to_time_t(radioModule["productionDate"].as<String>()));
-
                 ESP_LOGV(HekatronDevices::TAG, "Added Hekatron device with SN '%d'.", hekatronDevices.devices.back().smokeDetector.sn);
 
                 i++;
@@ -204,9 +199,14 @@ public:
 class GatewayDevicesService : public StatefulService<HekatronDevices>
 {
 public:
-    GatewayDevicesService(PsychicHttpServer *server, ESP32SvelteKit *sveltekit);
+    GatewayDevicesService(ESP32SvelteKit *sveltekit);
 
     void begin();
+
+    std::vector<HekatronDevice> &getDevices()
+    {
+        return _state.devices;
+    }
 
 private:
     HttpEndpoint<HekatronDevices> _httpEndpoint;

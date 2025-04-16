@@ -1,5 +1,4 @@
-#ifndef Utils_h
-#define Utils_h
+#pragma once
 
 #include <time.h>
 #include <Arduino.h>
@@ -21,5 +20,3 @@ public:
      */
     static String time_t_to_iso8601(time_t time_s);
 };
-
-#endif // Utils_h

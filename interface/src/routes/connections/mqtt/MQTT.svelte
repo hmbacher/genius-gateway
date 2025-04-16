@@ -9,9 +9,11 @@
 	import { notifications } from '$lib/components/toasts/notifications';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Collapsible from '$lib/components/Collapsible.svelte';
-	import MQTT from '~icons/tabler/topology-star-3';
+	import IconMQTT from '~icons/tabler/topology-star-3';
+	import IconSettings from '~icons/tabler/adjustments-alt';
 	import Client from '~icons/tabler/robot';
 	import type { MQTTSettings, MQTTStatus } from '$lib/types/models';
+	import GatewayMqttConfig from './GatewayMQTTConfig.svelte';
 
 	let mqttSettings: MQTTSettings = $state();
 	let mqttStatus: MQTTStatus = $state();
@@ -121,7 +123,7 @@
 		}
 	}
 
-    function preventDefault(fn) {
+	function preventDefault(fn) {
 		return function (event) {
 			event.preventDefault();
 			fn.call(this, event);
@@ -131,10 +133,10 @@
 
 <SettingsCard collapsible={false}>
 	{#snippet icon()}
-		<MQTT  class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+		<IconMQTT class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 	{/snippet}
 	{#snippet title()}
-		<span >MQTT</span>
+		<span>MQTT</span>
 	{/snippet}
 	<div class="w-full overflow-x-auto">
 		{#await getMQTTStatus()}
@@ -150,7 +152,7 @@
 							? 'bg-success'
 							: 'bg-error'}"
 					>
-						<MQTT
+						<IconMQTT
 							class="h-auto w-full scale-75 {mqttStatus.connected === true
 								? 'text-success-content'
 								: 'text-error-content'}"
@@ -186,10 +188,13 @@
 	</div>
 
 	{#if !page.data.features.security || $user.admin}
-		<Collapsible open={false} class="shadow-lg" on:closed={getMQTTSettings}>
+		<Collapsible open={false} class="shadow-lg" closed={getMQTTSettings}>
+			{#snippet icon()}
+				<IconSettings class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+			{/snippet}
 			{#snippet title()}
-						<span >Change MQTT Settings</span>
-					{/snippet}
+				<span>General Settings</span>
+			{/snippet}
 
 			<form onsubmit={preventDefault(handleSubmitMQTT)} novalidate bind:this={formField}>
 				<div class="grid w-full grid-cols-1 content-center gap-x-4 px-4 sm:grid-cols-2">
@@ -297,5 +302,7 @@
 				</div>
 			</form>
 		</Collapsible>
+
+		<GatewayMqttConfig />
 	{/if}
 </SettingsCard>

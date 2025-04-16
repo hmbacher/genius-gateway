@@ -3,9 +3,8 @@
 	import Github from '~icons/tabler/brand-github';
 	import Discord from '~icons/tabler/brand-discord';
 	import Heartbeat from '~icons/tabler/heartbeat';
-	import Alert from '~icons/tabler/alert-hexagon';
 	import Users from '~icons/tabler/users';
-	import Settings from '~icons/tabler/settings';
+	import Settings from '~icons/tabler/cpu';
 	import Health from '~icons/tabler/stethoscope';
 	import Update from '~icons/tabler/refresh-alert';
 	import WiFi from '~icons/tabler/wifi';
@@ -14,7 +13,9 @@
 	import Remote from '~icons/tabler/network';
 	import Affiliate from '~icons/tabler/affiliate';
 	import Detector from '~icons/tabler/alarm-smoke';
-	import Control from '~icons/tabler/adjustments';
+	import Analyze from '~icons/tabler/zoom-scan';
+	import Flame from '~icons/tabler/flame';
+	import Ring from '~icons/tabler/topology-ring-2';
 	import Avatar from '~icons/tabler/user-circle';
 	import Logout from '~icons/tabler/logout';
 	import Copyright from '~icons/tabler/copyright';
@@ -51,7 +52,7 @@
 		{
 			title: 'Overview',
 			icon: Heartbeat,
-			href: '/overview',
+			href: '/',
 			feature: true
 		},
 		{
@@ -60,15 +61,33 @@
 			feature: true,
 			submenu: [
 				{
-					title: 'Alerting',
-					icon: Alert,
-					href: '/gateway/alerting',
+					title: 'Gateway Settings',
+					icon: Settings,
+					href: '/gateway/settings',
 					feature: true
 				},
 				{
-					title: 'Smoke Detectors',
+					title: 'Genius Smoke Detectors',
 					icon: Detector,
 					href: '/gateway/smoke-detectors',
+					feature: true
+				},
+				{
+					title: 'Packet Visualizer',
+					icon: Analyze,
+					href: '/gateway/packet-visualizer',
+					feature: true
+				},
+				{
+					title: 'Alarm Lines',
+					icon: Ring,
+					href: '/gateway/alarm-lines',
+					feature: true
+				},
+				{
+					title: 'Fire Alarm',
+					icon: Flame,
+					href: '/gateway/fire-alarm',
 					feature: true
 				}
 			]

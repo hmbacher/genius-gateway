@@ -1,9 +1,4 @@
-/**
- * @file Utils.cpp
- * @brief Utility functions
- */
-
-#include <Utils.h>
+#include <Utils.hpp>
 
 time_t Utils::iso8601_to_time_t(const String& iso8601_date) {
     struct tm tm = {0};
@@ -17,7 +12,7 @@ time_t Utils::iso8601_to_time_t(const String& iso8601_date) {
     tm.tm_mon -= 1;     // Adjust month (0-based)
     return mktime(&tm);
 
-    // TODO: Time Zone correction!
+    // TODO: Time Zone correction?
 }
 
 String Utils::time_t_to_iso8601(time_t time_s) {
@@ -26,5 +21,5 @@ String Utils::time_t_to_iso8601(time_t time_s) {
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S.000Z", tm);
     return String(buf);
 
-    // TODO: Time Zone correction!
+    // TODO: Time Zone correction?
 }

@@ -18,12 +18,15 @@
 #include <PsychicHttpServer.h>
 #include <GatewayDevicesService.h>
 #include <GatewaySettingsService.h>
+#include <AlarmStateService.h>
+#include <WebSocketLogger.h>
+#include <GeniusGateway.h>
 
 #define SERIAL_BAUD_RATE 115200
 
 PsychicHttpServer server;
 
-ESP32SvelteKit esp32sveltekit(&server, 120);
+ESP32SvelteKit esp32sveltekit(&server, 150);
 
 LightMqttSettingsService lightMqttSettingsService = LightMqttSettingsService(&server,
                                                                              &esp32sveltekit);
@@ -32,8 +35,7 @@ LightStateService lightStateService = LightStateService(&server,
                                                         &esp32sveltekit,
                                                         &lightMqttSettingsService);
 
-GatewayDevicesService gatewayDevices = GatewayDevicesService(&server, &esp32sveltekit);
-GatewaySettingsService gatewaySettings = GatewaySettingsService(&server, &esp32sveltekit);
+GeniusGateway geniusGateway = GeniusGateway(&esp32sveltekit);
 
 void setup()
 {
@@ -47,9 +49,13 @@ void setup()
     lightStateService.begin();
     // start the light service
     lightMqttSettingsService.begin();
+    
+    geniusGateway.begin();
 
-    gatewayDevices.begin();
-    gatewaySettings.begin();
+    // /* Print tasks */
+    // char stats_buffer[1024];
+    // vTaskList(stats_buffer);
+    // printf("%s\n", stats_buffer);
 }
 
 void loop()

@@ -9,9 +9,9 @@ export const load = (async ({ fetch }) => {
 	const item = await result.json();
 	return {
 		features: item,
-		title: 'Hekatron-Gateway',
+		title: 'Genius-Gateway',
 		github: 'hmbacher/hekatron-gw-svelte',
 		copyright: '2025 hmbacher',
-		appName: 'Hekatron Gateway'
+		appName: 'Genius Gateway'
 	};
 }) satisfies LayoutLoad;

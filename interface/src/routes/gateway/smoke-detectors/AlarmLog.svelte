@@ -6,7 +6,7 @@
 	import BellRinging from '~icons/tabler/bell-ringing';
 	import Start from '~icons/tabler/arrow-bar-right';
 	import End from '~icons/tabler/arrow-bar-to-right';
-	import Manual from '~icons/tabler/hand-click';
+	import Manual from '~icons/tabler/volume-3';
 	import Automatic from '~icons/tabler/flame-off';
 
 	// provided by <Modals />
@@ -67,21 +67,35 @@
 									<span class="inline-flex items-baseline">
 										<Start
 											class="lex-shrink-0 mr-2 h-4 w-4 self-end"
-										/>{alarm.startTime.toLocaleString()}
+										/>{alarm.startTime.toLocaleString('de-DE', {
+											day: '2-digit',
+											month: '2-digit',
+											year: 'numeric',
+											hour: '2-digit',
+											minute: '2-digit',
+											second: '2-digit',
+										})}
 									</span>
 								</td>
 								<td align="left">
 									<span class="inline-flex items-baseline">
 										<End
 											class="lex-shrink-0 mr-2 h-4 w-4 self-end"
-										/>{alarm.endTime.toLocaleString()}
+										/>{alarm.endTime.toLocaleString('de-DE', {
+											day: '2-digit',
+											month: '2-digit',
+											year: 'numeric',
+											hour: '2-digit',
+											minute: '2-digit',
+											second: '2-digit',
+										})}
 									</span>
 								</td>
 								<td align="center">
 									{#if alarm.endingReason === 0}
 										<div><Automatic class="w-6 h-6" /></div>
 									{:else}
-										<div><Manual class="text-accent w-6 h-6" /></div>
+										<div><Manual class="text-error w-6 h-6" /></div>
 									{/if}
 								</td>
 							</tr>

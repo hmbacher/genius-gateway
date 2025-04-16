@@ -8,7 +8,7 @@
 	import { notifications } from '$lib/components/toasts/notifications';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import Adjustments from '~icons/tabler/adjustments-alt';
+	import Alert from '~icons/tabler/alert-hexagon';
 
 	interface Props {
 		data: PageData;
@@ -70,7 +70,7 @@
 	>
 		<SettingsCard collapsible={false}>
 			{#snippet icon()}
-				<Adjustments class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+				<Alert class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 			{/snippet}
 			{#snippet title()}
 				<span>Alerting settings</span>

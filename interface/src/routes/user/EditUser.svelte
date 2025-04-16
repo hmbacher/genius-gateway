@@ -100,7 +100,9 @@
 				<div class="flex justify-end gap-2">
 					<button
 						class="btn btn-neutral text-neutral-content inline-flex items-center"
-						onclick={modals.close}
+						onclick={() => {
+							modals.close(1);
+						}}
 						type="button"
 					>
 						<Cancel class="mr-2 h-5 w-5" /><span>Cancel</span></button

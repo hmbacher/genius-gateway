@@ -11,6 +11,7 @@
 	import RssiIndicator from '$lib/components/RSSIIndicator.svelte';
 	import BatteryIndicator from '$lib/components/BatteryIndicator.svelte';
 	import UpdateIndicator from '$lib/components/UpdateIndicator.svelte';
+	import AlarmStatus from '$lib/components/AlarmStatus.svelte';
 
 	async function postSleep() {
 		const response = await fetch('/rest/sleep', {
@@ -49,6 +50,9 @@
 		<UpdateIndicator />
 	</div>
 	<div class="flex-none">
+		<AlarmStatus />
+	</div>
+	<div class="flex-none">
 		{#if $telemetry.rssi.disconnected}
 			<WiFiOff class="h-7 w-7" />
 		{:else}
@@ -74,7 +78,7 @@
 	{#if page.data.features.sleep}
 		<div class="flex-none">
 			<button class="btn btn-square btn-ghost h-9 w-10" onclick={confirmSleep}>
-				<Power class="text-error h-9 w-9" />
+				<Power class="h-9 w-9" />
 			</button>
 		</div>
 	{/if}

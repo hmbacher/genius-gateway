@@ -7,7 +7,7 @@
 #include <SecurityManager.h>
 #include <PsychicHttp.h>
 #include <ESP32SvelteKit.h>
-#include <Utils.h>
+#include <Utils.hpp>
 
 #define GATEWAY_SETTINGS_FILE "/config/gateway-settings.json"
 #define GATEWAY_SETTINGS_SERVICE_PATH "/rest/gateway-settings"
@@ -41,14 +41,14 @@ public:
         return StateUpdateResult::UNCHANGED;
     }
 
-protected:
+private:
     static constexpr const char *TAG = "GatewaySettings";
 };
 
 class GatewaySettingsService : public StatefulService<GatewaySettings>
 {
 public:
-    GatewaySettingsService(PsychicHttpServer *server, ESP32SvelteKit *sveltekit);
+    GatewaySettingsService(ESP32SvelteKit *sveltekit);
 
     void begin();
 

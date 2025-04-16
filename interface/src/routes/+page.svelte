@@ -1,42 +1,98 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
+	import { user } from '$lib/stores/user';
 	import type { PageData } from './$types';
-	import logo from '$lib/assets/logo.png';
-	import { notifications } from '$lib/components/toasts/notifications';
+	import { socket } from '$lib/stores/socket';
+	import type { AlarmState } from '$lib/types/models';
+	import type { HekatronDevices } from '$lib/types/models';
+	import { jsonDateReviver } from '$lib/utils';
+	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
+	import Info from '~icons/tabler/info-circle';
 
 	interface Props {
 		data: PageData;
 	}
 
 	let { data }: Props = $props();
+
+	let hekatronDevices: HekatronDevices = $state({ devices: [] });
+
+	let alarmState: AlarmState = $state({ alarmingDevices: [] });
+
+	async function getHekatronDevices() {
+		try {
+			const response = await fetch('/rest/gateway-devices', {
+				method: 'GET',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+
+			hekatronDevices = JSON.parse(await response.text(), jsonDateReviver);
+
+		} catch (error) {
+			console.error('Error:', error);
+		}
+		return;
+	}
+
+	async function getAlarmState() {
+		try {
+			const response = await fetch('/rest/alarm', {
+				method: 'GET',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+
+			alarmState = await response.json();
+
+		} catch (error) {
+			console.error('Error:', error);
+		}
+		return;
+	}
+
+	async function getData() {
+		await getHekatronDevices();
+		await getAlarmState();
+
+		return;
+	}
+
+	onMount(() => {
+		socket.on<AlarmState>('alarm', (data) => {
+			alarmState = data;
+		});
+	});
+
+	onDestroy(() => socket.off('alarm'));
+
 </script>
 
-<div class="hero bg-base-100 h-screen">
-	<div class="card md:card-side bg-base-200 shadow-primary shadow-2xl">
-		<figure class="bg-base-200"><img src={logo} alt="Logo" class="h-auto w-64" /></figure>
-		<div class="card-body w-80">
-			<h2 class="card-title text-center text-2xl">Welcome to ESP32-SvelteKit</h2>
-			<p class="py-6 text-center">
-				A simple, secure and extensible framework for IoT projects for ESP32 platforms with
-				responsive <a
-					href="https://kit.svelte.dev/"
-					class="link"
-					target="_blank"
-					rel="noopener noreferrer">SvelteKit</a
-				>
-				front-end built with
-				<a href="https://tailwindcss.com/" class="link" target="_blank" rel="noopener noreferrer"
-					>TailwindCSS</a
-				>
-				and
-				<a href="https://daisyui.com/" class="link" target="_blank" rel="noopener noreferrer"
-					>DaisyUI</a
-				>.
-			</p>
-			<a
-				class="btn btn-primary"
-				href="/demo"
-				onclick={() => notifications.success('You did it!', 1000)}>Start Demo</a
-			>
-		</div>
+<div >
+	<div class="flex flex-wrap gap-10 px-10 py-10" style="justify-content: center;">
+		{#await getData()}
+				<Spinner />
+		{:then nothing}
+			{#if hekatronDevices.devices.length > 0}
+				{#each hekatronDevices.devices as device}
+					<DeviceStatusCard detector={device} alerting={alarmState.alarmingDevices.includes(device.smokeDetector.sn)} />
+				{/each}
+			{:else}
+			<div class="mx-0 my-1 flex flex-col space-y-4 sm:mx-8 sm:my-8">
+				<div class="alert">
+					<Info class="h-6 w-6 flex-shrink-0 stroke-current" />
+					<div>
+						<p>No Genius devices set up yet.</p>
+						<p>Wanna <a class="link link-primary" href="/gateway/smoke-detectors">add some smoke detectors</a> now?</p>
+					</div>
+				</div>
+			</div>
+			{/if}
+		{/await}
 	</div>
 </div>
