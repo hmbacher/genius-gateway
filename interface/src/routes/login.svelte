@@ -50,7 +50,7 @@
 	}
 </script>
 
-<div class="hero from-primary/30 to-secondary/30 min-h-screen bg-gradient-to-br">
+<div class="hero from-primary/30 to-secondary/30 min-h-screen bg-linear-to-br">
 	<div
 		class="card lg:card-side bg-base-100 shadow-primary face shadow-2xl {loginFailed
 			? 'failure border-error border-2'

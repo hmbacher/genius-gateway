@@ -85,7 +85,7 @@
 			{:else}
 			<div class="mx-0 my-1 flex flex-col space-y-4 sm:mx-8 sm:my-8">
 				<div class="alert">
-					<Info class="h-6 w-6 flex-shrink-0 stroke-current" />
+					<Info class="h-6 w-6 shrink-0 stroke-current" />
 					<div>
 						<p>No Genius devices set up yet.</p>
 						<p>Wanna <a class="link link-primary" href="/gateway/smoke-detectors">add some smoke detectors</a> now?</p>

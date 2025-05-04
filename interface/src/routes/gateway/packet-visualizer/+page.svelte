@@ -4,7 +4,7 @@
 	import { modals } from 'svelte-modals';
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
-	import type { HekatronDevices, VisualizerSettings, PacketType, CommissioningPacket, Packet } from '$lib/types/models';
+	import type { HekatronDevices, VisualizerSettings, PacketType, Packet, CommissioningInfo, DiscoveryResponseInfo } from '$lib/types/models';
 	import { PacketTypes } from '$lib/types/models';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
@@ -96,49 +96,34 @@
 	}	
 
 	function interpretPacket(packet: Packet) {
-		let dv = new DataView(packet.data.buffer);
-		if (packet.type.name === PacketTypes.Commissioning.name) {
-			// Alarm Line Cmissioning
-			return {
-				counter: dv.getUint16(1, true),
-				firstRadioModuleSN: dv.getUint32(9),
-				firstLocation: getDetectorLocationByRMSN(dv.getUint32(9)),
-				secondRadioModuleSN: dv.getUint32(14),
-				secondLocation: getDetectorLocationByRMSN(dv.getUint32(14)),
-				currentLineID: dv.getUint32(18),
-				hops: 15 - dv.getUint8(22),
-				newLineID: dv.getUint32(23),
-				timeStr: `${dv.getUint8(32)}:${dv.getUint8(33)}:${dv.getUint8(34)}`
-			};
-		}
-		else if (packet.type.name === PacketTypes.DiscoveryRequest.name) {
-			// Device Discovery Request (?)
-			return {
+		let dv = new DataView(packet.data.buffer, packet.data.byteOffset, packet.data.byteLength);
+
+		// Common packet properties
+		packet.generalInfo = {
 				counter: dv.getUint16(1, true),
 				firstRadioModuleSN: dv.getUint32(9),
 				firstLocation: getDetectorLocationByRMSN(dv.getUint32(9)),
 				secondRadioModuleSN: dv.getUint32(14),
 				secondLocation: getDetectorLocationByRMSN(dv.getUint32(14)),
 				lineID: dv.getUint32(18),
-				hops: 15 - dv.getUint8(22)
+				hops: 15 - dv.getUint8(22),
 			};
+
+		// Specific packet properties
+		if (packet.type.name === PacketTypes.Commissioning.name) {	// Alarm Line Comissioning
+			console.log(packet.data.buffer);
+			packet.specificInfo = {
+				newLineID: dv.getUint32(28),
+				timeStr: `${dv.getUint8(32).toString().padStart(2, '0')}:${dv.getUint8(33).toString().padStart(2, '0')}:${dv.getUint8(34).toString().padStart(2, '0')}`,
+			} as CommissioningInfo;
 		}
-		else if (packet.type.name === PacketTypes.DiscoveryResponse.name) {
+		else if (packet.type.name === PacketTypes.DiscoveryResponse.name) {	// Device Discovery Response
 			// Device Discovery Response (?)
-			return {
-				counter: dv.getUint16(1, true),
-				firstRadioModuleSN: dv.getUint32(9),
-				firstLocation: getDetectorLocationByRMSN(dv.getUint32(9)),
-				secondRadioModuleSN: dv.getUint32(14),
-				secondLocation: getDetectorLocationByRMSN(dv.getUint32(14)),
-				lineID: dv.getUint32(18),
-				hops: 15 - dv.getUint8(22),
+			packet.specificInfo = {
 				requestingRadioModule: dv.getUint32(23),
 				requestingLocation: getDetectorLocationByRMSN(dv.getUint32(32))
-			};
+			} as DiscoveryResponseInfo;
 		}
-
-		return null;
 	}
 
 	function calculateHash(data: Uint8Array): number {
@@ -185,12 +170,14 @@
 						data: databuf,
 						counter: 1,
 						hash: hash,
-						interpreted: null
+						generalInfo: null,
+						specificInfo: null,
 					});
 
-					// Interpret the packet
-					packets[packets.length - 1].interpreted = interpretPacket(packets[packets.length - 1]);
+					console.log('New packet received:', packets[packets.length - 1]);
 
+					// Interpret the packet
+					interpretPacket(packets[packets.length - 1]);
 				}
 			}
 		};

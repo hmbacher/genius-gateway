@@ -234,16 +234,24 @@ export const PacketTypes: {
 	}
 };
 
-export type CommissioningPacket = {
+export type GeneralInfo = {
 	counter: number;
 	firstRadioModuleSN: number;
 	firstLocation: string;
 	secondRadioModuleSN: number;
 	secondLocation: string;
-	currentLineID: number;
+	lineID: number;
 	hops: number;
+};
+
+export type CommissioningInfo = {
 	newLineID: number;
 	timeStr: string;
+};
+
+export type DiscoveryResponseInfo = {
+	requestingRadioModule: number;
+	requestingLocation: string;
 };
 
 export type Packet = {
@@ -254,5 +262,6 @@ export type Packet = {
 	data: Uint8Array;
 	counter: number;
 	hash: number;
-	interpreted: CommissioningPacket | null;
+	generalInfo: GeneralInfo | null;
+	specificInfo: CommissioningInfo | DiscoveryResponseInfo | null;
 };

@@ -49,11 +49,11 @@
 	class="bg-base-200 rounded-box shadow-primary/50 relative max-w-120 overflow-hidden shadow-lg p-5"
 >
 	<div class="flex">
-		<div class="flex-shrink-0">
+		<div class="shrink-0">
 			<IconDetector class="h-20 w-24 text-base-content/60" />
 		</div>
 		{#if alerting}
-			<div class="flex-grow flex items-center justify-end">
+			<div class="grow flex items-center justify-end">
 				<button class="btn btn-circle btn-lg" onclick={handleMute}>
 					<IconAlarmOff class="h-12 w-12 text-error" />
 				</button>

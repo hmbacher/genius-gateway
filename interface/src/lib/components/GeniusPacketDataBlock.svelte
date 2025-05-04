@@ -26,7 +26,7 @@
 	{/each}
 	{#if showDetails}
 		{#if endianess}
-			<div class="col-span-{data.length}">{combineToUnsigned(data, endianess) >>> 0}</div>
+			<div style="grid-column: span {data.length}/ span {data.length}">{combineToUnsigned(data, endianess) >>> 0}</div>
 		{:else}
 			{#each data as byte}
 				<div>{byte.toString()}</div>
@@ -34,14 +34,14 @@
 		{/if}
 		{#if details}
 			{#if details.icon && details.text}
-				<div class="col-span-{data.length} flex items-center justify-center">
+				<div class="flex items-center justify-center" style="grid-column: span {data.length}/ span {data.length}">
 					<details.icon class="flex-none mr-[2px] h-4 w-4" />
 					<span class="truncate">{details.text}</span>
 				</div>
 			{:else if details.text}
-				<div class="col-span-{data.length} truncate">{details.text}</div>
+				<div class="truncate" style="grid-column: span {data.length}/ span {data.length}">{details.text}</div>
 			{:else if details.icon}
-				<div class="col-span-{data.length}">
+				<div style="grid-column: span {data.length}/ span {data.length}">
 					<details.icon class="flex-none h-4 w-4" />
 				</div>
 			{/if}

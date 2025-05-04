@@ -168,7 +168,7 @@
 							<span class="label-text">Model</span>
 						</label>
 						<select
-							class="select select-bordered w-full"
+							class="select"
 							id="smokeDetectorModel"
 							bind:value={hekatronDevice.smokeDetector.model}
 						>
@@ -221,7 +221,7 @@
 				</div>
 
 				<div class="alert alert-warning shadow-lg">
-					<Warning class="h-6 w-6 flex-shrink-0" />
+					<Warning class="h-6 w-6 shrink-0" />
 					<span>
 						The serial number is crucial for correctly assigning an alarm signal to the emitting
 						smoke detector.
@@ -241,7 +241,7 @@
 							<span class="label-text">Model</span>
 						</label>
 						<select
-							class="select select-bordered w-full"
+							class="select"
 							id="radioModuleModel"
 							bind:value={hekatronDevice.radioModule.model}
 						>

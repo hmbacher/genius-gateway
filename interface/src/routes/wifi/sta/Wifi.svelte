@@ -529,7 +529,7 @@
 										<div class="font-bold">{dndNetworkList[index].ssid}</div>
 									</div>
 									{#if !page.data.features.security || $user.admin}
-										<div class="flex-grow"></div>
+										<div class="grow"></div>
 										<div class="space-x-0 px-0 mx-0">
 											<button
 												class="btn btn-ghost btn-sm"
@@ -594,7 +594,7 @@
 									<span class="label-text">WiFi Connection Mode</span>
 								</label>
 								<select
-									class="select select-bordered w-full"
+									class="select"
 									id="apmode"
 									bind:value={wifiSettings.connection_mode}
 								>

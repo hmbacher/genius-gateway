@@ -74,7 +74,7 @@
 	<div class="w-full">
 		<h1 class="text-xl font-semibold">REST Example</h1>
 		<div class="alert alert-info my-2 shadow-lg">
-			<Info class="h-6 w-6 flex-shrink-0 stroke-current" />
+			<Info class="h-6 w-6 shrink-0 stroke-current" />
 			<span>The form below controls the LED via the RESTful service exposed by the ESP device.</span
 			>
 		</div>
@@ -85,7 +85,7 @@
 					<input type="checkbox" bind:checked={lightOn} class="checkbox checkbox-primary" />
 				</label>
 			</div>
-			<div class="flex-grow"></div>
+			<div class="grow"></div>
 			<button class="btn btn-primary inline-flex items-center" onclick={postLightstate}
 				><Save class="mr-2 h-5 w-5" /><span>Save</span></button
 			>
@@ -96,7 +96,7 @@
 		<div class="divider"></div>
 		<h1 class="text-xl font-semibold">Event Socket Example</h1>
 		<div class="alert alert-info my-2 shadow-lg">
-			<Info class="h-6 w-6 flex-shrink-0 stroke-current" />
+			<Info class="h-6 w-6 shrink-0 stroke-current" />
 			<span
 				>The switch below controls the LED via the event system which uses WebSocket under the hood.
 				It will automatically update whenever the LED state changes.</span

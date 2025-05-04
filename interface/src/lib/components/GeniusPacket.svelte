@@ -54,8 +54,8 @@
 				endianess="big"
 				details={{
 					icon: IconWifi,
-					text: packet.interpreted?.firstLocation,
-					type: 'serialnumber-radiomodule'.concat(packet.interpreted?.firstLocation === 'Unknown' ? '-unknown' : '')
+					text: packet.generalInfo?.firstLocation,
+					type: 'serialnumber-radiomodule'.concat(packet.generalInfo?.firstLocation === 'Unknown' ? '-unknown' : '')
 				}}
 			/>
 			<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(13, 14)} />
@@ -65,8 +65,8 @@
 				endianess="big"
 				details={{
 					icon: IconWifi,
-					text: packet.interpreted?.secondLocation,
-					type: 'serialnumber-radiomodule'.concat(packet.interpreted?.secondLocation === 'Unknown' ? '-unknown' : '')
+					text: packet.generalInfo?.secondLocation,
+					type: 'serialnumber-radiomodule'.concat(packet.generalInfo?.secondLocation === 'Unknown' ? '-unknown' : '')
 				}}
 			/>
 			<GeniusPacketDataBlock
@@ -83,7 +83,7 @@
 				data={packet.data.subarray(22, 23)}
 				details={{
 					icon: IconHops,
-					text: packet.interpreted?.hops.toString(),
+					text: packet.generalInfo?.hops.toString(),
 					type: 'hops'
 				}}
 			/>
@@ -102,7 +102,7 @@
 				data={packet.data.subarray(32, 35)}
 				details={{
 					icon: IconClock,
-					text: packet.interpreted?.timeStr,
+					text: (packet.specificInfo as CommissioningPacket)?.timeStr,
 					type: 'time'
 				}}
 			/>

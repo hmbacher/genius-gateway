@@ -21,6 +21,9 @@
 			xmlns="http://www.w3.org/2000/svg"
 			class="text-base-content/50 h-6 {show ? 'block' : 'hidden'}"
 			onclick={() => (show = false)}
+			role="button"
+			aria-label="Hide password"
+			tabindex="0"
 			width="40"
 			height="40"
 			viewBox="0 0 24 24"
@@ -37,12 +40,14 @@
 			/>
 			<path d="M3 3l18 18" />
 		</svg>
-
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
 			class="text-base-content/50 h-6 {show ? 'hidden' : 'block'}"
 			onclick={() => (show = true)}
+			role="button"
+			aria-label="Show password"
+			tabindex="0"
 			width="40"
 			height="40"
 			viewBox="0 0 24 24"

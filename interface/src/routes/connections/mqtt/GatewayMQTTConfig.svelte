@@ -126,7 +126,7 @@
 				>
 			</label>
 			<div class="alert bg-base-300">
-				<Info class="h-6 w-6 flex-shrink-0 stroke-current" />
+				<Info class="h-6 w-6 shrink-0 stroke-current" />
 				<div>
 					<div>Every smoke detector device will publish the following topics:</div>
 					<div class="text-xs">

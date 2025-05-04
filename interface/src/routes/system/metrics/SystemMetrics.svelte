@@ -28,16 +28,16 @@
 				datasets: [
 					{
 						label: 'Free Heap',
-						borderColor: daisyColor('--p'),
-						backgroundColor: daisyColor('--p', 50),
+						borderColor: daisyColor('--color-primary'),
+						backgroundColor: daisyColor('--color-primary', 50),
 						borderWidth: 2,
 						data: $analytics.free_heap,
 						yAxisID: 'y'
 					},
 					{
 						label: 'Max Alloc Heap',
-						borderColor: daisyColor('--s'),
-						backgroundColor: daisyColor('--s', 50),
+						borderColor: daisyColor('--color-secondary'),
+						backgroundColor: daisyColor('--color-secondary', 50),
 						borderWidth: 2,
 						data: $analytics.max_alloc_heap,
 						yAxisID: 'y'
@@ -53,7 +53,10 @@
 					},
 					tooltip: {
 						mode: 'index',
-						intersect: false
+						intersect: false,
+						callbacks: {
+							title: () => '' // Remove the title in the tooltip
+						}
 					}
 				},
 				elements: {
@@ -64,10 +67,10 @@
 				scales: {
 					x: {
 						grid: {
-							color: daisyColor('--bc', 10)
+							color: daisyColor('--color-base-content', 10)
 						},
 						ticks: {
-							color: daisyColor('--bc')
+							color: daisyColor('--color-base-content')
 						},
 						display: false
 					},
@@ -76,7 +79,7 @@
 						title: {
 							display: true,
 							text: 'Heap [kb]',
-							color: daisyColor('--bc'),
+							color: daisyColor('--color-base-content'),
 							font: {
 								size: 16,
 								weight: 'bold'
@@ -85,11 +88,11 @@
 						position: 'left',
 						min: 0,
 						max: Math.round($analytics.total_heap[0]),
-						grid: { color: daisyColor('--bc', 10) },
+						grid: { color: daisyColor('--color-base-content', 10) },
 						ticks: {
-							color: daisyColor('--bc')
+							color: daisyColor('--color-base-content')
 						},
-						border: { color: daisyColor('--bc', 10) }
+						border: { color: daisyColor('--color-base-content', 10) }
 					}
 				}
 			}
@@ -101,8 +104,8 @@
 				datasets: [
 					{
 						label: 'File System Used',
-						borderColor: daisyColor('--p'),
-						backgroundColor: daisyColor('--p', 50),
+						borderColor: daisyColor('--color-primary'),
+						backgroundColor: daisyColor('--color-primary', 50),
 						borderWidth: 2,
 						data: $analytics.fs_used,
 						yAxisID: 'y'
@@ -118,7 +121,10 @@
 					},
 					tooltip: {
 						mode: 'index',
-						intersect: false
+						intersect: false,
+						callbacks: {
+							title: () => '' // Remove the title in the tooltip
+						}
 					}
 				},
 				elements: {
@@ -129,10 +135,10 @@
 				scales: {
 					x: {
 						grid: {
-							color: daisyColor('--bc', 10)
+							color: daisyColor('--color-base-content', 10)
 						},
 						ticks: {
-							color: daisyColor('--bc')
+							color: daisyColor('--color-base-content')
 						},
 						display: false
 					},
@@ -141,7 +147,7 @@
 						title: {
 							display: true,
 							text: 'File System [kb]',
-							color: daisyColor('--bc'),
+							color: daisyColor('--color-base-content'),
 							font: {
 								size: 16,
 								weight: 'bold'
@@ -150,11 +156,11 @@
 						position: 'left',
 						min: 0,
 						max: Math.round($analytics.fs_total[0]),
-						grid: { color: daisyColor('--bc', 10) },
+						grid: { color: daisyColor('--color-base-content', 10) },
 						ticks: {
-							color: daisyColor('--bc')
+							color: daisyColor('--color-base-content')
 						},
-						border: { color: daisyColor('--bc', 10) }
+						border: { color: daisyColor('--color-base-content', 10) }
 					}
 				}
 			}
@@ -166,8 +172,8 @@
 				datasets: [
 					{
 						label: 'Core Temperature',
-						borderColor: daisyColor('--p'),
-						backgroundColor: daisyColor('--p', 50),
+						borderColor: daisyColor('--color-primary'),
+						backgroundColor: daisyColor('--color-primary', 50),
 						borderWidth: 2,
 						data: $analytics.core_temp,
 						yAxisID: 'y'
@@ -183,7 +189,10 @@
 					},
 					tooltip: {
 						mode: 'index',
-						intersect: false
+						intersect: false,
+						callbacks: {
+							title: () => '' // Remove the title in the tooltip
+						}
 					}
 				},
 				elements: {
@@ -194,10 +203,10 @@
 				scales: {
 					x: {
 						grid: {
-							color: daisyColor('--bc', 10)
+							color: daisyColor('--color-base-content', 10)
 						},
 						ticks: {
-							color: daisyColor('--bc')
+							color: daisyColor('--color-base-content')
 						},
 						display: false
 					},
@@ -206,7 +215,7 @@
 						title: {
 							display: true,
 							text: 'Core Temperature [°C]',
-							color: daisyColor('--bc'),
+							color: daisyColor('--color-base-content'),
 							font: {
 								size: 16,
 								weight: 'bold'
@@ -215,11 +224,11 @@
 						position: 'left',
 						suggestedMin: 20,
 						suggestedMax: 100,
-						grid: { color: daisyColor('--bc', 10) },
+						grid: { color: daisyColor('--color-base-content', 10) },
 						ticks: {
-							color: daisyColor('--bc')
+							color: daisyColor('--color-base-content')
 						},
-						border: { color: daisyColor('--bc', 10) }
+						border: { color: daisyColor('--color-base-content', 10) }
 					}
 				}
 			}

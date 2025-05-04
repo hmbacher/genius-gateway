@@ -257,7 +257,7 @@
 	{#if !page.data.features.security || $user.admin}
 		<div class="bg-base-200 shadow-lg relative grid w-full max-w-2xl self-center overflow-hidden">
 			<div
-				class="min-h-16 flex w-full items-center justify-between space-x-3 p-0 text-xl font-medium"
+				class="min-h-16 flex w-full items-center justify-between space-x-3 px-4 text-xl font-medium"
 			>
 				Change AP Settings
 			</div>
@@ -269,7 +269,7 @@
 					transition:slide|local={{ duration: 300, easing: cubicOut }}
 				>
 					<form
-						class="grid w-full grid-cols-1 content-center gap-x-4 p-0 mb-4 sm:grid-cols-2"
+						class="grid w-full grid-cols-1 content-center gap-x-4 px-4 mb-4 sm:grid-cols-2"
 						onsubmit={preventDefault(handleSubmitAP)}
 						novalidate
 						bind:this={formField}
@@ -279,7 +279,7 @@
 								<span class="label-text">Provide Access Point ...</span>
 							</label>
 							<select
-								class="select select-bordered w-full"
+								class="select"
 								id="apmode"
 								bind:value={apSettings.provision_mode}
 							>

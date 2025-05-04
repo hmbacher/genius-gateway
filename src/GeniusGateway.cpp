@@ -189,12 +189,6 @@ esp_err_t GeniusGateway::_hekatron_analyze_packet_data(uint8_t *packet_data, siz
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (data_length < MIN_HEKATRON_PACKET_LENGTH)
-    {
-        ESP_LOGE(TAG, "Packet length %d bytes is too short for Hekatron packet (>= %d bytes).", data_length, MIN_HEKATRON_PACKET_LENGTH);
-        return ESP_ERR_INVALID_SIZE;
-    }
-
     /* Clear analyzed packet */
     memset(analyzed_packet, 0, sizeof(hekatron_packet_t));
 

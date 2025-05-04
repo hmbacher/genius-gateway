@@ -3,10 +3,12 @@ import type { UserConfig } from 'vite';
 import Icons from 'unplugin-icons/vite';
 import viteLittleFS from './vite-plugin-littlefs';
 import { FileSystemIconLoader } from 'unplugin-icons/loaders'
+import tailwindcss from '@tailwindcss/vite'
 
 const config: UserConfig = {
 	plugins: [
 		sveltekit(),
+		tailwindcss(),
 		Icons({
 			compiler: 'svelte',
 			customCollections: {
