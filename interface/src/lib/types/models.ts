@@ -166,6 +166,7 @@ export type HekatronDevice = {
 	radioModule: HekatronComponent;
 	location: string;
 	alarms: HekatronAlarm[];
+	isAlarming: boolean;
 };
 
 export type HekatronDevices = {
@@ -173,7 +174,7 @@ export type HekatronDevices = {
 };
 
 export type AlarmState = {
-	alarmingDevices: number[];
+	isAlarming: boolean;
 };
 
 export type VisualizerSettings = {
@@ -265,3 +266,19 @@ export type Packet = {
 	generalInfo: GeneralInfo | null;
 	specificInfo: CommissioningInfo | DiscoveryResponseInfo | null;
 };
+
+export type AlarmLine = {
+	id: number;
+	name: string;
+	created: Date;
+	acquisition: number;
+};
+
+export type AlarmLines = {
+	lines: AlarmLine[];
+};
+
+export type CC1101State = {
+	state_success: boolean;
+	state: number;
+}

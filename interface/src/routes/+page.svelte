@@ -1,9 +1,6 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
 	import { user } from '$lib/stores/user';
 	import type { PageData } from './$types';
-	import { socket } from '$lib/stores/socket';
-	import type { AlarmState } from '$lib/types/models';
 	import type { HekatronDevices } from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils';
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
@@ -17,8 +14,6 @@
 	let { data }: Props = $props();
 
 	let hekatronDevices: HekatronDevices = $state({ devices: [] });
-
-	let alarmState: AlarmState = $state({ alarmingDevices: [] });
 
 	async function getHekatronDevices() {
 		try {
@@ -38,49 +33,16 @@
 		return;
 	}
 
-	async function getAlarmState() {
-		try {
-			const response = await fetch('/rest/alarm', {
-				method: 'GET',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				}
-			});
-
-			alarmState = await response.json();
-
-		} catch (error) {
-			console.error('Error:', error);
-		}
-		return;
-	}
-
-	async function getData() {
-		await getHekatronDevices();
-		await getAlarmState();
-
-		return;
-	}
-
-	onMount(() => {
-		socket.on<AlarmState>('alarm', (data) => {
-			alarmState = data;
-		});
-	});
-
-	onDestroy(() => socket.off('alarm'));
-
 </script>
 
 <div >
 	<div class="flex flex-wrap gap-10 px-10 py-10" style="justify-content: center;">
-		{#await getData()}
+		{#await getHekatronDevices()}
 				<Spinner />
 		{:then nothing}
 			{#if hekatronDevices.devices.length > 0}
 				{#each hekatronDevices.devices as device}
-					<DeviceStatusCard detector={device} alerting={alarmState.alarmingDevices.includes(device.smokeDetector.sn)} />
+					<DeviceStatusCard detector={device} />
 				{/each}
 			{:else}
 			<div class="mx-0 my-1 flex flex-col space-y-4 sm:mx-8 sm:my-8">

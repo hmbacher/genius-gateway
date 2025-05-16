@@ -6,12 +6,12 @@
 	import { cubicOut } from 'svelte/easing';
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
-	import type { HekatronDevices } from '$lib/types/models';
+	import type { HekatronDevices, HekatronDevice } from '$lib/types/models';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
-	import EditSomeDetector from './EditSmokeDetector.svelte';
+	import EditSmokeDetector from './EditSmokeDetector.svelte';
 	import AlarmLog from './AlarmLog.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Delete from '~icons/tabler/trash';
@@ -23,8 +23,8 @@
 	import Check from '~icons/tabler/check';
 	import Number from '~icons/tabler/number';
 	import Factory from '~icons/tabler/building-factory-2';
-	import Download from '~icons/tabler/download';
-	import Upload from '~icons/tabler/upload';
+	import Save from '~icons/tabler/device-floppy';
+	import Load from '~icons/tabler/folder-open';
 
 	interface Props {
 		data: PageData;
@@ -63,7 +63,7 @@
 			});
 
 			if (response.status == 200) {
-				notifications.success('Hekatron devices updated.', 3000);
+				notifications.success('Smoke detectors updated.', 3000);
 				hekatronDevices = JSON.parse(await response.text(), jsonDateReviver);
 			} else {
 				notifications.error('User not authorized.', 3000);
@@ -97,7 +97,7 @@
 	}
 
 	function handleEdit(index: number) {
-		modals.open(EditSomeDetector, {
+		modals.open(EditSmokeDetector, {
 			title: 'Edit smoke detector',
 			//hekatronDevice: { ...hekatronDevices.devices[index] }, // Shallow Copy
 			hekatronDevice: $state.snapshot(hekatronDevices.devices[index]), // Deep copy
@@ -110,7 +110,7 @@
 	}
 
 	function handleNewHekatronDevice() {
-		modals.open(EditSomeDetector, {
+		modals.open(EditSmokeDetector, {
 			title: 'Add smoke detector',
 			onSaveHekatronDevice: (newHekatronDevice: HekatronDevice) => {
 				hekatronDevices.devices = [...hekatronDevices.devices, newHekatronDevice];
@@ -128,26 +128,36 @@
 		});
 	}
 
-	let files = $state();
+	let files: any = $state();
 
 	$effect(() => {
 		if (files) {
 			// Note that `files` is of type `FileList`, not an Array:
 			// https://developer.mozilla.org/en-US/docs/Web/API/FileList
-			console.log(files);
-
 			const reader = new FileReader();
 			reader.onload = () => {
-				console.log(reader.result);
-			};
-			reader.onerror = () => {
-				console.log('Error reading the file. Please try again.', 'error');
+				const fileContent = reader.result as string;
+				try {
+					const parsedData = JSON.parse(fileContent, jsonDateReviver) as HekatronDevices;
+					if (parsedData) {
+						hekatronDevices = parsedData;
+						notifications.success('Smoke detectors imported.', 3000);
+						postHekatronDevices(hekatronDevices);
+					} else {
+						notifications.error('Invalid smoke detectors format.', 3000);
+					}
+				} catch (error) {
+					console.error('Error parsing file:', error);
+					notifications.error('Error parsing file.', 3000);
+				}
 			};
 
-			for (const file of files) {
-				console.log(`${file.name}: ${file.size} bytes`);
-				reader.readAsText(file);
-			}
+			reader.onerror = (ev) => {
+				console.log('Error reading the file:', ev);
+				notifications.error('Error reading file.', 3000);
+			};
+
+			reader.readAsText(files[0]);
 		}
 	});
 </script>
@@ -159,129 +169,135 @@
 				<SmokeDetector class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 			{/snippet}
 			{#snippet title()}
-				<span>Installed Devices</span>
+				<span>Installed Genius devices</span>
 			{/snippet}
 			{#await getHekatronDevices()}
 				<Spinner />
 			{:then nothing}
 				<div class="relative w-full overflow-visible">
-					<div
-						class="tooltip tooltip-left absolute -top-14 right-32"
-						data-tip="Add smoke detector"
-					>
-						<button
-							class="btn btn-primary text-primary-content btn-md"
-							onclick={handleNewHekatronDevice}
+					<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
+						<div class="tooltip tooltip-left" data-tip="Add smoke detector">
+							<button
+								class="btn btn-primary text-primary-content btn-md"
+								onclick={handleNewHekatronDevice}
+							>
+								<Add class="h-6 w-6" />
+							</button>
+						</div>
+						<div
+							class="tooltip tooltip-left"
+							data-tip="Load smoke detector configuration from file"
 						>
-							<Add class="h-6 w-6" />
-						</button>
-					</div>
-					<div
-						class="tooltip tooltip-left absolute -top-14 right-16"
-						data-tip="Export smoke detector configuration"
-					>
-						<button
-							class="btn btn-primary text-primary-content btn-md"
-							onclick={() => downloadObjectAsJson(hekatronDevices, 'genius-devices')}
-						>
-							<Download class="h-6 w-6" />
-						</button>
-					</div>
-					<div
-						class="tooltip tooltip-left absolute -top-14 right-0"
-						data-tip="Import smoke detector configuration"
-					>
-						<label
-							for="upload"
-							class="btn btn-primary text-primary-content btn-md"
-						>
-							<Upload class="h-6 w-6" />
-						</label>
-						<input bind:files id="upload" type="file" class="hidden" />
+							<label for="upload" class="btn btn-primary text-primary-content btn-md">
+								<Load class="h-6 w-6" />
+							</label>
+							<input bind:files id="upload" type="file" class="hidden" />
+						</div>
+						<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
+							<button
+								class="btn btn-primary text-primary-content btn-md"
+								onclick={() => downloadObjectAsJson(hekatronDevices, 'genius-devices')}
+							>
+								<Save class="h-6 w-6" />
+							</button>
+						</div>
 					</div>
 
-					<div class="overflow-x-auto" transition:slide|local={{ duration: 300, easing: cubicOut }}>
-						<table class="table w-full table-auto">
-							<thead>
-								<tr class="font-bold">
-									<th align="left">Location</th>
-									<th align="left">Smoke Detector</th>
-									<th align="left">Radio Module</th>
-									<th align="center">Alarms</th>
-									<th align="right" class="pr-8">Manage</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each hekatronDevices.devices as device, index}
-									<tr>
-										<td align="left" class="font-bold">{device.location}</td>
-										<td align="left">
-											<span class="inline-flex items-baseline">
-												<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.smokeDetector.sn}
-											</span><br />
-											<span class="inline-flex items-baseline">
-												<Factory
-													class="lex-shrink-0 mr-2 h-4 w-4"
-												/>{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
-													day: '2-digit',
-													month: '2-digit',
-													year: 'numeric'
-												})}
-											</span>
-										</td>
-										<td align="left">
-											<span class="inline-flex items-baseline">
-												<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.radioModule.sn}
-											</span><br />
-											<span class="inline-flex items-baseline">
-												<Factory
-													class="lex-shrink-0 mr-2 h-4 w-4"
-												/>{device.radioModule.productionDate.toLocaleDateString('de-DE', {
-													day: '2-digit',
-													month: '2-digit',
-													year: 'numeric'
-												})}
-											</span>
-										</td>
-										<td align="center">
-											{device.alarms.length}<br />
-											{#if device.alarms.length > 0}
-												{device.alarms[device.alarms.length - 1].startTime.toLocaleDateString(
-													'de-DE',
-													{ day: '2-digit', month: '2-digit', year: 'numeric' }
-												)}
-											{/if}
-										</td>
-
-										<td align="right">
-											<span class="my-auto inline-flex flex-row space-x-2">
+					{#if hekatronDevices.devices.length === 0}
+						<div class="divider my-0"></div>
+						<div class="flex flex-col items-center justify-center p-4 text-sm text-gray-500">
+							<p class="mb-4 font-semibold">No smoke detectors configured yet.</p>
+							<p class="mx-20 text-center">
+								Click the "+" button to add your first smoke detector.
+							</p>
+						</div>
+					{:else}
+						<div
+							class="overflow-x-auto"
+							transition:slide|local={{ duration: 300, easing: cubicOut }}
+						>
+							<table class="table w-full table-auto">
+								<thead>
+									<tr class="font-bold">
+										<th align="left">Location</th>
+										<th align="left">Smoke Detector</th>
+										<th align="left">Radio Module</th>
+										<th align="center">Alarms</th>
+										<th align="right" class="pr-8">Manage</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each hekatronDevices.devices as device, index}
+										<tr>
+											<td align="left" class="font-bold">{device.location}</td>
+											<td align="left">
+												<span class="inline-flex items-baseline">
+													<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.smokeDetector.sn}
+												</span><br />
+												<span class="inline-flex items-baseline">
+													<Factory
+														class="lex-shrink-0 mr-2 h-4 w-4"
+													/>{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
+														day: '2-digit',
+														month: '2-digit',
+														year: 'numeric'
+													})}
+												</span>
+											</td>
+											<td align="left">
+												<span class="inline-flex items-baseline">
+													<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.radioModule.sn}
+												</span><br />
+												<span class="inline-flex items-baseline">
+													<Factory
+														class="lex-shrink-0 mr-2 h-4 w-4"
+													/>{device.radioModule.productionDate.toLocaleDateString('de-DE', {
+														day: '2-digit',
+														month: '2-digit',
+														year: 'numeric'
+													})}
+												</span>
+											</td>
+											<td align="center">
+												{device.alarms.length}<br />
 												{#if device.alarms.length > 0}
+													{device.alarms[device.alarms.length - 1].startTime.toLocaleDateString(
+														'de-DE',
+														{ day: '2-digit', month: '2-digit', year: 'numeric' }
+													)}
+												{/if}
+											</td>
+
+											<td align="right">
+												<span class="my-auto inline-flex flex-row space-x-2">
+													{#if device.alarms.length > 0}
+														<button
+															class="btn btn-ghost btn-circle btn-xs"
+															onclick={() => handleAlarmLog(index)}
+														>
+															<Logs class="h-6 w-6" />
+														</button>
+													{/if}
 													<button
 														class="btn btn-ghost btn-circle btn-xs"
-														onclick={() => handleAlarmLog(index)}
+														onclick={() => handleEdit(index)}
 													>
-														<Logs class="h-6 w-6" />
+														<Edit class="h-6 w-6" />
 													</button>
-												{/if}
-												<button
-													class="btn btn-ghost btn-circle btn-xs"
-													onclick={() => handleEdit(index)}
-												>
-													<Edit class="h-6 w-6" />
-												</button>
-												<button
-													class="btn btn-ghost btn-circle btn-xs"
-													onclick={() => confirmDelete(index)}
-												>
-													<Delete class="text-error h-6 w-6" />
-												</button>
-											</span>
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
+													<button
+														class="btn btn-ghost btn-circle btn-xs"
+														onclick={() => confirmDelete(index)}
+													>
+														<Delete class="text-error h-6 w-6" />
+													</button>
+												</span>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
 				</div>
 			{/await}
 		</SettingsCard>

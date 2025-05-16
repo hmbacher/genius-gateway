@@ -8,6 +8,8 @@
 #define GATEWAY_MQTT_SETTINGS_FILE "/config/mqtt-settings.json"
 #define GATEWAY_MQTT_SETTINGS_PATH "/rest/mqtt-settings"
 
+#define GATEWAY_MQTT_TOPIC_PREFIX "homeassistant/binary_sensor/genius-"
+
 class GatewayMqttSettings
 {
 public:
@@ -22,7 +24,7 @@ public:
 
     static StateUpdateResult update(JsonObject &root, GatewayMqttSettings &settings)
     {
-        settings.mqttPath = root["mqtt_path"] | SettingValue::format("homeassistant/binary_sensor/smoke/");
+        settings.mqttPath = root["mqtt_path"] | SettingValue::format(GATEWAY_MQTT_TOPIC_PREFIX);
 
         ESP_LOGV(GatewayMqttSettings::TAG, "Gateway MQTT settings updated.");
 

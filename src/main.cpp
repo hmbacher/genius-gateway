@@ -16,10 +16,6 @@
 #include <LightMqttSettingsService.h>
 #include <LightStateService.h>
 #include <PsychicHttpServer.h>
-#include <GatewayDevicesService.h>
-#include <GatewaySettingsService.h>
-#include <AlarmStateService.h>
-#include <WebSocketLogger.h>
 #include <GeniusGateway.h>
 
 #define SERIAL_BAUD_RATE 115200

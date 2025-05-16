@@ -143,7 +143,7 @@ extern "C" {
 #define CC1101_DEFVAL_MDMCFG0		0x99    // Modem Configuration
 #define CC1101_DEFVAL_DEVIATN		0x35	// Modem Deviation Setting
 #define CC1101_DEFVAL_MCSM2			0x07	// Main Radio Control State Machine Configuration
-#define CC1101_DEFVAL_MCSM1			0x3C	// Main Radio Control State Machine Configuration
+#define CC1101_DEFVAL_MCSM1			0x3D	// Main Radio Control State Machine Configuration	// CCA: If RSSI below threshold unless currently receiving a packet, RX->RX, TX->FSTXON
 #define CC1101_DEFVAL_MCSM0			0x18	// Main Radio Control State Machine Configuration
 #define CC1101_DEFVAL_FOCCFG		0x16	// Frequency Offset Compensation Configuration
 #define CC1101_DEFVAL_BSCFG			0x1C    // Bit Synchronization Configuration
@@ -169,13 +169,52 @@ extern "C" {
 #define CC1101_DEFVAL_TEST0			0x09	// Various Test Settings
 
 /**
+ * CC1101 Bits
+ */
+#define RXFIFO_OVERFLOW				0x80	// RX FIFO overflow
+
+/**
+ * CC1101 MARC STATES
+ */
+#define CC1101_SLEEP				0x00
+#define CC1101_IDLE					0x01
+#define CC1101_XOFF					0x02
+#define CC1101_MANCAL_VCOON_MC		0x03
+#define CC1101_MANCAL_REGON_MC		0x04
+#define CC1101_MANCAL				0x05
+#define CC1101_FS_WAKEUP_VCOON		0x06
+#define CC1101_FS_WAKEUP_REGON		0x07
+#define CC1101_CALIBRATE_STARTCAL	0x08
+#define CC1101_SETTLING_BWBOOST		0x09
+#define CC1101_SETTLING_FS_LOCK		0x0A
+#define CC1101_SETTLING_IFADCON		0x0B
+#define CC1101_CALIBRATE_ENDCAL		0x0C
+#define CC1101_RX					0x0D
+#define CC1101_RX_END				0x0E
+#define CC1101_RX_RST				0x0F
+#define CC1101_TXRX_SETTLING_SWITCH	0x10
+#define CC1101_RXFIFO_OVERFLOW		0x11
+#define CC1101_FSTXON				0x12
+#define CC1101_TX					0x13
+#define CC1101_TX_END				0x14
+#define CC1101_RXTX_SETTLING_SWITCH	0x15
+#define TXFIFO_UNDERFLOW			0x16
+
+
+/**
  * Buffers and data lengths
  */
-#define CC1101_RX_FIFO_SIZE					64
+#define CC1101_FIFO_SIZE					64
 #define NUM_LENGTH_BYTES					1
 #define NUM_STATUS_BYTES					2
 #define NUM_ADDITIONAL_BYTES				(NUM_LENGTH_BYTES + NUM_STATUS_BYTES)
-#define CC1101_PACKET_LEN					(CC1101_RX_FIFO_SIZE - NUM_ADDITIONAL_BYTES)
+#define CC1101_MAX_PACKET_LEN				(CC1101_FIFO_SIZE - NUM_ADDITIONAL_BYTES)
+
+typedef enum cc1101_mode {
+	CCM_IDLE = 0,
+	CCM_RX,
+	CCM_TX
+} cc1101_mode_t;
 
 /**
  * CC1101 data packet class
@@ -185,7 +224,7 @@ typedef struct cc1101_packet {
 	uint64_t timestamp;
 	/* Data buffer containing the original CC1101 RX fifo content
 	 * including length byte and status bytes (lqi, rssi, CRC) */
-	unsigned char rx_buffer[CC1101_RX_FIFO_SIZE];
+	unsigned char buffer[CC1101_FIFO_SIZE];
 	/* Pointer to the actual packet data */
 	unsigned char* data;
 	/* Length of the packet data */
@@ -199,7 +238,26 @@ typedef struct cc1101_packet {
  *
  * @param gpio_isr_handler ISR handler to be executed on a fully received packet
  */
-esp_err_t cc1101_init(gpio_isr_t gpio_isr_handler);
+esp_err_t cc1101_init(void (*rx_callback)());
+
+
+/**
+ * @brief Set CC1101 to RX mode
+ * 
+ * Strobes the RX command strobe SRX to CC1101. This will set the CC1101 to RX mode.
+ * 
+ * @return ESP_OK if successful, ESP_FAIL otherwise
+ */
+esp_err_t cc1101_set_rx_state(void);
+
+/**
+ * @brief Set CC1101 to TX mode
+ * 
+ * Strobes the TX command strobe STX to CC1101. This will set the CC1101 to TX mode.
+ * 
+ * @return ESP_OK if successful, ESP_FAIL otherwise
+ */
+esp_err_t cc1101_set_tx_state(void);
 	
 /**
  * @brief Get data received by CC1101.
@@ -208,6 +266,40 @@ esp_err_t cc1101_init(gpio_isr_t gpio_isr_handler);
  * @return ESP_OK if successful, ESP_FAIL otherwise
  */
 esp_err_t cc1101_receive_data(cc1101_packet_t *packet);
+
+/**
+ * @brief Send data via CC1101.
+ * @details Copies the data to TX FIFO.
+ * 
+ * @param tx_data Data to be sent
+ * @param length Length of the data to be sent
+ * 
+ * @return ESP_OK if successful, ESP_ERR_INVALID_ARG if tx_data is NULL, ESP_ERR_INVALID_SIZE if length is invalid, ESP_FAIL otherwise
+ */
+esp_err_t cc1101_send_data(unsigned char *tx_data, size_t length);
+
+/**
+ * @brief Check if RX FIFO has overflowed. If so, flush RX FIFO and set CC1101 to RX state.
+ * 
+ * @return ESP_OK if RX FIFO is empty, ESP_FAIL otherwise
+ */
+esp_err_t cc1101_check_rx(void);
+
+
+/**
+ * @brief Get the current mode of CC1101.
+ * 
+ * @return Current mode of CC1101
+ */
+cc1101_mode_t cc1101_get_mode(void);
+
+/**
+ * @brief Get the current control state machine state (MARCSTATE).
+ * @param[out] state Pointer to store the current state
+ * 
+ * @return ESP_OK if successful, otherwise an esp_err_t error code
+ */
+esp_err_t cc1101_get_state(uint8_t *state);
 
 #ifdef __cplusplus
 }

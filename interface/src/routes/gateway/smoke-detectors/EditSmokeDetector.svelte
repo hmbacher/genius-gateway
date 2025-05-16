@@ -2,6 +2,8 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { modals } from 'svelte-modals';
 	import { fly } from 'svelte/transition';
+	import { slide } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
 	import DateInput from '$lib/components/DateInput.svelte';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
@@ -188,15 +190,19 @@
 							bind:date={hekatronDevice.smokeDetector.productionDate}
 							id="smokeDetectorProductionDate"
 						/>
-						<label for="smokeDetectorProductionDate" class="label">
-							<span
-								class="label-text-alt text-error {formErrors.smokeDetector.productionDate
-									? ''
-									: 'hidden'}"
-							>
-								Please set a valid date.
-							</span>
-						</label>
+						{#if formErrors.smokeDetector.productionDate}
+							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+								<label for="smokeDetectorProductionDate" class="label">
+									<span
+										class="label-text-alt text-error {formErrors.smokeDetector.productionDate
+											? ''
+											: 'hidden'}"
+									>
+										Please set a valid date.
+									</span>
+								</label>
+							</div>
+						{/if}
 					</div>
 
 					<div class="flex-1">
@@ -211,12 +217,18 @@
 							bind:value={hekatronDevice.smokeDetector.sn}
 							id="smokeDetectorSN"
 						/>
-						<label for="smokeDetectorSN" class="label">
-							<span class="label-text-alt text-error {formErrors.smokeDetector.sn ? '' : 'hidden'}">
-								The serial number must be a valid number between <em>{minSN}</em> and
-								<em>{maxSN}</em>.
-							</span>
-						</label>
+						{#if formErrors.smokeDetector.sn}
+							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+								<label for="smokeDetectorSN" class="label">
+									<span
+										class="label-text-alt text-error {formErrors.smokeDetector.sn ? '' : 'hidden'}"
+									>
+										The serial number must be a valid number between <em>{minSN}</em> and
+										<em>{maxSN}</em>.
+									</span>
+								</label>
+							</div>
+						{/if}
 					</div>
 				</div>
 
@@ -261,15 +273,19 @@
 							bind:date={hekatronDevice.radioModule.productionDate}
 							id="radioModuleProductionDate"
 						/>
-						<label for="radioModuleProductionDate" class="label">
-							<span
-								class="label-text-alt text-error {formErrors.radioModule.productionDate
-									? ''
-									: 'hidden'}"
-							>
-								Please set a valid date.
-							</span>
-						</label>
+						{#if formErrors.radioModule.productionDate}
+							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+								<label for="radioModuleProductionDate" class="label">
+									<span
+										class="label-text-alt text-error {formErrors.radioModule.productionDate
+											? ''
+											: 'hidden'}"
+									>
+										Please set a valid date.
+									</span>
+								</label>
+							</div>
+						{/if}
 					</div>
 
 					<div class="flex-1">
@@ -284,12 +300,19 @@
 							bind:value={hekatronDevice.radioModule.sn}
 							id="radioModuleSN"
 						/>
-						<label for="radioModuleSN" class="label">
-							<span class="label-text-alt text-error {formErrors.radioModule.sn ? '' : 'hidden'}">
-								The radio module serial number must be a valid number between <em>{minSN}</em> and
-								<em>{maxSN}</em>.
-							</span>
-						</label>
+						{#if formErrors.radioModule.sn}
+							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+								<label for="radioModuleSN" class="label">
+									<span
+										class="label-text-alt text-error {formErrors.radioModule.sn ? '' : 'hidden'}"
+									>
+										The radio module serial number must be a valid number between <em>{minSN}</em>
+										and
+										<em>{maxSN}</em>.
+									</span>
+								</label>
+							</div>
+						{/if}
 					</div>
 				</div>
 
@@ -300,22 +323,29 @@
 					<span class="text-xl font-semibold">Location</span>
 				</span>
 
-				<label class="label" for="location">
-					<span class="label-text text-md">Mounting location (e.g. Living room)</span>
-				</label>
-				<input
-					type="text"
-					min="1"
-					max="30"
-					class="input input-bordered invalid:border-error w-full invalid:border-2"
-					bind:value={hekatronDevice.location}
-					id="location"
-				/>
-				<label for="location" class="label">
-					<span class="label-text-alt text-error {formErrors.location ? '' : 'hidden'}">
-						Please set a location of length between <em>{minLocationLength}</em> and <em>{maxLocationLength}</em> characters.
-					</span>
-				</label>
+				<div>
+					<label class="label" for="location">
+						<span class="label-text text-md">Mounting location (e.g. Living room)</span>
+					</label>
+					<input
+						type="text"
+						min="1"
+						max="30"
+						class="input input-bordered invalid:border-error w-full invalid:border-2"
+						bind:value={hekatronDevice.location}
+						id="location"
+					/>
+					{#if formErrors.location}
+						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+							<label for="location" class="label">
+								<span class="label-text-alt text-error {formErrors.location ? '' : 'hidden'}">
+									Please set a location of length between <em>{minLocationLength}</em> and
+									<em>{maxLocationLength}</em> characters.
+								</span>
+							</label>
+						</div>
+					{/if}	
+				</div>
 
 				<div class="divider my-2"></div>
 				<div class="flex justify-end gap-2">

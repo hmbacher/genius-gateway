@@ -1,15 +1,422 @@
 <script lang="ts">
+	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
+	import { modals } from 'svelte-modals';
+	import { slide } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
 	import { user } from '$lib/stores/user';
-	import Info from '~icons/tabler/info-circle';
+	import { notifications } from '$lib/components/toasts/notifications';
+	import type { AlarmLines, AlarmLine } from '$lib/types/models';
+	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils';
+	import SettingsCard from '$lib/components/SettingsCard.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import EditAlarmLine from './EditAlarmLine.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
+	import Delete from '~icons/tabler/trash';
+	import Add from '~icons/tabler/circle-plus';
+	import Edit from '~icons/tabler/pencil';
+	import Ring from '~icons/tabler/topology-ring-2';
+	import Cancel from '~icons/tabler/x';
+	import Check from '~icons/tabler/check';
+	import Save from '~icons/tabler/device-floppy';
+	import Load from '~icons/tabler/folder-open';
+	import Test from '~icons/tabler/topology-star-3';
+	import Flame from '~icons/tabler/flame-filled';
+	import FlameOff from '~icons/tabler/flame-off';
+	import Manual from '~icons/tabler/forms';
+	import Automatic from '~icons/tabler/access-point';
+
+	const BROADCAST_ID = 0xffffffff; // 4294967295
+
+	interface Props {
+		data: PageData;
+	}
+
+	let { data }: Props = $props();
+
+	let alarmLines: AlarmLines = $state({ lines: [] });
+
+	async function getAlarmLines() {
+		try {
+			const response = await fetch('/rest/alarm-lines', {
+				method: 'GET',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+
+			alarmLines = JSON.parse(await response.text(), jsonDateReviver);
+		} catch (error) {
+			console.error('Error:', error);
+		}
+		return;
+	}
+
+	async function postAlarmLines(lines: AlarmLines) {
+		try {
+			const response = await fetch('/rest/alarm-lines', {
+				method: 'POST',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(lines)
+			});
+
+			if (response.status == 200) {
+				notifications.success('Alarm lines updated.', 3000);
+				alarmLines = JSON.parse(await response.text(), jsonDateReviver);
+			} else {
+				notifications.error('User not authorized.', 3000);
+			}
+		} catch (error) {
+			console.error('Error:', error);
+		}
+		return;
+	}
+
+	async function postAlarmLineAction(line_id: number, action: string): Promise<boolean> {
+		let failed: boolean = true;
+
+		try {
+			const response = await fetch('/rest/alarm-lines/do', {
+				method: 'POST',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					line_id: line_id,
+					action: action
+				})
+			});
+
+			if (response.status == 200) {
+				let data = await response.json();
+				if ('success' in data && data.success === true) {
+					failed = false;
+				}
+			}
+		} catch (error) {
+			console.error('Error:', error);
+		}
+
+		return !failed;
+	}
+
+	function confirmDelete(index: number) {
+		modals.open(ConfirmDialog, {
+			title: 'Confirm deletion',
+			message:
+				'Are you sure you want to delete the alarm line "' +
+				alarmLines.lines[index].name +
+				' (' +
+				alarmLines.lines[index].id +
+				')"?',
+			labels: {
+				cancel: { label: 'Abort', icon: Cancel },
+				confirm: { label: 'Yes', icon: Check }
+			},
+			onConfirm: () => {
+				alarmLines.lines.splice(index, 1);
+				alarmLines = alarmLines;
+				modals.close();
+				postAlarmLines(alarmLines);
+			}
+		});
+	}
+
+	function handleEdit(index: number) {
+		modals.open(EditAlarmLine, {
+			title: 'Edit alarm line',
+			alarmLine: $state.snapshot(alarmLines.lines[index]), // Deep copy
+			existingAlarmLines: alarmLines.lines,
+			onSaveAlarmLine: (editedAlarmLine: AlarmLine) => {
+				alarmLines.lines[index] = editedAlarmLine;
+				modals.close();
+				postAlarmLines(alarmLines);
+			}
+		});
+	}
+
+	function handleNewAlarmLine() {
+		modals.open(EditAlarmLine, {
+			title: 'Add alarm line',
+			existingAlarmLines: alarmLines.lines,
+			onSaveAlarmLine: (newAlarmLine: AlarmLine) => {
+				alarmLines.lines = [...alarmLines.lines, newAlarmLine];
+				modals.close();
+				postAlarmLines(alarmLines);
+			}
+		});
+		//
+	}
+
+	function handleLineTest(index: number) {
+		modals.open(ConfirmDialog, {
+			title: 'Confirm line test',
+			message:
+				'Are you sure you want to trigger a line test for the alarm line "' +
+				alarmLines.lines[index].name +
+				' (' +
+				alarmLines.lines[index].id +
+				')"?',
+			labels: {
+				cancel: { label: 'Abort', icon: Cancel },
+				confirm: { label: 'Yes', icon: Check }
+			},
+			onConfirm: async () => {
+				modals.close();
+				let success = await postAlarmLineAction(alarmLines.lines[index].id, 'line-test');
+				if (success) {
+					notifications.success('Triggered line test.', 3000);
+				} else {
+					notifications.error('Failed to trigger line test.', 3000);
+				}
+			}
+		});
+	}
+
+	function handleFireAlarmStart(index: number) {
+		modals.open(ConfirmDialog, {
+			title: 'Confirm fire alarm',
+			message:
+				'Are you sure you want to trigger a fire alarm for the alarm line "' +
+				alarmLines.lines[index].name +
+				' (' +
+				alarmLines.lines[index].id +
+				')"?',
+			labels: {
+				cancel: { label: 'Abort', icon: Cancel },
+				confirm: { label: 'Yes', icon: Check }
+			},
+			onConfirm: async () => {
+				modals.close();
+				let success = await postAlarmLineAction(alarmLines.lines[index].id, 'fire-alarm-start');
+
+				if (success) {
+					notifications.success('Triggered fire alarm.', 3000);
+				} else {
+					notifications.error('Failed to trigger fire alarm.', 3000);
+				}
+			}
+		});
+	}
+
+	async function handleFireAlarmStop(index: number) {
+		let success = await postAlarmLineAction(alarmLines.lines[index].id, 'fire-alarm-stop');
+		if (success) {
+			notifications.success('Stopped fire alarm.', 3000);
+		} else {
+			notifications.error('Failed to stop fire alarm.', 3000);
+		}
+	}
+
+	let files: any = $state();
+
+	$effect(() => {
+		if (files) {
+			// Note that `files` is of type `FileList`, not an Array:
+			// https://developer.mozilla.org/en-US/docs/Web/API/FileList
+			const reader = new FileReader();
+			reader.onload = () => {
+				const fileContent = reader.result as string;
+				try {
+					const parsedData = JSON.parse(fileContent, jsonDateReviver) as AlarmLines;
+					if (parsedData) {
+						alarmLines = parsedData;
+						notifications.success('Alarm lines imported.', 3000);
+						postAlarmLines(alarmLines);
+					} else {
+						notifications.error('Invalid alarm lines format.', 3000);
+					}
+				} catch (error) {
+					console.error('Error parsing file:', error);
+					notifications.error('Error parsing file.', 3000);
+				}
+			};
+
+			reader.onerror = (ev) => {
+				console.log('Error reading the file:', ev);
+				notifications.error('Error reading file.', 3000);
+			};
+
+			reader.readAsText(files[0]);
+		}
+	});
 </script>
 
 {#if $user.admin}
 	<div class="mx-0 my-1 flex flex-col space-y-4 sm:mx-8 sm:my-8">
-		<div class="alert alert-info">
-			<Info class="h-6 w-6 shrink-0 stroke-current" />
-			<div>This planned feature is not yet available.</div>
-		</div>
+		<SettingsCard collapsible={false} maxwidth="max-w-3xl">
+			{#snippet icon()}
+				<Ring class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+			{/snippet}
+			{#snippet title()}
+				<span>Alarm Lines</span>
+			{/snippet}
+			{#await getAlarmLines()}
+				<Spinner />
+			{:then nothing}
+				<div class="relative w-full overflow-visible">
+					<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
+						<div class="tooltip tooltip-left" data-tip="Add smoke detector">
+							<button
+								class="btn btn-primary text-primary-content btn-md"
+								onclick={handleNewAlarmLine}
+							>
+								<Add class="h-6 w-6" />
+							</button>
+						</div>
+						<div
+							class="tooltip tooltip-left"
+							data-tip="Load smoke detector configuration from file"
+						>
+							<label for="upload" class="btn btn-primary text-primary-content btn-md">
+								<Load class="h-6 w-6" />
+							</label>
+							<input bind:files id="upload" type="file" class="hidden" />
+						</div>
+						<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
+							<button
+								class="btn btn-primary text-primary-content btn-md"
+								onclick={() => downloadObjectAsJson(alarmLines, 'alarm-lines')}
+							>
+								<Save class="h-6 w-6" />
+							</button>
+						</div>
+					</div>
+
+					{#if alarmLines.lines.length === 0}
+						<div class="divider my-0"></div>
+						<div class="flex flex-col items-center justify-center p-4 text-sm text-gray-500">
+							<p class="mb-4 font-semibold">No alarm lines registered yet.</p>
+							<p class="mx-20 text-center">
+								Click the "+" button to manually add an alarm line or start the comissioning
+								procedure of your smoke detectors.
+							</p>
+						</div>
+					{:else}
+						<div
+							class="overflow-x-auto"
+							transition:slide|local={{ duration: 300, easing: cubicOut }}
+						>
+							<table class="table w-full table-auto">
+								<thead>
+									<tr class="font-bold">
+										<th align="left">ID</th>
+										<th align="left">Name</th>
+										<th align="left">Registered</th>
+										<th align="center">Acquisition</th>
+										<th align="right" class="pr-8">Manage</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each alarmLines.lines as line, index}
+										<tr>
+											<td
+												align="left"
+												class="{line.id === BROADCAST_ID ? 'text-base-content/50' : ''} "
+												>{line.id}</td
+											>
+											<td
+												align="left"
+												class="{line.id === BROADCAST_ID ? 'text-base-content/50' : ''} "
+												>{line.name}</td
+											>
+											<td align="left"
+												>{line.id != BROADCAST_ID
+													? line.created.toLocaleString('de-DE', {
+															day: '2-digit',
+															month: '2-digit',
+															year: 'numeric',
+															hour: '2-digit',
+															minute: '2-digit',
+															second: '2-digit'
+														})
+													: ''}
+											</td>
+											<td align="center">
+												{#if line.id != BROADCAST_ID}
+													{#if line.acquisition === 0}
+														<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
+															<Manual class="h-6 w-6" />
+														</div>
+													{:else if line.acquisition === 1}
+														<div
+															class="tooltip tooltip-top"
+															data-tip="Alarm line extracted from Genius radio packe."
+														>
+															<Automatic class="h-6 w-6" />
+														</div>
+													{/if}
+												{/if}
+											</td>
+
+											<td align="right">
+												<span class="my-auto inline-flex flex-row space-x-2">
+													<div class="tooltip tooltip-left" data-tip="Edit alarm line">
+														<button
+															class="btn btn-ghost btn-circle btn-xs"
+															onclick={() => handleEdit(index)}
+															disabled={line.id === BROADCAST_ID}
+														>
+															<Edit class="h-6 w-6" />
+														</button>
+													</div>
+													<div class="tooltip tooltip-left" data-tip="Delete alarm line">
+														<button
+															class="btn btn-ghost btn-circle btn-xs"
+															onclick={() => confirmDelete(index)}
+															disabled={line.id === BROADCAST_ID}
+														>
+															<Delete class="h-6 w-6" />
+														</button>
+													</div>
+													<div class="tooltip tooltip-left" data-tip="Trigger line test">
+														<button
+															class="btn btn-ghost btn-circle btn-xs"
+															onclick={() => handleLineTest(index)}
+															disabled={line.id === BROADCAST_ID}
+														>
+															<Test class="h-6 w-6" />
+														</button>
+													</div>
+													<div
+														class="tooltip tooltip-left tooltip-error"
+														data-tip="Trigger fire alarm"
+													>
+														<button
+															class="btn btn-ghost btn-circle btn-xs"
+															onclick={() => handleFireAlarmStart(index)}
+															disabled={line.id === BROADCAST_ID}
+														>
+															<Flame
+																class="h-6 w-6 {line.id != BROADCAST_ID ? 'text-error' : ''}"
+															/>
+														</button>
+													</div>
+													<div class="tooltip tooltip-left" data-tip="Stop fire alarm">
+														<button
+															class="btn btn-ghost btn-circle btn-xs"
+															onclick={() => handleFireAlarmStop(index)}
+															disabled={line.id === BROADCAST_ID}
+														>
+															<FlameOff class="h-6 w-6" />
+														</button>
+													</div>
+												</span>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				</div>
+			{/await}
+		</SettingsCard>
 	</div>
 {:else}
 	{goto('/')}

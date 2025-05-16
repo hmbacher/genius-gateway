@@ -2,6 +2,6 @@ import type { PageLoad } from './$types';
 
 export const load = (async () => {
     return {
-        title: 'Fire Alarm'
+        title: 'CC1101',
     };
 }) satisfies PageLoad;

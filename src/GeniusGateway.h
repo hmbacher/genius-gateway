@@ -4,9 +4,10 @@
 #include <WebSocketLogger.h>
 #include <VisualizerSettingsService.h>
 #include <GatewayDevicesService.h>
+#include <AlarmLinesService.h>
 #include <GatewaySettingsService.h>
-#include <AlarmStateService.h>
 #include <GatewayMqttSettingsService.h>
+#include <CC1101Controller.h>
 #include <cc1101.h>
 
 // GPIO to use for testing purposes
@@ -41,7 +42,8 @@
 #define DATAPOS_ALARM_SILENCE_FLAG 30
 #define DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID 32
 
-#define EXTRACT(buffer, pos) __ntohl(*(uint32_t *)&buffer[pos])
+#define EXTRACT32(buffer, pos) (__ntohl(*(uint32_t *)&buffer[pos]))
+#define EXTRACT32_REV(buffer, pos) (*(uint32_t *)&buffer[pos])
 
 /**
  * Index within the target task's array of task notifications to use
@@ -56,6 +58,8 @@
  * NOTE: If the value is set to 'portMAX_DELAY', the task will block indefinitely.
  */
 #define RX_TASK_MAX_WAITING_TICKS portMAX_DELAY
+
+#define GATEWAY_EVENT_ALARM "alarm"
 
 typedef enum hekatron_packet_type
 {
@@ -90,15 +94,17 @@ private:
   static constexpr const char *TAG = "GeniusGateway";
 
   GatewayDevicesService _gatewayDevices;
+  AlarmLinesService _alarmLines;
   GatewaySettingsService _gatewaySettings;
   GatewayMqttSettingsService _gatewayMqttSettingsService;
-  AlarmStateService _alarmState;
   WebSocketLogger _webSocketLogger;
   VisualizerSettingsService _visualizerSettingsService;
+  CC1101Controller _cc1101Controller;
   PsychicMqttClient *_mqttClient;
+  EventSocket *_eventSocket;
+  FeaturesService *_featureService;
 
-  void mqttConfig();
-  void mqttPublishAlarmState();
+  void _mqttPublishConfig();
 
   void _rx_packets();
   static void _rx_packetsImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_rx_packets(); }
@@ -113,4 +119,11 @@ private:
    * @param analyzed_packet Pointer to the analyzed packet
    */
   esp_err_t _hekatron_analyze_packet_data(uint8_t *packet_data, size_t data_length, hekatron_packet_t *analyzed_packet);
+
+
+    void _loop();
+    static void _loopImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_loop(); }
+
+    void _emitAlarmState();
+
 };

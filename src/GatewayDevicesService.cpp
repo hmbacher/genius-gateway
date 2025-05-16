@@ -53,3 +53,82 @@ void GatewayDevicesService::begin()
     //     HekatronComponent<HekatronRadioModule>(HekatronRadioModule::HRM_FM_BASIS_X, 2198163774, 1448492400),        // 2015-11-26T00:00:00.000Z
     //     "Schlafzimmer"));
 }
+
+void GatewayDevicesService::setAlarm(uint32_t detectorSN)
+{
+    bool updated = false;
+
+    beginTransaction();
+    for (auto &device : _state.devices)
+    {
+        if (device.smokeDetector.sn == detectorSN)
+        {
+            if (!device.isAlarming)
+            {
+                device.isAlarming = true;
+                hekatron_device_alarm_t alarm = {.startTime = time(nullptr),    // seconds precision
+                                                 .endTime = 0,
+                                                 .endingReason = HAE_ALARM_ACTIVE};
+                device.alarms.push_back(alarm);
+
+                _isAlarming = true;
+                updated = true;
+
+                ESP_LOGV(HekatronDevices::TAG, "Alarm started for smoke detector with SN '%lu'.", detectorSN);
+            }
+            break;
+        }
+    }
+    endTransaction();
+
+    if (updated)
+        callUpdateHandlers(GATEWAY_ORIGIN_ID);
+}
+
+void GatewayDevicesService::resetAlarm(uint32_t detectorSN, hekatron_alarm_ending_t endingReason)
+{
+    bool updated = false;
+
+    beginTransaction();
+    for (auto &device : _state.devices)
+    {
+        if (device.smokeDetector.sn == detectorSN)
+        {
+            if (device.isAlarming)
+            {
+                device.isAlarming = false;
+                device.alarms.back().endTime = time(nullptr);   // seconds precision
+                device.alarms.back().endingReason = endingReason;
+
+                updated = true;
+
+                ESP_LOGV(HekatronDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", detectorSN);
+            }
+            break;
+        }
+    }
+    endTransaction();
+
+    if (updated) {
+        updateAlarmState();
+        callUpdateHandlers(GATEWAY_ORIGIN_ID);
+    }
+}
+
+void GatewayDevicesService::updateAlarmState()
+{
+    bool alarming = false;
+
+    beginTransaction(); 
+    for (auto &device : _state.devices)
+    {
+        if (device.isAlarming)
+        {
+            alarming = true;
+            break;
+        }
+    }
+    _isAlarming = alarming;
+
+    endTransaction();
+}

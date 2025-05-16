@@ -15,10 +15,9 @@
 
 	interface Props {
 		detector: HekatronDevice;
-		alerting: boolean;
 	}
 
-	let { detector, alerting }: Props = $props();
+	let { detector }: Props = $props();
 
 	async function postMute() {
 		const response = await fetch('/rest/alarm-mute', {
@@ -31,8 +30,8 @@
 
 	function handleMute() {
 		modals.open(ConfirmDialog, {
-			title: 'Confirm Alarm Mute',
-			message: 'Alarming via MQTT will be stopped. Are you sure you want to continue?',
+			title: 'Stop alarming',
+			message: 'Are you sure you want to stop alarming?',
 			labels: {
 				cancel: { label: 'Abort', icon: Cancel },
 				confirm: { label: 'Mute', icon: Mute }
@@ -46,13 +45,13 @@
 </script>
 
 <div
-	class="bg-base-200 rounded-box shadow-primary/50 relative max-w-120 overflow-hidden shadow-lg p-5"
+	class="rounded-box shadow-primary/50 relative max-w-120 overflow-hidden shadow-lg p-5 {detector.isAlarming ? 'bg-error' : 'bg-base-200'}"
 >
 	<div class="flex">
 		<div class="shrink-0">
 			<IconDetector class="h-20 w-24 text-base-content/60" />
 		</div>
-		{#if alerting}
+		{#if detector.isAlarming}
 			<div class="grow flex items-center justify-end">
 				<button class="btn btn-circle btn-lg" onclick={handleMute}>
 					<IconAlarmOff class="h-12 w-12 text-error" />
@@ -61,7 +60,7 @@
 		{/if}
 	</div>
 
-	{#if !alerting}
+	{#if !detector.isAlarming}
 		<div class="absolute top-4 right-4">
 			<IconHeart class="h-6 w-6 text-success" />
 		</div>

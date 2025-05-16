@@ -4,7 +4,8 @@
 	import Discord from '~icons/tabler/brand-discord';
 	import Heartbeat from '~icons/tabler/heartbeat';
 	import Users from '~icons/tabler/users';
-	import Settings from '~icons/tabler/cpu';
+	import CPU from '~icons/tabler/cpu';
+	import Settings from '~icons/tabler/adjustments';
 	import Health from '~icons/tabler/stethoscope';
 	import Update from '~icons/tabler/refresh-alert';
 	import WiFi from '~icons/tabler/wifi';
@@ -14,7 +15,6 @@
 	import Affiliate from '~icons/tabler/affiliate';
 	import Detector from '~icons/tabler/alarm-smoke';
 	import Analyze from '~icons/tabler/zoom-scan';
-	import Flame from '~icons/tabler/flame';
 	import Ring from '~icons/tabler/topology-ring-2';
 	import Avatar from '~icons/tabler/user-circle';
 	import Logout from '~icons/tabler/logout';
@@ -67,7 +67,7 @@
 					feature: true
 				},
 				{
-					title: 'Genius Smoke Detectors',
+					title: 'Smoke Detectors',
 					icon: Detector,
 					href: '/gateway/smoke-detectors',
 					feature: true
@@ -85,10 +85,10 @@
 					feature: true
 				},
 				{
-					title: 'Fire Alarm',
-					icon: Flame,
-					href: '/gateway/fire-alarm',
-					feature: true
+					title: 'CC1101',
+					icon: CPU,
+					href: '/gateway/cc1101',
+					feature: page.data.features.cc1101_controller && $user.admin
 				}
 			]
 		},
@@ -138,7 +138,7 @@
 		},
 		{
 			title: 'System',
-			icon: Settings,
+			icon: CPU,
 			feature: true,
 			submenu: [
 				{
@@ -192,7 +192,7 @@
 		<img src={logo} alt="Logo" class="h-12 w-12" />
 		<h1 class="px-4 text-2xl font-bold">{page.data.appName}</h1>
 	</a>
-	<ul class="menu rounded-box menu-vertical flex-nowrap overflow-y-auto">
+	<ul class="menu w-full rounded-box menu-vertical flex-nowrap overflow-y-auto">
 		{#each menuItems as menuItem, i (menuItem.title)}
 			{#if menuItem.feature}
 				<li>

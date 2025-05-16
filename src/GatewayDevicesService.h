@@ -16,9 +16,12 @@
 #define GATEWAY_MAX_DEVICES 50
 #define GATEWAY_MAX_ALARMS 100
 
+#define GATEWAY_ORIGIN_ID "devices"
+
 typedef enum hekatron_alarm_ending
 {
-    HAE_MIN = -1,              // Minimum value (for enum range checks)
+    HAE_MIN = -2,              // Minimum value (for enum range checks)
+    HAE_ALARM_ACTIVE = -1,     // Alarm is currently active
     HAE_BY_SMOKE_DETECTOR = 0, // Alarm was ended by smoke detector
     HAE_BY_MANUAL_RESET,       // Alarm was ended by manual reset
     HAE_MAX                    // Maximum value (for enum range checks)
@@ -109,6 +112,7 @@ public:
     HekatronComponent<HekatronRadioModule> radioModule;
     String location;
     std::vector<hekatron_device_alarm_t> alarms;
+    bool isAlarming = false;
 };
 
 class HekatronDevices
@@ -184,7 +188,7 @@ public:
 
                 hekatronDevices.devices.push_back(newDevice);
 
-                ESP_LOGV(HekatronDevices::TAG, "Added Hekatron device with SN '%d'.", hekatronDevices.devices.back().smokeDetector.sn);
+                ESP_LOGV(HekatronDevices::TAG, "Added smoke detector with SN '%lu'.", hekatronDevices.devices.back().smokeDetector.sn);
 
                 i++;
             }
@@ -208,9 +212,21 @@ public:
         return _state.devices;
     }
 
+    void setAlarm(uint32_t detectorSN);
+
+    void resetAlarm(uint32_t detectorSN, hekatron_alarm_ending_t endingReason);
+
+    bool isAlarming()
+    {
+        return _isAlarming;
+    }
+
 private:
     HttpEndpoint<HekatronDevices> _httpEndpoint;
     FSPersistence<HekatronDevices> _fsPersistence;
+    bool _isAlarming = false;
+
+    void updateAlarmState();
 };
 
 #endif // GatewayDevicesService_h

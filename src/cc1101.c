@@ -39,7 +39,13 @@ static const char *TAG = "cc1101";
 /* Read CC1101 status register */
 #define READ_STATUS_REG(regAddr, result) cc1101_read_reg(regAddr, CC1101_STATUS_REGISTER, result)
 
+#define DELAY_US(us) esp_rom_delay_us(us)
+
+static cc1101_mode_t _mode = CCM_IDLE;
+
 static spi_device_handle_t _handle;
+
+static void (*_rx_callback)() = NULL;
 
 static const uint8_t defaultCfg[] = {
     CC1101_DEFVAL_IOCFG2,
@@ -95,6 +101,25 @@ static const uint8_t defaultCfg[] = {
  */
 
 /**
+ * cmdStrobe
+ * 
+ * Send command strobe to the CC1101 IC via SPI
+ * 
+ * @param cmd Command strobe
+ */
+static esp_err_t cc1101_cmd_strobe(uint8_t cmd);
+
+/**
+ * writeReg
+ * 
+ * Write single register into the CC1101 IC via SPI
+ * 
+ * @param regAddr Register address
+ * @param value Value to be writen
+ */
+static esp_err_t cc1101_write_reg(uint8_t regAddr, uint8_t value);
+
+/**
  * writeBurstReg
  * 
  * Write multiple registers into the CC1101 IC via SPI
@@ -104,26 +129,6 @@ static const uint8_t defaultCfg[] = {
  * @param len Data length
  */
 static esp_err_t cc1101_write_burst_reg(uint8_t regAddr, uint8_t* buffer, uint8_t len);
-
-/**
- * readBurstReg
- * 
- * Read burst data from CC1101 via SPI
- * 
- * @param buffer Buffer where to copy the result to
- * @param regAddr Register address
- * @param len Data length
- */
-static esp_err_t cc1101_read_burst_reg(uint8_t * buffer, uint8_t regAddr, uint8_t len);
-
-/**
- * cmdStrobe
- * 
- * Send command strobe to the CC1101 IC via SPI
- * 
- * @param cmd Command strobe
- */
-static esp_err_t cc1101_cmd_strobe(uint8_t cmd);
 
 /**
  * readReg
@@ -139,14 +144,15 @@ static esp_err_t cc1101_cmd_strobe(uint8_t cmd);
 static esp_err_t cc1101_read_reg(uint8_t regAddr, uint8_t regType, uint8_t *result);
 
 /**
- * writeReg
+ * readBurstReg
  * 
- * Write single register into the CC1101 IC via SPI
+ * Read burst data from CC1101 via SPI
  * 
+ * @param buffer Buffer where to copy the result to
  * @param regAddr Register address
- * @param value Value to be writen
+ * @param len Data length
  */
-static esp_err_t cc1101_write_reg(uint8_t regAddr, uint8_t value);
+static esp_err_t cc1101_read_burst_reg(uint8_t * buffer, uint8_t regAddr, uint8_t len);
 
 /**
  * reset
@@ -163,11 +169,6 @@ static esp_err_t cc1101_reset(void);
 static inline esp_err_t cc1101_read_rx_fifo(cc1101_packet_t *packet);
 
 /**
- * @brief Set CC1101 to receive mode
- */
-static inline esp_err_t cc1101_set_rx_state(void);
-
-/**
  * @brief Flush RX FIFO
  */
 static inline esp_err_t cc1101_flush_rx_fifo(void);
@@ -175,6 +176,14 @@ static inline esp_err_t cc1101_flush_rx_fifo(void);
 /*
  * Function definitions
  */
+
+ static void IRAM_ATTR _rxtx_finish_isr(void *arg)
+ {
+     if (_mode == CCM_RX && _rx_callback != NULL)
+     {
+         _rx_callback();
+     }
+ }
 
 static esp_err_t cc1101_spi_init()
 {
@@ -348,7 +357,7 @@ static esp_err_t cc1101_reset(void)
     return ret;
 }
 
-esp_err_t cc1101_init(gpio_isr_t gpio_isr_handler)
+esp_err_t cc1101_init(void (*rx_callback)())
 {
     /* Configuring/initializing SPI */
     if (cc1101_spi_init() == ESP_FAIL)
@@ -385,6 +394,7 @@ esp_err_t cc1101_init(gpio_isr_t gpio_isr_handler)
     }
 
     /* Configure interrupt on GDO0 */
+    _rx_callback = rx_callback;
     gpio_config_t io_conf = {
         .intr_type = GPIO_INTR_NEGEDGE, // GPIO interrupt type : falling edge
         .pin_bit_mask = 1ULL << CONFIG_GDO0_GPIO,
@@ -393,7 +403,7 @@ esp_err_t cc1101_init(gpio_isr_t gpio_isr_handler)
         .pull_down_en = 0};
     gpio_config(&io_conf);
     gpio_install_isr_service(0);
-    gpio_isr_handler_add(CONFIG_GDO0_GPIO, gpio_isr_handler, (void *)CONFIG_GDO0_GPIO);
+    gpio_isr_handler_add(CONFIG_GDO0_GPIO, _rxtx_finish_isr, NULL);
 
     /* Setting to RX state */
     if (cc1101_set_rx_state() != ESP_OK)
@@ -405,10 +415,15 @@ esp_err_t cc1101_init(gpio_isr_t gpio_isr_handler)
     return ESP_OK;
 }
 
+/**
+ * @brief Get system time in microseconds
+ * @param time_us Pointer to store the time in microseconds since the Unix epoch
+ * @return ESP_OK on success, ESP_FAIL on failure
+ */
 static inline esp_err_t get_system_time_us(uint64_t *time_us)
 {
     struct timeval now;
-    if (gettimeofday(&now, NULL) == -1)
+    if (gettimeofday(&now, NULL) == -1) // microseconds precision
     {
         return ESP_FAIL;
     }
@@ -416,6 +431,44 @@ static inline esp_err_t get_system_time_us(uint64_t *time_us)
     *time_us = (int64_t)now.tv_sec * 1000000L + (int64_t)now.tv_usec;
 
     return ESP_OK;
+}
+
+esp_err_t cc1101_set_rx_state(void)
+{
+    esp_err_t ret = cc1101_cmd_strobe(CC1101_SRX);
+
+    if (ret == ESP_OK)
+        _mode = CCM_RX;
+
+    return ret;
+}
+
+esp_err_t cc1101_set_tx_state(void)
+{
+    esp_err_t ret = cc1101_cmd_strobe(CC1101_STX);
+
+    if (ret == ESP_OK)
+        _mode = CCM_TX;
+
+    return ret;
+}
+
+static inline esp_err_t cc1101_flush_rx_fifo(void)
+{
+    esp_err_t ret;
+    ret = cc1101_cmd_strobe(CC1101_SIDLE);
+    ret &= cc1101_cmd_strobe(CC1101_SFRX);
+    
+    return ret;
+}
+
+static inline esp_err_t cc1101_flush_tx_fifo(void)
+{
+    esp_err_t ret;
+    ret = cc1101_cmd_strobe(CC1101_SIDLE);
+    ret &= cc1101_cmd_strobe(CC1101_SFTX);
+    
+    return ret;
 }
 
 static inline esp_err_t cc1101_read_rx_fifo(cc1101_packet_t *packet)
@@ -441,20 +494,20 @@ static inline esp_err_t cc1101_read_rx_fifo(cc1101_packet_t *packet)
     }
 
     // Read RX FIFO buffer
-    if (cc1101_read_burst_reg(packet->rx_buffer, CC1101_RXFIFO, rxBytes) != ESP_OK)
+    if (cc1101_read_burst_reg(packet->buffer, CC1101_RXFIFO, rxBytes) != ESP_OK)
     {
         ESP_LOGD(TAG, "Could not read RX FIFO buffer.");
         return ESP_FAIL;
     }
 
     // Read data length
-    packet->length = packet->rx_buffer[0];             // First byte is the length
-    status = packet->rx_buffer[packet->length + 2];    // Second appended status byte (LQI and CRC_OK)
+    packet->length = packet->buffer[0];             // First byte is the length
+    status = packet->buffer[packet->length + 2];    // Second appended status byte (LQI and CRC_OK)
 
     /* Is packet length ok? */
-    if (packet->length > CC1101_PACKET_LEN)
+    if (packet->length > CC1101_MAX_PACKET_LEN)
     {
-        ESP_LOGD(TAG, "Unexpected packet length: %d (Expected <= %d)", packet->length, CC1101_PACKET_LEN);
+        ESP_LOGD(TAG, "Unexpected packet length: %d (Expected <= %d)", packet->length, CC1101_MAX_PACKET_LEN);
         return ESP_ERR_INVALID_SIZE;
     }
 
@@ -473,7 +526,7 @@ static inline esp_err_t cc1101_read_rx_fifo(cc1101_packet_t *packet)
     }
 
     /* Hekatron packet data starts after length byte */
-    packet->data = &packet->rx_buffer[1];
+    packet->data = &packet->buffer[1];
 
     /* Set timestamp */
     get_system_time_us(&packet->timestamp);
@@ -481,41 +534,69 @@ static inline esp_err_t cc1101_read_rx_fifo(cc1101_packet_t *packet)
     return ESP_OK;
 }
 
-static inline esp_err_t cc1101_write_tx_fifo(cc1101_packet_t *packet)
+static inline esp_err_t cc1101_write_tx_fifo(unsigned char *tx_data, size_t length)
 {
+    if (!tx_data)
+    {
+        ESP_LOGE(TAG, "Packet data is NULL.");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (length <= 0 || length > CC1101_MAX_PACKET_LEN)
+    {
+        ESP_LOGE(TAG, "Invalid packet length: %d (Expected > 0 and <= %d)", length, CC1101_MAX_PACKET_LEN);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    uint8_t marcState;
+
+	// cc1101_set_rx_state();
+
+	// // Check that the RX state has been entered
+    // int tries = 0;
+	// while (tries++ < 1000)
+	// {
+    //     READ_STATUS_REG(CC1101_MARCSTATE, &marcState);
+    //     if ((marcState & 0x1F) == CC1101_RX)
+    //         break;
+
+	// 	if (marcState == CC1101_RXFIFO_OVERFLOW)
+	// 		cc1101_flush_rx_fifo();
+	// }
+	// if (tries >= 1000)	    // MarcState sometimes never enters the expected state, this is a safety procedure to avoid endless blocking	
+	// 	return ESP_FAIL;
+
+    // DELAY_US(500);
+
+    ESP_LOGV(pcTaskGetName(0), "---a");
+
+    cc1101_write_reg(CC1101_TXFIFO,  length);    // Set data length at the first position of the TX FIFO
+    cc1101_write_burst_reg(CC1101_TXFIFO, tx_data, length);
+    cc1101_set_tx_state();
+
+    ESP_LOGV(pcTaskGetName(0), "---b");
+
+	// // Checking, that TX state is being entered
+	// READ_STATUS_REG(CC1101_MARCSTATE, &marcState);
+    // marcState &= 0x1F;
+	// if ((marcState != CC1101_TX) &&
+    //     (marcState != CC1101_TX_END) &&
+    //     (marcState != CC1101_RXTX_SETTLING_SWITCH))
+	// {
+	// 	return ESP_FAIL;
+	// }
+
+	// Wait for the sync word to be transmitted
+	WAIT_GDO0_HIGH();
+	// Wait until the end of the packet transmission
+	WAIT_GDO0_LOW();
+
+	// Store TX FIFO status
+    // uint8_t txBytes = 0xFF;
+    // READ_STATUS_REG(CC1101_TXBYTES, &txBytes);
+
+    // return (txBytes & 0x7F) == 0 ? ESP_OK : ESP_FAIL;
     return ESP_OK;
-}
-
-static inline esp_err_t cc1101_set_rx_state(void)
-{
-    ESP_LOGD(TAG, "Setting RX state.");
-    return cc1101_cmd_strobe(CC1101_SRX);
-}
-
-static inline esp_err_t cc1101_set_tx_state(void)
-{
-    ESP_LOGD(TAG, "Setting TX state.");
-    return cc1101_cmd_strobe(CC1101_STX);
-}
-
-static inline esp_err_t cc1101_flush_rx_fifo(void)
-{
-    esp_err_t ret;
-    ESP_LOGD(TAG, "Flushing RX FIFO.");
-    ret = cc1101_cmd_strobe(CC1101_SIDLE);
-    ret &= cc1101_cmd_strobe(CC1101_SFRX);
-    
-    return ret;
-}
-
-static inline esp_err_t cc1101_flush_tx_fifo(void)
-{
-    esp_err_t ret;
-    ESP_LOGD(TAG, "Flushing TX FIFO.");
-    ret = cc1101_cmd_strobe(CC1101_SIDLE);
-    ret &= cc1101_cmd_strobe(CC1101_SFTX);
-    
-    return ret;
 }
 
 esp_err_t cc1101_receive_data(cc1101_packet_t *packet)
@@ -523,25 +604,44 @@ esp_err_t cc1101_receive_data(cc1101_packet_t *packet)
     esp_err_t ret = cc1101_read_rx_fifo(packet);
     
     if (ret != ESP_OK)
-    {
         cc1101_flush_rx_fifo();
-    }
-
-    cc1101_set_rx_state();
 
     return ret;
 }
 
-esp_err_t cc1101_send_data(cc1101_packet_t *packet)
+esp_err_t cc1101_send_data(unsigned char *tx_data, size_t length)
 {
-    esp_err_t ret = cc1101_write_tx_fifo(packet);
+    esp_err_t ret = cc1101_write_tx_fifo(tx_data, length);
     
     if (ret != ESP_OK)
-    {
         cc1101_flush_tx_fifo();
-    }
-
-    cc1101_set_rx_state();
 
     return ret;
+}
+
+esp_err_t cc1101_check_rx(void)
+{
+    uint8_t rxBytes = 0x00;
+    if (READ_STATUS_REG(CC1101_RXBYTES, &rxBytes) != ESP_OK)
+    {
+        ESP_LOGD(TAG, "Could not obtain available data.");
+        return ESP_FAIL;
+    }
+    
+    if (rxBytes & RXFIFO_OVERFLOW) {    // RX FIFO overflow?
+        cc1101_cmd_strobe(CC1101_SFRX);
+        cc1101_set_rx_state();
+    }
+
+    return ESP_OK;
+}
+
+cc1101_mode_t cc1101_get_mode(void)
+{
+    return _mode;
+}
+
+esp_err_t cc1101_get_state(uint8_t *state)
+{
+    return READ_STATUS_REG(CC1101_MARCSTATE, state);
 }

@@ -52,56 +52,66 @@
 			{#if hekatronDevice.alarms.length === 0}
 				<div class="text-center text-base-content">No alarms</div>
 			{:else}
-				<table class="table w-full table-auto">
-					<thead>
-						<tr class="font-bold">
-							<th align="left">Start</th>
-							<th align="left">End</th>
-							<th align="center">Ending Reason</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each hekatronDevice.alarms as alarm}
-							<tr>
-								<td align="left">
-									<span class="inline-flex items-baseline">
-										<Start
-											class="lex-shrink-0 mr-2 h-4 w-4 self-end"
-										/>{alarm.startTime.toLocaleString('de-DE', {
-											day: '2-digit',
-											month: '2-digit',
-											year: 'numeric',
-											hour: '2-digit',
-											minute: '2-digit',
-											second: '2-digit',
-										})}
-									</span>
-								</td>
-								<td align="left">
-									<span class="inline-flex items-baseline">
-										<End
-											class="lex-shrink-0 mr-2 h-4 w-4 self-end"
-										/>{alarm.endTime.toLocaleString('de-DE', {
-											day: '2-digit',
-											month: '2-digit',
-											year: 'numeric',
-											hour: '2-digit',
-											minute: '2-digit',
-											second: '2-digit',
-										})}
-									</span>
-								</td>
-								<td align="center">
-									{#if alarm.endingReason === 0}
-										<div><Automatic class="w-6 h-6" /></div>
-									{:else}
-										<div><Manual class="text-error w-6 h-6" /></div>
-									{/if}
-								</td>
+				<div class="max-h-160 overflow-x-auto">
+					<table class="table w-full table-pin-rows">
+						<thead>
+							<tr class="font-bold">
+								<th align="left">Start</th>
+								<th align="left">End</th>
+								<th align="center">Ending Reason</th>
 							</tr>
-						{/each}
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							{#each hekatronDevice.alarms as alarm}
+								<tr>
+									<td align="left">
+										<span class="inline-flex items-baseline">
+											<Start
+												class="lex-shrink-0 mr-2 h-4 w-4 self-end"
+											/>{alarm.startTime.toLocaleString('de-DE', {
+												day: '2-digit',
+												month: '2-digit',
+												year: 'numeric',
+												hour: '2-digit',
+												minute: '2-digit',
+												second: '2-digit'
+											})}
+										</span>
+									</td>
+									<td align="left">
+										<span class="inline-flex items-baseline">
+											{#if alarm.endingReason === 0 || alarm.endingReason === 1}
+												<End
+													class="lex-shrink-0 mr-2 h-4 w-4 self-end"
+												/>{alarm.endTime.toLocaleString('de-DE', {
+													day: '2-digit',
+													month: '2-digit',
+													year: 'numeric',
+													hour: '2-digit',
+													minute: '2-digit',
+													second: '2-digit'
+												})}
+											{:else}
+												<span class="text-base-content/50">No data</span>
+											{/if}
+										</span>
+									</td>
+									<td align="center">
+										{#if alarm.endingReason === 0}
+											<div class="tooltip tooltip-left" data-tip="No more smoke detected">
+												<Automatic class="w-6 h-6" />
+											</div>
+										{:else if alarm.endingReason === 1}
+											<div class="tooltip tooltip-left" data-tip="Alarming stopped by user">
+												<Manual class="w-6 h-6" />
+											</div>
+										{/if}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
 			{/if}
 
 			<div class="divider my-2"></div>

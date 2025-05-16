@@ -1,6 +1,8 @@
 #include <GeniusGateway.h>
 
-static void IRAM_ATTR gpio_isr_handler(void *arg)
+TaskHandle_t GeniusGateway::xRxTaskHandle = NULL;
+
+static void nofifyReceivedPacket()
 {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
@@ -17,15 +19,16 @@ static void IRAM_ATTR gpio_isr_handler(void *arg)
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-TaskHandle_t GeniusGateway::xRxTaskHandle = NULL;
-
 GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _gatewayDevices(sveltekit),
+                                                          _alarmLines(sveltekit),
                                                           _gatewaySettings(sveltekit),
                                                           _gatewayMqttSettingsService(sveltekit),
-                                                          _alarmState(sveltekit),
                                                           _mqttClient(sveltekit->getMqttClient()),
                                                           _webSocketLogger(sveltekit),
-                                                          _visualizerSettingsService(sveltekit)
+                                                          _visualizerSettingsService(sveltekit),
+                                                          _cc1101Controller(sveltekit),
+                                                          _eventSocket(sveltekit->getSocket()),
+                                                          _featureService(sveltekit->getFeatureService())
 {
 }
 
@@ -60,7 +63,7 @@ void GeniusGateway::begin()
         ESP_LOGI(TAG, "RX task created (%p).", GeniusGateway::xRxTaskHandle);
 
         // Initialize CC1101
-        esp_err_t ret = cc1101_init(gpio_isr_handler);
+        esp_err_t ret = cc1101_init(nofifyReceivedPacket);
         if (ret != ESP_OK)
             ESP_LOGE(TAG, "CC1101 could not be set up.");
         else
@@ -73,46 +76,86 @@ void GeniusGateway::begin()
 
     /* Initialize Gateway Devices Service */
     _gatewayDevices.begin();
+    /* Initialize Alarm Lines Service */
+    _alarmLines.begin();
     /* Initialize Gateway Settings Service */
     _gatewaySettings.begin();
     /* Initialize Gateway MQTT Settings Service */
     _gatewayMqttSettingsService.begin();
-    /* Initialize Alarm State Service */
-    _alarmState.begin();
     /* Initialize WS Logger */
     _webSocketLogger.begin();
     /* Initialize Packet Vizualizer Settings */
     _visualizerSettingsService.begin();
 
+#if FT_ENABLED(FT_NTP)
+    _featureService->addFeature("cc1101_controller", true);
+    /* Initialize CC1101Controller */
+    _cc1101Controller.begin();
+#else
+    _featureService->addFeature("cc1101_controller", false);
+#endif
+
     /* Configure MQTT callback */
-    _mqttClient->onConnect(std::bind(&GeniusGateway::mqttConfig, this));
+    _mqttClient->onConnect(std::bind(&GeniusGateway::_mqttPublishConfig, this));
 
     /* Configure update handler for when the smoke detector devices change */
     _gatewayDevices.addUpdateHandler([&](const String &originId)
-                                     { mqttConfig(); },
+                                     { _mqttPublishConfig(); },
                                      false);
 
     /* Configure update handler for when the MQTT settings change */
     _gatewayMqttSettingsService.addUpdateHandler([&](const String &originId)
-                                                 { mqttConfig(); },
+                                                 { _mqttPublishConfig(); },
                                                  false);
 
-    /* Configure update handler for when the alarm state changes */
-    _alarmState.addUpdateHandler([&](const String &originId)
-                                 { mqttConfig(); },
-                                 false);
+    _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
+
+    // Start the loop task
+    ESP_LOGV(GeniusGateway::TAG, "Starting alarm state emitter task.");
+    xTaskCreatePinnedToCore(
+        this->_loopImpl,            // Function that should be called
+        "alarm-state-emitter",      // Name of the task (for debugging)
+        4096,                       // Stack size (bytes)
+        this,                       // Pass reference to this class instance
+        (tskIDLE_PRIORITY + 2),     // task priority
+        NULL,                       // Task handle
+        ESP32SVELTEKIT_RUNNING_CORE // Pin to application core
+    );
 }
 
-void GeniusGateway::mqttConfig()
+// For testing purposes
+void GeniusGateway::_loop()
+{
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
+    while (1)
+    {
+        _emitAlarmState();
+        vTaskDelayUntil(&xLastWakeTime, 1000 / portTICK_PERIOD_MS); // 1 seconds
+    }
+}
+
+void GeniusGateway::_emitAlarmState()
+{
+    /* Prepare event data (payload) */
+    JsonDocument doc;
+    JsonObject root = doc.to<JsonObject>();
+    root["isAlarming"] = _gatewayDevices.isAlarming();
+
+    /* Emit event */
+    _eventSocket->emitEvent(GATEWAY_EVENT_ALARM, root);
+}
+
+void GeniusGateway::_mqttPublishConfig()
 {
     if (!_mqttClient->connected())
     {
         return;
     }
 
-    GatewayMqttSettings &mqttSettings = _gatewayMqttSettingsService.getSettings();
+    GatewayMqttSettings &mqttSettings = _gatewayMqttSettingsService.getSettings(); // TODO: Not thread safe
 
-    for (auto &device : _gatewayDevices.getDevices())
+    for (auto &device : _gatewayDevices.getDevices()) // TODO: Not thread safe
     {
         /* Publish config topic */
         String configTopic = mqttSettings.mqttPath + device.smokeDetector.sn + "/config";
@@ -133,7 +176,7 @@ void GeniusGateway::mqttConfig()
         dev_jsonObj["name"] = "Rauchmelder";
         dev_jsonObj["serial_number"] = device.smokeDetector.sn;
         dev_jsonObj["suggested_area"] = device.location;
-                
+
         String config_payload;
         serializeJson(config_jsonDoc, config_payload);
         _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str());
@@ -142,38 +185,13 @@ void GeniusGateway::mqttConfig()
         String stateTopic = mqttSettings.mqttPath + device.smokeDetector.sn + "/state";
 
         JsonDocument state_jsonDoc;
-        state_jsonDoc["state"] = _alarmState.isAlarming(device.smokeDetector.sn) ? "ON" : "OFF";
+        state_jsonDoc["state"] = device.isAlarming ? "ON" : "OFF";
 
         String payload;
         serializeJson(state_jsonDoc, payload);
         _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str());
     }
 }
-
-void GeniusGateway::mqttPublishAlarmState()
-{
-    if (!_mqttClient->connected())
-    {
-        return;
-    }
-
-    GatewayMqttSettings &mqttSettings = _gatewayMqttSettingsService.getSettings();
-
-    for (auto &device : _gatewayDevices.getDevices())
-    {
-        String pubTopic = mqttSettings.mqttPath + device.smokeDetector.sn + "/state";
-
-        /* Pubish state topic */
-        JsonDocument state_jsonDoc;
-        state_jsonDoc["state"] = _alarmState.isAlarming(device.smokeDetector.sn) ? "ON" : "OFF";
-
-        String payload;
-        serializeJson(state_jsonDoc, payload);
-        _mqttClient->publish(pubTopic.c_str(), 0, true, payload.c_str());
-    }
-}
-
-
 
 esp_err_t GeniusGateway::_hekatron_analyze_packet_data(uint8_t *packet_data, size_t data_length, hekatron_packet_t *analyzed_packet)
 {
@@ -229,9 +247,9 @@ esp_err_t GeniusGateway::_hekatron_analyze_packet_data(uint8_t *packet_data, siz
 
     if (analyzed_packet->type != HPT_UNKNOWN)
     {
-        analyzed_packet->origin_id = EXTRACT(packet_data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
-        analyzed_packet->sender_id = EXTRACT(packet_data, DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID);
-        analyzed_packet->line_id = EXTRACT(packet_data, DATAPOS_GENERAL_LINE_ID);
+        analyzed_packet->origin_id = EXTRACT32(packet_data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
+        analyzed_packet->sender_id = EXTRACT32(packet_data, DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID);
+        analyzed_packet->line_id = EXTRACT32(packet_data, DATAPOS_GENERAL_LINE_ID);
         analyzed_packet->hops = HOPS_FIRST - packet_data[DATAPOS_GENERAL_HOPS];
     }
 
@@ -255,18 +273,25 @@ void GeniusGateway::_rx_packets()
             // Fetch the packet
             if (cc1101_receive_data(&packet) == ESP_OK)
             {
-                // ESP_LOGD(pcTaskGetName(0), "Packet received: packet.length: %d", packet.length);
-
                 hekatron_packet_t packet_details;
                 if (_hekatron_analyze_packet_data(packet.data, packet.length, &packet_details) == ESP_OK)
                 {
-                    if (packet_details.type == HPT_ALARMING ||
-                        packet_details.type == HPT_ALARM_SILENCING)
+                    if (packet_details.type == HPT_COMMISSIONING)
                     {
-                        /* Determine source smoke alarm */
-                        uint32_t source_id = EXTRACT(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
-
-                        // TODO
+                        uint32_t newLineID = EXTRACT32(packet.data, DATAPOS_COMISSIONING_NEW_LINE_ID);
+                        char lineName[50];
+                        snprintf(lineName, sizeof(lineName), "Auto-added (%lu)", newLineID);
+                        _alarmLines.addAlarmLine(newLineID, String(lineName), ALA_GENIUS_PACKET);
+                    }
+                    else if (packet_details.type == HPT_ALARMING)
+                    {
+                        uint32_t source_id = EXTRACT32_REV(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
+                        _gatewayDevices.setAlarm(source_id);
+                    }
+                    else if (packet_details.type == HPT_ALARM_SILENCING)
+                    {
+                        uint32_t source_id = EXTRACT32_REV(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
+                        _gatewayDevices.resetAlarm(source_id, HAE_BY_SMOKE_DETECTOR);
                     }
                 }
 
@@ -285,6 +310,10 @@ void GeniusGateway::_rx_packets()
              * was called with xTicksToWait set to a value < portMAX_DELAY. */
             vTaskDelay(1);
         }
+
+        /* Check for RX overflow before returning to receive state, as packet
+         * handling might have taken too long to fetch next packet in time */
+        cc1101_check_rx();
     }
 
     // never reach here
