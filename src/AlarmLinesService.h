@@ -13,7 +13,7 @@
 #define ALARMLINES_FILE "/config/alarm-lines.json"
 #define ALARMLINES_SERVICE_PATH "/rest/alarm-lines"
 
-#define ALARMLINES_PATH_ACTIONS    ALARMLINES_SERVICE_PATH "/do"
+#define ALARMLINES_PATH_ACTIONS ALARMLINES_SERVICE_PATH "/do"
 
 #define ALARMLINES_ID_BROADCAST 0xFFFFFFFF
 #define ALARMLINES_ID_NONE 0x00000000
@@ -49,15 +49,16 @@
  */
 #define ALARMLINES_TX_TASK_ITERATION_MAX_WAITING_TICKS pdMS_TO_TICKS(1000) // 1 second
 
-#define ALARMLINES_TX_NUM_REPEAT_DEFAULT    50
-#define ALARMLINES_TX_NUM_REPEAT_LINETEST   ALARMLINES_TX_NUM_REPEAT_DEFAULT
-#define ALARMLINES_TX_NUM_REPEAT_FIREALARM  ALARMLINES_TX_NUM_REPEAT_DEFAULT
+#define ALARMLINES_TX_NUM_REPEAT_DEFAULT 50
+#define ALARMLINES_TX_NUM_REPEAT_LINETEST ALARMLINES_TX_NUM_REPEAT_DEFAULT
+#define ALARMLINES_TX_NUM_REPEAT_FIREALARM ALARMLINES_TX_NUM_REPEAT_DEFAULT
 
 typedef enum alarm_line_asquisition
 {
     ALA_MIN = -1,      // Just for boundary checks
-    ALA_MANUAL = 0,    // Idle state
-    ALA_GENIUS_PACKET, // Alarm state
+    ALA_BUILT_IN = 0,  // Alarm line added via built-in genius packet
+    ALA_GENIUS_PACKET, // Alarm line added via received genius packet
+    ALA_MANUAL,        // Alarm line added manually (via web interface)
     ALA_MAX            // Just for boundary checks
 } alarm_line_acquisition_t;
 
@@ -150,7 +151,8 @@ public:
 
     void begin();
 
-    esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET);
+    esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET, bool toFront = false);
+    esp_err_t removeAlarmLine(uint32_t id);
 
 private:
     static const uint8_t _packet_base_linetest[];
@@ -158,6 +160,7 @@ private:
 
     PsychicHttpServer *_server;
     SecurityManager *_securityManager;
+    FeaturesService *_featureService;
     HttpEndpoint<AlarmLines> _httpEndpoint;
     FSPersistence<AlarmLines> _fsPersistence;
 
@@ -185,4 +188,3 @@ private:
     bool _alarmLineExists(uint32_t id);
     esp_err_t _performAction(PsychicRequest *request, JsonVariant &json);
 };
-

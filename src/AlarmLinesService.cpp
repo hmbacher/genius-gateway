@@ -56,6 +56,7 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
 
 AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit) : _server(sveltekit->getServer()),
                                                                   _securityManager(sveltekit->getSecurityManager()),
+                                                                  _featureService(sveltekit->getFeatureService()),
                                                                   _httpEndpoint(AlarmLines::read,
                                                                                 AlarmLines::update,
                                                                                 this,
@@ -82,9 +83,17 @@ void AlarmLinesService::begin()
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
 
+#if FT_ENABLED(FT_ALLOW_BROADCAST)
+    _featureService->addFeature("allow_broadcast", true);
     /* Make sure, that a Broadcast alarm line is always present */
     if (!_alarmLineExists(ALARMLINES_ID_BROADCAST))
-        addAlarmLine(ALARMLINES_ID_BROADCAST, "Broadcast", ALA_MANUAL);
+        addAlarmLine(ALARMLINES_ID_BROADCAST, "Broadcast", ALA_MANUAL, true);
+#else
+    _featureService->addFeature("allow_broadcast", false);
+    /* Make sure, that a Broadcast alarm line is removed */
+    if (_alarmLineExists(ALARMLINES_ID_BROADCAST))
+        removeAlarmLine(ALARMLINES_ID_BROADCAST);
+#endif
 
     /* Initialize the semaphore for the TX task */
     _txSemaphore = xSemaphoreCreateBinary();
@@ -135,7 +144,7 @@ void AlarmLinesService::begin()
 
 void AlarmLinesService::_onTimer()
 {
-    gpio_set_level(GPIO_TEST2, 0);  // Temporary for testing
+    gpio_set_level(GPIO_TEST2, 0); // Temporary for testing
 
     /* Notify the waiting (blocked) TX task, to start the next packet transmission iteration */
     xTaskNotifyGiveIndexed(_txTaskHandle, ALARMLINES_TX_TASK_NOTIFICATION_INDEX);
@@ -155,8 +164,8 @@ void AlarmLinesService::_txLoop()
 
             for (int i = 1; i <= _txRepeat; i++)
             {
-                gpio_set_level(GPIO_TEST1, 1);  // Temporary for testing
-                gpio_set_level(GPIO_TEST2, 1);  // Temporary for testing
+                gpio_set_level(GPIO_TEST1, 1); // Temporary for testing
+                gpio_set_level(GPIO_TEST2, 1); // Temporary for testing
 
                 /* Resetting the timer for a single iteration */
                 if (i < _txRepeat) // Don't (re)start the timer for the last iteration
@@ -176,7 +185,7 @@ void AlarmLinesService::_txLoop()
 
                 ESP_LOGV(pcTaskGetName(0), "---1");
 
-                gpio_set_level(GPIO_TEST1, 0);  // Temporary for testing
+                gpio_set_level(GPIO_TEST1, 0); // Temporary for testing
 
                 /* Wait non-blocking for the next timer period */
                 if (i < _txRepeat) // Don't wait after the last iteration
@@ -254,7 +263,7 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
         _txRepeat = ALARMLINES_TX_NUM_REPEAT_FIREALARM;
         _txDataLength = datalen;
     }
-    else 
+    else
     {
         ESP_LOGE(TAG, "Unknown action '%s'.", action.c_str());
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Unknown action.\"}");
@@ -289,18 +298,11 @@ bool AlarmLinesService::_alarmLineExists(uint32_t id)
     return found;
 }
 
-esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition)
+esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition, bool toFront)
 {
-    // TODO: Allow? (Broadcast needed?)
-    // if (id == ALARMLINES_ID_BROADCAST)
-    // {
-    //     ESP_LOGE(TAG, "Cannot add a line with ID %lu. This ID is reserved for broadcast.", id);
-    //     return ESP_ERR_INVALID_ARG;
-    // }
-
     if (id == ALARMLINES_ID_NONE)
     {
-        ESP_LOGE(TAG, "Cannot add a line with ID %lu. This ID is reserved for none.", id);
+        ESP_LOGE(TAG, "Cannot add a line with ID %lu. This ID is reserved.", id);
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -329,10 +331,48 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
     newLine.acquisition = acquisition;
 
     beginTransaction();
-    _state.lines.push_back(newLine);
+    if (toFront)
+        _state.lines.insert(_state.lines.begin(), newLine);
+    else
+        _state.lines.push_back(newLine);
     endTransaction();
 
     ESP_LOGE(TAG, "Added alarm line '%s' with id %lu", newLine.name.c_str(), newLine.id);
+
+    callUpdateHandlers(ALARMLINES_ORIGIN_ID);
+
+    return ESP_OK;
+}
+
+esp_err_t AlarmLinesService::removeAlarmLine(uint32_t id)
+{
+    if (id == ALARMLINES_ID_NONE)
+    {
+        ESP_LOGE(TAG, "Cannot remove line: %lu is no valid alarm line ID.", id);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    bool removed = false;
+
+    beginTransaction();
+    for (auto line = _state.lines.begin(); line != _state.lines.end(); ++line)
+    {
+        if (line->id == id)
+        {
+            _state.lines.erase(line);
+            removed = true;
+            break;
+        }
+    }
+    endTransaction();
+
+    if (!removed)
+    {
+        ESP_LOGW(TAG, "Alarm line with ID %lu does not exist.", id);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    ESP_LOGI(TAG, "Removed alarm line with id %lu", id);
 
     callUpdateHandlers(ALARMLINES_ORIGIN_ID);
 

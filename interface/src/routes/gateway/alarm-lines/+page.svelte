@@ -5,6 +5,7 @@
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { user } from '$lib/stores/user';
+	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { AlarmLines, AlarmLine } from '$lib/types/models';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils';
@@ -314,101 +315,98 @@
 								</thead>
 								<tbody>
 									{#each alarmLines.lines as line, index}
-										<tr>
-											<td
-												align="left"
-												class="{line.id === BROADCAST_ID ? 'text-base-content/50' : ''} "
-												>{line.id}</td
-											>
-											<td
-												align="left"
-												class="{line.id === BROADCAST_ID ? 'text-base-content/50' : ''} "
-												>{line.name}</td
-											>
-											<td align="left"
-												>{line.id != BROADCAST_ID
-													? line.created.toLocaleString('de-DE', {
-															day: '2-digit',
-															month: '2-digit',
-															year: 'numeric',
-															hour: '2-digit',
-															minute: '2-digit',
-															second: '2-digit'
-														})
-													: ''}
-											</td>
-											<td align="center">
-												{#if line.id != BROADCAST_ID}
-													{#if line.acquisition === 0}
-														<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
-															<Manual class="h-6 w-6" />
-														</div>
-													{:else if line.acquisition === 1}
-														<div
-															class="tooltip tooltip-top"
-															data-tip="Alarm line extracted from Genius radio packe."
-														>
-															<Automatic class="h-6 w-6" />
-														</div>
+										{#if line.id !== BROADCAST_ID || (line.id === BROADCAST_ID && page.data.features.allow_broadcast)}
+											<tr>
+												<td
+													align="left"
+													class="{line.id === BROADCAST_ID ? 'text-base-content/50' : ''} "
+													>{line.id}</td
+												>
+												<td
+													align="left"
+													class="{line.id === BROADCAST_ID ? 'text-base-content/50' : ''} "
+													>{line.name}</td
+												>
+												<td align="left"
+													>{line.id != BROADCAST_ID
+														? line.created.toLocaleString('de-DE', {
+																day: '2-digit',
+																month: '2-digit',
+																year: 'numeric',
+																hour: '2-digit',
+																minute: '2-digit',
+																second: '2-digit'
+															})
+														: ''}
+												</td>
+												<td align="center">
+													{#if line.id != BROADCAST_ID}
+														{#if line.acquisition === 0}
+															<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
+																<Manual class="h-6 w-6" />
+															</div>
+														{:else if line.acquisition === 1}
+															<div
+																class="tooltip tooltip-top"
+																data-tip="Alarm line extracted from Genius radio packe."
+															>
+																<Automatic class="h-6 w-6" />
+															</div>
+														{/if}
 													{/if}
-												{/if}
-											</td>
+												</td>
 
-											<td align="right">
-												<span class="my-auto inline-flex flex-row space-x-2">
-													<div class="tooltip tooltip-left" data-tip="Edit alarm line">
-														<button
-															class="btn btn-ghost btn-circle btn-xs"
-															onclick={() => handleEdit(index)}
-															disabled={line.id === BROADCAST_ID}
+												<td align="right">
+													<span class="my-auto inline-flex flex-row space-x-2">
+														<div class="tooltip tooltip-left" data-tip="Edit alarm line">
+															<button
+																class="btn btn-ghost btn-circle btn-xs"
+																onclick={() => handleEdit(index)}
+																disabled={line.id === BROADCAST_ID}
+															>
+																<Edit class="h-6 w-6" />
+															</button>
+														</div>
+														<div class="tooltip tooltip-left" data-tip="Delete alarm line">
+															<button
+																class="btn btn-ghost btn-circle btn-xs"
+																onclick={() => confirmDelete(index)}
+																disabled={line.id === BROADCAST_ID}
+															>
+																<Delete class="h-6 w-6" />
+															</button>
+														</div>
+														<div class="tooltip tooltip-left" data-tip="Trigger line test">
+															<button
+																class="btn btn-ghost btn-circle btn-xs"
+																onclick={() => handleLineTest(index)}
+															>
+																<Test class="h-6 w-6" />
+															</button>
+														</div>
+														<div
+															class="tooltip tooltip-left tooltip-error"
+															data-tip="Trigger fire alarm"
 														>
-															<Edit class="h-6 w-6" />
-														</button>
-													</div>
-													<div class="tooltip tooltip-left" data-tip="Delete alarm line">
-														<button
-															class="btn btn-ghost btn-circle btn-xs"
-															onclick={() => confirmDelete(index)}
-															disabled={line.id === BROADCAST_ID}
-														>
-															<Delete class="h-6 w-6" />
-														</button>
-													</div>
-													<div class="tooltip tooltip-left" data-tip="Trigger line test">
-														<button
-															class="btn btn-ghost btn-circle btn-xs"
-															onclick={() => handleLineTest(index)}
-															disabled={line.id === BROADCAST_ID}
-														>
-															<Test class="h-6 w-6" />
-														</button>
-													</div>
-													<div
-														class="tooltip tooltip-left tooltip-error"
-														data-tip="Trigger fire alarm"
-													>
-														<button
-															class="btn btn-ghost btn-circle btn-xs"
-															onclick={() => handleFireAlarmStart(index)}
-															disabled={line.id === BROADCAST_ID}
-														>
-															<Flame
-																class="h-6 w-6 {line.id != BROADCAST_ID ? 'text-error' : ''}"
-															/>
-														</button>
-													</div>
-													<div class="tooltip tooltip-left" data-tip="Stop fire alarm">
-														<button
-															class="btn btn-ghost btn-circle btn-xs"
-															onclick={() => handleFireAlarmStop(index)}
-															disabled={line.id === BROADCAST_ID}
-														>
-															<FlameOff class="h-6 w-6" />
-														</button>
-													</div>
-												</span>
-											</td>
-										</tr>
+															<button
+																class="btn btn-ghost btn-circle btn-xs"
+																onclick={() => handleFireAlarmStart(index)}
+															>
+																<Flame class="text-error h-6 w-6" />
+															</button>
+														</div>
+														<div class="tooltip tooltip-left" data-tip="Stop fire alarm">
+															<button
+																class="btn btn-ghost btn-circle btn-xs"
+																onclick={() => handleFireAlarmStop(index)}
+															>
+																<FlameOff class="h-6 w-6" />
+															</button>
+														</div>
+													</span>
+												</td>
+											</tr>
+										{/if}
 									{/each}
 								</tbody>
 							</table>

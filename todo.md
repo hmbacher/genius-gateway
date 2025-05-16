@@ -21,7 +21,4 @@
 
 - [] Broadcast-Alarm Line als Compiler-Shalter
 
-- CC1101 Control Dialog
-    - Status: Hübsch, wie System
-
 - Status-Loop in GeniusGateway.c mit esp32SvelteKit-Loop realisieren
