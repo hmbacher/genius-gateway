@@ -21,7 +21,7 @@
 </script>
 
 <div
-	class="tooltip tooltip-bottom"
+	class="tooltip tooltip-left"
 	data-tip={alarmState.isAlarming ? 'Smoke detected!' : 'All smoke detectors in standby.'}
 >
 	<div class="flex-none">
