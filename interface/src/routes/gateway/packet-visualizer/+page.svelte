@@ -87,7 +87,8 @@
 	let ws: WebSocket;
 
 	onMount(async () => {
-		ws = new WebSocket(`ws://${window.location.host}/ws/logger`);
+		const ws_protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+		ws = new WebSocket(`${ws_protocol}://${window.location.host}/ws/logger`);
 		ws.binaryType = 'arraybuffer';
 
 		ws.onopen = (ev) => {
