@@ -35,31 +35,3 @@ esp_err_t CC1101Controller::_handlerGetStatus(PsychicRequest *request)
 
     return response.send();
 }
-
-// // For testing purposes
-// void CC1101Controller::loop()
-// {
-//     uint32_t currentMillis = millis();
-//     uint32_t timeElapsed = currentMillis - _lastEmitted;
-//     if (currentMillis - _lastEmitted >= CC1101CONTROLLER_EVENT_PERIOD_MS)
-//     {
-//         _lastEmitted = currentMillis;
-//         _emitCC1101State();
-//     }
-// }
-
-// void CC1101Controller::_emitCC1101State()
-// {
-//     /* Prepare event data (payload) */
-//     JsonDocument doc;
-//     JsonObject json = doc.to<JsonObject>();
-
-//     uint8_t cc1101_state = 0;
-//     esp_err_t res = cc1101_get_state(&cc1101_state);
-//     json["state_success"] = (res == ESP_OK);
-//     if (res == ESP_OK)
-//         json["state"] = cc1101_state;
-
-//     /* Emit event */
-//     _eventSocket->emitEvent(CC1101CONTROLLER_EVENT_STATE, json);
-// }

@@ -14,10 +14,10 @@
 	interface Props {
 		isOpen: boolean;
 		title: string;
-		hekatronDevice: any;
+		geniusDevice: any;
 	}
 
-	let { isOpen, title, hekatronDevice }: Props = $props();
+	let { isOpen, title, geniusDevice }: Props = $props();
 
 	function preventDefault(fn) {
 		return function (event) {
@@ -43,13 +43,13 @@
 			<span class="inline-flex items-baseline">
 				<BellRinging class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 				<span class="text-xl font-semibold"
-					>Alarms of device <em>{hekatronDevice.location}</em></span
+					>Alarms of device <em>{geniusDevice.location}</em></span
 				>
 			</span>
 
 			<div class="divider my-2"></div>
 
-			{#if hekatronDevice.alarms.length === 0}
+			{#if geniusDevice.alarms.length === 0}
 				<div class="text-center text-base-content">No alarms</div>
 			{:else}
 				<div class="max-h-160 overflow-x-auto">
@@ -62,7 +62,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each hekatronDevice.alarms as alarm}
+							{#each geniusDevice.alarms as alarm}
 								<tr>
 									<td align="left">
 										<span class="inline-flex items-baseline">

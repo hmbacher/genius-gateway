@@ -525,7 +525,7 @@ static inline esp_err_t cc1101_read_rx_fifo(cc1101_packet_t *packet)
         return ESP_ERR_INVALID_CRC;
     }
 
-    /* Hekatron packet data starts after length byte */
+    /* Genius packet data starts after length byte */
     packet->data = &packet->buffer[1];
 
     /* Set timestamp */
@@ -568,13 +568,9 @@ static inline esp_err_t cc1101_write_tx_fifo(unsigned char *tx_data, size_t leng
 
     // DELAY_US(500);
 
-    ESP_LOGV(pcTaskGetName(0), "---a");
-
     cc1101_write_reg(CC1101_TXFIFO,  length);    // Set data length at the first position of the TX FIFO
     cc1101_write_burst_reg(CC1101_TXFIFO, tx_data, length);
     cc1101_set_tx_state();
-
-    ESP_LOGV(pcTaskGetName(0), "---b");
 
 	// // Checking, that TX state is being entered
 	// READ_STATUS_REG(CC1101_MARCSTATE, &marcState);

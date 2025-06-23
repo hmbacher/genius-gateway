@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { user } from '$lib/stores/user';
 	import type { PageData } from './$types';
-	import type { HekatronDevices } from '$lib/types/models';
+	import type { GeniusDevices } from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils';
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -13,9 +13,9 @@
 
 	let { data }: Props = $props();
 
-	let hekatronDevices: HekatronDevices = $state({ devices: [] });
+	let geniusDevices: GeniusDevices = $state({ devices: [] });
 
-	async function getHekatronDevices() {
+	async function getGeniusDevices() {
 		try {
 			const response = await fetch('/rest/gateway-devices', {
 				method: 'GET',
@@ -25,7 +25,7 @@
 				}
 			});
 
-			hekatronDevices = JSON.parse(await response.text(), jsonDateReviver);
+			geniusDevices = JSON.parse(await response.text(), jsonDateReviver);
 
 		} catch (error) {
 			console.error('Error:', error);
@@ -37,11 +37,11 @@
 
 <div >
 	<div class="flex flex-wrap gap-10 px-10 py-10" style="justify-content: center;">
-		{#await getHekatronDevices()}
+		{#await getGeniusDevices()}
 				<Spinner />
 		{:then nothing}
-			{#if hekatronDevices.devices.length > 0}
-				{#each hekatronDevices.devices as device}
+			{#if geniusDevices.devices.length > 0}
+				{#each geniusDevices.devices as device}
 					<DeviceStatusCard detector={device} />
 				{/each}
 			{:else}

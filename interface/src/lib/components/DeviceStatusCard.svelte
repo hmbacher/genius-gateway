@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import type { HekatronDevice } from '$lib/types/models';
+	import type { GeniusDevice } from '$lib/types/models';
 	import { modals } from 'svelte-modals';
 	import { user } from '$lib/stores/user';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -14,7 +14,7 @@
 	import Cancel from '~icons/tabler/x';
 
 	interface Props {
-		detector: HekatronDevice;
+		detector: GeniusDevice;
 	}
 
 	let { detector }: Props = $props();

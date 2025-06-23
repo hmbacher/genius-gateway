@@ -53,6 +53,8 @@
 #define ALARMLINES_TX_NUM_REPEAT_LINETEST ALARMLINES_TX_NUM_REPEAT_DEFAULT
 #define ALARMLINES_TX_NUM_REPEAT_FIREALARM ALARMLINES_TX_NUM_REPEAT_DEFAULT
 
+#define ALARMLINES_EVENT_NEW_LINE "new-alarm-line"
+
 typedef enum alarm_line_asquisition
 {
     ALA_MIN = -1,      // Just for boundary checks
@@ -152,7 +154,6 @@ public:
     void begin();
 
     esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET, bool toFront = false);
-    esp_err_t removeAlarmLine(uint32_t id);
 
 private:
     static const uint8_t _packet_base_linetest[];
@@ -161,6 +162,7 @@ private:
     PsychicHttpServer *_server;
     SecurityManager *_securityManager;
     FeaturesService *_featureService;
+    EventSocket *_eventSocket;
     HttpEndpoint<AlarmLines> _httpEndpoint;
     FSPersistence<AlarmLines> _fsPersistence;
 
@@ -186,5 +188,8 @@ private:
     }
 
     bool _alarmLineExists(uint32_t id);
+    esp_err_t _removeAlarmLine(uint32_t id);
     esp_err_t _performAction(PsychicRequest *request, JsonVariant &json);
+    void _emitNewAlarmLineEvent(uint32_t id);
+
 };

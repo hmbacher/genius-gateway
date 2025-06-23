@@ -4,7 +4,7 @@
 	import { modals } from 'svelte-modals';
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
-	import type { HekatronDevices, VisualizerSettings, PacketType, Packet, CommissioningInfo, DiscoveryResponseInfo } from '$lib/types/models';
+	import type { GeniusDevices, VisualizerSettings, PacketType, Packet, CommissioningInfo, DiscoveryResponseInfo } from '$lib/types/models';
 	import { PacketTypes } from '$lib/types/models';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
@@ -32,58 +32,6 @@
 	});
 
 	let packets: Packet[] = $state([]);
-
-	// packets = [
-	// 	{
-	// 		id: 1,
-	// 		timestampFirst: 2475436727,
-	// 		timestampLast: 2475536727,
-	// 		type: PacketTypes.Commissioning,
-	// 		counter: 308,
-	// 		hash: 0,
-	// 		data: new Uint8Array([
-	// 			2, 59, 24, 0, 255, 255, 255, 255, 0, 131, 5, 81, 60, 0, 131, 5, 81, 60, 204, 144, 89, 60,
-	// 			15, 198, 69, 0, 102, 3, 204, 144, 89, 60, 10, 3, 17, 89, 0
-	// 		]),
-	// 		interpreted: {
-	// 			counter: 6203,
-	// 			firstRadioModuleSN: 2198163772,
-	// 			firstLocation: 'Wohnzimmer',
-	// 			secondRadioModuleSN: 2198163772,
-	// 			secondLocation: 'Unknown',
-	// 			hops: 0,
-	// 			currentLineID: 3432012092,
-	// 			newLineID: 3432012092,
-	// 			timeStr: '10:03:17',
-	// 		}
-	// 	},
-	// 	{
-	// 		id: 2,
-	// 		timestampFirst: 2475436727,
-	// 		timestampLast: 2475536727,
-	// 		type: PacketTypes.Unknown,
-	// 		counter: 10,
-	// 		hash: 0,
-	// 		data: new Uint8Array([
-	// 			2, 59, 24, 0, 255, 255, 255, 255, 0, 131, 5, 81, 60, 0, 131, 5, 81, 60, 204, 144, 89, 60,
-	// 			15, 198, 69, 0, 102, 3, 204, 144, 89, 60
-	// 		]),
-	// 		interpreted: null
-	// 	},
-	// 	{
-	// 		id: 3,
-	// 		timestampFirst: 2475436727,
-	// 		timestampLast: 2475536727,
-	// 		type: PacketTypes.Unknown,
-	// 		counter: 10,
-	// 		hash: 0,
-	// 		data: new Uint8Array([
-	// 			2, 59, 24, 0, 255, 255, 255, 255, 0, 131, 5, 81, 69, 0, 131, 5, 81, 60, 204, 144, 89, 60,
-	// 			15, 198, 69, 0, 102, 3, 204, 144
-	// 		]),
-	// 		interpreted: null
-	// 	}
-	// ];
 
 	function determinePacketType(data: Uint8Array): PacketType {
 		for (const key in PacketTypes) {
@@ -191,7 +139,7 @@
 			console.log('WebSocket closed');
 		};
 
-		await getHekatronDevices();
+		await getGeniusDevices();
 	});
 
 	onDestroy(async () => {
@@ -199,9 +147,9 @@
 		console.log('WebSocket closed');
 	});
 
-	let detectors: HekatronDevices = $state({ devices: [] });
+	let detectors: GeniusDevices = $state({ devices: [] });
 
-	async function getHekatronDevices() {
+	async function getGeniusDevices() {
 		try {
 			const response = await fetch('/rest/gateway-devices', {
 				method: 'GET',
@@ -296,27 +244,27 @@
 	{#await getVizualizerSettings()}
 		<Spinner text="Loading settings..." />
 	{:then nothing}
-		<div class="relative w-full overflow-visible">
-			<div class="form-control">
-				<label class="label cursor-pointer">
-					<span class="">Show packet details (data interpretation and highlighting)</span>
-					<input
-						type="checkbox"
-						class="toggle toggle-primary"
-						bind:checked={vizSettings.showDetails}
-						onchange={() => postVizualizerSettings(vizSettings)}
-					/>
-				</label>
-				<label class="label cursor-pointer">
-					<span class="">Show meta data of packets (packet number, receive timestamp, repetition, etc.)</span>
-					<input
-						type="checkbox"
-						class="toggle toggle-primary"
-						bind:checked={vizSettings.showMetadata}
-						onchange={() => postVizualizerSettings(vizSettings)}
-					/>
-				</label>
-			</div>
+		<div>
+			<label class="label cursor-pointer w-full justify-between">
+				<span class="">Show packet details (data interpretation and highlighting)</span>
+				<input
+					type="checkbox"
+					class="toggle toggle-primary"
+					bind:checked={vizSettings.showDetails}
+					onchange={() => postVizualizerSettings(vizSettings)}
+				/>
+			</label>
+		</div>
+		<div>
+		<label class="label cursor-pointer w-full justify-between">
+			<span class="">Show meta data of packets (packet number, receive timestamp, repetition, etc.)</span>
+			<input
+				type="checkbox"
+				class="toggle toggle-primary"
+				bind:checked={vizSettings.showMetadata}
+				onchange={() => postVizualizerSettings(vizSettings)}
+			/>
+		</label>
 		</div>
 	{/await}
 </SettingsCard>
@@ -326,7 +274,7 @@
 		<IconLogs class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 	{/snippet}
 	{#snippet title()}
-		<span>Hekatron Genius Packets</span>
+		<span>Genius Packets</span>
 	{/snippet}
 
 	<div class="relative w-full overflow-visible">

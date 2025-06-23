@@ -83,12 +83,6 @@
 					icon: Ring,
 					href: '/gateway/alarm-lines',
 					feature: true
-				},
-				{
-					title: 'CC1101',
-					icon: CPU,
-					href: '/gateway/cc1101',
-					feature: page.data.features.cc1101_controller && $user.admin
 				}
 			]
 		},
@@ -146,6 +140,12 @@
 					icon: Health,
 					href: '/system/status',
 					feature: true
+				},
+				{
+					title: 'CC1101',
+					icon: CPU,
+					href: '/system/cc1101',
+					feature: page.data.features.cc1101_controller && $user.admin
 				},
 				{
 					title: 'System Metrics',

@@ -17,12 +17,12 @@
 #define RX_TASK_STACK_SIZE 4096
 #define RX_TASK_PRIORITY 20
 #define RX_TASK_CORE_AFFINITY 1
-#define RX_TASK_NAME "hekatron-rx"
+#define RX_TASK_NAME "genius-rx"
 
 #define HOPS_FIRST 0xF
 #define HOPS_LAST 0x0
 
-#define MIN_HEKATRON_PACKET_LENGTH LEN_UNKNOWN_PURPOSE_1_PACKET
+#define MIN_GENIUS_PACKET_LENGTH LEN_UNKNOWN_PURPOSE_1_PACKET
 
 #define LEN_COMMISSIONING_PACKET 37
 #define LEN_UNKNOWN_PURPOSE_1_PACKET 28
@@ -61,7 +61,9 @@
 
 #define GATEWAY_EVENT_ALARM "alarm"
 
-typedef enum hekatron_packet_type
+#define GATEWAY_ALARM_STATE_EMIT_INTERVAL_MS 1000 // 1 second
+
+typedef enum genius_packet_type
 {
   HPT_UNKNOWN = 0,
   HPT_COMMISSIONING,
@@ -70,16 +72,16 @@ typedef enum hekatron_packet_type
   HPT_ALARMING,
   HPT_ALARM_SILENCING,
   HPT_LINE_TEST
-} hekatron_packet_type_t;
+} genius_packet_type_t;
 
-typedef struct hekatron_packet_t
+typedef struct genius_packet_t
 {
-  hekatron_packet_type_t type;
+  genius_packet_type_t type;
   uint32_t origin_id;
   uint32_t sender_id;
   uint32_t line_id;
   uint8_t hops;
-} hekatron_packet_t;
+} genius_packet_t;
 
 class GeniusGateway
 {
@@ -104,7 +106,7 @@ private:
   EventSocket *_eventSocket;
   FeaturesService *_featureService;
 
-  void _mqttPublishConfig();
+  void _mqttPublishDevices(bool onlyStates = false);
 
   void _rx_packets();
   static void _rx_packetsImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_rx_packets(); }
@@ -118,12 +120,7 @@ private:
    * @param data_length Length of the received packet
    * @param analyzed_packet Pointer to the analyzed packet
    */
-  esp_err_t _hekatron_analyze_packet_data(uint8_t *packet_data, size_t data_length, hekatron_packet_t *analyzed_packet);
+  esp_err_t _genius_analyze_packet_data(uint8_t *packet_data, size_t data_length, genius_packet_t *analyzed_packet);
 
-
-    void _loop();
-    static void _loopImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_loop(); }
-
-    void _emitAlarmState();
-
+  void _emitAlarmState();
 };

@@ -118,7 +118,7 @@ extern "C" {
 #define CC1101_RCCTRL0_STATUS		0x3D	// Last RC Oscillator Calibration Result 
 
 /**
- * Default settings (868,3 MHz @ 38,4 KBaud Hekatron setup)
+ * Default settings (868,3 MHz @ 38,4 KBaud Genius setup)
  */
 #define CC1101_DEFVAL_IOCFG2		0x2E	// GDO2 Output Pin Configuration
 #define CC1101_DEFVAL_IOCFG1		0x2E	// GDO1 Output Pin Configuration

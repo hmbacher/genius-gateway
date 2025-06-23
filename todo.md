@@ -1,24 +1,16 @@
 ## Alarmstate in Devices integrieren
-- [] Alarmlines auch von Alarm und Line Test Paketen übernehmen?
-- [] AlarmLines: Event Socket und Event für Neue Alarm Line
-
-- [] Mute-Endpoint (bei Devices?) zum Silencen aus Frontend
-
-- [] Config-Topics sollen nicht immer aktualisiert werden
 - [] Allgemeines Status-Topic
-
-- [] Umgang mit ALarm, der von Gateway selbst initiiert wurde!
-- [] Wie funktioniert das mit Fremden RWM?
-
 - [] Settings:
     - Enable WebSocket logger
-    - Add Alarm lines from:
-        o Comissioning
-        o Alarms/Silencing
-        o Line Test
-    - Add smoke Detectot on foreign Alarm
+    - Add smoke Detector on foreign Alarm
         o Is Radio Module ID provided over several hops?
+    - Publish Gateway-triggered Alert via MQTT
+- [] Mute-Endpoint (bei Devices?) zum Silencen aus Frontend
+- [] Umgang mit ALarm, der von Gateway selbst initiiert wurde!
+        --> Sollte im Frontend angezeigt werden.
+        --> ?Option: Leite Gateway-Alarm via MQTT weiter?
+- [] Wie funktioniert das mit Fremden RWM?
 
-- [] Broadcast-Alarm Line als Compiler-Shalter
 
-- Status-Loop in GeniusGateway.c mit esp32SvelteKit-Loop realisieren
+Bugs:
+- Scrollbalken sichtbar

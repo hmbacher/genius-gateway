@@ -17,15 +17,15 @@
 	interface Props {
 		isOpen: boolean;
 		title: string;
-		onSaveHekatronDevice: any;
-		hekatronDevice?: any;
+		onSaveGeniusDevice: any;
+		geniusDevice?: any;
 	}
 
 	let {
 		isOpen,
 		title,
-		onSaveHekatronDevice,
-		hekatronDevice = $bindable({
+		onSaveGeniusDevice,
+		geniusDevice = $bindable({
 			smokeDetector: { model: 0, sn: 0, productionDate: new Date() },
 			radioModule: { model: 0, sn: 0, productionDate: new Date() },
 			location: ''
@@ -35,14 +35,14 @@
 	let smokeDetectorModels = [
 		{
 			id: 0,
-			text: `Hekatron Genius Plus X`
+			text: `Genius Genius Plus X`
 		}
 	];
 
 	let radioModuleModels = [
 		{
 			id: 0,
-			text: `Hekatron FM Basis X`
+			text: `Genius FM Basis X`
 		}
 	];
 
@@ -78,7 +78,7 @@
 	}
 
 	onMount(() => {
-		dateString = convertDateToBindableStr(hekatronDevice.smokeDetector.productionDate);
+		dateString = convertDateToBindableStr(geniusDevice.smokeDetector.productionDate);
 	});
 
 	function handleSave() {
@@ -86,7 +86,7 @@
 
 		// --- Validate Smoke Detector
 		// Validate if smoke detector SN is within range
-		if (hekatronDevice.smokeDetector.sn < minSN || hekatronDevice.smokeDetector.sn.length > maxSN) {
+		if (geniusDevice.smokeDetector.sn < minSN || geniusDevice.smokeDetector.sn.length > maxSN) {
 			formErrors.smokeDetector.sn = true;
 			valid = false;
 		} else {
@@ -95,7 +95,7 @@
 
 		// --- Validate Radio Module
 		// Validate if smoke detector SN is within range
-		if (hekatronDevice.radioModule.sn < minSN || hekatronDevice.radioModule.sn.length > maxSN) {
+		if (geniusDevice.radioModule.sn < minSN || geniusDevice.radioModule.sn.length > maxSN) {
 			formErrors.radioModule.sn = true;
 			valid = false;
 		} else {
@@ -104,14 +104,14 @@
 
 		// --- Validate Production Date
 		// Validate if production date of smoke detector is not in the future
-		if (isNaN(hekatronDevice.smokeDetector.productionDate)) {
+		if (isNaN(geniusDevice.smokeDetector.productionDate)) {
 			formErrors.smokeDetector.productionDate = true;
 			valid = false;
 		} else {
 			formErrors.smokeDetector.productionDate = false;
 		}
 		// Validate if production date of radio module is not in the future
-		if (isNaN(hekatronDevice.radioModule.productionDate)) {
+		if (isNaN(geniusDevice.radioModule.productionDate)) {
 			formErrors.radioModule.productionDate = true;
 			valid = false;
 		} else {
@@ -120,8 +120,8 @@
 
 		// Validate location
 		if (
-			hekatronDevice.location.length < minLocationLength ||
-			hekatronDevice.location.length > maxLocationLength
+			geniusDevice.location.length < minLocationLength ||
+			geniusDevice.location.length > maxLocationLength
 		) {
 			formErrors.location = true;
 			valid = false;
@@ -131,7 +131,7 @@
 
 		// Callback on saving
 		if (valid) {
-			onSaveHekatronDevice(hekatronDevice);
+			onSaveGeniusDevice(geniusDevice);
 		}
 	}
 
@@ -172,7 +172,7 @@
 						<select
 							class="select"
 							id="smokeDetectorModel"
-							bind:value={hekatronDevice.smokeDetector.model}
+							bind:value={geniusDevice.smokeDetector.model}
 						>
 							{#each smokeDetectorModels as model}
 								<option value={model.id}>
@@ -187,7 +187,7 @@
 							<span class="label-text text-md">Production Date</span>
 						</label>
 						<DateInput
-							bind:date={hekatronDevice.smokeDetector.productionDate}
+							bind:date={geniusDevice.smokeDetector.productionDate}
 							id="smokeDetectorProductionDate"
 						/>
 						{#if formErrors.smokeDetector.productionDate}
@@ -214,7 +214,7 @@
 							min={minSN}
 							max={maxSN}
 							class="input input-bordered invalid:border-error w-full invalid:border-2"
-							bind:value={hekatronDevice.smokeDetector.sn}
+							bind:value={geniusDevice.smokeDetector.sn}
 							id="smokeDetectorSN"
 						/>
 						{#if formErrors.smokeDetector.sn}
@@ -255,7 +255,7 @@
 						<select
 							class="select"
 							id="radioModuleModel"
-							bind:value={hekatronDevice.radioModule.model}
+							bind:value={geniusDevice.radioModule.model}
 						>
 							{#each radioModuleModels as model}
 								<option value={model.id}>
@@ -270,7 +270,7 @@
 							<span class="label-text text-md">Production Date</span>
 						</label>
 						<DateInput
-							bind:date={hekatronDevice.radioModule.productionDate}
+							bind:date={geniusDevice.radioModule.productionDate}
 							id="radioModuleProductionDate"
 						/>
 						{#if formErrors.radioModule.productionDate}
@@ -297,7 +297,7 @@
 							min={minSN}
 							max={maxSN}
 							class="input input-bordered invalid:border-error w-full invalid:border-2"
-							bind:value={hekatronDevice.radioModule.sn}
+							bind:value={geniusDevice.radioModule.sn}
 							id="radioModuleSN"
 						/>
 						{#if formErrors.radioModule.sn}
@@ -332,7 +332,7 @@
 						min="1"
 						max="30"
 						class="input input-bordered invalid:border-error w-full invalid:border-2"
-						bind:value={hekatronDevice.location}
+						bind:value={geniusDevice.location}
 						id="location"
 					/>
 					{#if formErrors.location}

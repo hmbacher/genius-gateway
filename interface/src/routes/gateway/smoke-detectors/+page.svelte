@@ -6,7 +6,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
-	import type { HekatronDevices, HekatronDevice } from '$lib/types/models';
+	import type { GeniusDevices, GeniusDevice } from '$lib/types/models';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -32,9 +32,9 @@
 
 	let { data }: Props = $props();
 
-	let hekatronDevices: HekatronDevices = $state({ devices: [] });
+	let geniusDevices: GeniusDevices = $state({ devices: [] });
 
-	async function getHekatronDevices() {
+	async function getGeniusDevices() {
 		try {
 			const response = await fetch('/rest/gateway-devices', {
 				method: 'GET',
@@ -44,14 +44,14 @@
 				}
 			});
 
-			hekatronDevices = JSON.parse(await response.text(), jsonDateReviver);
+			geniusDevices = JSON.parse(await response.text(), jsonDateReviver);
 		} catch (error) {
 			console.error('Error:', error);
 		}
 		return;
 	}
 
-	async function postHekatronDevices(devices: HekatronDevices) {
+	async function postGeniusDevices(devices: GeniusDevices) {
 		try {
 			const response = await fetch('/rest/gateway-devices', {
 				method: 'POST',
@@ -64,7 +64,7 @@
 
 			if (response.status == 200) {
 				notifications.success('Smoke detectors updated.', 3000);
-				hekatronDevices = JSON.parse(await response.text(), jsonDateReviver);
+				geniusDevices = JSON.parse(await response.text(), jsonDateReviver);
 			} else {
 				notifications.error('User not authorized.', 3000);
 			}
@@ -76,22 +76,22 @@
 
 	function confirmDelete(index: number) {
 		modals.open(ConfirmDialog, {
-			title: 'Confirm to delete Hekatron device',
+			title: 'Confirm to delete Genius device',
 			message:
-				'Are you sure you want to delete the Hekatron device "' +
-				hekatronDevices.devices[index].smokeDetector.sn +
+				'Are you sure you want to delete the Genius device "' +
+				geniusDevices.devices[index].smokeDetector.sn +
 				' (' +
-				hekatronDevices.devices[index].location +
+				geniusDevices.devices[index].location +
 				')"?',
 			labels: {
 				cancel: { label: 'Abort', icon: Cancel },
 				confirm: { label: 'Yes', icon: Check }
 			},
 			onConfirm: () => {
-				hekatronDevices.devices.splice(index, 1);
-				hekatronDevices = hekatronDevices;
+				geniusDevices.devices.splice(index, 1);
+				geniusDevices = geniusDevices;
 				modals.close();
-				postHekatronDevices(hekatronDevices);
+				postGeniusDevices(geniusDevices);
 			}
 		});
 	}
@@ -99,23 +99,23 @@
 	function handleEdit(index: number) {
 		modals.open(EditSmokeDetector, {
 			title: 'Edit smoke detector',
-			//hekatronDevice: { ...hekatronDevices.devices[index] }, // Shallow Copy
-			hekatronDevice: $state.snapshot(hekatronDevices.devices[index]), // Deep copy
-			onSaveHekatronDevice: (editedHekatronDevice: HekatronDevice) => {
-				hekatronDevices.devices[index] = editedHekatronDevice;
+			//geniusDevice: { ...geniusDevices.devices[index] }, // Shallow Copy
+			geniusDevice: $state.snapshot(geniusDevices.devices[index]), // Deep copy
+			onSaveGeniusDevice: (editedGeniusDevice: GeniusDevice) => {
+				geniusDevices.devices[index] = editedGeniusDevice;
 				modals.close();
-				postHekatronDevices(hekatronDevices);
+				postGeniusDevices(geniusDevices);
 			}
 		});
 	}
 
-	function handleNewHekatronDevice() {
+	function handleNewGeniusDevice() {
 		modals.open(EditSmokeDetector, {
 			title: 'Add smoke detector',
-			onSaveHekatronDevice: (newHekatronDevice: HekatronDevice) => {
-				hekatronDevices.devices = [...hekatronDevices.devices, newHekatronDevice];
+			onSaveGeniusDevice: (newGeniusDevice: GeniusDevice) => {
+				geniusDevices.devices = [...geniusDevices.devices, newGeniusDevice];
 				modals.close();
-				postHekatronDevices(hekatronDevices);
+				postGeniusDevices(geniusDevices);
 			}
 		});
 		//
@@ -124,7 +124,7 @@
 	function handleAlarmLog(index: number) {
 		modals.open(AlarmLog, {
 			title: 'Alarms log',
-			hekatronDevice: hekatronDevices.devices[index]
+			geniusDevice: geniusDevices.devices[index]
 		});
 	}
 
@@ -138,11 +138,11 @@
 			reader.onload = () => {
 				const fileContent = reader.result as string;
 				try {
-					const parsedData = JSON.parse(fileContent, jsonDateReviver) as HekatronDevices;
+					const parsedData = JSON.parse(fileContent, jsonDateReviver) as GeniusDevices;
 					if (parsedData) {
-						hekatronDevices = parsedData;
+						geniusDevices = parsedData;
 						notifications.success('Smoke detectors imported.', 3000);
-						postHekatronDevices(hekatronDevices);
+						postGeniusDevices(geniusDevices);
 					} else {
 						notifications.error('Invalid smoke detectors format.', 3000);
 					}
@@ -171,7 +171,7 @@
 			{#snippet title()}
 				<span>Installed Genius devices</span>
 			{/snippet}
-			{#await getHekatronDevices()}
+			{#await getGeniusDevices()}
 				<Spinner />
 			{:then nothing}
 				<div class="relative w-full overflow-visible">
@@ -179,7 +179,7 @@
 						<div class="tooltip tooltip-left" data-tip="Add smoke detector">
 							<button
 								class="btn btn-primary text-primary-content btn-md"
-								onclick={handleNewHekatronDevice}
+								onclick={handleNewGeniusDevice}
 							>
 								<Add class="h-6 w-6" />
 							</button>
@@ -196,14 +196,14 @@
 						<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
 							<button
 								class="btn btn-primary text-primary-content btn-md"
-								onclick={() => downloadObjectAsJson(hekatronDevices, 'genius-devices')}
+								onclick={() => downloadObjectAsJson(geniusDevices, 'genius-devices')}
 							>
 								<Save class="h-6 w-6" />
 							</button>
 						</div>
 					</div>
 
-					{#if hekatronDevices.devices.length === 0}
+					{#if geniusDevices.devices.length === 0}
 						<div class="divider my-0"></div>
 						<div class="flex flex-col items-center justify-center p-4 text-sm text-gray-500">
 							<p class="mb-4 font-semibold">No smoke detectors configured yet.</p>
@@ -227,7 +227,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each hekatronDevices.devices as device, index}
+									{#each geniusDevices.devices as device, index}
 										<tr>
 											<td align="left" class="font-bold">{device.location}</td>
 											<td align="left">

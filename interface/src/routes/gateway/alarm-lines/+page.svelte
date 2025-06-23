@@ -9,6 +9,8 @@
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { AlarmLines, AlarmLine } from '$lib/types/models';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils';
+	import { onMount, onDestroy } from 'svelte';
+	import { socket } from '$lib/stores/socket';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EditAlarmLine from './EditAlarmLine.svelte';
@@ -36,6 +38,19 @@
 	let { data }: Props = $props();
 
 	let alarmLines: AlarmLines = $state({ lines: [] });
+
+	type NewAlarmLineEvent = {
+		new_alarm_line: number;
+	};
+
+	onMount(() => {
+		socket.on<NewAlarmLineEvent>('new-alarm-line', (data) => {
+			getAlarmLines();	// Reload alarm lines
+			notifications.success('New alarm line detected.', 3000);
+		});
+	});
+
+	onDestroy(() => socket.off('new-alarm-line'));
 
 	async function getAlarmLines() {
 		try {
@@ -348,7 +363,7 @@
 														{:else if line.acquisition === 1}
 															<div
 																class="tooltip tooltip-top"
-																data-tip="Alarm line extracted from Genius radio packe."
+																data-tip="Alarm line extracted from Genius radio packet"
 															>
 																<Automatic class="h-6 w-6" />
 															</div>

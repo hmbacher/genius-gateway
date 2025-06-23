@@ -149,28 +149,28 @@ export type MQTTSettings = {
 	clean_session: boolean;
 };
 
-export type HekatronAlarm = {
+export type GeniusAlarm = {
 	startTime: Date;
 	endTime: Date;
 	endingReason: number;
 }
 
-export type HekatronComponent = {
+export type GeniusComponent = {
 	model: number;
 	sn: number;
 	productionDate: Date;
 };
 
-export type HekatronDevice = {
-	smokeDetector: HekatronComponent;
-	radioModule: HekatronComponent;
+export type GeniusDevice = {
+	smokeDetector: GeniusComponent;
+	radioModule: GeniusComponent;
 	location: string;
-	alarms: HekatronAlarm[];
+	alarms: GeniusAlarm[];
 	isAlarming: boolean;
 };
 
-export type HekatronDevices = {
-	devices: HekatronDevice[];
+export type GeniusDevices = {
+	devices: GeniusDevice[];
 };
 
 export type AlarmState = {

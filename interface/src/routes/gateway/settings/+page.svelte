@@ -8,7 +8,11 @@
 	import { notifications } from '$lib/components/toasts/notifications';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import Alert from '~icons/tabler/alert-hexagon';
+	import IconSettings from '~icons/tabler/adjustments';
+	import IconAlarm from '~icons/tabler/alert-hexagon';
+	import IconDetector from '~icons/tabler/alarm-smoke';
+	import IconAlarmLine from '~icons/tabler/topology-ring-2';
+	import IconSave from '~icons/tabler/device-floppy';
 
 	interface Props {
 		data: PageData;
@@ -16,13 +20,28 @@
 
 	let { data }: Props = $props();
 
-	type AlertingSettings = {
-		alertOnUnknownDetectors: boolean;
+	type GatewaySettings = {
+		alert_on_unknown_detectors: boolean;
+		add_unknown_alarming_detectors: boolean;
+		add_alarm_line_from_commissioning_packet: boolean;
+		add_alarm_line_from_alarm_packet: boolean;
+		add_alarm_line_from_line_test_packet: boolean;
 	};
 
-	let alertingSettings: AlertingSettings = $state();
+	const defaultSettings: GatewaySettings = {
+		alert_on_unknown_detectors: false,
+		add_unknown_alarming_detectors: false,
+		add_alarm_line_from_commissioning_packet: false,
+		add_alarm_line_from_alarm_packet: false,
+		add_alarm_line_from_line_test_packet: false
+	};
 
-	async function getAlertingSettings() {
+	let gatewaySettings: GatewaySettings = $state(defaultSettings);
+	let strSettings: string = $state(JSON.stringify(defaultSettings)); // to recognize changes
+
+	let isSettingsDirty: boolean = $derived(JSON.stringify(gatewaySettings) !== strSettings);
+
+	async function getGatewaySettings() {
 		try {
 			const response = await fetch('/rest/gateway-settings', {
 				method: 'GET',
@@ -32,14 +51,15 @@
 				}
 			});
 
-			alertingSettings = await response.json();
+			gatewaySettings = await response.json();
+			strSettings = JSON.stringify(gatewaySettings); // Store the recently loaded settings in a string variable
 		} catch (error) {
 			console.error('Error:', error);
 		}
 		return;
 	}
 
-	async function postAlertingSettings(data: AlertingSettings) {
+	async function postGatewaySettings() {
 		try {
 			const response = await fetch('/rest/gateway-settings', {
 				method: 'POST',
@@ -47,12 +67,13 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(data)
+				body: JSON.stringify(gatewaySettings)
 			});
 
 			if (response.status == 200) {
 				notifications.success('Gateway settings updated.', 3000);
-				alertingSettings = await response.json();
+				gatewaySettings = await response.json();
+				strSettings = JSON.stringify(gatewaySettings); // Store the recently loaded settings in a string variable
 			} else {
 				notifications.error('User not authorized.', 3000);
 			}
@@ -68,27 +89,109 @@
 		class="mx-0 my-1 flex flex-col space-y-4
      sm:mx-8 sm:my-8"
 	>
-		<SettingsCard collapsible={false}>
+		<SettingsCard collapsible={false} isDirty={isSettingsDirty}>
 			{#snippet icon()}
-				<Alert class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+				<IconSettings class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 			{/snippet}
 			{#snippet title()}
-				<span>Alerting settings</span>
+				<span>Gateway Settings</span>
 			{/snippet}
-			{#await getAlertingSettings()}
+			{#await getGatewaySettings()}
 				<Spinner />
 			{:then nothing}
-				<div class="relative w-full overflow-visible">
-					<div class="form-control">
-						<label class="label cursor-pointer">
+				<div class="flex w-full flex-col gap-2 px-2">
+					<div>
+						<span class="inline-flex items-center gap-2">
+							<IconAlarm class="h-6 w-6" />
+							<span class="font-medium">Alarming</span>
+						</span>
+					</div>
+					<div>
+						<label class="label cursor-pointer w-full justify-between">
 							<span class="">Forward alerts from unknown smoke detectors</span>
 							<input
 								type="checkbox"
 								class="toggle toggle-primary"
-								bind:checked={alertingSettings.alertOnUnknownDetectors}
-								onchange={() => postAlertingSettings(alertingSettings)}
+								bind:checked={gatewaySettings.alert_on_unknown_detectors}
 							/>
 						</label>
+					</div>
+					<div class="divider my-2"></div>
+				</div>
+				<div class="flex w-full flex-col gap-2 px-2">
+					<div>
+						<span class="inline-flex items-center gap-2">
+							<IconDetector class="h-6 w-6" />
+							<span class="font-medium">Smoke Detectors</span>
+						</span>
+					</div>
+					<div>
+						<label class="label cursor-pointer w-full justify-between">
+							<span class="">Add unknown alarming smoke detector as Genius device automatically</span>
+							<input
+								type="checkbox"
+								class="toggle toggle-primary"
+								bind:checked={gatewaySettings.add_unknown_alarming_detectors}
+							/>
+						</label>
+					</div>
+					<div class="divider my-2"></div>
+				</div>
+				<div class="flex w-full flex-col gap-2 px-2">
+					<div>
+						<span class="inline-flex items-center gap-2">
+							<IconAlarmLine class="h-6 w-6" />
+							<span class="font-medium">Alarm lines</span>
+						</span>
+					</div>
+					<div>
+						<label class="label cursor-pointer w-full justify-between">
+							<span class="">Add alarm line ID of received <em>comissioning</em> packets automatically</span
+							>
+							<input
+								type="checkbox"
+								class="toggle toggle-primary"
+								bind:checked={gatewaySettings.add_alarm_line_from_commissioning_packet}
+							/>
+						</label>
+					</div>
+					<div>
+						<label class="label cursor-pointer w-full justify-between">
+							<span class=""
+								>Add alarm line ID of received <em>alarming/silencing</em> packets automatically</span
+							>
+							<input
+								type="checkbox"
+								class="toggle toggle-primary"
+								bind:checked={gatewaySettings.add_alarm_line_from_alarm_packet}
+							/>
+						</label>
+					</div>
+					<div>
+						<label class="label cursor-pointer w-full justify-between">
+							<span class="">Add alarm line ID of received <em>line test</em> packets automatically</span>
+							<input
+								type="checkbox"
+								class="toggle toggle-primary"
+								bind:checked={gatewaySettings.add_alarm_line_from_line_test_packet}
+							/>
+						</label>
+					</div>
+				</div>
+				<div class="divider my-2"></div>
+				<div class="mb-4 flex flex-wrap justify-end gap-2">
+					<div class="tooltip tooltip-left" data-tip="Save gateway settings">
+						<button
+							class="btn btn-primary"
+							type="button"
+							disabled={!isSettingsDirty}
+							onclick={() => {
+								postGatewaySettings();
+							}}
+						>
+							<IconSave class="h-6 w-6" />
+							Save
+						</button>
 					</div>
 				</div>
 			{/await}

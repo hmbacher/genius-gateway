@@ -13,8 +13,6 @@
  **/
 
 #include <ESP32SvelteKit.h>
-#include <LightMqttSettingsService.h>
-#include <LightStateService.h>
 #include <PsychicHttpServer.h>
 #include <GeniusGateway.h>
 
@@ -23,13 +21,6 @@
 PsychicHttpServer server;
 
 ESP32SvelteKit esp32sveltekit(&server, 150);
-
-LightMqttSettingsService lightMqttSettingsService = LightMqttSettingsService(&server,
-                                                                             &esp32sveltekit);
-
-LightStateService lightStateService = LightStateService(&server,
-                                                        &esp32sveltekit,
-                                                        &lightMqttSettingsService);
 
 GeniusGateway geniusGateway = GeniusGateway(&esp32sveltekit);
 
@@ -40,18 +31,9 @@ void setup()
 
     // start ESP32-SvelteKit
     esp32sveltekit.begin();
-
-    // load the initial light settings
-    lightStateService.begin();
-    // start the light service
-    lightMqttSettingsService.begin();
     
+    // start Genius Gateway
     geniusGateway.begin();
-
-    // /* Print tasks */
-    // char stats_buffer[1024];
-    // vTaskList(stats_buffer);
-    // printf("%s\n", stats_buffer);
 }
 
 void loop()

@@ -57,6 +57,7 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
 AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit) : _server(sveltekit->getServer()),
                                                                   _securityManager(sveltekit->getSecurityManager()),
                                                                   _featureService(sveltekit->getFeatureService()),
+                                                                  _eventSocket(sveltekit->getSocket()),
                                                                   _httpEndpoint(AlarmLines::read,
                                                                                 AlarmLines::update,
                                                                                 this,
@@ -92,7 +93,7 @@ void AlarmLinesService::begin()
     _featureService->addFeature("allow_broadcast", false);
     /* Make sure, that a Broadcast alarm line is removed */
     if (_alarmLineExists(ALARMLINES_ID_BROADCAST))
-        removeAlarmLine(ALARMLINES_ID_BROADCAST);
+        _removeAlarmLine(ALARMLINES_ID_BROADCAST);
 #endif
 
     /* Initialize the semaphore for the TX task */
@@ -135,11 +136,13 @@ void AlarmLinesService::begin()
     if (ret != ESP_OK)
         ESP_LOGE(TAG, "Failed to create TX timer.");
 
-    /* Register endpoint for line test trigger */
+    /* Register endpoint for triggering actions */
     _server->on(ALARMLINES_PATH_ACTIONS,
                 HTTP_POST,
                 _securityManager->wrapCallback(std::bind(&AlarmLinesService::_performAction, this, std::placeholders::_1, std::placeholders::_2),
                                                AuthenticationPredicates::IS_ADMIN));
+
+    _eventSocket->registerEvent(ALARMLINES_EVENT_NEW_LINE);
 }
 
 void AlarmLinesService::_onTimer()
@@ -178,12 +181,8 @@ void AlarmLinesService::_txLoop()
                     }
                 }
 
-                ESP_LOGV(pcTaskGetName(0), "Itr. %d.", i);
-
                 if (cc1101_send_data(_txBuffer, _txDataLength) != ESP_OK)
                     ESP_LOGE(pcTaskGetName(0), "Failed to send packet @ iteration %d.", i);
-
-                ESP_LOGV(pcTaskGetName(0), "---1");
 
                 gpio_set_level(GPIO_TEST1, 0); // Temporary for testing
 
@@ -196,8 +195,6 @@ void AlarmLinesService::_txLoop()
                         break;
                     }
                 }
-
-                ESP_LOGV(pcTaskGetName(0), "---2");
             }
 
             _isTransmitting = false;
@@ -306,12 +303,6 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (_alarmLineExists(id))
-    {
-        ESP_LOGW(TAG, "Alarm line with ID %lu already exists.", id);
-        return ESP_ERR_INVALID_STATE;
-    }
-
     if (name.length() > ALARMLINES_NAME_MAX_LENGTH)
     {
         ESP_LOGE(TAG, "Alarm line name is too long. Maximum length is %d.", ALARMLINES_NAME_MAX_LENGTH);
@@ -322,6 +313,12 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
     {
         ESP_LOGE(TAG, "Invalid acquisition type provided: %d.", acquisition);
         return ESP_ERR_INVALID_ARG;
+    }
+
+    if (_alarmLineExists(id))
+    {
+        ESP_LOGW(TAG, "Alarm line with ID %lu already exists.", id);
+        return ESP_ERR_INVALID_STATE;
     }
 
     genius_alarm_line_t newLine;
@@ -337,14 +334,25 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
         _state.lines.push_back(newLine);
     endTransaction();
 
-    ESP_LOGE(TAG, "Added alarm line '%s' with id %lu", newLine.name.c_str(), newLine.id);
+    ESP_LOGI(TAG, "Added alarm line '%s' with id %lu", newLine.name.c_str(), newLine.id);
 
     callUpdateHandlers(ALARMLINES_ORIGIN_ID);
+
+    if (acquisition == ALA_GENIUS_PACKET)   // Alarm line has been added from a genius packet
+        _emitNewAlarmLineEvent(id);
 
     return ESP_OK;
 }
 
-esp_err_t AlarmLinesService::removeAlarmLine(uint32_t id)
+void AlarmLinesService::_emitNewAlarmLineEvent(uint32_t id)
+{
+    JsonDocument jsonDoc;
+    JsonObject jsonRoot = jsonDoc.to<JsonObject>();
+    jsonRoot["new_alarm_line"] = id;
+    _eventSocket->emitEvent(ALARMLINES_EVENT_NEW_LINE, jsonRoot);
+}
+
+esp_err_t AlarmLinesService::_removeAlarmLine(uint32_t id)
 {
     if (id == ALARMLINES_ID_NONE)
     {

@@ -1,13 +1,11 @@
 #include <GeniusGateway.h>
+#include <GatewaySettingsService.h>
 
 TaskHandle_t GeniusGateway::xRxTaskHandle = NULL;
 
-static void nofifyReceivedPacket()
+static void nofifyReceivedPacket() // !!! This function is called from ISR !!!
 {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-    // Just for temporary testing purposes
-    gpio_set_level((gpio_num_t)GPIO_TEST1, 1);
 
     // Notify the waiting (blocked) RX task that a packet is ready to be read from RX FIFO
     vTaskNotifyGiveIndexedFromISR(GeniusGateway::xRxTaskHandle,
@@ -87,7 +85,7 @@ void GeniusGateway::begin()
     /* Initialize Packet Vizualizer Settings */
     _visualizerSettingsService.begin();
 
-#if FT_ENABLED(FT_NTP)
+#if FT_ENABLED(FT_CC1101_CONTROLLER)
     _featureService->addFeature("cc1101_controller", true);
     /* Initialize CC1101Controller */
     _cc1101Controller.begin();
@@ -96,43 +94,20 @@ void GeniusGateway::begin()
 #endif
 
     /* Configure MQTT callback */
-    _mqttClient->onConnect(std::bind(&GeniusGateway::_mqttPublishConfig, this));
+    _mqttClient->onConnect([this](bool /*sessionPresent*/)
+                           { this->_mqttPublishDevices(); });
 
     /* Configure update handler for when the smoke detector devices change */
     _gatewayDevices.addUpdateHandler([&](const String &originId)
-                                     { _mqttPublishConfig(); },
+                                     { _mqttPublishDevices(originId == ALARM_STATE_CHANGE); },
                                      false);
 
     /* Configure update handler for when the MQTT settings change */
     _gatewayMqttSettingsService.addUpdateHandler([&](const String &originId)
-                                                 { _mqttPublishConfig(); },
+                                                 { _mqttPublishDevices(); },
                                                  false);
 
     _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
-
-    // Start the loop task
-    ESP_LOGV(GeniusGateway::TAG, "Starting alarm state emitter task.");
-    xTaskCreatePinnedToCore(
-        this->_loopImpl,            // Function that should be called
-        "alarm-state-emitter",      // Name of the task (for debugging)
-        4096,                       // Stack size (bytes)
-        this,                       // Pass reference to this class instance
-        (tskIDLE_PRIORITY + 2),     // task priority
-        NULL,                       // Task handle
-        ESP32SVELTEKIT_RUNNING_CORE // Pin to application core
-    );
-}
-
-// For testing purposes
-void GeniusGateway::_loop()
-{
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-
-    while (1)
-    {
-        _emitAlarmState();
-        vTaskDelayUntil(&xLastWakeTime, 1000 / portTICK_PERIOD_MS); // 1 seconds
-    }
 }
 
 void GeniusGateway::_emitAlarmState()
@@ -146,7 +121,7 @@ void GeniusGateway::_emitAlarmState()
     _eventSocket->emitEvent(GATEWAY_EVENT_ALARM, root);
 }
 
-void GeniusGateway::_mqttPublishConfig()
+void GeniusGateway::_mqttPublishDevices(bool onlyState)
 {
     if (!_mqttClient->connected())
     {
@@ -160,26 +135,30 @@ void GeniusGateway::_mqttPublishConfig()
         /* Publish config topic */
         String configTopic = mqttSettings.mqttPath + device.smokeDetector.sn + "/config";
 
-        JsonDocument config_jsonDoc;
-        config_jsonDoc["~"] = mqttSettings.mqttPath + device.smokeDetector.sn;
-        config_jsonDoc["name"] = "Genius Plus X";
-        config_jsonDoc["unique_id"] = device.smokeDetector.sn;
-        config_jsonDoc["device_class"] = "smoke";
-        config_jsonDoc["state_topic"] = "~/state";
-        config_jsonDoc["schema"] = "json";
-        config_jsonDoc["value_template"] = "{{value_json.state}}";
-        config_jsonDoc["entity_picture"] = "http://genius-gateway/hekatron-genius-plus-x.png";
-        JsonObject dev_jsonObj = config_jsonDoc["device"].to<JsonObject>();
-        dev_jsonObj["identifiers"] = device.smokeDetector.sn;
-        dev_jsonObj["manufacturer"] = "Hekatron Vertriebs GmbH";
-        dev_jsonObj["model"] = "Genius Plus X";
-        dev_jsonObj["name"] = "Rauchmelder";
-        dev_jsonObj["serial_number"] = device.smokeDetector.sn;
-        dev_jsonObj["suggested_area"] = device.location;
+        if (!onlyState)
+        {
+            JsonDocument config_jsonDoc;
+            config_jsonDoc["~"] = mqttSettings.mqttPath + device.smokeDetector.sn;
+            config_jsonDoc["name"] = "Genius Plus X";
+            config_jsonDoc["unique_id"] = device.smokeDetector.sn;
+            config_jsonDoc["device_class"] = "smoke";
+            config_jsonDoc["state_topic"] = "~/state";
+            config_jsonDoc["schema"] = "json";
+            config_jsonDoc["value_template"] = "{{value_json.state}}";
+            config_jsonDoc["entity_picture"] = "http://genius-gateway/hekatron-genius-plus-x.png"; // TODO: put hostname here
+            JsonObject dev_jsonObj = config_jsonDoc["device"].to<JsonObject>();
+            dev_jsonObj["identifiers"] = device.smokeDetector.sn;
+            dev_jsonObj["manufacturer"] = "Hekatron Vertriebs GmbH";
+            dev_jsonObj["model"] = "Genius Plus X";
+            dev_jsonObj["name"] = "Rauchmelder";
 
-        String config_payload;
-        serializeJson(config_jsonDoc, config_payload);
-        _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str());
+            dev_jsonObj["serial_number"] = device.smokeDetector.sn;
+            dev_jsonObj["suggested_area"] = device.location;
+
+            String config_payload;
+            serializeJson(config_jsonDoc, config_payload);
+            _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str());
+        }
 
         /* Pubish state topic */
         String stateTopic = mqttSettings.mqttPath + device.smokeDetector.sn + "/state";
@@ -193,7 +172,7 @@ void GeniusGateway::_mqttPublishConfig()
     }
 }
 
-esp_err_t GeniusGateway::_hekatron_analyze_packet_data(uint8_t *packet_data, size_t data_length, hekatron_packet_t *analyzed_packet)
+esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_t data_length, genius_packet_t *analyzed_packet)
 {
     if (!packet_data)
     {
@@ -208,9 +187,9 @@ esp_err_t GeniusGateway::_hekatron_analyze_packet_data(uint8_t *packet_data, siz
     }
 
     /* Clear analyzed packet */
-    memset(analyzed_packet, 0, sizeof(hekatron_packet_t));
+    memset(analyzed_packet, 0, sizeof(genius_packet_t));
 
-    /* Determine type of Hekatron packet */
+    /* Determine type of Genius packet */
     switch (data_length)
     {
 
@@ -259,6 +238,7 @@ esp_err_t GeniusGateway::_hekatron_analyze_packet_data(uint8_t *packet_data, siz
 void GeniusGateway::_rx_packets()
 {
     cc1101_packet_t packet;
+    char lineName[64];
 
     ESP_LOGI(pcTaskGetName(0), "Started.");
 
@@ -270,28 +250,69 @@ void GeniusGateway::_rx_packets()
            value act like a binary semaphore. */
         if (ulTaskNotifyTakeIndexed(RX_TASK_NOTIFICATION_INDEX, pdTRUE, RX_TASK_MAX_WAITING_TICKS) == 1)
         {
+            gpio_set_level((gpio_num_t)GPIO_TEST1, 1); // Temporary: Measuring execution time
+
             // Fetch the packet
             if (cc1101_receive_data(&packet) == ESP_OK)
             {
-                hekatron_packet_t packet_details;
-                if (_hekatron_analyze_packet_data(packet.data, packet.length, &packet_details) == ESP_OK)
+                genius_packet_t packet_details;
+                if (_genius_analyze_packet_data(packet.data, packet.length, &packet_details) == ESP_OK)
                 {
                     if (packet_details.type == HPT_COMMISSIONING)
                     {
-                        uint32_t newLineID = EXTRACT32(packet.data, DATAPOS_COMISSIONING_NEW_LINE_ID);
-                        char lineName[50];
-                        snprintf(lineName, sizeof(lineName), "Auto-added (%lu)", newLineID);
-                        _alarmLines.addAlarmLine(newLineID, String(lineName), ALA_GENIUS_PACKET);
+                        /* Store new alarm line id */
+                        if (_gatewaySettings.isAddAlarmLineFromCommissioningPacketEnabled())
+                        {
+                            uint32_t newLineID = EXTRACT32(packet.data, DATAPOS_COMISSIONING_NEW_LINE_ID);
+                            snprintf(lineName, sizeof(lineName), "Added from received comissioning packet", newLineID);
+                            _alarmLines.addAlarmLine(newLineID, String(lineName), ALA_GENIUS_PACKET);
+                        }
                     }
-                    else if (packet_details.type == HPT_ALARMING)
+                    else if (packet_details.type == HPT_ALARMING || packet_details.type == HPT_ALARM_SILENCING)
                     {
+
                         uint32_t source_id = EXTRACT32_REV(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
-                        _gatewayDevices.setAlarm(source_id);
+
+                        if (packet_details.type == HPT_ALARMING)
+                        {
+                            bool isDetectorKnown = _gatewayDevices.isSmokeDetectorKnown(source_id);
+
+                            if (!isDetectorKnown && _gatewaySettings.isAddUnknownAlarmingDetectorEnabled())
+                            {
+                                // TODO: Add unknown smoke detector to the list
+                            }
+
+                            /* Set/Reset alarm */
+                            if (isDetectorKnown || (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled()))
+                            {
+                                _gatewayDevices.setAlarm(source_id);
+                            }
+                        }
+                        else
+                        {
+                            // packet_details.type == HPT_ALARM_SILENCING
+                            _gatewayDevices.resetAlarm(source_id, HAE_BY_SMOKE_DETECTOR);
+                        }
+
+                        /* Emit alarm state to front end */
+                        _emitAlarmState();
+
+                        /* Store alarm line id */
+                        if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
+                        {
+                            uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
+                            snprintf(lineName, sizeof(lineName), "Added from received alarming/silencing packet", lineID);
+                            _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
+                        }
                     }
-                    else if (packet_details.type == HPT_ALARM_SILENCING)
+                    else if (packet_details.type == HPT_LINE_TEST)
                     {
-                        uint32_t source_id = EXTRACT32_REV(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
-                        _gatewayDevices.resetAlarm(source_id, HAE_BY_SMOKE_DETECTOR);
+                        if (_gatewaySettings.isAddAlarmLineFromLineTestPacketEnabled())
+                        {
+                            uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
+                            snprintf(lineName, sizeof(lineName), "Added from received line test packet", lineID);
+                            _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
+                        }
                     }
                 }
 
@@ -301,8 +322,7 @@ void GeniusGateway::_rx_packets()
                 gpio_set_level(GPIO_TEST2, 0); // Temporary: Measuring execution time
             }
 
-            // Temporary GPIO toggle to measure packet handling time
-            gpio_set_level(GPIO_TEST1, 0);
+            gpio_set_level(GPIO_TEST1, 0); // Temporary: Measuring execution time
         }
         else
         {
