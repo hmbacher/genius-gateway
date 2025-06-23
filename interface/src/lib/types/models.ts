@@ -66,10 +66,6 @@ export type BrokerSettings = {
 	unique_id: string;
 };
 
-export type GatewayMQTTSettings = {
-	mqtt_path: string;
-};
-
 export type NTPStatus = {
 	status: number;
 	utc_time: string;

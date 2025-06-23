@@ -133,12 +133,12 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
     for (auto &device : _gatewayDevices.getDevices()) // TODO: Not thread safe
     {
         /* Publish config topic */
-        String configTopic = mqttSettings.mqttPath + device.smokeDetector.sn + "/config";
+        String configTopic = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn + "/config";
 
         if (!onlyState)
         {
             JsonDocument config_jsonDoc;
-            config_jsonDoc["~"] = mqttSettings.mqttPath + device.smokeDetector.sn;
+            config_jsonDoc["~"] = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn;
             config_jsonDoc["name"] = "Genius Plus X";
             config_jsonDoc["unique_id"] = device.smokeDetector.sn;
             config_jsonDoc["device_class"] = "smoke";
@@ -161,7 +161,7 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
         }
 
         /* Pubish state topic */
-        String stateTopic = mqttSettings.mqttPath + device.smokeDetector.sn + "/state";
+        String stateTopic = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn + "/state";
 
         JsonDocument state_jsonDoc;
         state_jsonDoc["state"] = device.isAlarming ? "ON" : "OFF";
