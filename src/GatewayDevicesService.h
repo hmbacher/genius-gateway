@@ -218,7 +218,13 @@ public:
 
     bool isAlarming()
     {
-        return _isAlarming;
+         bool isAlarming = false;
+         
+        beginTransaction();
+        isAlarming = _isAlarming;
+        endTransaction();
+
+        return isAlarming;
     }
 
     bool isSmokeDetectorKnown(uint32_t detectorSN)

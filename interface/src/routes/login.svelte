@@ -34,7 +34,9 @@
 				user.init(token.access_token);
 				let username = $user.username;
 				notifications.success('User ' + username + ' signed in', 5000);
-				signIn();
+				if (signIn) {
+					signIn();
+				}
 			} else {
 				username = '';
 				password = '';

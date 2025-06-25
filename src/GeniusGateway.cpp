@@ -132,43 +132,74 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
 
     for (auto &device : _gatewayDevices.getDevices()) // TODO: Not thread safe
     {
-        /* Publish config topic */
-        String configTopic = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn + "/config";
-
-        if (!onlyState)
+        /* Publish Home Assistant compatible topics */
+        if (mqttSettings.haMQTTEnabled)
         {
-            JsonDocument config_jsonDoc;
-            config_jsonDoc["~"] = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn;
-            config_jsonDoc["name"] = "Genius Plus X";
-            config_jsonDoc["unique_id"] = device.smokeDetector.sn;
-            config_jsonDoc["device_class"] = "smoke";
-            config_jsonDoc["state_topic"] = "~/state";
-            config_jsonDoc["schema"] = "json";
-            config_jsonDoc["value_template"] = "{{value_json.state}}";
-            config_jsonDoc["entity_picture"] = "http://genius-gateway/hekatron-genius-plus-x.png"; // TODO: put hostname here
-            JsonObject dev_jsonObj = config_jsonDoc["device"].to<JsonObject>();
-            dev_jsonObj["identifiers"] = device.smokeDetector.sn;
-            dev_jsonObj["manufacturer"] = "Hekatron Vertriebs GmbH";
-            dev_jsonObj["model"] = "Genius Plus X";
-            dev_jsonObj["name"] = "Rauchmelder";
+            if (mqttSettings.haMQTTTopicPrefix.isEmpty())
+            {
+                ESP_LOGW(TAG, "Home Assistant MQTT topic prefix is empty. Cannot publish config topic.");
+            }
+            else
+            {
+                /* Publish config topic for device discovery */
+                if (!onlyState)
+                {
+                    String configTopic = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn + "/config";
 
-            dev_jsonObj["serial_number"] = device.smokeDetector.sn;
-            dev_jsonObj["suggested_area"] = device.location;
+                    JsonDocument config_jsonDoc;
+                    config_jsonDoc["~"] = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn;
+                    config_jsonDoc["name"] = "Genius Plus X";
+                    config_jsonDoc["unique_id"] = device.smokeDetector.sn;
+                    config_jsonDoc["device_class"] = "smoke";
+                    config_jsonDoc["state_topic"] = "~/state";
+                    config_jsonDoc["schema"] = "json";
+                    config_jsonDoc["value_template"] = "{{value_json.state}}";
+                    config_jsonDoc["entity_picture"] = "http://genius-gateway/hekatron-genius-plus-x.png"; // TODO: put hostname here
+                    JsonObject dev_jsonObj = config_jsonDoc["device"].to<JsonObject>();
+                    dev_jsonObj["identifiers"] = device.smokeDetector.sn;
+                    dev_jsonObj["manufacturer"] = "Hekatron Vertriebs GmbH";
+                    dev_jsonObj["model"] = "Genius Plus X";
+                    dev_jsonObj["name"] = "Rauchmelder";
 
-            String config_payload;
-            serializeJson(config_jsonDoc, config_payload);
-            _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str());
+                    dev_jsonObj["serial_number"] = device.smokeDetector.sn;
+                    dev_jsonObj["suggested_area"] = device.location;
+
+                    String config_payload;
+                    serializeJson(config_jsonDoc, config_payload);
+                    _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str());
+                }
+
+                /* Pubish state topic */
+                String stateTopic = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn + "/state";
+
+                JsonDocument state_jsonDoc;
+                state_jsonDoc["state"] = device.isAlarming ? "ON" : "OFF";
+
+                String payload;
+                serializeJson(state_jsonDoc, payload);
+                _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str());
+            }
         }
 
-        /* Pubish state topic */
-        String stateTopic = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn + "/state";
+        /* Publish generic alarming topic */
+        if (mqttSettings.alarmEnabled)
+        {
+            if (mqttSettings.alarmTopic.isEmpty())
+            {
+                ESP_LOGW(TAG, "Alarm MQTT topic is empty. Cannot publish alarming state.");
+            }
+            else
+            {
+                JsonDocument alarming_jsonDoc;
+                bool isAlarming = _gatewayDevices.isAlarming();
+                alarming_jsonDoc["isAlarming"] = isAlarming;
+                alarming_jsonDoc["isAlarmingAsInt"] = isAlarming ? 1 : 0;
 
-        JsonDocument state_jsonDoc;
-        state_jsonDoc["state"] = device.isAlarming ? "ON" : "OFF";
-
-        String payload;
-        serializeJson(state_jsonDoc, payload);
-        _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str());
+                String payload;
+                serializeJson(alarming_jsonDoc, payload);
+                _mqttClient->publish(mqttSettings.alarmTopic.c_str(), 0, true, payload.c_str());
+            }
+        }
     }
 }
 
