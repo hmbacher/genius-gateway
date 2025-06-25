@@ -198,11 +198,11 @@
 		modals.open(ConfirmDialog, {
 			title: 'Confirm fire alarm',
 			message:
-				'Are you sure you want to trigger a fire alarm for the alarm line "' +
+				'Are you sure you want to trigger a fire alarm for alarm line "' +
 				alarmLines.lines[index].name +
-				' (' +
+				'" with ID ' +
 				alarmLines.lines[index].id +
-				')"?',
+				'?<br /><span class="text-error">Note: Genius Gateway will ignore any self triggered fire alarm.</span>',
 			labels: {
 				cancel: { label: 'Abort', icon: Cancel },
 				confirm: { label: 'Yes', icon: Check }

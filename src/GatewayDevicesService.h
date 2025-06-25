@@ -18,6 +18,17 @@
 
 #define ALARM_STATE_CHANGE "alarm-state-change"
 
+// Lightweight structure for MQTT publishing - contains only the minimal properties needed
+struct DeviceMqttData
+{
+    uint32_t smokeDetectorSN;
+    String location;
+    bool isAlarming;
+    
+    DeviceMqttData(uint32_t sn, const String &loc, bool alarming) 
+        : smokeDetectorSN(sn), location(loc), isAlarming(alarming) {}
+};
+
 typedef enum genius_alarm_ending
 {
     HAE_MIN = -2,              // Minimum value (for enum range checks)
@@ -241,6 +252,26 @@ public:
         }
         endTransaction();
         return found;
+    }
+
+    // Optimized method for MQTT publishing - returns only minimal data needed
+    std::vector<DeviceMqttData> getDevicesMqttData()
+    {
+        std::vector<DeviceMqttData> mqttData;
+        
+        beginTransaction();
+        mqttData.reserve(_state.devices.size()); // Pre-allocate for efficiency
+        for (const auto &device : _state.devices)
+        {
+            mqttData.emplace_back(
+                device.smokeDetector.sn,
+                device.location,
+                device.isAlarming
+            );
+        }
+        endTransaction();
+        
+        return mqttData;
     }
 
 private:

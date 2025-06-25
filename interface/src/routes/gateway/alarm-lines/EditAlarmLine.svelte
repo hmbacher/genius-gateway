@@ -79,7 +79,7 @@
 			<div class="divider my-2"></div>
 			<form
 				class="form-control text-base-content mb-1 w-full"
-				onsubmit={preventDefault(onSaveAlarmLine(alarmLine))}
+				onsubmit={preventDefault(() => onSaveAlarmLine(alarmLine))}
 				novalidate
 			>
 				<div class="flex flex-col gap-2">

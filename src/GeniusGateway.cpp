@@ -1,5 +1,6 @@
 #include <GeniusGateway.h>
 #include <GatewaySettingsService.h>
+#include <IPUtils.h>
 
 TaskHandle_t GeniusGateway::xRxTaskHandle = NULL;
 
@@ -128,9 +129,13 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
         return;
     }
 
-    GatewayMqttSettings &mqttSettings = _gatewayMqttSettingsService.getSettings(); // TODO: Not thread safe
+    GatewayMqttSettings mqttSettings = _gatewayMqttSettingsService.getSettingsCopy(); // Explicit deep copy for thread safety
 
-    for (auto &device : _gatewayDevices.getDevices()) // TODO: Not thread safe
+    // Get optimized MQTT data - only the minimal properties needed for publishing,
+    // thread-safe and performance optimized
+    auto devicesMqttData = _gatewayDevices.getDevicesMqttData();
+
+    for (const auto &deviceData : devicesMqttData) // Now thread safe and lightweight
     {
         /* Publish Home Assistant compatible topics */
         if (mqttSettings.haMQTTEnabled)
@@ -144,25 +149,30 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
                 /* Publish config topic for device discovery */
                 if (!onlyState)
                 {
-                    String configTopic = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn + "/config";
+                    String configTopic = mqttSettings.haMQTTTopicPrefix + deviceData.smokeDetectorSN + "/config";
 
                     JsonDocument config_jsonDoc;
-                    config_jsonDoc["~"] = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn;
+                    config_jsonDoc["~"] = mqttSettings.haMQTTTopicPrefix + deviceData.smokeDetectorSN;
                     config_jsonDoc["name"] = "Genius Plus X";
-                    config_jsonDoc["unique_id"] = device.smokeDetector.sn;
+                    config_jsonDoc["unique_id"] = deviceData.smokeDetectorSN;
                     config_jsonDoc["device_class"] = "smoke";
                     config_jsonDoc["state_topic"] = "~/state";
                     config_jsonDoc["schema"] = "json";
                     config_jsonDoc["value_template"] = "{{value_json.state}}";
-                    config_jsonDoc["entity_picture"] = "http://genius-gateway/hekatron-genius-plus-x.png"; // TODO: put hostname here
+                    // Get the current IP address and only add entity_picture if we have a valid IP
+                    IPAddress localIP = WiFi.localIP();
+                    if (IPUtils::isSet(localIP))
+                    {
+                        config_jsonDoc["entity_picture"] = "http://" + localIP.toString() + "/hekatron-genius-plus-x.png";
+                    }
                     JsonObject dev_jsonObj = config_jsonDoc["device"].to<JsonObject>();
-                    dev_jsonObj["identifiers"] = device.smokeDetector.sn;
+                    dev_jsonObj["identifiers"] = deviceData.smokeDetectorSN;
                     dev_jsonObj["manufacturer"] = "Hekatron Vertriebs GmbH";
                     dev_jsonObj["model"] = "Genius Plus X";
                     dev_jsonObj["name"] = "Rauchmelder";
 
-                    dev_jsonObj["serial_number"] = device.smokeDetector.sn;
-                    dev_jsonObj["suggested_area"] = device.location;
+                    dev_jsonObj["serial_number"] = deviceData.smokeDetectorSN;
+                    dev_jsonObj["suggested_area"] = deviceData.location;
 
                     String config_payload;
                     serializeJson(config_jsonDoc, config_payload);
@@ -170,10 +180,10 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
                 }
 
                 /* Pubish state topic */
-                String stateTopic = mqttSettings.haMQTTTopicPrefix + device.smokeDetector.sn + "/state";
+                String stateTopic = mqttSettings.haMQTTTopicPrefix + deviceData.smokeDetectorSN + "/state";
 
                 JsonDocument state_jsonDoc;
-                state_jsonDoc["state"] = device.isAlarming ? "ON" : "OFF";
+                state_jsonDoc["state"] = deviceData.isAlarming ? "ON" : "OFF";
 
                 String payload;
                 serializeJson(state_jsonDoc, payload);
@@ -301,39 +311,40 @@ void GeniusGateway::_rx_packets()
                     }
                     else if (packet_details.type == HPT_ALARMING || packet_details.type == HPT_ALARM_SILENCING)
                     {
-
                         uint32_t source_id = EXTRACT32_REV(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
 
-                        if (packet_details.type == HPT_ALARMING)
+                        if (GATEWAY_ID != source_id) // only proceed for alarming/silencing packets NOT originating from Genius Gateway itself
                         {
-                            bool isDetectorKnown = _gatewayDevices.isSmokeDetectorKnown(source_id);
-
-                            if (!isDetectorKnown && _gatewaySettings.isAddUnknownAlarmingDetectorEnabled())
+                            if (packet_details.type == HPT_ALARMING)
                             {
-                                // TODO: Add unknown smoke detector to the list
+                                bool isDetectorKnown = _gatewayDevices.isSmokeDetectorKnown(source_id);
+
+                                if (!isDetectorKnown && _gatewaySettings.isAddUnknownAlarmingDetectorEnabled())
+                                {
+                                    // TODO: Add unknown smoke detector to the list
+                                }
+
+                                /* Set/Reset alarm */
+                                if (isDetectorKnown || _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
+                                {
+                                    _gatewayDevices.setAlarm(source_id);
+                                }
+                            }
+                            else // packet_details.type == HPT_ALARM_SILENCING
+                            {
+                                _gatewayDevices.resetAlarm(source_id, HAE_BY_SMOKE_DETECTOR);
                             }
 
-                            /* Set/Reset alarm */
-                            if (isDetectorKnown || (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled()))
+                            /* Emit alarm state to front end */
+                            _emitAlarmState();
+
+                            /* Store alarm line id */
+                            if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
                             {
-                                _gatewayDevices.setAlarm(source_id);
+                                uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
+                                snprintf(lineName, sizeof(lineName), "Added from received alarming/silencing packet", lineID);
+                                _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
                             }
-                        }
-                        else
-                        {
-                            // packet_details.type == HPT_ALARM_SILENCING
-                            _gatewayDevices.resetAlarm(source_id, HAE_BY_SMOKE_DETECTOR);
-                        }
-
-                        /* Emit alarm state to front end */
-                        _emitAlarmState();
-
-                        /* Store alarm line id */
-                        if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
-                        {
-                            uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
-                            snprintf(lineName, sizeof(lineName), "Added from received alarming/silencing packet", lineID);
-                            _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
                         }
                     }
                     else if (packet_details.type == HPT_LINE_TEST)

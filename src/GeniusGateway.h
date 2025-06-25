@@ -45,6 +45,8 @@
 #define EXTRACT32(buffer, pos) (__ntohl(*(uint32_t *)&buffer[pos]))
 #define EXTRACT32_REV(buffer, pos) (*(uint32_t *)&buffer[pos])
 
+#define GATEWAY_ID 0xFFFFFFFE
+
 /**
  * Index within the target task's array of task notifications to use
  * NOTE: This value muss be LESS than the value of CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES,

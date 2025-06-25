@@ -103,7 +103,7 @@ public:
 
     void begin();
 
-    GatewayMqttSettings &getSettings()
+    GatewayMqttSettings getSettingsCopy() const
     {
         return _state;
     }
