@@ -23,7 +23,7 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _gatewayDevices(svelte
                                                           _gatewaySettings(sveltekit),
                                                           _gatewayMqttSettingsService(sveltekit),
                                                           _mqttClient(sveltekit->getMqttClient()),
-                                                          _webSocketLogger(sveltekit),
+                                                          _wsLogger(sveltekit),
                                                           _visualizerSettingsService(sveltekit),
                                                           _cc1101Controller(sveltekit),
                                                           _eventSocket(sveltekit->getSocket()),
@@ -82,7 +82,7 @@ void GeniusGateway::begin()
     /* Initialize Gateway MQTT Settings Service */
     _gatewayMqttSettingsService.begin();
     /* Initialize WS Logger */
-    _webSocketLogger.begin();
+    _wsLogger.begin();
     /* Initialize Packet Vizualizer Settings */
     _visualizerSettingsService.begin();
 
@@ -360,7 +360,7 @@ void GeniusGateway::_rx_packets()
 
                 /* Send data to WebSocket logger */
                 gpio_set_level(GPIO_TEST2, 1); // Temporary: Measuring execution time
-                _webSocketLogger.logPacket(&packet);
+                _wsLogger.logPacket(&packet);
                 gpio_set_level(GPIO_TEST2, 0); // Temporary: Measuring execution time
             }
 

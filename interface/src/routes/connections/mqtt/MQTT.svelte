@@ -85,7 +85,7 @@
 				notifications.success('MQTT settings updated.', 3000);
 				mqttSettings = await response.json();
 			} else {
-				notifications.error('User not authorized.', 3000);
+				notifications.error('Updating MQTT settings failed.', 3000);
 			}
 		} catch (error) {
 			console.error('Error:', error);

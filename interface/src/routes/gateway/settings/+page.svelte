@@ -14,12 +14,6 @@
 	import IconAlarmLine from '~icons/tabler/topology-ring-2';
 	import IconSave from '~icons/tabler/device-floppy';
 
-	interface Props {
-		data: PageData;
-	}
-
-	let { data }: Props = $props();
-
 	type GatewaySettings = {
 		alert_on_unknown_detectors: boolean;
 		add_unknown_alarming_detectors: boolean;
@@ -75,7 +69,7 @@
 				gatewaySettings = await response.json();
 				strSettings = JSON.stringify(gatewaySettings); // Store the recently loaded settings in a string variable
 			} else {
-				notifications.error('User not authorized.', 3000);
+				notifications.error('Updating Gateway settings failed.', 3000);
 			}
 		} catch (error) {
 			console.error('Error:', error);

@@ -16,6 +16,7 @@
 	import Detector from '~icons/tabler/alarm-smoke';
 	import Analyze from '~icons/tabler/zoom-scan';
 	import Ring from '~icons/tabler/topology-ring-2';
+	import BracketsAngle from '~icons/tabler/brackets-angle';
 	import Avatar from '~icons/tabler/user-circle';
 	import Logout from '~icons/tabler/logout';
 	import Copyright from '~icons/tabler/copyright';
@@ -82,6 +83,12 @@
 					title: 'Alarm Lines',
 					icon: Ring,
 					href: '/gateway/alarm-lines',
+					feature: true
+				},
+				{
+					title: 'WebSocket Logger',
+					icon: BracketsAngle,
+					href: '/gateway/wslogger',
 					feature: true
 				}
 			]

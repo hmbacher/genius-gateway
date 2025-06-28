@@ -196,10 +196,10 @@
 			});
 
 			if (response.status == 200) {
-				notifications.success('Packet vizualizer settings updated.', 3000);
+				notifications.success('Packet visualizer settings updated.', 3000);
 				vizSettings = await response.json();
 			} else {
-				notifications.error('User not authorized.', 3000);
+				notifications.error('Updating packet visualizer settings failed.', 3000);
 			}
 		} catch (error) {
 			console.error('Error:', error);

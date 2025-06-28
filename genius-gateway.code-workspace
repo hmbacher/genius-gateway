@@ -58,7 +58,26 @@
       "cinttypes": "cpp",
       "typeinfo": "cpp",
       "unordered_set": "cpp",
-      "iomanip": "cpp"
+      "iomanip": "cpp",
+      "format": "cpp",
+      "span": "cpp",
+      "text_encoding": "cpp",
+      "bit": "cpp",
+      "charconv": "cpp",
+      "chrono": "cpp",
+      "compare": "cpp",
+      "concepts": "cpp",
+      "condition_variable": "cpp",
+      "set": "cpp",
+      "netfwd": "cpp",
+      "ratio": "cpp",
+      "source_location": "cpp",
+      "mutex": "cpp",
+      "numbers": "cpp",
+      "semaphore": "cpp",
+      "stop_token": "cpp",
+      "thread": "cpp",
+      "variant": "cpp"
     }
   }
 }

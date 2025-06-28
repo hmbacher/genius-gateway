@@ -66,7 +66,7 @@
 				notifications.success('Smoke detectors updated.', 3000);
 				geniusDevices = JSON.parse(await response.text(), jsonDateReviver);
 			} else {
-				notifications.error('User not authorized.', 3000);
+				notifications.error('Updating smoke detectors failed.', 3000);
 			}
 		} catch (error) {
 			console.error('Error:', error);

@@ -87,7 +87,7 @@
 				mqttSettings = await response.json();
 				strSettings = JSON.stringify(mqttSettings); // Store the recently loaded settings in a string variable
 			} else {
-				notifications.error('User not authorized.', 3000);
+				notifications.error('Updating MQTT settings failed.', 3000);
 			}
 		} catch (error) {
 			console.error('Error:', error);

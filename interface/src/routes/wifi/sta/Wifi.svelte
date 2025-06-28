@@ -136,7 +136,7 @@
 				notifications.success('Wi-Fi settings updated.', 3000);
 				wifiSettings = await response.json();
 			} else {
-				notifications.error('User not authorized.', 3000);
+				notifications.error('Updating Wi-Fi settings failed.', 3000);
 			}
 		} catch (error) {
 			console.error('Error:', error);

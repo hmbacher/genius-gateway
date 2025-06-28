@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ESP32SvelteKit.h>
-#include <WebSocketLogger.h>
+#include <WSLogger.h>
 #include <VisualizerSettingsService.h>
 #include <GatewayDevicesService.h>
 #include <AlarmLinesService.h>
@@ -101,7 +101,7 @@ private:
   AlarmLinesService _alarmLines;
   GatewaySettingsService _gatewaySettings;
   GatewayMqttSettingsService _gatewayMqttSettingsService;
-  WebSocketLogger _webSocketLogger;
+  WSLogger _wsLogger;
   VisualizerSettingsService _visualizerSettingsService;
   CC1101Controller _cc1101Controller;
   PsychicMqttClient *_mqttClient;

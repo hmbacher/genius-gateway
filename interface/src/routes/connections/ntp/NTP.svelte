@@ -84,7 +84,7 @@
 				notifications.success('Security settings updated.', 3000);
 				ntpSettings = await response.json();
 			} else {
-				notifications.error('User not authorized.', 3000);
+				notifications.error('Updating security settings failed.', 3000);
 			}
 		} catch (error) {
 			console.error('Error:', error);
