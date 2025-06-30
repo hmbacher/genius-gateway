@@ -2,8 +2,6 @@
 	import type { Packet, CommissioningInfo } from '$lib/types/models';
 	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
 	import IconWifi from '~icons/tabler/wifi';
-	import IconHops from '~icons/tabler/arrow-forward-up';
-	import IconClock from '~icons/tabler/clock';
 	import IconRing from '~icons/tabler/topology-ring-2';
 
 	interface Props {
@@ -60,33 +58,4 @@
 		type: 'line'
 	}}
 />
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(22, 23)}
-	details={{
-		icon: IconHops,
-		text: packet.generalInfo?.hops.toString(),
-		type: 'hops'
-	}}
-/>
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(23, 28)} />
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(28, 32)}
-	endianess="big"
-	details={{
-		icon: IconRing,
-		text: 'New Line ID',
-		type: 'line'
-	}}
-/>
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(32, 35)}
-	details={{
-		icon: IconClock,
-		text: (packet.specificInfo as CommissioningInfo)?.timeStr,
-		type: 'time'
-	}}
-/>
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(35, 37)} />
+<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(22, 28)} />

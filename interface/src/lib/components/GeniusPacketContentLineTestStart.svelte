@@ -2,6 +2,7 @@
 	import type { Packet, CommissioningInfo } from '$lib/types/models';
 	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
 	import IconWifi from '~icons/tabler/wifi';
+	import IconRing from '~icons/tabler/topology-ring-2';
 
 	interface Props {
 		packet: Packet;
@@ -52,7 +53,8 @@
 	data={packet.data.subarray(18, 22)}
 	endianess="big"
 	details={{
-		text: 'Curr. Line ID',
+		icon: IconRing,
+		text: packet.generalInfo?.lineName,
 		type: 'line'
 	}}
 />

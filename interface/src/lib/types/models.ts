@@ -245,6 +245,7 @@ export type GeneralInfo = {
 	secondRadioModuleSN: number;
 	secondLocation: string;
 	lineID: number;
+	lineName: string;
 	hops: number;
 };
 

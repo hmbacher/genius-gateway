@@ -4,8 +4,17 @@
 	import { modals } from 'svelte-modals';
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
-	import type { GeniusDevices, VisualizerSettings, PacketType, Packet, CommissioningInfo, DiscoveryResponseInfo } from '$lib/types/models';
+	import type {
+		GeniusDevices,
+		VisualizerSettings,
+		PacketType,
+		Packet,
+		CommissioningInfo,
+		DiscoveryResponseInfo,
+		AlarmLines
+	} from '$lib/types/models';
 	import { PacketTypes } from '$lib/types/models';
+	import { jsonDateReviver } from '$lib/utils';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import GeniusPacket from '$lib/components/GeniusPacket.svelte';
@@ -41,31 +50,32 @@
 			}
 		}
 		return PacketTypes.Unknown;
-	}	
+	}
 
 	function interpretPacket(packet: Packet) {
 		let dv = new DataView(packet.data.buffer, packet.data.byteOffset, packet.data.byteLength);
 
 		// Common packet properties
 		packet.generalInfo = {
-				counter: dv.getUint16(1, true),
-				firstRadioModuleSN: dv.getUint32(9),
-				firstLocation: getDetectorLocationByRMSN(dv.getUint32(9)),
-				secondRadioModuleSN: dv.getUint32(14),
-				secondLocation: getDetectorLocationByRMSN(dv.getUint32(14)),
-				lineID: dv.getUint32(18),
-				hops: 15 - dv.getUint8(22),
-			};
+			counter: dv.getUint16(1, true),
+			firstRadioModuleSN: dv.getUint32(9),
+			firstLocation: getDetectorLocationByRMSN(dv.getUint32(9)),
+			secondRadioModuleSN: dv.getUint32(14),
+			secondLocation: getDetectorLocationByRMSN(dv.getUint32(14)),
+			lineID: dv.getUint32(18),
+			lineName: getAlarmLineNameByID(dv.getUint32(18)),
+			hops: 15 - dv.getUint8(22)
+		};
 
 		// Specific packet properties
-		if (packet.type.name === PacketTypes.Commissioning.name) {	// Alarm Line Comissioning
+		if (packet.type.name === PacketTypes.Commissioning.name) {
+			// Alarm Line Comissioning
 			console.log(packet.data.buffer);
 			packet.specificInfo = {
 				newLineID: dv.getUint32(28),
-				timeStr: `${dv.getUint8(32).toString().padStart(2, '0')}:${dv.getUint8(33).toString().padStart(2, '0')}:${dv.getUint8(34).toString().padStart(2, '0')}`,
+				timeStr: `${dv.getUint8(32).toString().padStart(2, '0')}:${dv.getUint8(33).toString().padStart(2, '0')}:${dv.getUint8(34).toString().padStart(2, '0')}`
 			} as CommissioningInfo;
-		}
-		else if (packet.type.name === PacketTypes.DiscoveryResponse.name) {	// Device Discovery Response
+		} else if (packet.type.name === PacketTypes.DiscoveryResponse.name) {
 			// Device Discovery Response (?)
 			packet.specificInfo = {
 				requestingRadioModule: dv.getUint32(23),
@@ -83,7 +93,7 @@
 		}
 		return hash;
 	}
-	
+
 	let ws: WebSocket;
 
 	onMount(async () => {
@@ -120,10 +130,8 @@
 						counter: 1,
 						hash: hash,
 						generalInfo: null,
-						specificInfo: null,
+						specificInfo: null
 					});
-
-					console.log('New packet received:', packets[packets.length - 1]);
 
 					// Interpret the packet
 					interpretPacket(packets[packets.length - 1]);
@@ -141,6 +149,7 @@
 		};
 
 		await getGeniusDevices();
+		await getAlarmLines();
 	});
 
 	onDestroy(async () => {
@@ -161,6 +170,25 @@
 			});
 
 			detectors = await response.json();
+		} catch (error) {
+			console.error('Error:', error);
+		}
+		return;
+	}
+
+	let alarmLines: AlarmLines = $state({ lines: [] });
+
+	async function getAlarmLines() {
+		try {
+			const response = await fetch('/rest/alarm-lines', {
+				method: 'GET',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+
+			alarmLines = JSON.parse(await response.text(), jsonDateReviver);
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -227,12 +255,16 @@
 		notifications.success('Packets log copied to clipboard.', 3000);
 	}
 
-	let toHex = (num: number) => {
-		return num.toString(16).padStart(2, '0').toUpperCase();
-	};
-
 	function getDetectorLocationByRMSN(sn: number): string {
 		return detectors.devices.find((device) => device.radioModule.sn === sn)?.location || 'Unknown';
+	}
+
+	function getAlarmLineNameByID(id: number): string {
+		if (id === 0) {
+			return 'Not set';
+		} else if (id === 0xffffffff) {
+			return 'Broadcast';
+		} else return alarmLines.lines.find((line) => line.id === id)?.name || 'Unknown';
 	}
 </script>
 
@@ -258,15 +290,17 @@
 			</label>
 		</div>
 		<div>
-		<label class="label cursor-pointer w-full justify-between">
-			<span class="">Show meta data of packets (packet number, receive timestamp, repetition, etc.)</span>
-			<input
-				type="checkbox"
-				class="toggle toggle-primary"
-				bind:checked={vizSettings.showMetadata}
-				onchange={() => postVizualizerSettings(vizSettings)}
-			/>
-		</label>
+			<label class="label cursor-pointer w-full justify-between">
+				<span class=""
+					>Show meta data of packets (packet number, receive timestamp, repetition, etc.)</span
+				>
+				<input
+					type="checkbox"
+					class="toggle toggle-primary"
+					bind:checked={vizSettings.showMetadata}
+					onchange={() => postVizualizerSettings(vizSettings)}
+				/>
+			</label>
 		</div>
 	{/await}
 </SettingsCard>
@@ -294,7 +328,11 @@
 		</button>
 
 		{#each packets as packet, idx}
-			<GeniusPacket {packet} showMeta={vizSettings.showMetadata} showDetails={vizSettings.showDetails} />
+			<GeniusPacket
+				{packet}
+				showMeta={vizSettings.showMetadata}
+				showDetails={vizSettings.showDetails}
+			/>
 		{/each}
 
 		<Spinner text="Waiting for packets..." />

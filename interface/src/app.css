@@ -86,6 +86,22 @@ div.genius-packet > div.packet-data-container > div[data-type=line] > div {
     @apply bg-amber-200;
 }
 
+div.genius-packet > div.packet-data-container > div[data-type=line-unknown] > div.packet-data-1 {
+    @apply bg-red-400;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=line-unknown] > div {
+    @apply bg-red-200;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=line-unset] > div.packet-data-1 {
+    @apply bg-gray-400;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=line-unset] > div {
+    @apply bg-gray-300;
+}
+
 div.genius-packet > div.packet-data-container > div[data-type=hops] > div.packet-data-1 {
     @apply bg-purple-400;
 }
