@@ -222,7 +222,8 @@
 		});
 	}
 
-	function handleCopyLog() {
+	async function handleCopyLog() {
+		await navigator.clipboard.writeText(JSON.stringify(packets, null, 2));
 		notifications.success('Packets log copied to clipboard.', 3000);
 	}
 

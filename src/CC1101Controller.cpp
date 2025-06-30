@@ -20,6 +20,12 @@ void CC1101Controller::begin()
                 HTTP_GET,
                 _securityManager->wrapRequest(std::bind(&CC1101Controller::_handlerGetStatus, this, std::placeholders::_1),
                                               AuthenticationPredicates::IS_AUTHENTICATED));
+
+    /* Register endpoints to set the CC1101 ro RX state */
+    _server->on(CC1101CONTROLLER_SERVICE_PATH "/rx",
+                HTTP_POST,
+                _securityManager->wrapRequest(std::bind(&CC1101Controller::_handlerSetRxState, this, std::placeholders::_1),
+                                              AuthenticationPredicates::IS_ADMIN));
 }
 
 esp_err_t CC1101Controller::_handlerGetStatus(PsychicRequest *request)
@@ -34,4 +40,9 @@ esp_err_t CC1101Controller::_handlerGetStatus(PsychicRequest *request)
         json["state"] = cc1101_state;
 
     return response.send();
+}
+
+esp_err_t CC1101Controller::_handlerSetRxState(PsychicRequest *request)
+{
+    return request->reply(cc1101_set_rx_state() == ESP_OK ? 200 : 500);
 }

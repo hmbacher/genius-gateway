@@ -231,7 +231,8 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
     if (!jsonObject["line_id"].is<uint32_t>())
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Invalid line ID.\"}");
 
-    uint32_t line_id = jsonObject["line_id"].as<uint32_t>();
+    // Read line_id as uint32_t and convert to little-endian (if needed)
+    uint32_t line_id = htonl(jsonObject["line_id"].as<uint32_t>());
 
     if (!jsonObject["action"].is<String>())
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Action missing or of wrong type.\"}");
@@ -317,7 +318,7 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
 
     if (_alarmLineExists(id))
     {
-        ESP_LOGW(TAG, "Alarm line with ID %lu already exists.", id);
+        ESP_LOGV(TAG, "Alarm line with ID %lu already exists.", id);
         return ESP_ERR_INVALID_STATE;
     }
 

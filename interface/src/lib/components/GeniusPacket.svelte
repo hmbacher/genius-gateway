@@ -1,15 +1,9 @@
 <script lang="ts">
-	import type {
-		VisualizerSettings,
-		PacketType,
-		CommissioningPacket,
-		Packet
-	} from '$lib/types/models';
+	import type { Packet, CommissioningInfo } from '$lib/types/models';
 	import { PacketTypes } from '$lib/types/models';
 	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
-	import IconWifi from '~icons/tabler/wifi';
-	import IconHops from '~icons/tabler/arrow-forward-up';
-	import IconClock from '~icons/tabler/clock';
+	import GeniusPacketContentComissioning from './GeniusPacketContentComissioning.svelte';
+	import GeniusPacketContentLineTestStart from './GeniusPacketContentLineTestStart.svelte';
 
 	interface Props {
 		packet: Packet;
@@ -37,76 +31,9 @@
 	{/if}
 	<div class="packet-data-container">
 		{#if packet.type.name === PacketTypes.Commissioning.name}
-			<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(0, 1)} />
-			<GeniusPacketDataBlock
-				{showDetails}
-				data={packet.data.subarray(1, 3)}
-				endianess="little"
-				details={{
-					text: 'Counter',
-					type: 'counter'
-				}}
-			/>
-			<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(3, 9)} />
-			<GeniusPacketDataBlock
-				{showDetails}
-				data={packet.data.subarray(9, 13)}
-				endianess="big"
-				details={{
-					icon: IconWifi,
-					text: packet.generalInfo?.firstLocation,
-					type: 'serialnumber-radiomodule'.concat(packet.generalInfo?.firstLocation === 'Unknown' ? '-unknown' : '')
-				}}
-			/>
-			<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(13, 14)} />
-			<GeniusPacketDataBlock
-				{showDetails}
-				data={packet.data.subarray(14, 18)}
-				endianess="big"
-				details={{
-					icon: IconWifi,
-					text: packet.generalInfo?.secondLocation,
-					type: 'serialnumber-radiomodule'.concat(packet.generalInfo?.secondLocation === 'Unknown' ? '-unknown' : '')
-				}}
-			/>
-			<GeniusPacketDataBlock
-				{showDetails}
-				data={packet.data.subarray(18, 22)}
-				endianess="big"
-				details={{
-					text: 'Curr. Line ID',
-					type: 'line'
-				}}
-			/>
-			<GeniusPacketDataBlock
-				{showDetails}
-				data={packet.data.subarray(22, 23)}
-				details={{
-					icon: IconHops,
-					text: packet.generalInfo?.hops.toString(),
-					type: 'hops'
-				}}
-			/>
-			<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(23, 28)} />
-			<GeniusPacketDataBlock
-				{showDetails}
-				data={packet.data.subarray(28, 32)}
-				endianess="big"
-				details={{
-					text: 'New Line ID',
-					type: 'line'
-				}}
-			/>
-			<GeniusPacketDataBlock
-				{showDetails}
-				data={packet.data.subarray(32, 35)}
-				details={{
-					icon: IconClock,
-					text: (packet.specificInfo as CommissioningPacket)?.timeStr,
-					type: 'time'
-				}}
-			/>
-			<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(35, 37)} />
+			<GeniusPacketContentComissioning {packet} {showDetails} />
+		{:else if packet.type.name === PacketTypes.LineTestStart.name}
+			<GeniusPacketContentLineTestStart {packet} {showDetails} />
 		{:else}
 			{#each packet.data as byte}
 				<GeniusPacketDataBlock {showDetails} data={new Uint8Array([byte])} />

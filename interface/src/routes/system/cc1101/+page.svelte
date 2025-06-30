@@ -9,6 +9,7 @@
 	import IconCPU from '~icons/tabler/cpu';
 	import IconAlert from '~icons/tabler/alert-hexagon';
 	import IconReload from '~icons/tabler/reload';
+	import IconListen from '~icons/tabler/ear';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
@@ -74,13 +75,32 @@
 			if (notifiy) {
 				if (response.ok) {
 					notifications.success('CC1101 state updated.', 3000);
-				}
-				else {
+				} else {
 					notifications.error('Failed to fetch CC1101 state.', 3000);
 				}
 			}
 		} catch (error) {
 			console.error('An error occurred while fetching the CC1101 state: ', error);
+			throw error;
+		}
+	}
+
+	async function setCC1101RX() {
+		try {
+			const response = await fetch('/rest/cc1101/rx', {
+				method: 'POST',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+			if (response.ok) {
+				await getCC1101State(true);
+			} else {
+				notifications.error('Failed to set CC1101 to RX state.', 3000);
+			}
+		} catch (error) {
+			console.error('An error occurred while setting CC1101 to RX state: ', error);
 			throw error;
 		}
 	}
@@ -98,10 +118,24 @@
 			<Spinner text="Requesting state..." />
 		{:then nothing}
 			<div class="relative w-full overflow-visible">
-				<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
+				<div class="flex flex-row absolute right-16 -top-13 gap-2 justify-end">
 					<div class="tooltip tooltip-left" data-tip="Update CC1101 state">
-						<button class="btn btn-primary text-primary-content btn-md" onclick={() => getCC1101State(true)}>
+						<button
+							class="btn btn-primary text-primary-content btn-md"
+							onclick={() => getCC1101State(true)}
+						>
 							<IconReload class="h-6 w-6" />
+						</button>
+					</div>
+				</div>
+				<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
+					<div class="tooltip tooltip-left" data-tip="Set CC1101 to RX state">
+						<button
+							class="btn btn-primary text-primary-content btn-md"
+							onclick={setCC1101RX}
+							disabled={!cc1101State.state_success || cc1101State.state === 13}
+						>
+							<IconListen class="h-6 w-6" />
 						</button>
 					</div>
 				</div>

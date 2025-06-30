@@ -35,4 +35,5 @@ private:
     // void _emitCC1101State();
 
     esp_err_t _handlerGetStatus(PsychicRequest *request);
+    esp_err_t _handlerSetRxState(PsychicRequest *request);
 };

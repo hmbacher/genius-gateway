@@ -1,5 +1,3 @@
-#pragma once
-
 #include <WSLogger.h>
 
 WSLogger::WSLogger(ESP32SvelteKit *sveltekit) : _server(sveltekit->getServer()),

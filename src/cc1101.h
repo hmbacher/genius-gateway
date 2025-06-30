@@ -280,10 +280,11 @@ esp_err_t cc1101_send_data(unsigned char *tx_data, size_t length);
 
 /**
  * @brief Check if RX FIFO has overflowed. If so, flush RX FIFO and set CC1101 to RX state.
+ * @param[in] fail_on_any_data If true, the RX FIFO flushing and setting CC1101 to RX state will also be done if there is any data in the RX FIFO.
  * 
  * @return ESP_OK if RX FIFO is empty, ESP_FAIL otherwise
  */
-esp_err_t cc1101_check_rx(void);
+esp_err_t cc1101_check_rx(bool reset_on_any_data);
 
 
 /**

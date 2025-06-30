@@ -189,7 +189,8 @@ export const PacketTypes: {
 	Commissioning: PacketType;
 	DiscoveryRequest: PacketType;
 	DiscoveryResponse: PacketType;
-	LineTest: PacketType;
+	LineTestStart: PacketType;
+	LineTestStop: PacketType;
 	Alarming: PacketType;
 	Unknown: PacketType;
 } = {
@@ -211,11 +212,17 @@ export const PacketTypes: {
 		packetLength: 32,
 		description: 'Purpose unknown, possibly a device discovery response.'
 	},
-	LineTest: {
-		name: 'Line Test',
-		cssClass: 'type-linetest',
+	LineTestStart: {
+		name: 'Line Test Start',
+		cssClass: 'type-linetest-start',
 		packetLength: 29,
-		description: 'Packets sent during line test function.'
+		description: 'Packets sent to initiate line test function.'
+	},
+	LineTestStop: {
+		name: 'Line Test Stop',
+		cssClass: 'type-linetest-stop',
+		packetLength: 29,
+		description: 'Packets sent to end line test function.'
 	},
 	Alarming: {
 		name: 'Alarming',

@@ -373,9 +373,9 @@ void GeniusGateway::_rx_packets()
             vTaskDelay(1);
         }
 
-        /* Check for RX overflow before returning to receive state, as packet
-         * handling might have taken too long to fetch next packet in time */
-        cc1101_check_rx();
+        /* Check for RX overflow or any orphaned data before returning to receive state,
+         * as packet handling might have taken too long to fetch next packet in time. */
+        cc1101_check_rx(true);
     }
 
     // never reach here
