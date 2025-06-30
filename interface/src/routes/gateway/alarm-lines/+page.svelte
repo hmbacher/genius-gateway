@@ -8,7 +8,7 @@
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { AlarmLines, AlarmLine } from '$lib/types/models';
-	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils';
+	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { onMount, onDestroy } from 'svelte';
 	import { socket } from '$lib/stores/socket';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';

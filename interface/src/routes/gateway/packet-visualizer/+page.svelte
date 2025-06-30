@@ -14,16 +14,20 @@
 		AlarmLines
 	} from '$lib/types/models';
 	import { PacketTypes } from '$lib/types/models';
-	import { jsonDateReviver } from '$lib/utils';
+	import { jsonDateReviver } from '$lib/utils/misc';
+	import { deserializePacket, downloadPacketAsJson } from '$lib/utils/serialization';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import GeniusPacket from '$lib/components/GeniusPacket.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import IconLogs from '~icons/tabler/logs';
 	import IconTrash from '~icons/tabler/trash';
+	import IconOK from '~icons/tabler/check';
 	import IconCancel from '~icons/tabler/x';
 	import IconSettings from '~icons/tabler/adjustments-alt';
 	import IconCopy from '~icons/tabler/copy';
+	import IconSave from '~icons/tabler/device-floppy';
+	import IconLoad from '~icons/tabler/folder-open';
 
 	const OFFSET_TIMESTAMP = 0; // Offset for the timestamp in the byte array
 	const OFFSET_DATA_LENGTH = 76; // Offset for the data length in the byte array
@@ -78,8 +82,8 @@
 		} else if (packet.type.name === PacketTypes.DiscoveryResponse.name) {
 			// Device Discovery Response (?)
 			packet.specificInfo = {
-				requestingRadioModule: dv.getUint32(23),
-				requestingLocation: getDetectorLocationByRMSN(dv.getUint32(32))
+				requestingRadioModule: dv.getUint32(28),
+				requestingLocation: getDetectorLocationByRMSN(dv.getUint32(28))
 			} as DiscoveryResponseInfo;
 		}
 	}
@@ -102,7 +106,7 @@
 		ws.binaryType = 'arraybuffer';
 
 		ws.onopen = (ev) => {
-			console.log('WebSocket opened');
+			console.log('WebSocket opened. Waiting for packets...');
 		};
 
 		ws.onmessage = (ev) => {
@@ -140,12 +144,12 @@
 		};
 
 		ws.onerror = (ev) => {
-			console.log('WebSocket error', ev);
+			console.log('WebSocket error.', ev);
 		};
 
 		ws.onclose = (ev) => {
 			ws.close();
-			console.log('WebSocket closed');
+			console.log('WebSocket closed.');
 		};
 
 		await getGeniusDevices();
@@ -154,7 +158,7 @@
 
 	onDestroy(async () => {
 		ws.close();
-		console.log('WebSocket closed');
+		console.log('WebSocket closed.');
 	});
 
 	let detectors: GeniusDevices = $state({ devices: [] });
@@ -266,6 +270,60 @@
 			return 'Broadcast';
 		} else return alarmLines.lines.find((line) => line.id === id)?.name || 'Unknown';
 	}
+
+	let files: any = $state();
+
+	$effect(() => {
+		if (files) {
+			// Note that `files` is of type `FileList`, not an Array:
+			// https://developer.mozilla.org/en-US/docs/Web/API/FileList
+			const reader = new FileReader();
+			reader.onload = () => {
+				const fileContent = reader.result as string;
+				try {
+					packets = deserializePacket(fileContent) as Packet[];
+					if (!packets) {
+						notifications.error('Invalid packets log format.', 5000);
+						return;
+					}
+
+					modals.open(ConfirmDialog, {
+						title: 'Re-analyze packets?',
+						message: 'Do you want to re-analyze the imported packets?',
+						labels: {
+							cancel: { label: 'No', icon: IconCancel },
+							confirm: { label: 'Yes', icon: IconOK }
+						},
+						onConfirm: () => {
+							packets.forEach((packet) => {
+								interpretPacket(packet);
+							});
+							modals.close();
+						}
+					});
+
+					notifications.success('Packets log imported.', 3000);
+
+				} catch (error) {
+					console.error('Error parsing file:', error);
+					notifications.error('Error parsing file.', 5000);
+				}
+			};
+
+			reader.onerror = (ev) => {
+				console.log('Error reading the file:', ev);
+				notifications.error('Error reading file.', 5000);
+			};
+
+			reader.readAsText(files[0]);
+		}
+	});
+
+	function handleSavePacketsLogToDisk() {
+		const now = new Date();
+		const formattedDate = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+		downloadPacketAsJson(packets, `genius-packets-${formattedDate}`);
+	}
 </script>
 
 <SettingsCard collapsible={true}>
@@ -314,18 +372,34 @@
 	{/snippet}
 
 	<div class="relative w-full overflow-visible">
-		<button
-			class="btn btn-primary text-primary-content btn-md absolute -top-14 right-16"
-			onclick={handleCopyLog}
-		>
-			<IconCopy class="h-6 w-6" />
-		</button>
-		<button
-			class="btn btn-primary text-primary-content btn-md absolute -top-14 right-0"
-			onclick={handleClearPacketsLog}
-		>
-			<IconTrash class="h-6 w-6" />
-		</button>
+		<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
+			<div class="tooltip tooltip-left" data-tip="Copy packet data to clipboard">
+				<button class="btn btn-primary text-primary-content btn-md" onclick={handleCopyLog}>
+					<IconCopy class="h-6 w-6" />
+				</button>
+			</div>
+			<div class="tooltip tooltip-left" data-tip="Clear packets log">
+				<button class="btn btn-primary text-primary-content btn-md" onclick={handleClearPacketsLog}>
+					<IconTrash class="h-6 w-6" />
+				</button>
+			</div>
+			<div class="divider divider-horizontal my-0 -mx-1"></div>
+			<div class="tooltip tooltip-left" data-tip="Load packets log from file">
+				<label for="upload" class="btn btn-primary text-primary-content btn-md">
+					<IconLoad class="h-6 w-6" />
+				</label>
+				<input bind:files id="upload" type="file" class="hidden" />
+			</div>
+			<div class="tooltip tooltip-left" data-tip="Save packets log to file">
+				<button
+					class="btn btn-primary text-primary-content btn-md"
+					disabled={packets.length === 0}
+					onclick={handleSavePacketsLogToDisk}
+				>
+					<IconSave class="h-6 w-6" />
+				</button>
+			</div>
+		</div>
 
 		{#each packets as packet, idx}
 			<GeniusPacket
@@ -336,5 +410,5 @@
 		{/each}
 
 		<Spinner text="Waiting for packets..." />
-	</div>
-</SettingsCard>
+	</div></SettingsCard
+>

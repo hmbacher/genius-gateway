@@ -7,10 +7,9 @@
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { GeniusDevices, GeniusDevice } from '$lib/types/models';
-	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils';
+	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import InfoDialog from '$lib/components/InfoDialog.svelte';
 	import EditSmokeDetector from './EditSmokeDetector.svelte';
 	import AlarmLog from './AlarmLog.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';

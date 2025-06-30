@@ -2,7 +2,7 @@
 	import { user } from '$lib/stores/user';
 	import type { PageData } from './$types';
 	import type { GeniusDevices } from '$lib/types/models';
-	import { jsonDateReviver } from '$lib/utils';
+	import { jsonDateReviver } from '$lib/utils/misc';
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Info from '~icons/tabler/info-circle';
