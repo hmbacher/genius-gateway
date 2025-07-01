@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Packet, CommissioningInfo } from '$lib/types/models';
+	import type { Packet, DiscoveryResponseInfo } from '$lib/types/models';
 	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
 	import IconWifi from '~icons/tabler/wifi';
 	import IconRing from '~icons/tabler/topology-ring-2';
@@ -68,4 +68,16 @@
 		type: 'hops'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(23, 29)} />
+<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(23, 28)} />
+<GeniusPacketDataBlock
+	{showDetails}
+	data={packet.data.subarray(28, 32)}
+	endianess="big"
+	details={{
+		icon: IconWifi,
+		text: (packet.specificInfo as DiscoveryResponseInfo)?.requestingLocation,
+		type: 'serialnumber-radiomodule'.concat(
+			(packet.specificInfo as DiscoveryResponseInfo)?.requestingLocation === 'Unknown' ? '-unknown' : ''
+		)
+	}}
+/>

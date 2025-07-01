@@ -14,13 +14,9 @@
 - Packet Analyzer: Save Bug: Geht nur einmal
 - Packet Analyzer: Andere Packettypen
     o Line Test Stop
-    o Discovery Response
- Packet Analyzer: Bei allen Packettypen: Hops!
-
 
 - Alarmlines: Sende-Timeout: 5s
 - Alarmlines: Während Senden Status im FE anzeigen und UI sperren
-
 
 Robustness
 - Abbruch-Schleife für Warten auf Pin-States

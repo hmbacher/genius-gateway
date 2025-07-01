@@ -5,6 +5,7 @@
 	import GeniusPacketContentComissioning from './GeniusPacketContentComissioning.svelte';
 	import GeniusPacketContentLineTestStart from './GeniusPacketContentLineTestStart.svelte';
 	import GeniusPacketContentDiscoveryRequest from './GeniusPacketContentDiscoveryRequest.svelte';
+	import GeniusPacketContentDiscoveryResponse from './GeniusPacketContentDiscoveryResponse.svelte';
 
 	interface Props {
 		packet: Packet;
@@ -37,6 +38,8 @@
 			<GeniusPacketContentLineTestStart {packet} {showDetails} />
 		{:else if packet.type.name === PacketTypes.DiscoveryRequest.name}
 			<GeniusPacketContentDiscoveryRequest {packet} {showDetails} />
+		{:else if packet.type.name === PacketTypes.DiscoveryResponse.name}
+			<GeniusPacketContentDiscoveryResponse {packet} {showDetails} />
 		{:else}
 			{#each packet.data as byte}
 				<GeniusPacketDataBlock {showDetails} data={new Uint8Array([byte])} />

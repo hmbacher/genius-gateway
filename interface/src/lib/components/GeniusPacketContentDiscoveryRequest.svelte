@@ -1,8 +1,9 @@
 <script lang="ts">
-	import type { Packet, CommissioningInfo } from '$lib/types/models';
+	import type { Packet } from '$lib/types/models';
 	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
 	import IconWifi from '~icons/tabler/wifi';
 	import IconRing from '~icons/tabler/topology-ring-2';
+	import IconHops from '~icons/tabler/arrow-forward-up';
 
 	interface Props {
 		packet: Packet;
@@ -58,4 +59,13 @@
 		type: 'line'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(22, 28)} />
+<GeniusPacketDataBlock
+	{showDetails}
+	data={packet.data.subarray(22, 23)}
+	details={{
+		icon: IconHops,
+		text: packet.generalInfo?.hops.toString(),
+		type: 'hops'
+	}}
+/>
+<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(23, 28)} />
