@@ -38,10 +38,35 @@ div.genius-packet > div.meta-data-container > div.type-comissioning {
     @apply bg-amber-500 font-normal;
 }
 
+div.genius-packet > div.meta-data-container > div.type-discovery-request {
+    @apply bg-blue-500 font-normal;
+}
+
+div.genius-packet > div.meta-data-container > div.type-discovery-response {
+    @apply bg-blue-700 font-normal;
+}
+
+div.genius-packet > div.meta-data-container > div.type-linetest-start {
+    @apply bg-lime-500 font-normal;
+}
+
+div.genius-packet > div.meta-data-container > div.type-linetest-stop {
+    @apply bg-lime-700 font-normal;
+}
+
+div.genius-packet > div.meta-data-container > div.type-alarm-start {
+    @apply bg-pink-500 font-normal;
+}
+
+div.genius-packet > div.meta-data-container > div.type-alarm-stop {
+    @apply bg-green-500 font-normal;
+}
+
 div.genius-packet > div.meta-data-container > div.type-unknown {
     @apply bg-slate-800 text-white font-normal;
 }
 
+/* Packet content */
 div.genius-packet > div.packet-data-container {
     @apply flex items-start justify-start gap-1 text-sm py-1;
 }
@@ -78,6 +103,22 @@ div.genius-packet > div.packet-data-container > div[data-type=serialnumber-radio
     @apply bg-red-200;
 }
 
+div.genius-packet > div.packet-data-container > div[data-type=serialnumber-smokedetector] > div.packet-data-1 {
+    @apply bg-fuchsia-400;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=serialnumber-smokedetector] > div {
+    @apply bg-fuchsia-200;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=serialnumber-smokedetector-unknown] > div.packet-data-1 {
+    @apply bg-red-400;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=serialnumber-smokedetector-unknown] > div {
+    @apply bg-red-200;
+}
+
 div.genius-packet > div.packet-data-container > div[data-type=line] > div.packet-data-1 {
     @apply bg-amber-400;
 }
@@ -108,6 +149,22 @@ div.genius-packet > div.packet-data-container > div[data-type=hops] > div.packet
 
 div.genius-packet > div.packet-data-container > div[data-type=hops] > div {
     @apply bg-purple-300;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=alarm-start] > div.packet-data-1 {
+    @apply bg-pink-600;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=alarm-start] > div {
+    @apply bg-pink-400;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=alarm-stop] > div.packet-data-1 {
+    @apply bg-green-600;
+}
+
+div.genius-packet > div.packet-data-container > div[data-type=alarm-stop] > div {
+    @apply bg-green-400;
 }
 
 div.genius-packet > div.packet-data-container > div[data-type=time] > div.packet-data-1 {

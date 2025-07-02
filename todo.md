@@ -14,6 +14,9 @@
 - Packet Analyzer: Save Bug: Geht nur einmal
 - Packet Analyzer: Andere Packettypen
     o Line Test Stop
+        o Test/Aufzeichnung durchführen
+- Packet Analyzer: Farben Discovery Request/Response anders
+- Packet Analyzer: Unknown alarm line: auch rot
 
 - Alarmlines: Sende-Timeout: 5s
 - Alarmlines: Während Senden Status im FE anzeigen und UI sperren

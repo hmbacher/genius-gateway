@@ -11,9 +11,11 @@
 		Packet,
 		CommissioningInfo,
 		DiscoveryResponseInfo,
-		AlarmLines
+		AlarmLines,
+		AlarmStartInfo,
+		AlarmStopInfo
 	} from '$lib/types/models';
-	import { PacketTypes } from '$lib/types/models';
+	import { PacketTypes, PacketTypeNames } from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils/misc';
 	import { deserializePacket, downloadPacketAsJson } from '$lib/utils/serialization';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -46,14 +48,24 @@
 
 	let packets: Packet[] = $state([]);
 
-	function determinePacketType(data: Uint8Array): PacketType {
-		for (const key in PacketTypes) {
-			const packetType = PacketTypes[key as keyof typeof PacketTypes];
-			if (data.length === packetType.packetLength) {
-				return packetType;
+	function determinePacketType(data: Uint8Array): PacketType | null {
+		for (const type of PacketTypes) {
+			if (data.length !== type.packetLength) continue;
+			let identifiersMatch = true;
+			if (type.identifiers && Array.isArray(type.identifiers)) {
+				for (const { byteNr, value } of type.identifiers) {
+					if (data[byteNr] !== value) {
+						identifiersMatch = false;
+						break;
+					}
+				}
+			}
+			if (identifiersMatch) {
+				return type;
 			}
 		}
-		return PacketTypes.Unknown;
+		// No predefined type matches
+		return null;
 	}
 
 	function interpretPacket(packet: Packet) {
@@ -72,19 +84,30 @@
 		};
 
 		// Specific packet properties
-		if (packet.type.name === PacketTypes.Commissioning.name) {
+		if (packet.type?.name === PacketTypeNames.Comissioning) {
 			// Alarm Line Comissioning
-			console.log(packet.data.buffer);
 			packet.specificInfo = {
 				newLineID: dv.getUint32(28),
 				timeStr: `${dv.getUint8(32).toString().padStart(2, '0')}:${dv.getUint8(33).toString().padStart(2, '0')}:${dv.getUint8(34).toString().padStart(2, '0')}`
 			} as CommissioningInfo;
-		} else if (packet.type.name === PacketTypes.DiscoveryResponse.name) {
-			// Device Discovery Response (?)
+		} else if (packet.type?.name === PacketTypeNames.DiscoveryResponse) {
+			// Device Discovery Response
 			packet.specificInfo = {
 				requestingRadioModule: dv.getUint32(28),
 				requestingLocation: getDetectorLocationByRMSN(dv.getUint32(28))
 			} as DiscoveryResponseInfo;
+		} else if (packet.type?.name === PacketTypeNames.StartAlarm) {
+			// Alarm Start
+			packet.specificInfo = {
+				startingSmokeDetector: dv.getUint32(32),
+				startingLocation: getDetectorLocationByRMSN(dv.getUint32(32))
+			} as AlarmStartInfo;
+		} else if (packet.type?.name === PacketTypeNames.StopAlarm) {
+			// Alarm Stop
+			packet.specificInfo = {
+				silencingSmokeDetector: dv.getUint32(32),
+				silencingLocation: getDetectorLocationByRMSN(dv.getUint32(32))
+			} as AlarmStopInfo;
 		}
 	}
 
@@ -303,7 +326,6 @@
 					});
 
 					notifications.success('Packets log imported.', 3000);
-
 				} catch (error) {
 					console.error('Error parsing file:', error);
 					notifications.error('Error parsing file.', 5000);

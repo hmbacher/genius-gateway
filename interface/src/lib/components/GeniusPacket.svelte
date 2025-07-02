@@ -1,11 +1,13 @@
 <script lang="ts">
 	import type { Packet, CommissioningInfo } from '$lib/types/models';
-	import { PacketTypes } from '$lib/types/models';
+	import { PacketTypes, PacketTypeNames } from '$lib/types/models';
 	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
 	import GeniusPacketContentComissioning from './GeniusPacketContentComissioning.svelte';
 	import GeniusPacketContentLineTestStart from './GeniusPacketContentLineTestStart.svelte';
 	import GeniusPacketContentDiscoveryRequest from './GeniusPacketContentDiscoveryRequest.svelte';
 	import GeniusPacketContentDiscoveryResponse from './GeniusPacketContentDiscoveryResponse.svelte';
+	import GeniusPacketContentAlarmStart from './GeniusPacketContentAlarmStart.svelte';
+	import GeniusPacketContentAlarmStop from './GeniusPacketContentAlarmStop.svelte';
 
 	interface Props {
 		packet: Packet;
@@ -27,19 +29,27 @@
 			<div class="meta-data w-10">{packet.counter}x</div>
 			<div class="meta-data w-16">{packet.data.length} bytes</div>
 			{#if showDetails}
-				<div class="meta-data {packet.type.cssClass}">{packet.type.name}</div>
+				{#if packet.type}
+					<div class="meta-data {packet.type.cssClass}">{packet.type.name}</div>
+				{:else}
+					<div class="meta-data type-unknown">Unknown</div>
+				{/if}
 			{/if}
 		</div>
 	{/if}
 	<div class="packet-data-container">
-		{#if packet.type.name === PacketTypes.Commissioning.name}
+		{#if packet.type?.name === PacketTypeNames.Comissioning}
 			<GeniusPacketContentComissioning {packet} {showDetails} />
-		{:else if packet.type.name === PacketTypes.LineTestStart.name}
+		{:else if packet.type?.name === PacketTypeNames.StartLineTest}
 			<GeniusPacketContentLineTestStart {packet} {showDetails} />
-		{:else if packet.type.name === PacketTypes.DiscoveryRequest.name}
+		{:else if packet.type?.name === PacketTypeNames.DiscoveryRequest}
 			<GeniusPacketContentDiscoveryRequest {packet} {showDetails} />
-		{:else if packet.type.name === PacketTypes.DiscoveryResponse.name}
+		{:else if packet.type?.name === PacketTypeNames.DiscoveryResponse}
 			<GeniusPacketContentDiscoveryResponse {packet} {showDetails} />
+		{:else if packet.type?.name === PacketTypeNames.StartAlarm}
+			<GeniusPacketContentAlarmStart {packet} {showDetails} />
+		{:else if packet.type?.name === PacketTypeNames.StopAlarm}
+			<GeniusPacketContentAlarmStop {packet} {showDetails} />
 		{:else}
 			{#each packet.data as byte}
 				<GeniusPacketDataBlock {showDetails} data={new Uint8Array([byte])} />

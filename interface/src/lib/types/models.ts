@@ -178,65 +178,84 @@ export type VisualizerSettings = {
 	showMetadata: boolean;
 };
 
+export type PacketIdentifier = {
+	byteNr: number;
+	value: number;
+}
+
 export type PacketType = {
 	name: string;
 	cssClass: string;
 	packetLength: number;
 	description: string;
+	identifiers: PacketIdentifier[];
 };
 
-export const PacketTypes: {
-	Commissioning: PacketType;
-	DiscoveryRequest: PacketType;
-	DiscoveryResponse: PacketType;
-	LineTestStart: PacketType;
-	LineTestStop: PacketType;
-	Alarming: PacketType;
-	Unknown: PacketType;
-} = {
-	Commissioning: {
-		name: 'Commissioning',
+export const PacketTypeNames = {
+	Comissioning: 'Commissioning',
+	DiscoveryRequest: 'Discovery Request',
+	DiscoveryResponse: 'Discovery Response',
+	StartLineTest: 'Start Line Test',
+	StopLineTest: 'Stop Line Test',
+	StartAlarm: 'Start Alarm',
+	StopAlarm: 'Stop Alarm'
+} as const;
+
+export const PacketTypes: PacketType[] = [
+	{
+		name: PacketTypeNames.Comissioning,
 		cssClass: 'type-comissioning',
 		packetLength: 37,
-		description: 'Commissioning of new alarm line.'
+		description: 'Commissioning of new alarm line.',
+		identifiers: []
 	},
-	DiscoveryRequest: {
-		name: 'Discovery Request?',
+	{
+		name: PacketTypeNames.DiscoveryRequest,
 		cssClass: 'type-discovery-request',
 		packetLength: 28,
-		description: 'Purpose unknown, possibly a device discovery request.'
+		description: 'Purpose unknown, possibly a device discovery request.',
+		identifiers: []
 	},
-	DiscoveryResponse: {
-		name: 'Discovery Response?',
+	{
+		name: PacketTypeNames.DiscoveryResponse,
 		cssClass: 'type-discovery-response',
 		packetLength: 32,
-		description: 'Purpose unknown, possibly a device discovery response.'
+		description: 'Purpose unknown, possibly a device discovery response.',
+		identifiers: []
 	},
-	LineTestStart: {
-		name: 'Line Test Start',
+	{
+		name: PacketTypeNames.StartLineTest,
 		cssClass: 'type-linetest-start',
 		packetLength: 29,
-		description: 'Packets sent to initiate line test function.'
+		description: 'Packets sent to initiate line test function.',
+		identifiers: []
 	},
-	LineTestStop: {
-		name: 'Line Test Stop',
+	{
+		name: PacketTypeNames.StopLineTest,
 		cssClass: 'type-linetest-stop',
 		packetLength: 29,
-		description: 'Packets sent to end line test function.'
+		description: 'Packets sent to end line test function.',
+		identifiers: []
 	},
-	Alarming: {
-		name: 'Alarming',
-		cssClass: 'type-alarm',
+	{
+		name: PacketTypeNames.StartAlarm,
+		cssClass: 'type-alarm-start',
 		packetLength: 36,
-		description: 'Packet starting and silencing/stopping alarm.'
+		description: 'Packet sent to start/distribute an alarm.',
+		identifiers: [
+			{ byteNr: 28, value: 0x01 }, // Identifier for Alarm Start
+		]
 	},
-	Unknown: {
-		name: 'Unknown',
-		cssClass: 'type-unknown',
-		packetLength: 0, // No specific length for unknown packets
-		description: 'Unknown packet type.'
+	{
+		name: PacketTypeNames.StopAlarm	,
+		cssClass: 'type-alarm-stop',
+		packetLength: 36,
+		description: 'Packet sent to stop/silence an alarm.',
+		identifiers: [
+			{ byteNr: 30, value: 0x01 }, // Identifier for Alarm Stop
+		]
 	}
-};
+];
 
 export type GeneralInfo = {
 	counter: number;
@@ -259,16 +278,26 @@ export type DiscoveryResponseInfo = {
 	requestingLocation: string;
 };
 
+export type AlarmStartInfo = {
+	startingSmokeDetector: number;
+	startingLocation: string;
+}
+
+export type AlarmStopInfo = {
+	silencingSmokeDetector: number;
+	silencingLocation: string;
+}
+
 export type Packet = {
 	id: number;
 	timestampFirst: number;
 	timestampLast: number;
-	type: PacketType;
+	type: PacketType | null;
 	data: Uint8Array;
 	counter: number;
 	hash: number;
 	generalInfo: GeneralInfo | null;
-	specificInfo: CommissioningInfo | DiscoveryResponseInfo | null;
+	specificInfo: CommissioningInfo | DiscoveryResponseInfo | AlarmStartInfo | AlarmStopInfo | null;
 };
 
 export type AlarmLine = {
