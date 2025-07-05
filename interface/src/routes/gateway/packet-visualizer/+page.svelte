@@ -32,7 +32,7 @@
 	import IconCopy from '~icons/tabler/copy';
 	import IconSave from '~icons/tabler/device-floppy';
 	import IconLoad from '~icons/tabler/folder-open';
-	import Info from '~icons/tabler/info-circle-filled';
+	import Info from '~icons/tabler/info-circle';
 
 	const OFFSET_TIMESTAMP = 0; // Offset for the timestamp in the byte array
 	const OFFSET_DATA_LENGTH = 76; // Offset for the data length in the byte array

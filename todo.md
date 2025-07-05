@@ -2,6 +2,8 @@ x - Genius devices als Store? (Startseite, AlarmStatus, PacketAnalyzer, Devices)
 
 x - Packet-Zähler bei jedem zu sendenden Paket erhöhen
 
+x - Sync Enums btw. Backend and Frontend
+
 - Mute-Endpoint (bei Devices?) zum Silencen aus Frontend
 
 - Alarmlines: Sende-Timeout: 5s
@@ -11,10 +13,6 @@ x - Packet-Zähler bei jedem zu sendenden Paket erhöhen
     - Abbruch-Schleife für Warten auf Pin-States
     - Heartbeat, der schaut ob verkrüppelte Packete empfangen wurden und den Empfangsbuffer löscht
     - Heartbeat, der auf RX zurücksetzt, falls anderer State ist (und ohne dass Packete gesendet werden!)
-
-x - Sync Enums btw. Backend and Frontend
-
-x - Startseite: Devices als Raster
 
 BUGS
 
