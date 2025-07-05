@@ -1,9 +1,11 @@
 <script lang="ts">
-	import type { Packet, CommissioningInfo } from '$lib/types/models';
-	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
+	import type { Packet } from '$lib/types/models';
+	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
 	import IconWifi from '~icons/tabler/wifi';
 	import IconRing from '~icons/tabler/topology-ring-2';
 	import IconHops from '~icons/tabler/arrow-forward-up';
+	import IconHash from '~icons/tabler/hash';
+	import IconStart from '~icons/tabler/player-play';
 
 	interface Props {
 		packet: Packet;
@@ -68,4 +70,21 @@
 		type: 'hops'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(23, 29)} />
+<GeniusPacketDataBlock
+	{showDetails}
+	data={packet.data.subarray(23, 24)}
+	details={{
+		icon: IconHash,
+		type: 'sequence-nr'
+	}}
+/>
+<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(24, 28)} />
+<GeniusPacketDataBlock
+	{showDetails}
+	data={packet.data.subarray(28, 29)}
+	endianess="big"
+	details={{
+		icon: IconStart,
+		type: 'line-test-start'
+	}}
+/>

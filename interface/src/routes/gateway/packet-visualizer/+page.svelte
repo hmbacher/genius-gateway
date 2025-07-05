@@ -20,7 +20,7 @@
 	import { deserializePacket, downloadPacketAsJson } from '$lib/utils/serialization';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
-	import GeniusPacket from '$lib/components/GeniusPacket.svelte';
+	import GeniusPacket from '$lib/components/genius/GeniusPacket.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import IconLogs from '~icons/tabler/logs';
 	import IconTrash from '~icons/tabler/trash';
@@ -75,9 +75,9 @@
 		packet.generalInfo = {
 			counter: dv.getUint16(1, true),
 			firstRadioModuleSN: dv.getUint32(9),
-			firstLocation: getDetectorLocationByRMSN(dv.getUint32(9)),
+			firstLocation: getDetectorLocationByRadioModuleSN(dv.getUint32(9)),
 			secondRadioModuleSN: dv.getUint32(14),
-			secondLocation: getDetectorLocationByRMSN(dv.getUint32(14)),
+			secondLocation: getDetectorLocationByRadioModuleSN(dv.getUint32(14)),
 			lineID: dv.getUint32(18),
 			lineName: getAlarmLineNameByID(dv.getUint32(18)),
 			hops: 15 - dv.getUint8(22)
@@ -94,19 +94,19 @@
 			// Device Discovery Response
 			packet.specificInfo = {
 				requestingRadioModule: dv.getUint32(28),
-				requestingLocation: getDetectorLocationByRMSN(dv.getUint32(28))
+				requestingLocation: getDetectorLocationByRadioModuleSN(dv.getUint32(28))
 			} as DiscoveryResponseInfo;
 		} else if (packet.type?.name === PacketTypeNames.StartAlarm) {
 			// Alarm Start
 			packet.specificInfo = {
-				startingSmokeDetector: dv.getUint32(32),
-				startingLocation: getDetectorLocationByRMSN(dv.getUint32(32))
+				startingSmokeDetector: dv.getUint32(32, true),
+				startingLocation: getDetectorLocationBySmokeDetectorSN(dv.getUint32(32, true))
 			} as AlarmStartInfo;
 		} else if (packet.type?.name === PacketTypeNames.StopAlarm) {
 			// Alarm Stop
 			packet.specificInfo = {
-				silencingSmokeDetector: dv.getUint32(32),
-				silencingLocation: getDetectorLocationByRMSN(dv.getUint32(32))
+				silencingSmokeDetector: dv.getUint32(32, true),
+				silencingLocation: getDetectorLocationBySmokeDetectorSN(dv.getUint32(32, true))
 			} as AlarmStopInfo;
 		}
 	}
@@ -282,8 +282,12 @@
 		notifications.success('Packets log copied to clipboard.', 3000);
 	}
 
-	function getDetectorLocationByRMSN(sn: number): string {
+	function getDetectorLocationByRadioModuleSN(sn: number): string {
 		return detectors.devices.find((device) => device.radioModule.sn === sn)?.location || 'Unknown';
+	}
+
+	function getDetectorLocationBySmokeDetectorSN(sn: number): string {
+		return detectors.devices.find((device) => device.smokeDetector.sn === sn)?.location || 'Unknown';
 	}
 
 	function getAlarmLineNameByID(id: number): string {
@@ -307,6 +311,7 @@
 					packets = deserializePacket(fileContent) as Packet[];
 					if (!packets) {
 						notifications.error('Invalid packets log format.', 5000);
+						files = null; // Reset files to allow re-selection
 						return;
 					}
 
@@ -319,6 +324,7 @@
 						},
 						onConfirm: () => {
 							packets.forEach((packet) => {
+								packet.type = determinePacketType(packet.data);
 								interpretPacket(packet);
 							});
 							modals.close();
@@ -330,11 +336,16 @@
 					console.error('Error parsing file:', error);
 					notifications.error('Error parsing file.', 5000);
 				}
+				
+				// Reset files after processing to allow re-selection of the same file
+				files = null;
 			};
 
 			reader.onerror = (ev) => {
 				console.log('Error reading the file:', ev);
 				notifications.error('Error reading file.', 5000);
+				// Reset files on error to allow re-selection
+				files = null;
 			};
 
 			reader.readAsText(files[0]);

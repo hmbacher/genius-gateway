@@ -21,6 +21,25 @@ void GatewayDevicesService::begin()
     _fsPersistence.readFromFS();
 }
 
+void GatewayDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
+                                            const uint32_t snSmokeDetector)
+{
+    beginTransaction();
+
+    // Create a new GeniusDevice with unknown models and production dates
+    GeniusDevice newDevice = GeniusDevice(
+        GeniusComponent<GeniusSmokeDetector>(static_cast<GeniusSmokeDetector>(HSD_UNKNOWN), snSmokeDetector, 0),
+        GeniusComponent<GeniusRadioModule>(static_cast<GeniusRadioModule>(HRM_UNKNOWN), snRadioModule, 0),
+        GENIUS_DEVICE_ADDED_FROM_PACKET);
+    // Set registration type
+    newDevice.registration = GDR_GENIUS_PACKET;
+    // Add the new device to the state
+    _state.devices.push_back(newDevice);
+
+    endTransaction();
+    callUpdateHandlers(GENIUS_DEVICE_ADDED_FROM_PACKET);
+}
+
 void GatewayDevicesService::setAlarm(uint32_t detectorSN)
 {
     bool updated = false;
@@ -33,9 +52,9 @@ void GatewayDevicesService::setAlarm(uint32_t detectorSN)
             if (!device.isAlarming)
             {
                 device.isAlarming = true;
-                genius_device_alarm_t alarm = {.startTime = time(nullptr),    // seconds precision
-                                                 .endTime = 0,
-                                                 .endingReason = HAE_ALARM_ACTIVE};
+                genius_device_alarm_t alarm = {.startTime = time(nullptr), // seconds precision
+                                               .endTime = 0,
+                                               .endingReason = HAE_ALARM_ACTIVE};
                 device.alarms.push_back(alarm);
 
                 _isAlarming = true;
@@ -64,7 +83,7 @@ void GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_
             if (device.isAlarming)
             {
                 device.isAlarming = false;
-                device.alarms.back().endTime = time(nullptr);   // seconds precision
+                device.alarms.back().endTime = time(nullptr); // seconds precision
                 device.alarms.back().endingReason = endingReason;
 
                 updated = true;
@@ -76,7 +95,8 @@ void GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_
     }
     endTransaction();
 
-    if (updated) {
+    if (updated)
+    {
         updateAlarmState();
         callUpdateHandlers(ALARM_STATE_CHANGE);
     }
@@ -86,7 +106,7 @@ void GatewayDevicesService::updateAlarmState()
 {
     bool alarming = false;
 
-    beginTransaction(); 
+    beginTransaction();
     for (auto &device : _state.devices)
     {
         if (device.isAlarming)

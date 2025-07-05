@@ -18,14 +18,17 @@
 
 #define ALARM_STATE_CHANGE "alarm-state-change"
 
+#define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"
+#define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"
+
 // Lightweight structure for MQTT publishing - contains only the minimal properties needed
 struct DeviceMqttData
 {
     uint32_t smokeDetectorSN;
     String location;
     bool isAlarming;
-    
-    DeviceMqttData(uint32_t sn, const String &loc, bool alarming) 
+
+    DeviceMqttData(uint32_t sn, const String &loc, bool alarming)
         : smokeDetectorSN(sn), location(loc), isAlarming(alarming) {}
 };
 
@@ -47,11 +50,13 @@ typedef struct genius_device_alarm
 
 typedef enum genius_smoke_detector
 {
+    HSD_UNKNOWN = -1, // Unknown smoke detector type
     HSD_GENIUS_PLUS_X = 0
 } GeniusSmokeDetector;
 
 typedef enum genius_radio_module
 {
+    HRM_UNKNOWN = -1, // Unknown radio module type
     HRM_FM_BASIS_X = 0
 } GeniusRadioModule;
 
@@ -64,24 +69,38 @@ class GeniusComponent
 {
 public:
     GeniusComponent(const T &model,
-                      uint32_t sn,
-                      time_t productionDate) : model(model),
-                                               sn(sn),
-                                               productionDate(productionDate)
+                    uint32_t sn,
+                    time_t productionDate) : model(model),
+                                             sn(sn),
+                                             productionDate(productionDate)
     {
     }
 
     void toJson(JsonObject &root)
     {
-        root["model"] = model;
+        // Serial number
         root["sn"] = sn;
-        root["productionDate"] = Utils::time_t_to_iso8601(productionDate);
+        // Production date (if any set)
+        if (productionDate > 0)
+            root["productionDate"] = Utils::time_t_to_iso8601(productionDate);
+        // Model (if any set)
+        if (static_cast<int>(model) != -1)
+            root["model"] = static_cast<int>(model);
     }
 
     T model;
     uint32_t sn;
     time_t productionDate; // Production date in seconds since Unix Epoch (UTC)
 };
+
+typedef enum genius_device_registration
+{
+    GDR_MIN = -1,      // Just for boundary checks
+    GDR_BUILT_IN = 0,  // Device is built-in
+    GDR_GENIUS_PACKET, // Device was added via received genius packet
+    GDR_MANUAL,        // Device registered manually (via web interface)
+    GDR_MAX            // Just for boundary checks
+} genius_device_registration_t;
 
 /**
  * @brief Class for Genius devices
@@ -90,10 +109,13 @@ class GeniusDevice
 {
 public:
     GeniusDevice(const GeniusComponent<GeniusSmokeDetector> &smokeDetector,
-                   const GeniusComponent<GeniusRadioModule> &radioModule,
-                   const String &location) : smokeDetector(smokeDetector),
-                                             radioModule(radioModule),
-                                             location(location)
+                 const GeniusComponent<GeniusRadioModule> &radioModule,
+                 const String &location) : smokeDetector(smokeDetector),
+                                           radioModule(radioModule),
+                                           location(location),
+                                           isAlarming(false),
+                                           registration(GDR_MANUAL)
+
     {
     }
 
@@ -107,6 +129,8 @@ public:
         this->radioModule.toJson(radioModule);
         // Location
         root["location"] = this->location;
+        // Registration
+        root["registration"] = this->registration;
         // Alarms
         JsonArray alarms = root["alarms"].to<JsonArray>();
         for (auto &alarm : this->alarms)
@@ -123,7 +147,8 @@ public:
     GeniusComponent<GeniusRadioModule> radioModule;
     String location;
     std::vector<genius_device_alarm_t> alarms;
-    bool isAlarming = false;
+    genius_device_registration_t registration;
+    bool isAlarming;
 };
 
 class GeniusDevices
@@ -176,6 +201,13 @@ public:
                         Utils::iso8601_to_time_t(radioModule["productionDate"].as<String>())),
                     jsonDeviceArrItem["location"].as<String>());
 
+                // Registration type
+                if (jsonDeviceArrItem["registration"].is<int>())
+                    newDevice.registration = static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>());
+                else
+                    newDevice.registration = GDR_MANUAL; // Default to manual registration if not specified
+
+                // Logged Alarms
                 if (jsonDeviceArrItem["alarms"].is<JsonArray>())
                 {
                     // iterate over alarms
@@ -218,10 +250,8 @@ public:
 
     void begin();
 
-    std::vector<GeniusDevice> &getDevices()
-    {
-        return _state.devices;
-    }
+    void AddGeniusDevice(const uint32_t snRadioModule,
+                         const uint32_t snSmokeDetector);
 
     void setAlarm(uint32_t detectorSN);
 
@@ -229,8 +259,8 @@ public:
 
     bool isAlarming()
     {
-         bool isAlarming = false;
-         
+        bool isAlarming = false;
+
         beginTransaction();
         isAlarming = _isAlarming;
         endTransaction();
@@ -258,7 +288,7 @@ public:
     std::vector<DeviceMqttData> getDevicesMqttData()
     {
         std::vector<DeviceMqttData> mqttData;
-        
+
         beginTransaction();
         mqttData.reserve(_state.devices.size()); // Pre-allocate for efficiency
         for (const auto &device : _state.devices)
@@ -266,11 +296,10 @@ public:
             mqttData.emplace_back(
                 device.smokeDetector.sn,
                 device.location,
-                device.isAlarming
-            );
+                device.isAlarming);
         }
         endTransaction();
-        
+
         return mqttData;
     }
 

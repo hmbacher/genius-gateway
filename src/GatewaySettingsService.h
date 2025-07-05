@@ -13,12 +13,10 @@
 #define GATEWAY_SETTINGS_SERVICE_PATH "/rest/gateway-settings"
 
 #define GATEWAY_SETTINGS_STR_ALERT_ON_UNKNOWN_DETECTORS "alert_on_unknown_detectors"
-#define GATEWAY_SETTINGS_STR_ADD_UNKNOWN_ALARMING_DETECTORS "add_unknown_alarming_detectors"
 #define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET "add_alarm_line_from_commissioning_packet"
 #define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_ALARM_PACKET "add_alarm_line_from_alarm_packet"
 #define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET "add_alarm_line_from_line_test_packet"
 #define GATEWAY_SETTINGS_DEFAULT_ALERT_ON_UNKNOWN_DETECTORS true
-#define GATEWAY_SETTINGS_DEFAULT_ADD_UNKNOWN_ALARMING_DETECTORS true
 #define GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET true
 #define GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_ALARM_PACKET true
 #define GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET true
@@ -28,7 +26,6 @@ class GatewaySettings
 
 public:
     bool alertOnUnknownDetectors = GATEWAY_SETTINGS_DEFAULT_ALERT_ON_UNKNOWN_DETECTORS;
-    bool addUnknownAlarmingDetectors = GATEWAY_SETTINGS_DEFAULT_ADD_UNKNOWN_ALARMING_DETECTORS;
     bool addALarmLineFromCommissioningPacket = GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET;
     bool addAlarmLineFromAlarmPacket = GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_ALARM_PACKET;
     bool addAlarmLineFromLineTestPacket = GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET;
@@ -36,7 +33,6 @@ public:
     static void read(GatewaySettings &gwSettings, JsonObject &root)
     {
         root[GATEWAY_SETTINGS_STR_ALERT_ON_UNKNOWN_DETECTORS] = gwSettings.alertOnUnknownDetectors;
-        root[GATEWAY_SETTINGS_STR_ADD_UNKNOWN_ALARMING_DETECTORS] = gwSettings.addUnknownAlarmingDetectors;
         root[GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET] = gwSettings.addALarmLineFromCommissioningPacket;
         root[GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_ALARM_PACKET] = gwSettings.addAlarmLineFromAlarmPacket;
         root[GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET] = gwSettings.addAlarmLineFromLineTestPacket;
@@ -54,14 +50,6 @@ public:
         if (gwSettings.alertOnUnknownDetectors != newBoolValue)
         {
             gwSettings.alertOnUnknownDetectors = newBoolValue;
-            updated |= true;
-        }
-
-        /* add_unknown_alarming_detectors */
-        newBoolValue = root[GATEWAY_SETTINGS_STR_ADD_UNKNOWN_ALARMING_DETECTORS] | GATEWAY_SETTINGS_DEFAULT_ADD_UNKNOWN_ALARMING_DETECTORS;
-        if (gwSettings.addUnknownAlarmingDetectors != newBoolValue)
-        {
-            gwSettings.addUnknownAlarmingDetectors = newBoolValue;
             updated |= true;
         }
 
@@ -136,14 +124,6 @@ public:
     {
         beginTransaction();
         bool val = _state.addAlarmLineFromLineTestPacket;
-        endTransaction();
-        return val;
-    }
-
-    bool isAddUnknownAlarmingDetectorEnabled()
-    {
-        beginTransaction();
-        bool val = _state.addUnknownAlarmingDetectors;
         endTransaction();
         return val;
     }

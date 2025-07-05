@@ -246,16 +246,22 @@
 						postAlarmLines(alarmLines);
 					} else {
 						notifications.error('Invalid alarm lines format.', 3000);
+						files = null; // Reset files to allow re-selection
 					}
 				} catch (error) {
 					console.error('Error parsing file:', error);
 					notifications.error('Error parsing file.', 3000);
 				}
+
+				// Reset files after processing to allow re-selection of the same file
+				files = null;
 			};
 
 			reader.onerror = (ev) => {
 				console.log('Error reading the file:', ev);
 				notifications.error('Error reading file.', 3000);
+				// Reset files on error to allow re-selection
+				files = null;
 			};
 
 			reader.readAsText(files[0]);
@@ -356,7 +362,7 @@
 												</td>
 												<td align="center">
 													{#if line.id != BROADCAST_ID}
-														{#if line.acquisition === 0}
+														{#if line.acquisition === 2}
 															<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
 																<Manual class="h-6 w-6" />
 															</div>

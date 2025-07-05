@@ -1,27 +1,37 @@
-- Add smoke Detector on foreign Alarm
-    o Is Radio Module ID provided over several hops? ->Experiment!
-
-- Mute-Endpoint (bei Devices?) zum Silencen aus Frontend
-
-- Wenn WS Logger ausgeschaltet ist, darf Packet Analyzer nicht gehen.
+x - Wenn WS Logger ausgeschaltet ist, darf Packet Analyzer nicht gehen.
         --> Auslesen und Hinweis auf Packet Analyzer Seite
 
-- Tests
-    o ...
+x - Packet Analyzer: Unknown alarm line: auch rot
 
-
-- Alle RWM eintragen
-- Packet Analyzer: Save Bug: Geht nur einmal
-- Packet Analyzer: Andere Packettypen
-    o Line Test Stop
-        o Test/Aufzeichnung durchführen
-- Packet Analyzer: Farben Discovery Request/Response anders
-- Packet Analyzer: Unknown alarm line: auch rot
+- Mute-Endpoint (bei Devices?) zum Silencen aus Frontend
 
 - Alarmlines: Sende-Timeout: 5s
 - Alarmlines: Während Senden Status im FE anzeigen und UI sperren
 
-Robustness
-- Abbruch-Schleife für Warten auf Pin-States
-- Heartbeat, der schaut ob verkrüppelte Packete empfangen wurden und den Empfangsbuffer löscht
-- Heartbeat, der auf RX zurücksetzt, falls anderer State ist (und ohne dass Packete gesendet werden!)
+- Robustness
+    - Abbruch-Schleife für Warten auf Pin-States
+    - Heartbeat, der schaut ob verkrüppelte Packete empfangen wurden und den Empfangsbuffer löscht
+    - Heartbeat, der auf RX zurücksetzt, falls anderer State ist (und ohne dass Packete gesendet werden!)
+
+- Sync Enums btw. Backend and Frontend
+
+BUGS
+- Packet Analyzer: Zellen ohne Text (nur Symbol) genau so hoch wie Zellen mit Text
+
+TEST
+- Alarm von einem unbekannten Gerät und Add Unknown Device ist konfiguriert
+    o Device wird hinzugefügt
+    o /config und /state topic werden über MQTT verteilt
+    o Alarm wird gesetzt
+    o /state config wird aktualisiert
+    o Alarm-Event geht an FE
+
+- Alarm von einem unbekannten Gerät und Add Unknown Device ist NICHT konfiguiert 
+    o Device wird NICHT hinzugefügt
+    o /config und /state topic werden NICHT über MQTT verteilt
+    o Alarm wird NICHT gesetzt
+    o /state config wird NICHT aktualisiert
+    o Alarm-Event geht NICHT an FE
+
+OFFEN
+- Verhalten von Edit-Devices-Dialog bei Devices, die aus einem Alarm hinzugefügt wurden...

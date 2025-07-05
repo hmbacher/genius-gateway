@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type { Packet, CommissioningInfo } from '$lib/types/models';
 	import { PacketTypes, PacketTypeNames } from '$lib/types/models';
-	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
+	import GeniusPacketDataBlock from '$lib/components/genius/GeniusPacketDataBlock.svelte';
 	import GeniusPacketContentComissioning from './GeniusPacketContentComissioning.svelte';
 	import GeniusPacketContentLineTestStart from './GeniusPacketContentLineTestStart.svelte';
+	import GeniusPacketContentLineTestStop from './GeniusPacketContentLineTestStop.svelte';
 	import GeniusPacketContentDiscoveryRequest from './GeniusPacketContentDiscoveryRequest.svelte';
 	import GeniusPacketContentDiscoveryResponse from './GeniusPacketContentDiscoveryResponse.svelte';
 	import GeniusPacketContentAlarmStart from './GeniusPacketContentAlarmStart.svelte';
@@ -42,6 +43,8 @@
 			<GeniusPacketContentComissioning {packet} {showDetails} />
 		{:else if packet.type?.name === PacketTypeNames.StartLineTest}
 			<GeniusPacketContentLineTestStart {packet} {showDetails} />
+		{:else if packet.type?.name === PacketTypeNames.StopLineTest}
+			<GeniusPacketContentLineTestStop {packet} {showDetails} />
 		{:else if packet.type?.name === PacketTypeNames.DiscoveryRequest}
 			<GeniusPacketContentDiscoveryRequest {packet} {showDetails} />
 		{:else if packet.type?.name === PacketTypeNames.DiscoveryResponse}

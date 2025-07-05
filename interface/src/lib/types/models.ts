@@ -152,17 +152,18 @@ export type GeniusAlarm = {
 }
 
 export type GeniusComponent = {
-	model: number;
 	sn: number;
-	productionDate: Date;
+	model?: number;
+	productionDate?: Date;
 };
 
 export type GeniusDevice = {
 	smokeDetector: GeniusComponent;
 	radioModule: GeniusComponent;
 	location: string;
-	alarms: GeniusAlarm[];
+	registration: number;
 	isAlarming: boolean;
+	alarms: GeniusAlarm[];
 };
 
 export type GeniusDevices = {
@@ -228,14 +229,18 @@ export const PacketTypes: PacketType[] = [
 		cssClass: 'type-linetest-start',
 		packetLength: 29,
 		description: 'Packets sent to initiate line test function.',
-		identifiers: []
+		identifiers: [
+			{ byteNr: 28, value: 0x06 }, // Identifier for Line Test Start
+		]
 	},
 	{
 		name: PacketTypeNames.StopLineTest,
 		cssClass: 'type-linetest-stop',
 		packetLength: 29,
 		description: 'Packets sent to end line test function.',
-		identifiers: []
+		identifiers: [
+			{ byteNr: 28, value: 0x00 }, // Identifier for Line Test Stop
+		]
 	},
 	{
 		name: PacketTypeNames.StartAlarm,

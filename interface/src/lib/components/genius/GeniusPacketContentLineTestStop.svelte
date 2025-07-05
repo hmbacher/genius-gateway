@@ -1,10 +1,11 @@
 <script lang="ts">
-	import type { Packet, CommissioningInfo } from '$lib/types/models';
-	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
+	import type { Packet } from '$lib/types/models';
+	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
 	import IconWifi from '~icons/tabler/wifi';
-	import IconHops from '~icons/tabler/arrow-forward-up';
-	import IconClock from '~icons/tabler/clock';
 	import IconRing from '~icons/tabler/topology-ring-2';
+	import IconHops from '~icons/tabler/arrow-forward-up';
+	import IconHash from '~icons/tabler/hash';
+	import IconStop from '~icons/tabler/player-stop';
 
 	interface Props {
 		packet: Packet;
@@ -69,24 +70,21 @@
 		type: 'hops'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(23, 28)} />
 <GeniusPacketDataBlock
 	{showDetails}
-	data={packet.data.subarray(28, 32)}
+	data={packet.data.subarray(23, 24)}
+	details={{
+		icon: IconHash,
+		type: 'sequence-nr'
+	}}
+/>
+<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(24, 28)} />
+<GeniusPacketDataBlock
+	{showDetails}
+	data={packet.data.subarray(28, 29)}
 	endianess="big"
 	details={{
-		icon: IconRing,
-		text: 'New Line ID',
-		type: 'line'
+		icon: IconStop,
+		type: 'line-test-stop'
 	}}
 />
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(32, 35)}
-	details={{
-		icon: IconClock,
-		text: (packet.specificInfo as CommissioningInfo)?.timeStr,
-		type: 'time'
-	}}
-/>
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(35, 37)} />

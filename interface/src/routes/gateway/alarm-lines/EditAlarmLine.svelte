@@ -27,7 +27,7 @@
 				id: 0,
 				name: '',
 				created: new Date(),
-				acquisition: 0
+				acquisition: 2	// Default to manually added
 			})
 	}: Props = $props();
 

@@ -319,16 +319,16 @@ void GeniusGateway::_rx_packets()
                             {
                                 bool isDetectorKnown = _gatewayDevices.isSmokeDetectorKnown(source_id);
 
-                                if (!isDetectorKnown && _gatewaySettings.isAddUnknownAlarmingDetectorEnabled())
+                                if (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
                                 {
-                                    // TODO: Add unknown smoke detector to the list
+                                    uint32_t snRM = EXTRACT32(packet.data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
+                                     _gatewayDevices.AddGeniusDevice(snRM, source_id);
+                                     isDetectorKnown = true; // Now we know the detector, as it was added from packet
                                 }
 
                                 /* Set/Reset alarm */
-                                if (isDetectorKnown || _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
-                                {
+                                if (isDetectorKnown)
                                     _gatewayDevices.setAlarm(source_id);
-                                }
                             }
                             else // packet_details.type == HPT_ALARM_SILENCING
                             {

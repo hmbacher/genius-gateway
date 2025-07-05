@@ -24,6 +24,8 @@
 	import Factory from '~icons/tabler/building-factory-2';
 	import Save from '~icons/tabler/device-floppy';
 	import Load from '~icons/tabler/folder-open';
+	import Manual from '~icons/tabler/forms';
+	import Automatic from '~icons/tabler/access-point';
 
 	interface Props {
 		data: PageData;
@@ -144,16 +146,22 @@
 						postGeniusDevices(geniusDevices);
 					} else {
 						notifications.error('Invalid smoke detectors format.', 3000);
+						files = null; // Reset files to allow re-selection
 					}
 				} catch (error) {
 					console.error('Error parsing file:', error);
 					notifications.error('Error parsing file.', 3000);
 				}
+
+				// Reset files after processing to allow re-selection of the same file
+				files = null;
 			};
 
 			reader.onerror = (ev) => {
 				console.log('Error reading the file:', ev);
 				notifications.error('Error reading file.', 3000);
+				// Reset files on error to allow re-selection
+				files = null;
 			};
 
 			reader.readAsText(files[0]);
@@ -163,7 +171,7 @@
 
 {#if $user.admin}
 	<div class="mx-0 my-1 flex flex-col space-y-4 sm:mx-8 sm:my-8">
-		<SettingsCard collapsible={false}>
+		<SettingsCard collapsible={false} maxwidth="max-w-3xl">
 			{#snippet icon()}
 				<SmokeDetector class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 			{/snippet}
@@ -222,25 +230,34 @@
 										<th align="left">Smoke Detector</th>
 										<th align="left">Radio Module</th>
 										<th align="center">Alarms</th>
+										<th align="center">Registration</th>
 										<th align="right" class="pr-8">Manage</th>
 									</tr>
 								</thead>
 								<tbody>
 									{#each geniusDevices.devices as device, index}
 										<tr>
-											<td align="left" class="font-bold">{device.location}</td>
+											<td
+												align="left"
+												class="font-bold {device.location === 'Unknown location'
+													? 'italic text-base-content/70'
+													: ''}">{device.location}</td
+											>
 											<td align="left">
 												<span class="inline-flex items-baseline">
 													<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.smokeDetector.sn}
 												</span><br />
 												<span class="inline-flex items-baseline">
-													<Factory
-														class="lex-shrink-0 mr-2 h-4 w-4"
-													/>{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
-														day: '2-digit',
-														month: '2-digit',
-														year: 'numeric'
-													})}
+													<Factory class="lex-shrink-0 mr-2 h-4 w-4" />
+													{#if !device.smokeDetector.productionDate}
+														<span class="italic text-base-content/70">Unknown</span>
+													{:else}
+														{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
+															day: '2-digit',
+															month: '2-digit',
+															year: 'numeric'
+														})}
+													{/if}
 												</span>
 											</td>
 											<td align="left">
@@ -248,13 +265,16 @@
 													<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.radioModule.sn}
 												</span><br />
 												<span class="inline-flex items-baseline">
-													<Factory
-														class="lex-shrink-0 mr-2 h-4 w-4"
-													/>{device.radioModule.productionDate.toLocaleDateString('de-DE', {
-														day: '2-digit',
-														month: '2-digit',
-														year: 'numeric'
-													})}
+													<Factory class="lex-shrink-0 mr-2 h-4 w-4" />
+													{#if !device.radioModule.productionDate}
+														<span class="italic text-base-content/70">Unknown</span>
+													{:else}
+														{device.radioModule.productionDate.toLocaleDateString('de-DE', {
+															day: '2-digit',
+															month: '2-digit',
+															year: 'numeric'
+														})}
+													{/if}
 												</span>
 											</td>
 											<td align="center">
@@ -264,6 +284,22 @@
 														'de-DE',
 														{ day: '2-digit', month: '2-digit', year: 'numeric' }
 													)}
+												{/if}
+											</td>
+											<td align="center">
+												{#if device.registration === 2}
+													<div class="tooltip tooltip-top" data-tip="Manually added Genius device">
+														<Manual class="h-6 w-6" />
+													</div>
+												{:else if device.registration === 1}
+													<div
+														class="tooltip tooltip-top"
+														data-tip="Genius device added from received alert packet"
+													>
+														<Automatic class="h-6 w-6" />
+													</div>
+												{:else}
+													<span class="italic text-base-content/70">Unknown</span>
 												{/if}
 											</td>
 

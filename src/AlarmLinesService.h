@@ -55,10 +55,10 @@
 
 #define ALARMLINES_EVENT_NEW_LINE "new-alarm-line"
 
-typedef enum alarm_line_asquisition
+typedef enum alarm_line_acquisition
 {
     ALA_MIN = -1,      // Just for boundary checks
-    ALA_BUILT_IN = 0,  // Alarm line added via built-in genius packet
+    ALA_BUILT_IN = 0,  // Alarm line built-in (e.g. broadcast)
     ALA_GENIUS_PACKET, // Alarm line added via received genius packet
     ALA_MANUAL,        // Alarm line added manually (via web interface)
     ALA_MAX            // Just for boundary checks
@@ -69,7 +69,7 @@ typedef struct genius_alarm_line
     uint32_t id;                          // Alarm line ID (0xFFFFFFFF = broadcast, 0x00000000 = none)
     String name;                          // Alarm line name
     time_t created;                       // Creation date
-    alarm_line_acquisition_t acquisition; // Acquisition type (manual or genius packet)
+    alarm_line_acquisition_t acquisition; // Acquisition type (built-in, manual or genius packet)
 } genius_alarm_line_t;
 
 class AlarmLines

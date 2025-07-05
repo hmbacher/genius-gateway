@@ -1,11 +1,10 @@
 <script lang="ts">
-	import type { Packet, AlarmStartInfo } from '$lib/types/models';
-	import GeniusPacketDataBlock from '$lib/components/GeniusPacketDataBlock.svelte';
+	import type { Packet } from '$lib/types/models';
+	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
 	import IconWifi from '~icons/tabler/wifi';
-	import IconHops from '~icons/tabler/arrow-forward-up';
-	import IconDetector from '~icons/tabler/alarm-smoke';
 	import IconRing from '~icons/tabler/topology-ring-2';
-	import IconAlarmStart from '~icons/tabler/bell';
+	import IconHops from '~icons/tabler/arrow-forward-up';
+	import IconHash from '~icons/tabler/hash';
 
 	interface Props {
 		packet: Packet;
@@ -70,26 +69,12 @@
 		type: 'hops'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(23, 28)} />
 <GeniusPacketDataBlock
 	{showDetails}
-	data={packet.data.subarray(28, 29)}
-	endianess="big"
+	data={packet.data.subarray(23, 24)}
 	details={{
-		icon: IconAlarmStart,
-		type: 'alarm-start'
+		icon: IconHash,
+		type: 'sequence-nr'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(29, 32)} />
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(32, 36)}
-	endianess="little"
-	details={{
-		icon: IconDetector,
-		text: (packet.specificInfo as AlarmStartInfo)?.startingLocation,
-		type: 'serialnumber-smokedetector'.concat(
-			(packet.specificInfo as AlarmStartInfo)?.startingLocation === 'Unknown' ? '-unknown' : ''
-		)
-	}}
-/>
+<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(24, 28)} />

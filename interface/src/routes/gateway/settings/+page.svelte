@@ -16,7 +16,6 @@
 
 	type GatewaySettings = {
 		alert_on_unknown_detectors: boolean;
-		add_unknown_alarming_detectors: boolean;
 		add_alarm_line_from_commissioning_packet: boolean;
 		add_alarm_line_from_alarm_packet: boolean;
 		add_alarm_line_from_line_test_packet: boolean;
@@ -24,7 +23,6 @@
 
 	const defaultSettings: GatewaySettings = {
 		alert_on_unknown_detectors: false,
-		add_unknown_alarming_detectors: false,
 		add_alarm_line_from_commissioning_packet: false,
 		add_alarm_line_from_alarm_packet: false,
 		add_alarm_line_from_line_test_packet: false
@@ -102,30 +100,11 @@
 					</div>
 					<div>
 						<label class="label cursor-pointer w-full justify-between">
-							<span class="">Forward alerts from unknown smoke detectors</span>
+							<span class="">Process alerts from unknown smoke detectors</span>
 							<input
 								type="checkbox"
 								class="toggle toggle-primary"
 								bind:checked={gatewaySettings.alert_on_unknown_detectors}
-							/>
-						</label>
-					</div>
-					<div class="divider my-2"></div>
-				</div>
-				<div class="flex w-full flex-col gap-2 px-2">
-					<div>
-						<span class="inline-flex items-center gap-2">
-							<IconDetector class="h-6 w-6" />
-							<span class="font-medium">Smoke Detectors</span>
-						</span>
-					</div>
-					<div>
-						<label class="label cursor-pointer w-full justify-between">
-							<span class="">Add unknown alarming smoke detector as Genius device automatically</span>
-							<input
-								type="checkbox"
-								class="toggle toggle-primary"
-								bind:checked={gatewaySettings.add_unknown_alarming_detectors}
 							/>
 						</label>
 					</div>
