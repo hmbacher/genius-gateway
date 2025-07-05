@@ -34,14 +34,14 @@
 		{/if}
 		{#if details}
 			{#if details.icon && details.text}
-				<div class="flex items-center justify-center" style="grid-column: span {data.length}/ span {data.length}">
+				<div class="flex items-center justify-center min-h-[1.5rem]" style="grid-column: span {data.length}/ span {data.length}">
 					<details.icon class="flex-none mr-[2px] h-4 w-4" />
 					<span class="truncate">{details.text}</span>
 				</div>
 			{:else if details.text}
-				<div class="truncate" style="grid-column: span {data.length}/ span {data.length}">{details.text}</div>
+				<div class="truncate min-h-[1.5rem] flex items-center" style="grid-column: span {data.length}/ span {data.length}">{details.text}</div>
 			{:else if details.icon}
-				<div style="grid-column: span {data.length}/ span {data.length}">
+				<div class="min-h-[1.5rem] flex items-center justify-center" style="grid-column: span {data.length}/ span {data.length}">
 					<details.icon class="flex-none h-4 w-4" />
 				</div>
 			{/if}

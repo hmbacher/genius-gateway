@@ -59,7 +59,9 @@
 	details={{
 		icon: IconRing,
 		text: packet.generalInfo?.lineName,
-		type: 'line'
+		type: 'line'.concat(
+			packet.generalInfo?.lineName === 'Unknown' ? '-unknown' : ''
+		)
 	}}
 />
 <GeniusPacketDataBlock
