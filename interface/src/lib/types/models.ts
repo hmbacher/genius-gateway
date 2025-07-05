@@ -252,7 +252,7 @@ export const PacketTypes: PacketType[] = [
 		]
 	},
 	{
-		name: PacketTypeNames.StopAlarm	,
+		name: PacketTypeNames.StopAlarm,
 		cssClass: 'type-alarm-stop',
 		packetLength: 36,
 		description: 'Packet sent to stop/silence an alarm.',
@@ -320,3 +320,7 @@ export type CC1101State = {
 	state_success: boolean;
 	state: number;
 }
+
+export type WSLoggerSettings = {
+	wsLoggerEnabled: boolean;
+};

@@ -6,6 +6,7 @@
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
+	import type { WSLoggerSettings } from '$lib/types/models';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import IconSettings from '~icons/tabler/adjustments';
@@ -13,11 +14,7 @@
 	import IconInfo from '~icons/tabler/info-circle';
 	import IconWarning from '~icons/tabler/alert-triangle';
 
-	type WSLoggerSettings = {
-		wsLoggerEnabled: boolean;
-	};
-
-	const defaultSettings: WSLoggerSettings = {
+		const defaultSettings: WSLoggerSettings = {
 		wsLoggerEnabled: false
 	};
 

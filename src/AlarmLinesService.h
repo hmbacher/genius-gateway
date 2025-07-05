@@ -156,7 +156,8 @@ public:
     esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET, bool toFront = false);
 
 private:
-    static const uint8_t _packet_base_linetest[];
+    static const uint8_t _packet_base_linetest_start[];
+    static const uint8_t _packet_base_linetest_stop[];
     static const uint8_t _packet_base_firealarm[];
 
     PsychicHttpServer *_server;
@@ -193,3 +194,4 @@ private:
     void _emitNewAlarmLineEvent(uint32_t id);
 
 };
+

@@ -23,11 +23,14 @@
 	import Check from '~icons/tabler/check';
 	import Save from '~icons/tabler/device-floppy';
 	import Load from '~icons/tabler/folder-open';
-	import Test from '~icons/tabler/topology-star-3';
+	import LineTest from '~icons/tabler/topology-star-3';
+	import Play from '~icons/tabler/player-play-filled';
+	import Stop from '~icons/tabler/player-stop-filled';
 	import Flame from '~icons/tabler/flame-filled';
 	import FlameOff from '~icons/tabler/flame-off';
 	import Manual from '~icons/tabler/forms';
 	import Automatic from '~icons/tabler/access-point';
+	import IconWithOverlay from '$lib/components/IconWithOverlay.svelte';
 
 	const BROADCAST_ID = 0xffffffff; // 4294967295
 
@@ -45,7 +48,7 @@
 
 	onMount(() => {
 		socket.on<NewAlarmLineEvent>('new-alarm-line', (data) => {
-			getAlarmLines();	// Reload alarm lines
+			getAlarmLines(); // Reload alarm lines
 			notifications.success('New alarm line detected.', 3000);
 		});
 	});
@@ -169,7 +172,7 @@
 		//
 	}
 
-	function handleLineTest(index: number) {
+	function handleLineTestStart(index: number) {
 		modals.open(ConfirmDialog, {
 			title: 'Confirm line test',
 			message:
@@ -184,14 +187,23 @@
 			},
 			onConfirm: async () => {
 				modals.close();
-				let success = await postAlarmLineAction(alarmLines.lines[index].id, 'line-test');
+				let success = await postAlarmLineAction(alarmLines.lines[index].id, 'line-test-start');
 				if (success) {
-					notifications.success('Triggered line test.', 3000);
+					notifications.success('Triggered line test start.', 3000);
 				} else {
-					notifications.error('Failed to trigger line test.', 3000);
+					notifications.error('Failed to trigger line test start.', 3000);
 				}
 			}
 		});
+	}
+
+	async function handleLineTestStop(index: number) {
+		let success = await postAlarmLineAction(alarmLines.lines[index].id, 'line-test-stop');
+		if (success) {
+			notifications.success('Triggered line test stop.', 3000);
+		} else {
+			notifications.error('Failed to trigger line test stop.', 3000);
+		}
 	}
 
 	function handleFireAlarmStart(index: number) {
@@ -397,12 +409,34 @@
 																<Delete class="h-6 w-6" />
 															</button>
 														</div>
-														<div class="tooltip tooltip-left" data-tip="Trigger line test">
+														<div class="tooltip tooltip-left" data-tip="Start line test">
 															<button
 																class="btn btn-ghost btn-circle btn-xs"
-																onclick={() => handleLineTest(index)}
+																onclick={() => handleLineTestStart(index)}
 															>
-																<Test class="h-6 w-6" />
+																<IconWithOverlay
+																	baseIcon={LineTest}
+																	overlayIcon={Play}
+																	class="h-6 w-6"
+																	baseClass="h-4 w-4"
+																	overlayClass="h-4 w-4 text-success"
+																	overlayPosition="bottom-right"
+																/>
+															</button>
+														</div>
+														<div class="tooltip tooltip-left" data-tip="Stop line test">
+															<button
+																class="btn btn-ghost btn-circle btn-xs"
+																onclick={() => handleLineTestStop(index)}
+															>
+																<IconWithOverlay
+																	baseIcon={LineTest}
+																	overlayIcon={Stop}
+																	class="h-6 w-6"
+																	baseClass="h-4 w-4"
+																	overlayClass="h-4 w-4"
+																	overlayPosition="bottom-right"
+																/>
 															</button>
 														</div>
 														<div

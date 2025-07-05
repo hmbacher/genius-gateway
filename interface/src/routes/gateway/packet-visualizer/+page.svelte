@@ -3,6 +3,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { modals } from 'svelte-modals';
 	import { user } from '$lib/stores/user';
+	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type {
 		GeniusDevices,
@@ -13,7 +14,8 @@
 		DiscoveryResponseInfo,
 		AlarmLines,
 		AlarmStartInfo,
-		AlarmStopInfo
+		AlarmStopInfo,
+		WSLoggerSettings
 	} from '$lib/types/models';
 	import { PacketTypes, PacketTypeNames } from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils/misc';
@@ -30,6 +32,7 @@
 	import IconCopy from '~icons/tabler/copy';
 	import IconSave from '~icons/tabler/device-floppy';
 	import IconLoad from '~icons/tabler/folder-open';
+	import Info from '~icons/tabler/info-circle-filled';
 
 	const OFFSET_TIMESTAMP = 0; // Offset for the timestamp in the byte array
 	const OFFSET_DATA_LENGTH = 76; // Offset for the data length in the byte array
@@ -121,9 +124,37 @@
 		return hash;
 	}
 
+	async function getWSLoggerSettings(): Promise<WSLoggerSettings | null> {
+		try {
+			const response = await fetch('/rest/wslogger', {
+				method: 'GET',
+				headers: {
+					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+
+			return await response.json();
+		} catch (error) {
+			console.error('Error:', error);
+		}
+		return null;
+	}
+
 	let ws: WebSocket;
+	let loggerEnabled: boolean = $state(false);
 
 	onMount(async () => {
+		let loggerSettings: WSLoggerSettings | null = await getWSLoggerSettings();
+		if (loggerSettings) {
+			loggerEnabled = loggerSettings.wsLoggerEnabled;
+		}
+
+		if (!loggerEnabled) {
+			notifications.warning('WebSocket Logger is disabled.', 3000);
+			return;
+		}
+
 		const ws_protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
 		ws = new WebSocket(`${ws_protocol}://${window.location.host}/ws/logger`);
 		ws.binaryType = 'arraybuffer';
@@ -287,7 +318,9 @@
 	}
 
 	function getDetectorLocationBySmokeDetectorSN(sn: number): string {
-		return detectors.devices.find((device) => device.smokeDetector.sn === sn)?.location || 'Unknown';
+		return (
+			detectors.devices.find((device) => device.smokeDetector.sn === sn)?.location || 'Unknown'
+		);
 	}
 
 	function getAlarmLineNameByID(id: number): string {
@@ -336,7 +369,7 @@
 					console.error('Error parsing file:', error);
 					notifications.error('Error parsing file.', 5000);
 				}
-				
+
 				// Reset files after processing to allow re-selection of the same file
 				files = null;
 			};
@@ -407,12 +440,12 @@
 	<div class="relative w-full overflow-visible">
 		<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
 			<div class="tooltip tooltip-left" data-tip="Copy packet data to clipboard">
-				<button class="btn btn-primary text-primary-content btn-md" onclick={handleCopyLog}>
+				<button class="btn btn-primary text-primary-content btn-md" onclick={handleCopyLog} disabled={packets.length === 0}>
 					<IconCopy class="h-6 w-6" />
 				</button>
 			</div>
 			<div class="tooltip tooltip-left" data-tip="Clear packets log">
-				<button class="btn btn-primary text-primary-content btn-md" onclick={handleClearPacketsLog}>
+				<button class="btn btn-primary text-primary-content btn-md" onclick={handleClearPacketsLog} disabled={packets.length === 0}>
 					<IconTrash class="h-6 w-6" />
 				</button>
 			</div>
@@ -434,6 +467,10 @@
 			</div>
 		</div>
 
+		{#if packets.length > 0}
+			<div class="divider mt-0 mb-1"></div>
+		{/if}
+
 		{#each packets as packet, idx}
 			<GeniusPacket
 				{packet}
@@ -442,6 +479,16 @@
 			/>
 		{/each}
 
-		<Spinner text="Waiting for packets..." />
+		<div class="divider mt-1 mb-2"></div>
+		{#if !loggerEnabled}
+			<div class="alert alert-info shadow-lg">
+				<Info class="h-6 w-6 shrink-0" />
+				<span>
+					WebSocket Logger is disabled. Please enable it in the <a class="link" href="/gateway/wslogger">WebSocket Logger settings</a> to receive packets. You can still import packets from a file to visualize/analyze them.
+				</span>
+			</div>
+		{:else}
+			<Spinner text="Waiting for packets..." />
+		{/if}
 	</div></SettingsCard
 >

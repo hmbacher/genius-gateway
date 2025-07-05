@@ -5,7 +5,7 @@
 /**
  * Basic Genius packet structure for the alarm line test.
  */
-const uint8_t AlarmLinesService::_packet_base_linetest[] = {
+const uint8_t AlarmLinesService::_packet_base_linetest_start[] = {
     0x02,
     0xCC, 0x18, // Counter
     0x00,
@@ -19,12 +19,37 @@ const uint8_t AlarmLinesService::_packet_base_linetest[] = {
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
     0x00, 0x00, 0x00, 0x00, // Alarm line ID
     0x0F,                   // Hops
-    0x5B,
+    0x60,
     0x48,
     0x00,
     0x66,
     0x04,
-    0x04};
+    0x06};
+
+/**
+ * Basic Genius packet structure for the alarm line test.
+ */
+const uint8_t AlarmLinesService::_packet_base_linetest_stop[] = {
+    0x02,
+    0xCC, 0x18, // Counter
+    0x00,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0x00,
+    0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator of the packet (0xFFFFFFFE = Gateway)
+    0x00,
+    0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
+    0x00, 0x00, 0x00, 0x00, // Alarm line ID
+    0x0F,                   // Hops
+    0x61,
+    0x48,
+    0x00,
+    0x66,
+    0x04,
+    0x00};
+
 /**
  * Basic Genius packet structure for starting fire alarm.
  */
@@ -239,10 +264,18 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
 
     String action = jsonObject["action"].as<String>();
 
-    if (action == "line-test")
+    if (action == "line-test-start")
     {
-        size_t datalen = min(sizeof(_packet_base_linetest), sizeof(_txBuffer));
-        memcpy(_txBuffer, _packet_base_linetest, datalen);
+        size_t datalen = min(sizeof(_packet_base_linetest_start), sizeof(_txBuffer));
+        memcpy(_txBuffer, _packet_base_linetest_start, datalen);
+        memcpy(&_txBuffer[18], &line_id, sizeof(line_id)); // Set line_id
+        _txRepeat = ALARMLINES_TX_NUM_REPEAT_LINETEST;
+        _txDataLength = datalen;
+    }
+    else if (action == "line-test-stop")
+    {
+        size_t datalen = min(sizeof(_packet_base_linetest_stop), sizeof(_txBuffer));
+        memcpy(_txBuffer, _packet_base_linetest_stop, datalen);
         memcpy(&_txBuffer[18], &line_id, sizeof(line_id)); // Set line_id
         _txRepeat = ALARMLINES_TX_NUM_REPEAT_LINETEST;
         _txDataLength = datalen;

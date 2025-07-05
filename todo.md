@@ -1,7 +1,8 @@
-x - Wenn WS Logger ausgeschaltet ist, darf Packet Analyzer nicht gehen.
-        --> Auslesen und Hinweis auf Packet Analyzer Seite
-
 x - Packet Analyzer: Unknown alarm line: auch rot
+
+- Genius devices als Store? (Startseite, AlarmStatus, PacketAnalyzer, Devices)
+
+- Packet-Zähler bei jedem zu sendenden Paket erhöhen
 
 - Mute-Endpoint (bei Devices?) zum Silencen aus Frontend
 
@@ -14,6 +15,8 @@ x - Packet Analyzer: Unknown alarm line: auch rot
     - Heartbeat, der auf RX zurücksetzt, falls anderer State ist (und ohne dass Packete gesendet werden!)
 
 - Sync Enums btw. Backend and Frontend
+
+- Startseite: Devices als Raster
 
 BUGS
 - Packet Analyzer: Zellen ohne Text (nur Symbol) genau so hoch wie Zellen mit Text
