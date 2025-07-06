@@ -8,6 +8,7 @@
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { GeniusDevices, GeniusDevice } from '$lib/types/models';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
+	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EditSmokeDetector from './EditSmokeDetector.svelte';
@@ -33,26 +34,7 @@
 
 	let { data }: Props = $props();
 
-	let geniusDevices: GeniusDevices = $state({ devices: [] });
-
-	async function getGeniusDevices() {
-		try {
-			const response = await fetch('/rest/gateway-devices', {
-				method: 'GET',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				}
-			});
-
-			geniusDevices = JSON.parse(await response.text(), jsonDateReviver);
-		} catch (error) {
-			console.error('Error:', error);
-		}
-		return;
-	}
-
-	async function postGeniusDevices(devices: GeniusDevices) {
+	async function postGeniusDevices() {
 		try {
 			const response = await fetch('/rest/gateway-devices', {
 				method: 'POST',
@@ -60,12 +42,14 @@
 					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(devices)
+				body: JSON.stringify({ devices: geniusDevices.devices } as GeniusDevices)
 			});
 
 			if (response.status == 200) {
 				notifications.success('Smoke detectors updated.', 3000);
-				geniusDevices = JSON.parse(await response.text(), jsonDateReviver);
+				geniusDevices.devices = (
+					JSON.parse(await response.text(), jsonDateReviver) as GeniusDevices
+				).devices;
 			} else {
 				notifications.error('Updating smoke detectors failed.', 3000);
 			}
@@ -88,11 +72,10 @@
 				cancel: { label: 'Abort', icon: Cancel },
 				confirm: { label: 'Yes', icon: Check }
 			},
-			onConfirm: () => {
+			onConfirm: async () => {
 				geniusDevices.devices.splice(index, 1);
-				geniusDevices = geniusDevices;
 				modals.close();
-				postGeniusDevices(geniusDevices);
+				await postGeniusDevices();
 			}
 		});
 	}
@@ -102,10 +85,10 @@
 			title: 'Edit smoke detector',
 			//geniusDevice: { ...geniusDevices.devices[index] }, // Shallow Copy
 			geniusDevice: $state.snapshot(geniusDevices.devices[index]), // Deep copy
-			onSaveGeniusDevice: (editedGeniusDevice: GeniusDevice) => {
+			onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
 				geniusDevices.devices[index] = editedGeniusDevice;
+				await postGeniusDevices();
 				modals.close();
-				postGeniusDevices(geniusDevices);
 			}
 		});
 	}
@@ -113,10 +96,10 @@
 	function handleNewGeniusDevice() {
 		modals.open(EditSmokeDetector, {
 			title: 'Add smoke detector',
-			onSaveGeniusDevice: (newGeniusDevice: GeniusDevice) => {
+			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
 				geniusDevices.devices = [...geniusDevices.devices, newGeniusDevice];
+				await postGeniusDevices();
 				modals.close();
-				postGeniusDevices(geniusDevices);
 			}
 		});
 		//
@@ -136,14 +119,14 @@
 			// Note that `files` is of type `FileList`, not an Array:
 			// https://developer.mozilla.org/en-US/docs/Web/API/FileList
 			const reader = new FileReader();
-			reader.onload = () => {
+			reader.onload = async () => {
 				const fileContent = reader.result as string;
 				try {
-					const parsedData = JSON.parse(fileContent, jsonDateReviver) as GeniusDevices;
-					if (parsedData) {
-						geniusDevices = parsedData;
+					const importedGeniusDevices = JSON.parse(fileContent, jsonDateReviver) as GeniusDevices;
+					if (importedGeniusDevices) {
+						geniusDevices.devices = importedGeniusDevices.devices;
 						notifications.success('Smoke detectors imported.', 3000);
-						postGeniusDevices(geniusDevices);
+						await postGeniusDevices();
 					} else {
 						notifications.error('Invalid smoke detectors format.', 3000);
 						files = null; // Reset files to allow re-selection
@@ -178,163 +161,151 @@
 			{#snippet title()}
 				<span>Installed Genius devices</span>
 			{/snippet}
-			{#await getGeniusDevices()}
-				<Spinner />
-			{:then nothing}
-				<div class="relative w-full overflow-visible">
-					<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
-						<div class="tooltip tooltip-left" data-tip="Add smoke detector">
-							<button
-								class="btn btn-primary text-primary-content btn-md"
-								onclick={handleNewGeniusDevice}
-							>
-								<Add class="h-6 w-6" />
-							</button>
-						</div>
-						<div
-							class="tooltip tooltip-left"
-							data-tip="Load smoke detector configuration from file"
+			<div class="relative w-full overflow-visible">
+				<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
+					<div class="tooltip tooltip-left" data-tip="Add smoke detector">
+						<button
+							class="btn btn-primary text-primary-content btn-md"
+							onclick={handleNewGeniusDevice}
 						>
-							<label for="upload" class="btn btn-primary text-primary-content btn-md">
-								<Load class="h-6 w-6" />
-							</label>
-							<input bind:files id="upload" type="file" class="hidden" />
-						</div>
-						<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
-							<button
-								class="btn btn-primary text-primary-content btn-md"
-								onclick={() => downloadObjectAsJson(geniusDevices, 'genius-devices')}
-							>
-								<Save class="h-6 w-6" />
-							</button>
-						</div>
+							<Add class="h-6 w-6" />
+						</button>
 					</div>
-
-					{#if geniusDevices.devices.length === 0}
-						<div class="divider my-0"></div>
-						<div class="flex flex-col items-center justify-center p-4 text-sm text-gray-500">
-							<p class="mb-4 font-semibold">No smoke detectors configured yet.</p>
-							<p class="mx-20 text-center">
-								Click the "+" button to add your first smoke detector.
-							</p>
-						</div>
-					{:else}
-						<div
-							class="overflow-x-auto"
-							transition:slide|local={{ duration: 300, easing: cubicOut }}
+					<div class="tooltip tooltip-left" data-tip="Load smoke detector configuration from file">
+						<label for="upload" class="btn btn-primary text-primary-content btn-md">
+							<Load class="h-6 w-6" />
+						</label>
+						<input bind:files id="upload" type="file" class="hidden" />
+					</div>
+					<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
+						<button
+							class="btn btn-primary text-primary-content btn-md"
+							onclick={() => downloadObjectAsJson(geniusDevices, 'genius-devices')}
 						>
-							<table class="table w-full table-auto">
-								<thead>
-									<tr class="font-bold">
-										<th align="left">Location</th>
-										<th align="left">Smoke Detector</th>
-										<th align="left">Radio Module</th>
-										<th align="center">Alarms</th>
-										<th align="center">Registration</th>
-										<th align="right" class="pr-8">Manage</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each geniusDevices.devices as device, index}
-										<tr>
-											<td
-												align="left"
-												class="font-bold {device.location === 'Unknown location'
-													? 'italic text-base-content/70'
-													: ''}">{device.location}</td
-											>
-											<td align="left">
-												<span class="inline-flex items-baseline">
-													<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.smokeDetector.sn}
-												</span><br />
-												<span class="inline-flex items-baseline">
-													<Factory class="lex-shrink-0 mr-2 h-4 w-4" />
-													{#if !device.smokeDetector.productionDate}
-														<span class="italic text-base-content/70">Unknown</span>
-													{:else}
-														{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
-															day: '2-digit',
-															month: '2-digit',
-															year: 'numeric'
-														})}
-													{/if}
-												</span>
-											</td>
-											<td align="left">
-												<span class="inline-flex items-baseline">
-													<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.radioModule.sn}
-												</span><br />
-												<span class="inline-flex items-baseline">
-													<Factory class="lex-shrink-0 mr-2 h-4 w-4" />
-													{#if !device.radioModule.productionDate}
-														<span class="italic text-base-content/70">Unknown</span>
-													{:else}
-														{device.radioModule.productionDate.toLocaleDateString('de-DE', {
-															day: '2-digit',
-															month: '2-digit',
-															year: 'numeric'
-														})}
-													{/if}
-												</span>
-											</td>
-											<td align="center">
-												{device.alarms.length}<br />
-												{#if device.alarms.length > 0}
-													{device.alarms[device.alarms.length - 1].startTime.toLocaleDateString(
-														'de-DE',
-														{ day: '2-digit', month: '2-digit', year: 'numeric' }
-													)}
-												{/if}
-											</td>
-											<td align="center">
-												{#if device.registration === 2}
-													<div class="tooltip tooltip-top" data-tip="Manually added Genius device">
-														<Manual class="h-6 w-6" />
-													</div>
-												{:else if device.registration === 1}
-													<div
-														class="tooltip tooltip-top"
-														data-tip="Genius device added from received alert packet"
-													>
-														<Automatic class="h-6 w-6" />
-													</div>
-												{:else}
-													<span class="italic text-base-content/70">Unknown</span>
-												{/if}
-											</td>
-
-											<td align="right">
-												<span class="my-auto inline-flex flex-row space-x-2">
-													{#if device.alarms.length > 0}
-														<button
-															class="btn btn-ghost btn-circle btn-xs"
-															onclick={() => handleAlarmLog(index)}
-														>
-															<Logs class="h-6 w-6" />
-														</button>
-													{/if}
-													<button
-														class="btn btn-ghost btn-circle btn-xs"
-														onclick={() => handleEdit(index)}
-													>
-														<Edit class="h-6 w-6" />
-													</button>
-													<button
-														class="btn btn-ghost btn-circle btn-xs"
-														onclick={() => confirmDelete(index)}
-													>
-														<Delete class="text-error h-6 w-6" />
-													</button>
-												</span>
-											</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-					{/if}
+							<Save class="h-6 w-6" />
+						</button>
+					</div>
 				</div>
-			{/await}
+
+				{#if geniusDevices.devices.length === 0}
+					<div class="divider my-0"></div>
+					<div class="flex flex-col items-center justify-center p-4 text-sm text-gray-500">
+						<p class="mb-4 font-semibold">No smoke detectors configured yet.</p>
+						<p class="mx-20 text-center">Click the "+" button to add your first smoke detector.</p>
+					</div>
+				{:else}
+					<div class="overflow-x-auto" transition:slide|local={{ duration: 300, easing: cubicOut }}>
+						<table class="table w-full table-auto">
+							<thead>
+								<tr class="font-bold">
+									<th align="left">Location</th>
+									<th align="left">Smoke Detector</th>
+									<th align="left">Radio Module</th>
+									<th align="center">Alarms</th>
+									<th align="center">Registration</th>
+									<th align="right" class="pr-8">Manage</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each geniusDevices.devices as device, index}
+									<tr>
+										<td
+											align="left"
+											class="font-bold {device.location === 'Unknown location'
+												? 'italic text-base-content/70'
+												: ''}">{device.location}</td
+										>
+										<td align="left">
+											<span class="inline-flex items-baseline">
+												<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.smokeDetector.sn}
+											</span><br />
+											<span class="inline-flex items-baseline">
+												<Factory class="lex-shrink-0 mr-2 h-4 w-4" />
+												{#if !device.smokeDetector.productionDate}
+													<span class="italic text-base-content/70">Unknown</span>
+												{:else}
+													{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
+														day: '2-digit',
+														month: '2-digit',
+														year: 'numeric'
+													})}
+												{/if}
+											</span>
+										</td>
+										<td align="left">
+											<span class="inline-flex items-baseline">
+												<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.radioModule.sn}
+											</span><br />
+											<span class="inline-flex items-baseline">
+												<Factory class="lex-shrink-0 mr-2 h-4 w-4" />
+												{#if !device.radioModule.productionDate}
+													<span class="italic text-base-content/70">Unknown</span>
+												{:else}
+													{device.radioModule.productionDate.toLocaleDateString('de-DE', {
+														day: '2-digit',
+														month: '2-digit',
+														year: 'numeric'
+													})}
+												{/if}
+											</span>
+										</td>
+										<td align="center">
+											{device.alarms.length}<br />
+											{#if device.alarms.length > 0}
+												{device.alarms[device.alarms.length - 1].startTime.toLocaleDateString(
+													'de-DE',
+													{ day: '2-digit', month: '2-digit', year: 'numeric' }
+												)}
+											{/if}
+										</td>
+										<td align="center">
+											{#if device.registration === 2}
+												<div class="tooltip tooltip-top" data-tip="Manually added Genius device">
+													<Manual class="h-6 w-6" />
+												</div>
+											{:else if device.registration === 1}
+												<div
+													class="tooltip tooltip-top"
+													data-tip="Genius device added from received alert packet"
+												>
+													<Automatic class="h-6 w-6" />
+												</div>
+											{:else}
+												<span class="italic text-base-content/70">Unknown</span>
+											{/if}
+										</td>
+
+										<td align="right">
+											<span class="my-auto inline-flex flex-row space-x-2">
+												{#if device.alarms.length > 0}
+													<button
+														class="btn btn-ghost btn-circle btn-xs"
+														onclick={() => handleAlarmLog(index)}
+													>
+														<Logs class="h-6 w-6" />
+													</button>
+												{/if}
+												<button
+													class="btn btn-ghost btn-circle btn-xs"
+													onclick={() => handleEdit(index)}
+												>
+													<Edit class="h-6 w-6" />
+												</button>
+												<button
+													class="btn btn-ghost btn-circle btn-xs"
+													onclick={() => confirmDelete(index)}
+												>
+													<Delete class="text-error h-6 w-6" />
+												</button>
+											</span>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			</div>
 		</SettingsCard>
 	</div>
 {:else}

@@ -6,7 +6,6 @@
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type {
-		GeniusDevices,
 		VisualizerSettings,
 		PacketType,
 		Packet,
@@ -17,6 +16,7 @@
 		AlarmStopInfo,
 		WSLoggerSettings
 	} from '$lib/types/models';
+	import {geniusDevices} from '$lib/stores/geniusDevices.svelte';
 	import { PacketTypes, PacketTypeNames } from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils/misc';
 	import { deserializePacket, downloadPacketAsJson } from '$lib/utils/serialization';
@@ -206,7 +206,6 @@
 			console.log('WebSocket closed.');
 		};
 
-		await getGeniusDevices();
 		await getAlarmLines();
 	});
 
@@ -214,25 +213,6 @@
 		ws.close();
 		console.log('WebSocket closed.');
 	});
-
-	let detectors: GeniusDevices = $state({ devices: [] });
-
-	async function getGeniusDevices() {
-		try {
-			const response = await fetch('/rest/gateway-devices', {
-				method: 'GET',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				}
-			});
-
-			detectors = await response.json();
-		} catch (error) {
-			console.error('Error:', error);
-		}
-		return;
-	}
 
 	let alarmLines: AlarmLines = $state({ lines: [] });
 
@@ -314,12 +294,12 @@
 	}
 
 	function getDetectorLocationByRadioModuleSN(sn: number): string {
-		return detectors.devices.find((device) => device.radioModule.sn === sn)?.location || 'Unknown';
+		return geniusDevices.devices.find((device) => device.radioModule.sn === sn)?.location || 'Unknown';
 	}
 
 	function getDetectorLocationBySmokeDetectorSN(sn: number): string {
 		return (
-			detectors.devices.find((device) => device.smokeDetector.sn === sn)?.location || 'Unknown'
+			geniusDevices.devices.find((device) => device.smokeDetector.sn === sn)?.location || 'Unknown'
 		);
 	}
 
@@ -436,7 +416,6 @@
 	{#snippet title()}
 		<span>Genius Packets</span>
 	{/snippet}
-
 	<div class="relative w-full overflow-visible">
 		<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
 			<div class="tooltip tooltip-left" data-tip="Copy packet data to clipboard">

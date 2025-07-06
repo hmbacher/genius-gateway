@@ -8,7 +8,7 @@
 	import { socket } from '$lib/stores/socket';
 	import type { userProfile } from '$lib/stores/user';
 	import { page } from '$app/state';
-	import { Modals, modals } from 'svelte-modals';
+	import { Modals } from 'svelte-modals';
 	import Toast from '$lib/components/toasts/Toast.svelte';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import { fade } from 'svelte/transition';
@@ -20,6 +20,9 @@
 	import type { RSSI } from '$lib/types/models';
 	import type { Battery } from '$lib/types/models';
 	import type { DownloadOTA } from '$lib/types/models';
+	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
+	import { jsonDateReviver } from '$lib/utils/misc';
+	import type { GeniusDevices, AlarmState } from '$lib/types/models';
 
 	interface Props {
 		data: LayoutData;
@@ -34,6 +37,9 @@
 		}
 		if (!(page.data.features.security && $user.bearer_token === '')) {
 			initSocket();
+
+			// Fetch Genius devices on page load
+			await getGeniusDevices();
 		}
 	});
 
@@ -60,6 +66,8 @@
 		if (page.data.features.analytics) socket.on('analytics', handleAnalytics);
 		if (page.data.features.battery) socket.on('battery', handleBattery);
 		if (page.data.features.download_firmware) socket.on('otastatus', handleOAT);
+		// Genius Gateway: Listen for alarm state changes
+		socket.on<AlarmState>('alarm', handleAlarm);
 	};
 
 	const removeEventListeners = () => {
@@ -70,6 +78,8 @@
 		socket.off('notification', handleNotification);
 		socket.off('battery', handleBattery);
 		socket.off('otastatus', handleOAT);
+		// Genius Gateway: Stop listening for alarm state changes
+		socket.off('alarm', handleAlarm);
 	};
 
 	async function validateUser(userdata: userProfile) {
@@ -129,6 +139,37 @@
 	};
 
 	const handleOAT = (data: DownloadOTA) => telemetry.setDownloadOTA(data);
+
+	/* Fetches the Genius devices from the backend and updates the geniusDevices store.
+	 * This function is called on page load to populate the devices.
+	 */
+	async function getGeniusDevices() {
+		console.log('Fetching Genius devices...');
+		try {
+			const response = await fetch('/rest/gateway-devices', {
+				method: 'GET',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+
+			geniusDevices.devices = (
+				JSON.parse(await response.text(), jsonDateReviver) as GeniusDevices
+			).devices;
+		} catch (error) {
+			console.error('Error:', error);
+		}
+		return;
+	}
+
+	const handleAlarm = async (data: AlarmState) => {
+		if (geniusDevices.isAlarming === false && data.isAlarming === true) {
+			notifications.error('Smoke detected!', 5000);
+		}
+		// Reload Genius devices to obtain alarming ones
+		await getGeniusDevices();
+	};
 
 	let menuOpen = $state(false);
 </script>
