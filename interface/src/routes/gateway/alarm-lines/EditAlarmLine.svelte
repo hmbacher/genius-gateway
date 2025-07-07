@@ -5,6 +5,7 @@
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import type { AlarmLine } from '$lib/types/models';
+	import { AlarmLineAcquisition } from '$lib/types/enums';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
 
@@ -27,7 +28,7 @@
 				id: 0,
 				name: '',
 				created: new Date(),
-				acquisition: 2	// Default to manually added
+				acquisition: AlarmLineAcquisition.Manual	// Default to manually added
 			})
 	}: Props = $props();
 
