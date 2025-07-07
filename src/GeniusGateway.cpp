@@ -237,28 +237,27 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
     case LEN_COMMISSIONING_PACKET:
         analyzed_packet->type = HPT_COMMISSIONING;
         break;
-    case LEN_UNKNOWN_PURPOSE_1_PACKET:
-        analyzed_packet->type = HPT_UKNOWN_PURPOSE_1;
+    case LEN_DISCOVERY_REQUEST_PACKET:
+        analyzed_packet->type = HPT_DISCOVERY_REQUEST;
         break;
-    case LEN_UNKNOWN_PURPOSE_2_PACKET:
-        analyzed_packet->type = HPT_UKNOWN_PURPOSE_2;
+    case LEN_DISCOVERY_RESPONSE_PACKET:
+        analyzed_packet->type = HPT_DISCOVERY_RESPONSE;
         break;
     case LEN_ALARM_PACKET:
         if (packet_data[DATAPOS_ALARM_ACTIVE_FLAG] == 1)
-        {
-            analyzed_packet->type = HPT_ALARMING;
-        }
+            analyzed_packet->type = HPT_ALARM_START;
         else if (packet_data[DATAPOS_ALARM_SILENCE_FLAG] == 1)
-        {
-            analyzed_packet->type = HPT_ALARM_SILENCING;
-        }
+            analyzed_packet->type = HPT_ALARM_STOP;
         else
-        {
             analyzed_packet->type = HPT_UNKNOWN;
-        }
         break;
     case LEN_LINE_TEST_PACKET:
-        analyzed_packet->type = HPT_LINE_TEST;
+        if (packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] == 0) // 0 indicates END/STOP of line test
+            analyzed_packet->type = HPT_LINE_TEST_STOP;
+        else if (packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] & (0x04 | 0x06) > 0) // 0x04 and 0x06 are known indicators for START of line test
+            analyzed_packet->type = HPT_LINE_TEST_START;
+        else
+            analyzed_packet->type = HPT_UNKNOWN;
         break;
     default:
         analyzed_packet->type = HPT_UNKNOWN;
@@ -309,21 +308,21 @@ void GeniusGateway::_rx_packets()
                             _alarmLines.addAlarmLine(newLineID, String(lineName), ALA_GENIUS_PACKET);
                         }
                     }
-                    else if (packet_details.type == HPT_ALARMING || packet_details.type == HPT_ALARM_SILENCING)
+                    else if (packet_details.type == HPT_ALARM_START || packet_details.type == HPT_ALARM_STOP)
                     {
                         uint32_t source_id = EXTRACT32_REV(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
 
                         if (GATEWAY_ID != source_id) // only proceed for alarming/silencing packets NOT originating from Genius Gateway itself
                         {
-                            if (packet_details.type == HPT_ALARMING)
+                            if (packet_details.type == HPT_ALARM_START)
                             {
                                 bool isDetectorKnown = _gatewayDevices.isSmokeDetectorKnown(source_id);
 
                                 if (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
                                 {
                                     uint32_t snRM = EXTRACT32(packet.data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
-                                     _gatewayDevices.AddGeniusDevice(snRM, source_id);
-                                     isDetectorKnown = true; // Now we know the detector, as it was added from packet
+                                    _gatewayDevices.AddGeniusDevice(snRM, source_id);
+                                    isDetectorKnown = true; // Now we know the detector, as it was added from packet
                                 }
 
                                 /* Set/Reset alarm */
@@ -347,7 +346,8 @@ void GeniusGateway::_rx_packets()
                             }
                         }
                     }
-                    else if (packet_details.type == HPT_LINE_TEST)
+                    else if (packet_details.type == HPT_LINE_TEST_START ||
+                             packet_details.type == HPT_LINE_TEST_STOP)
                     {
                         if (_gatewaySettings.isAddAlarmLineFromLineTestPacketEnabled())
                         {

@@ -25,8 +25,8 @@
 #define MIN_GENIUS_PACKET_LENGTH LEN_UNKNOWN_PURPOSE_1_PACKET
 
 #define LEN_COMMISSIONING_PACKET 37
-#define LEN_UNKNOWN_PURPOSE_1_PACKET 28
-#define LEN_UNKNOWN_PURPOSE_2_PACKET 32
+#define LEN_DISCOVERY_REQUEST_PACKET 28
+#define LEN_DISCOVERY_RESPONSE_PACKET 32
 #define LEN_ALARM_PACKET 36
 #define LEN_LINE_TEST_PACKET 29
 
@@ -41,6 +41,7 @@
 #define DATAPOS_ALARM_ACTIVE_FLAG 28
 #define DATAPOS_ALARM_SILENCE_FLAG 30
 #define DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID 32
+#define DATAPOS_LINE_TEST_START_STOP_FLAG 28
 
 #define EXTRACT32(buffer, pos) (__ntohl(*(uint32_t *)&buffer[pos]))
 #define EXTRACT32_REV(buffer, pos) (*(uint32_t *)&buffer[pos])
@@ -67,13 +68,14 @@
 
 typedef enum genius_packet_type
 {
-  HPT_UNKNOWN = 0,
-  HPT_COMMISSIONING,
-  HPT_UKNOWN_PURPOSE_1,
-  HPT_UKNOWN_PURPOSE_2,
-  HPT_ALARMING,
-  HPT_ALARM_SILENCING,
-  HPT_LINE_TEST
+  HPT_UNKNOWN = -1,       // Unknown packet type
+  HPT_COMMISSIONING = 0,  // Commissioning packet (comissioning of smoke detectors to an alarm line)
+  HPT_DISCOVERY_REQUEST,  // Discovery request packet (request for smoke detectors to self identify)
+  HPT_DISCOVERY_RESPONSE, // Discovery response packet (response from smoke detectors with their IDs)
+  HPT_ALARM_START,        // Alarm start packet (indicating smoke has been detected)
+  HPT_ALARM_STOP,         // Alarm stop packet (indicating smoke has been cleared or alarm has been silenced)
+  HPT_LINE_TEST_START,    // Line test start packet (indicating a line test has been started)
+  HPT_LINE_TEST_STOP      // Line test stop packet (indicating a line test has been stopped)
 } genius_packet_type_t;
 
 typedef struct genius_packet_t

@@ -8,6 +8,7 @@
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { AlarmLines, AlarmLine } from '$lib/types/models';
+	import { AlarmLineAcquisition } from '$lib/types/enums';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { onMount, onDestroy } from 'svelte';
 	import { socket } from '$lib/stores/socket';
@@ -374,11 +375,11 @@
 												</td>
 												<td align="center">
 													{#if line.id != BROADCAST_ID}
-														{#if line.acquisition === 2}
+														{#if line.acquisition === AlarmLineAcquisition.Manual}
 															<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
 																<Manual class="h-6 w-6" />
 															</div>
-														{:else if line.acquisition === 1}
+														{:else if line.acquisition === AlarmLineAcquisition.GeniusPacket}
 															<div
 																class="tooltip tooltip-top"
 																data-tip="Alarm line extracted from Genius radio packet"

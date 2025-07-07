@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { GeniusAlarmEnding } from '$lib/types/enums';
 	import { modals } from 'svelte-modals';
 	import { fly } from 'svelte/transition';
 	import Cancel from '~icons/tabler/x';
@@ -97,11 +97,11 @@
 										</span>
 									</td>
 									<td align="center">
-										{#if alarm.endingReason === 0}
+										{#if alarm.endingReason === GeniusAlarmEnding.BySmokeDetector}
 											<div class="tooltip tooltip-left" data-tip="No more smoke detected">
 												<Automatic class="w-6 h-6" />
 											</div>
-										{:else if alarm.endingReason === 1}
+										{:else if alarm.endingReason === GeniusAlarmEnding.ByManualReset}
 											<div class="tooltip tooltip-left" data-tip="Alarming stopped by user">
 												<Manual class="w-6 h-6" />
 											</div>

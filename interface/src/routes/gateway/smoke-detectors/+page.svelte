@@ -7,13 +7,13 @@
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { GeniusDevices, GeniusDevice } from '$lib/types/models';
+	import { GeniusDeviceRegistration } from '$lib/types/enums';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EditSmokeDetector from './EditSmokeDetector.svelte';
 	import AlarmLog from './AlarmLog.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
 	import Delete from '~icons/tabler/trash';
 	import Add from '~icons/tabler/circle-plus';
 	import Edit from '~icons/tabler/pencil';
@@ -27,6 +27,7 @@
 	import Load from '~icons/tabler/folder-open';
 	import Manual from '~icons/tabler/forms';
 	import Automatic from '~icons/tabler/access-point';
+	
 
 	interface Props {
 		data: PageData;
@@ -259,11 +260,11 @@
 											{/if}
 										</td>
 										<td align="center">
-											{#if device.registration === 2}
+											{#if device.registration === GeniusDeviceRegistration.Manual}
 												<div class="tooltip tooltip-top" data-tip="Manually added Genius device">
 													<Manual class="h-6 w-6" />
 												</div>
-											{:else if device.registration === 1}
+											{:else if device.registration === GeniusDeviceRegistration.GeniusPacket}
 												<div
 													class="tooltip tooltip-top"
 													data-tip="Genius device added from received alert packet"

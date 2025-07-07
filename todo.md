@@ -1,9 +1,9 @@
 # TODO
 x - Packet-Zähler bei jedem zu sendenden Paket erhöhen
-x - Sync Enums btw. Backend and Frontend
 
 - Mute-Endpoint (bei Devices?) zum Silencen aus Frontend
     o Konzept überlegen
+        AlarmEndingReason bereits umgesetzt
 
 - Alarmlines: Sende-Timeout: 5s
 - Alarmlines: Während Senden Status im FE anzeigen und UI sperren

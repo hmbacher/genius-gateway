@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { modals } from 'svelte-modals';
 	import { fly } from 'svelte/transition';
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import type { GeniusComponent, GeniusAlarm, GeniusDevice } from '$lib/types/models';
+	import { GeniusDeviceRegistration, GeniusSmokeDetector, GeniusRadioModule } from '$lib/types/enums';
 	import DateInput from '$lib/components/DateInput.svelte';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
@@ -27,10 +28,10 @@
 		title,
 		onSaveGeniusDevice,	
 		geniusDevice = $bindable({
-			smokeDetector: { model: 0, sn: 0, productionDate: new Date() } as GeniusComponent,
-			radioModule: { model: 0, sn: 0, productionDate: new Date() } as GeniusComponent,
+			smokeDetector: { model: GeniusSmokeDetector.GeniusPlusX, sn: 0, productionDate: new Date() } as GeniusComponent,
+			radioModule: { model: GeniusRadioModule.FmBasisX, sn: 0, productionDate: new Date() } as GeniusComponent,
 			location: '',
-			registration: 2, // Default to manual registration
+			registration: GeniusDeviceRegistration.Manual, // Default to manual registration
 			alarms: [] as GeniusAlarm[] // No alarms by default
 		} as GeniusDevice)
 	}: Props = $props();
