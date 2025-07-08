@@ -28,8 +28,8 @@ void GatewayDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
 
     // Create a new GeniusDevice with unknown models and production dates
     GeniusDevice newDevice = GeniusDevice(
-        GeniusComponent<GeniusSmokeDetector>(static_cast<GeniusSmokeDetector>(HSD_UNKNOWN), snSmokeDetector, 0),
-        GeniusComponent<GeniusRadioModule>(static_cast<GeniusRadioModule>(HRM_UNKNOWN), snRadioModule, 0),
+        GeniusComponent<GeniusSmokeDetector>(static_cast<GeniusSmokeDetector>(GSD_UNKNOWN), snSmokeDetector, 0),
+        GeniusComponent<GeniusRadioModule>(static_cast<GeniusRadioModule>(GRM_UNKNOWN), snRadioModule, 0),
         GENIUS_DEVICE_ADDED_FROM_PACKET);
     // Set registration type
     newDevice.registration = GDR_GENIUS_PACKET;
@@ -54,7 +54,7 @@ void GatewayDevicesService::setAlarm(uint32_t detectorSN)
                 device.isAlarming = true;
                 genius_device_alarm_t alarm = {.startTime = time(nullptr), // seconds precision
                                                .endTime = 0,
-                                               .endingReason = HAE_ALARM_ACTIVE};
+                                               .endingReason = GAE_ALARM_ACTIVE};
                 device.alarms.push_back(alarm);
 
                 _isAlarming = true;
@@ -92,6 +92,34 @@ void GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_
             }
             break;
         }
+    }
+    endTransaction();
+
+    if (updated)
+    {
+        updateAlarmState();
+        callUpdateHandlers(ALARM_STATE_CHANGE);
+    }
+}
+
+void GatewayDevicesService::resetAllAlarms()
+{
+    bool updated = false;
+
+    beginTransaction();
+    for (auto &device : _state.devices)
+    {
+            if (device.isAlarming)
+            {
+                device.isAlarming = false;
+                device.alarms.back().endTime = time(nullptr); // seconds precision
+                device.alarms.back().endingReason = GAE_BY_MANUAL;
+
+                updated = true;
+
+                ESP_LOGV(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", detectorSN);
+            }
+            break;
     }
     endTransaction();
 

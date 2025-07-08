@@ -25,8 +25,8 @@ export enum GeniusAlarmEnding {
   AlarmActive = -1,
   /** Alarm was ended by smoke detector */
   BySmokeDetector = 0,
-  /** Alarm was ended by manual reset */
-  ByManualReset,
+  /** Alarm was ended manually via web interface */
+  ByManual,
 }
 
 // From GatewayDevicesService.h

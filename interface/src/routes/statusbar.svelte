@@ -12,6 +12,7 @@
 	import BatteryIndicator from '$lib/components/BatteryIndicator.svelte';
 	import UpdateIndicator from '$lib/components/UpdateIndicator.svelte';
 	import AlarmStatus from '$lib/components/AlarmStatus.svelte';
+	import AlarmBlockingTimer from '$lib/components/AlarmBlockingTimer.svelte';
 
 	async function postSleep() {
 		const response = await fetch('/rest/sleep', {
@@ -39,20 +40,23 @@
 </script>
 
 <div class="navbar bg-base-300 sticky top-0 z-10 h-12 min-h-fit drop-shadow-lg lg:h-16">
-	<div class="flex-1">
+	<div class="flex flex-1">
 		<!-- Page Hamburger Icon here -->
 		<label for="main-menu" class="btn btn-ghost btn-circle btn-sm drawer-button lg:hidden"
 			><Hamburger class="h-6 w-auto" /></label
 		>
 		<span class="px-2 text-xl font-bold lg:text-2xl">{page.data.title}</span>
 	</div>
-	<div class="indicator flex-none">
+	<div class="flex flex-none px-2">
+		<AlarmBlockingTimer />
+	</div>
+	<div class="indicator flex flex-none">
 		<UpdateIndicator />
 	</div>
-	<div class="flex-none">
+	<div class="flex flex-none">
 		<AlarmStatus />
 	</div>
-	<div class="flex-none">
+	<div class="flex flex-none">
 		{#if $telemetry.rssi.disconnected}
 			<WiFiOff class="h-7 w-7" />
 		{:else}
@@ -66,7 +70,7 @@
 	</div>
 
 	{#if page.data.features.battery}
-		<div class="flex-none">
+		<div class="flex flex-none">
 			<BatteryIndicator
 				charging={$telemetry.battery.charging}
 				soc={$telemetry.battery.soc}
@@ -76,7 +80,7 @@
 	{/if}
 
 	{#if page.data.features.sleep}
-		<div class="flex-none">
+		<div class="flex flex-none">
 			<button class="btn btn-square btn-ghost h-9 w-10" onclick={confirmSleep}>
 				<Power class="h-9 w-9" />
 			</button>

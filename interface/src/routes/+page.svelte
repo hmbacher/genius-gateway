@@ -2,7 +2,6 @@
 	import type { PageData } from './$types';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
 	import Info from '~icons/tabler/info-circle';
 
 	interface Props {

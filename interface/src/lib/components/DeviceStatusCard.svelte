@@ -78,7 +78,7 @@
 		<span class="inline-flex">
 			<IconFactory class="mr-1 h-5 w-5" />
 			<span class="text-sm"
-				>{detector.smokeDetector.productionDate.toLocaleDateString('en-US', {
+				>{detector.smokeDetector.productionDate?.toLocaleDateString('en-US', {
 					month: '2-digit',
 					year: '2-digit'
 				})}</span

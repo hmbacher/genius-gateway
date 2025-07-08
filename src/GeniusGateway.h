@@ -9,6 +9,7 @@
 #include <GatewayMqttSettingsService.h>
 #include <CC1101Controller.h>
 #include <cc1101.h>
+#include <AlarmBlocker.h>
 
 // GPIO to use for testing purposes
 #define GPIO_TEST1 GPIO_NUM_21
@@ -66,6 +67,9 @@
 
 #define GATEWAY_ALARM_STATE_EMIT_INTERVAL_MS 1000 // 1 second
 
+#define GATEWAY_SERVICE_PATH_END_ALARMS "/rest/end-alarms"
+#define GATEWAY_MAX_ALARM_BLOCKING_TIME_S 3600UL // Maximum time to block new alarms in seconds (1 hour)
+
 typedef enum genius_packet_type
 {
   HPT_UNKNOWN = -1,       // Unknown packet type
@@ -99,6 +103,11 @@ public:
 private:
   static constexpr const char *TAG = "GeniusGateway";
 
+  PsychicHttpServer *_server;
+  SecurityManager *_securityManager;
+  EventSocket *_eventSocket;
+  PsychicMqttClient *_mqttClient;
+  FeaturesService *_featureService;
   GatewayDevicesService _gatewayDevices;
   AlarmLinesService _alarmLines;
   GatewaySettingsService _gatewaySettings;
@@ -106,9 +115,9 @@ private:
   WSLogger _wsLogger;
   VisualizerSettingsService _visualizerSettingsService;
   CC1101Controller _cc1101Controller;
-  PsychicMqttClient *_mqttClient;
-  EventSocket *_eventSocket;
-  FeaturesService *_featureService;
+  AlarmBlocker _alarmBlocker;
+
+  esp_err_t _handleEndAlarming(PsychicRequest *request, JsonVariant &json);
 
   void _mqttPublishDevices(bool onlyStates = false);
 

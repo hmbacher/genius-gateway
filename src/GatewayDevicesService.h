@@ -34,11 +34,11 @@ struct DeviceMqttData
 
 typedef enum genius_alarm_ending
 {
-    HAE_MIN = -2,              // Minimum value (for enum range checks)
-    HAE_ALARM_ACTIVE = -1,     // Alarm is currently active
-    HAE_BY_SMOKE_DETECTOR = 0, // Alarm was ended by smoke detector
-    HAE_BY_MANUAL_RESET,       // Alarm was ended by manual reset
-    HAE_MAX                    // Maximum value (for enum range checks)
+    GAE_MIN = -2,              // Minimum value (for enum range checks)
+    GAE_ALARM_ACTIVE = -1,     // Alarm is currently active
+    GAE_BY_SMOKE_DETECTOR = 0, // Alarm was ended by smoke detector
+    GAE_BY_MANUAL,             // Alarm was ended manually via web interface
+    GAE_MAX                    // Maximum value (for enum range checks)
 } genius_alarm_ending_t;
 
 typedef struct genius_device_alarm
@@ -50,14 +50,14 @@ typedef struct genius_device_alarm
 
 typedef enum genius_smoke_detector
 {
-    HSD_UNKNOWN = -1, // Unknown smoke detector type
-    HSD_GENIUS_PLUS_X = 0
+    GSD_UNKNOWN = -1, // Unknown smoke detector type
+    GSD_GENIUS_PLUS_X = 0
 } GeniusSmokeDetector;
 
 typedef enum genius_radio_module
 {
-    HRM_UNKNOWN = -1, // Unknown radio module type
-    HRM_FM_BASIS_X = 0
+    GRM_UNKNOWN = -1, // Unknown radio module type
+    GRM_FM_BASIS_X = 0
 } GeniusRadioModule;
 
 /**
@@ -256,6 +256,8 @@ public:
     void setAlarm(uint32_t detectorSN);
 
     void resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason);
+
+    void resetAllAlarms();
 
     bool isAlarming()
     {

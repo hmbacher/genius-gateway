@@ -18,7 +18,9 @@ static void nofifyReceivedPacket() // !!! This function is called from ISR !!!
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _gatewayDevices(sveltekit),
+GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->getServer()),
+                                                          _securityManager(sveltekit->getSecurityManager()),
+                                                          _gatewayDevices(sveltekit),
                                                           _alarmLines(sveltekit),
                                                           _gatewaySettings(sveltekit),
                                                           _gatewayMqttSettingsService(sveltekit),
@@ -26,6 +28,7 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _gatewayDevices(svelte
                                                           _wsLogger(sveltekit),
                                                           _visualizerSettingsService(sveltekit),
                                                           _cc1101Controller(sveltekit),
+                                                          _alarmBlocker(sveltekit),
                                                           _eventSocket(sveltekit->getSocket()),
                                                           _featureService(sveltekit->getFeatureService())
 {
@@ -109,6 +112,40 @@ void GeniusGateway::begin()
                                                  false);
 
     _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
+
+    /* Initialize Alarm Blocking Service */
+    _alarmBlocker.begin();
+
+    /* Register endpoint to end all alarms and block new alarms for a specified amount of time   */
+    _server->on(GATEWAY_SERVICE_PATH_END_ALARMS,
+                HTTP_POST,
+                _securityManager->wrapCallback(std::bind(&GeniusGateway::_handleEndAlarming, this, std::placeholders::_1, std::placeholders::_2),
+                                              AuthenticationPredicates::IS_ADMIN));
+}
+
+esp_err_t GeniusGateway::_handleEndAlarming(PsychicRequest *request, JsonVariant &json)
+{
+    if (!json.is<JsonObject>())
+        return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Invalid JSON\"}");
+
+    JsonObject jsonObject = json.as<JsonObject>();
+    if (!jsonObject["alarmBlockingTime"].is<uint32_t>())
+        return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Missing or invalid alarm blocking time.\"}");
+
+    // Read seconds to block new alarms
+    uint32_t blockingTimeS = jsonObject["alarmBlockingTime"].as<uint32_t>();
+
+    if (blockingTimeS > GATEWAY_MAX_ALARM_BLOCKING_TIME_S)
+    {
+        ESP_LOGW(TAG, "Invalid alarm blocking time: %lu seconds. Must be between 1 and %lu seconds.", blockingTimeS, GATEWAY_MAX_ALARM_BLOCKING_TIME_S);
+        return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Maximimum alarm blocking time exceeded.\"}");
+    }
+
+    _gatewayDevices.resetAllAlarms();
+    _alarmBlocker.startBlocking(blockingTimeS);    
+
+    ESP_LOGI(TAG, "All active alarms have been ended. New alarms will be ignored for %lu seconds.", blockingTimeS);
+    return request->reply(200, "application/json", "{\"success\": true}");
 }
 
 void GeniusGateway::_emitAlarmState()
@@ -331,7 +368,7 @@ void GeniusGateway::_rx_packets()
                             }
                             else // packet_details.type == HPT_ALARM_SILENCING
                             {
-                                _gatewayDevices.resetAlarm(source_id, HAE_BY_SMOKE_DETECTOR);
+                                _gatewayDevices.resetAlarm(source_id, GAE_BY_SMOKE_DETECTOR);
                             }
 
                             /* Emit alarm state to front end */

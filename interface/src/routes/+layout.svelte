@@ -144,7 +144,6 @@
 	 * This function is called on page load to populate the devices.
 	 */
 	async function getGeniusDevices() {
-		console.log('Fetching Genius devices...');
 		try {
 			const response = await fetch('/rest/gateway-devices', {
 				method: 'GET',
