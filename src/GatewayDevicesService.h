@@ -129,6 +129,8 @@ public:
         this->radioModule.toJson(radioModule);
         // Location
         root["location"] = this->location;
+        // Is alarming?
+        root["isAlarming"] = this->isAlarming;
         // Registration
         root["registration"] = this->registration;
         // Alarms
@@ -201,6 +203,12 @@ public:
                         Utils::iso8601_to_time_t(radioModule["productionDate"].as<String>())),
                     jsonDeviceArrItem["location"].as<String>());
 
+                // Is alarming?
+                if (jsonDeviceArrItem["isAlarming"].is<bool>())
+                    newDevice.isAlarming = jsonDeviceArrItem["isAlarming"].as<bool>();
+                else
+                    newDevice.isAlarming = false; // Default to not alarming if not specified
+
                 // Registration type
                 if (jsonDeviceArrItem["registration"].is<int>())
                     newDevice.registration = static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>());
@@ -253,11 +261,11 @@ public:
     void AddGeniusDevice(const uint32_t snRadioModule,
                          const uint32_t snSmokeDetector);
 
-    void setAlarm(uint32_t detectorSN);
+    bool setAlarm(uint32_t detectorSN);
 
-    void resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason);
+    bool resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason);
 
-    void resetAllAlarms();
+    bool resetAllAlarms();
 
     bool isAlarming()
     {

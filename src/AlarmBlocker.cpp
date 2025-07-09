@@ -34,12 +34,12 @@ void AlarmBlocker::loop()
             {
                 _remainingBlockingTimeMS = 0;
                 _isBlocked = false; // Unblock when time runs out
+                ESP_LOGI(TAG, "Alarm blocking ended due to time expiration.");
             }
+
+            _emitRemainingBlockingTime();
         }
         endTransaction();
-
-        // Emit WS event with remaining block time
-        _emitRemainingBlockingTime();
     }
 }
 
@@ -50,7 +50,7 @@ void AlarmBlocker::_emitRemainingBlockingTime()
 
     beginTransaction();
     jsonRoot["isBlocked"] = _isBlocked;
-    jsonRoot["remainingBlockingTime"] = _remainingBlockingTimeMS / 1000; // Convert milliseconds to seconds
+    jsonRoot["remainingBlockingTimeS"] = _remainingBlockingTimeMS / 1000; // Convert milliseconds to seconds
     endTransaction();
 
     _eventSocket->emitEvent(ALARMBLOCKER_EVENT_REMAINING_BLOCK_TIME, jsonRoot);

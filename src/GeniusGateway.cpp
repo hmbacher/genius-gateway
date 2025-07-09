@@ -116,10 +116,16 @@ void GeniusGateway::begin()
     /* Initialize Alarm Blocking Service */
     _alarmBlocker.begin();
 
-    /* Register endpoint to end all alarms and block new alarms for a specified amount of time   */
+    /* Register endpoint to end all alarms and block new alarms for a specified amount of time */
     _server->on(GATEWAY_SERVICE_PATH_END_ALARMS,
                 HTTP_POST,
                 _securityManager->wrapCallback(std::bind(&GeniusGateway::_handleEndAlarming, this, std::placeholders::_1, std::placeholders::_2),
+                                               AuthenticationPredicates::IS_ADMIN));
+
+    /* Register endpoint to end alarm blocking immediately */
+    _server->on(GATEWAY_SERVICE_PATH_END_ALARMBLOCKING,
+                HTTP_POST,
+                _securityManager->wrapRequest(std::bind(&GeniusGateway::_handleEndBlocking, this, std::placeholders::_1),
                                               AuthenticationPredicates::IS_ADMIN));
 }
 
@@ -141,10 +147,33 @@ esp_err_t GeniusGateway::_handleEndAlarming(PsychicRequest *request, JsonVariant
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Maximimum alarm blocking time exceeded.\"}");
     }
 
-    _gatewayDevices.resetAllAlarms();
-    _alarmBlocker.startBlocking(blockingTimeS);    
+    if (_gatewayDevices.resetAllAlarms())
+        _emitAlarmState();
+    ESP_LOGI(TAG, "All active alarms have been ended.");
 
-    ESP_LOGI(TAG, "All active alarms have been ended. New alarms will be ignored for %lu seconds.", blockingTimeS);
+    if (blockingTimeS > 0)
+    {
+        _alarmBlocker.startBlocking(blockingTimeS);
+        ESP_LOGI(TAG, "New alarms will be blocked for %lu seconds.", blockingTimeS);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "New alarms will not be blocked.");
+    }
+
+    return request->reply(200, "application/json", "{\"success\": true}");
+}
+
+esp_err_t GeniusGateway::_handleEndBlocking(PsychicRequest *request)
+{
+    esp_err_t ret = _alarmBlocker.endBlocking();
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to end alarm blocking: %s", esp_err_to_name(ret));
+        return request->reply(500, "application/json", "{\"success\": false, \"reason\": \"Failed to end alarm blocking.\"}");
+    }
+
+    ESP_LOGI(TAG, "Alarm blocking ended by request.");
     return request->reply(200, "application/json", "{\"success\": true}");
 }
 

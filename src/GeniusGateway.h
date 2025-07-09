@@ -68,6 +68,7 @@
 #define GATEWAY_ALARM_STATE_EMIT_INTERVAL_MS 1000 // 1 second
 
 #define GATEWAY_SERVICE_PATH_END_ALARMS "/rest/end-alarms"
+#define GATEWAY_SERVICE_PATH_END_ALARMBLOCKING "/rest/end-alarmblocking"
 #define GATEWAY_MAX_ALARM_BLOCKING_TIME_S 3600UL // Maximum time to block new alarms in seconds (1 hour)
 
 typedef enum genius_packet_type
@@ -118,6 +119,7 @@ private:
   AlarmBlocker _alarmBlocker;
 
   esp_err_t _handleEndAlarming(PsychicRequest *request, JsonVariant &json);
+  esp_err_t _handleEndBlocking(PsychicRequest *request);
 
   void _mqttPublishDevices(bool onlyStates = false);
 

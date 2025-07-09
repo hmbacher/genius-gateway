@@ -40,7 +40,7 @@ void GatewayDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
     callUpdateHandlers(GENIUS_DEVICE_ADDED_FROM_PACKET);
 }
 
-void GatewayDevicesService::setAlarm(uint32_t detectorSN)
+bool GatewayDevicesService::setAlarm(uint32_t detectorSN)
 {
     bool updated = false;
 
@@ -69,9 +69,11 @@ void GatewayDevicesService::setAlarm(uint32_t detectorSN)
 
     if (updated)
         callUpdateHandlers(ALARM_STATE_CHANGE);
+
+    return updated;
 }
 
-void GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason)
+bool GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason)
 {
     bool updated = false;
 
@@ -100,9 +102,11 @@ void GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_
         updateAlarmState();
         callUpdateHandlers(ALARM_STATE_CHANGE);
     }
+
+    return updated;
 }
 
-void GatewayDevicesService::resetAllAlarms()
+bool GatewayDevicesService::resetAllAlarms()
 {
     bool updated = false;
 
@@ -128,6 +132,8 @@ void GatewayDevicesService::resetAllAlarms()
         updateAlarmState();
         callUpdateHandlers(ALARM_STATE_CHANGE);
     }
+
+    return updated;
 }
 
 void GatewayDevicesService::updateAlarmState()

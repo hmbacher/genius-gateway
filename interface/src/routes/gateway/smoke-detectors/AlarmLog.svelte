@@ -42,9 +42,7 @@
 
 			<span class="inline-flex items-baseline">
 				<BellRinging class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
-				<span class="text-xl font-semibold"
-					>Alarms of device <em>{geniusDevice.location}</em></span
-				>
+				<span class="text-xl font-semibold">Alarms of device <em>{geniusDevice.location}</em></span>
 			</span>
 
 			<div class="divider my-2"></div>
@@ -101,7 +99,7 @@
 											<div class="tooltip tooltip-left" data-tip="No more smoke detected">
 												<Automatic class="w-6 h-6" />
 											</div>
-										{:else if alarm.endingReason === GeniusAlarmEnding.ByManualReset}
+										{:else if alarm.endingReason === GeniusAlarmEnding.ByManual}
 											<div class="tooltip tooltip-left" data-tip="Alarming stopped by user">
 												<Manual class="w-6 h-6" />
 											</div>
