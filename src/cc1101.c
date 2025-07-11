@@ -4,6 +4,7 @@
  */
 
 #include <string.h>
+#include <stdbool.h>
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
 #include <sys/time.h> // Required for gettimeofday
@@ -28,12 +29,59 @@ static const char *TAG = "cc1101";
 #define CC1101_SELECT() gpio_set_level(CONFIG_CSN_GPIO, 0)
 /* Deselect CC1101 (via CSn to high) */
 #define CC1101_DESELECT() gpio_set_level(CONFIG_CSN_GPIO, 1)
-/* Wait until SPI MISO line goes low */
-#define WAIT_MISO_LOW() while (gpio_get_level(CONFIG_MISO_GPIO) > 0)
-/* Wait until GDO0 line goes high */
-#define WAIT_GDO0_HIGH() while (!gpio_get_level(CONFIG_GDO0_GPIO))
-/* Wait until GDO0 line goes low */
-#define WAIT_GDO0_LOW() while (gpio_get_level(CONFIG_GDO0_GPIO))
+
+/* Timeout values as loop counters */
+#define CC1101_MISO_TIMEOUT_LOOPS 10000     // ~1-2ms at typical CPU speeds
+#define CC1101_GDO0_TIMEOUT_LOOPS 100000    // ~10-20ms at typical CPU speeds
+
+/**
+ * @brief Wait until SPI MISO line goes low with timeout
+ * @return true if MISO went low within timeout, false on timeout
+ */
+static inline bool wait_miso_low(void)
+{
+    uint32_t timeout_counter = 0;
+    while (gpio_get_level(CONFIG_MISO_GPIO) > 0) {
+        if (++timeout_counter > CC1101_MISO_TIMEOUT_LOOPS) {
+            ESP_LOGE(TAG, "MISO timeout: line did not go low");
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief Wait until GDO0 line goes high with timeout
+ * @return true if GDO0 went high within timeout, false on timeout
+ */
+static inline bool wait_gdo0_high(void)
+{
+    uint32_t timeout_counter = 0;
+    while (!gpio_get_level(CONFIG_GDO0_GPIO)) {
+        if (++timeout_counter > CC1101_GDO0_TIMEOUT_LOOPS) {
+            ESP_LOGE(TAG, "GDO0 timeout: line did not go high");
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief Wait until GDO0 line goes low with timeout
+ * @return true if GDO0 went low within timeout, false on timeout
+ */
+static inline bool wait_gdo0_low(void)
+{
+    uint32_t timeout_counter = 0;
+    while (gpio_get_level(CONFIG_GDO0_GPIO)) {
+        if (++timeout_counter > CC1101_GDO0_TIMEOUT_LOOPS) {
+            ESP_LOGE(TAG, "GDO0 timeout: line did not go low");
+            return false;
+        }
+    }
+    return true;
+}
+
 /* Read CC1101 configuration register value */
 #define READ_CONFIG_REG(regAddr, result) cc1101_read_reg(regAddr, CC1101_CONFIG_REGISTER, result)
 /* Read CC1101 status register */
@@ -228,7 +276,10 @@ static esp_err_t cc1101_spi_init()
 static esp_err_t cc1101_cmd_strobe(uint8_t cmd)
 {
     CC1101_SELECT();
-    WAIT_MISO_LOW();
+    if (!wait_miso_low()) {
+        CC1101_DESELECT();
+        return ESP_ERR_TIMEOUT;
+    }
 
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
@@ -248,7 +299,10 @@ static esp_err_t cc1101_cmd_strobe(uint8_t cmd)
 static esp_err_t cc1101_write_reg(uint8_t regAddr, uint8_t value)
 {
     CC1101_SELECT();
-    WAIT_MISO_LOW();
+    if (!wait_miso_low()) {
+        CC1101_DESELECT();
+        return ESP_ERR_TIMEOUT;
+    }
 
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
@@ -269,7 +323,10 @@ static esp_err_t cc1101_write_reg(uint8_t regAddr, uint8_t value)
 static esp_err_t cc1101_write_burst_reg(uint8_t regAddr, uint8_t *buffer, uint8_t len)
 {
     CC1101_SELECT();
-    WAIT_MISO_LOW();
+    if (!wait_miso_low()) {
+        CC1101_DESELECT();
+        return ESP_ERR_TIMEOUT;
+    }
 
     spi_transaction_ext_t t;
     memset(&t, 0, sizeof(t));
@@ -291,7 +348,10 @@ static esp_err_t cc1101_write_burst_reg(uint8_t regAddr, uint8_t *buffer, uint8_
 static esp_err_t cc1101_read_reg(uint8_t regAddr, uint8_t regType, uint8_t *result)
 {
     CC1101_SELECT();
-    WAIT_MISO_LOW();
+    if (!wait_miso_low()) {
+        CC1101_DESELECT();
+        return ESP_ERR_TIMEOUT;
+    }
 
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
@@ -317,7 +377,10 @@ static esp_err_t cc1101_read_reg(uint8_t regAddr, uint8_t regType, uint8_t *resu
 static esp_err_t cc1101_read_burst_reg(uint8_t *buffer, uint8_t regAddr, uint8_t len)
 {
     CC1101_SELECT();
-    WAIT_MISO_LOW();
+    if (!wait_miso_low()) {
+        CC1101_DESELECT();
+        return ESP_ERR_TIMEOUT;
+    }
 
     spi_transaction_ext_t t;
     memset(&t, 0, sizeof(t));
@@ -346,10 +409,17 @@ static esp_err_t cc1101_reset(void)
     esp_rom_delay_us(41);
     CC1101_SELECT();
 
-    WAIT_MISO_LOW();
+    if (!wait_miso_low()) {
+        CC1101_DESELECT();
+        return ESP_ERR_TIMEOUT;
+    }
+    
     /* Send reset strobe command */
     esp_err_t ret = cc1101_cmd_strobe(CC1101_SRES);
-    WAIT_MISO_LOW();
+    
+    if (ret == ESP_OK && !wait_miso_low()) {
+        ret = ESP_ERR_TIMEOUT;
+    }
 
     CC1101_DESELECT();
 
@@ -550,48 +620,19 @@ static inline esp_err_t cc1101_write_tx_fifo(unsigned char *tx_data, size_t leng
 
     uint8_t marcState;
 
-    // cc1101_set_rx_state();
-
-    // // Check that the RX state has been entered
-    // int tries = 0;
-    // while (tries++ < 1000)
-    // {
-    //     READ_STATUS_REG(CC1101_MARCSTATE, &marcState);
-    //     if ((marcState & 0x1F) == CC1101_RX)
-    //         break;
-
-    // 	if (marcState == CC1101_RXFIFO_OVERFLOW)
-    // 		cc1101_flush_rx_fifo();
-    // }
-    // if (tries >= 1000)	    // MarcState sometimes never enters the expected state, this is a safety procedure to avoid endless blocking
-    // 	return ESP_FAIL;
-
-    // DELAY_US(500);
-
     cc1101_write_reg(CC1101_TXFIFO, length); // Set data length at the first position of the TX FIFO
     cc1101_write_burst_reg(CC1101_TXFIFO, tx_data, length);
     cc1101_set_tx_state();
 
-    // // Checking, that TX state is being entered
-    // READ_STATUS_REG(CC1101_MARCSTATE, &marcState);
-    // marcState &= 0x1F;
-    // if ((marcState != CC1101_TX) &&
-    //     (marcState != CC1101_TX_END) &&
-    //     (marcState != CC1101_RXTX_SETTLING_SWITCH))
-    // {
-    // 	return ESP_FAIL;
-    // }
-
     // Wait for the sync word to be transmitted
-    WAIT_GDO0_HIGH();
+    if (!wait_gdo0_high()) {
+        return ESP_ERR_TIMEOUT;
+    }
     // Wait until the end of the packet transmission
-    WAIT_GDO0_LOW();
+    if (!wait_gdo0_low()) {
+        return ESP_ERR_TIMEOUT;
+    }
 
-    // Store TX FIFO status
-    // uint8_t txBytes = 0xFF;
-    // READ_STATUS_REG(CC1101_TXBYTES, &txBytes);
-
-    // return (txBytes & 0x7F) == 0 ? ESP_OK : ESP_FAIL;
     return ESP_OK;
 }
 
