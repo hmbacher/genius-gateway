@@ -17,9 +17,9 @@ const uint8_t AlarmLinesService::_packet_base_linetest_start[] = {
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator of the packet (0xFFFFFFFE = Gateway)
     0x00,
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
-    0x00, 0x00, 0x00, 0x00, // Alarm line ID
-    0x0F,                   // Hops
-    0x60,
+    0x00, 0x00, 0x00, 0x00, // Alarm line ID (#18-#21)
+    0x0F,                   // Hops (#22)
+    0x00,                   // Packet sequence number (#23)
     0x48,
     0x00,
     0x66,
@@ -41,9 +41,9 @@ const uint8_t AlarmLinesService::_packet_base_linetest_stop[] = {
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator of the packet (0xFFFFFFFE = Gateway)
     0x00,
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
-    0x00, 0x00, 0x00, 0x00, // Alarm line ID
-    0x0F,                   // Hops
-    0x61,
+    0x00, 0x00, 0x00, 0x00, // Alarm line ID (#18-#21)
+    0x0F,                   // Hops (#22)
+    0x00,                   // Packet sequence number (#23)
     0x48,
     0x00,
     0x66,
@@ -66,8 +66,8 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0x00,
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
     0x00, 0x00, 0x00, 0x00, // Alarm line ID (#18-#21)
-    0x0F,                   // Hops
-    0x55,
+    0x0F,                   // Hops (#22)
+    0x00,                   // Packet sequence number (#23)
     0x48,
     0x00,
     0x00,
@@ -79,7 +79,8 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0xFF, 0xFF, 0xFF, 0xFE // SN of smoke detector sensing smoke (0xFFFFFFFE = Gateway)
 };
 
-AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit) : _server(sveltekit->getServer()),
+AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit) : _sveltekit(sveltekit),
+                                                                  _server(sveltekit->getServer()),
                                                                   _securityManager(sveltekit->getSecurityManager()),
                                                                   _featureService(sveltekit->getFeatureService()),
                                                                   _eventSocket(sveltekit->getSocket()),
@@ -99,8 +100,12 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit) : _server(svelte
                                                                   _txSemaphore(nullptr),
                                                                   _timerHandle(nullptr),
                                                                   _isTransmitting(false),
+                                                                  _transmissionTimeElaped(0),
+                                                                  _lastLooped(0),
+                                                                  _stopTransmission(false),
                                                                   _txRepeat(0),
-                                                                  _txDataLength(0)
+                                                                  _txDataLength(0),
+                                                                  _packet_sequence_number(ALARMLINES_NVS_SEQ_DEFAULT)
 {
 }
 
@@ -108,6 +113,13 @@ void AlarmLinesService::begin()
 {
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
+
+    // Load the persisted packet sequence number from NVS
+    if (loadPcktSeqNum() != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to load packet sequence number from NVS. Using default value: %u.", ALARMLINES_NVS_SEQ_DEFAULT);
+        _packet_sequence_number = ALARMLINES_NVS_SEQ_DEFAULT;
+    }
 
 #if FT_ENABLED(FT_ALLOW_BROADCAST)
     _featureService->addFeature("allow_broadcast", true);
@@ -167,7 +179,12 @@ void AlarmLinesService::begin()
                 _securityManager->wrapCallback(std::bind(&AlarmLinesService::_performAction, this, std::placeholders::_1, std::placeholders::_2),
                                                AuthenticationPredicates::IS_ADMIN));
 
+    /* Register WebSocket events */
     _eventSocket->registerEvent(ALARMLINES_EVENT_NEW_LINE);
+    _eventSocket->registerEvent(ALARMLINES_EVENT_ACTION_FINISHED);
+
+    /* register monitoring loop */
+    _sveltekit->addLoopFunction(std::bind(&AlarmLinesService::_monitorLoop, this));
 }
 
 void AlarmLinesService::_onTimer()
@@ -192,6 +209,12 @@ void AlarmLinesService::_txLoop()
 
             for (int i = 1; i <= _txRepeat; i++)
             {
+                if (_stopTransmission) // Check stop flag
+                {
+                    ESP_LOGV(pcTaskGetName(0), "Transmission canceled.");
+                    break;
+                }
+
                 gpio_set_level(GPIO_TEST1, 1); // Temporary for testing
                 gpio_set_level(GPIO_TEST2, 1); // Temporary for testing
 
@@ -224,6 +247,11 @@ void AlarmLinesService::_txLoop()
 
             _isTransmitting = false;
 
+            /* Signal that the transmission is finished */
+            _emitActionFinishedEvent(_stopTransmission);
+
+             _stopTransmission = false; // Reset the stop flag
+
             /* Return to RX state */
             cc1101_set_rx_state();
 
@@ -241,34 +269,59 @@ void AlarmLinesService::_txLoop()
     vTaskDelete(NULL);
 }
 
+void AlarmLinesService::_monitorLoop()
+{
+    if (!_isTransmitting) // If we are not transmitting, skip the monitoring loop
+        return;
+
+    uint32_t currentMillis = millis();
+
+    if (0 == _lastLooped)
+    {
+        _lastLooped = currentMillis; // Initialize the last looped time
+        return;                      // Skip the first iteration
+    }
+
+    _transmissionTimeElaped += currentMillis - _lastLooped; // add the elapsed time since the last loop
+    _lastLooped = currentMillis;
+
+    if (_transmissionTimeElaped >= ALARMLINES_TX_TIMEOUT_MS)
+    {
+        _transmissionTimeElaped = 0;    // Reset the elapsed time
+        _lastLooped = 0;                // Reset the last looped time
+        _stopTransmission = true;       // Set the stop flag to cancel the transmission
+        ESP_LOGW(TAG, "Transmission timeout (%lu ms) reached. Cancelling running transmission.", ALARMLINES_TX_TIMEOUT_MS);
+    }
+}
+
 esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant &json)
 {
     if (_isTransmitting)
     {
-        ESP_LOGW(TAG, "Previous action triggering is still running. Wait until it finishes to start another action.");
-        return request->reply(503, "application/json", "{\"success\": false, \"reason\": \"Previous action triggering is still running.\"}");
+        ESP_LOGW(TAG, "Previous action is still performed. Wait until it finishes to start another action.");
+        return request->reply(503, "application/json", "{\"success\": false, \"reason\": \"Previous action is still performed.\"}");
     }
 
     if (!json.is<JsonObject>())
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Invalid JSON\"}");
 
     JsonObject jsonObject = json.as<JsonObject>();
-    if (!jsonObject["line_id"].is<uint32_t>())
+    if (!jsonObject["lineId"].is<uint32_t>())
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Invalid line ID.\"}");
 
     // Read line_id as uint32_t and convert to little-endian (if needed)
-    uint32_t line_id = htonl(jsonObject["line_id"].as<uint32_t>());
+    uint32_t lineId = htonl(jsonObject["lineId"].as<uint32_t>());
 
     if (!jsonObject["action"].is<String>())
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Action missing or of wrong type.\"}");
 
     String action = jsonObject["action"].as<String>();
 
+    // Specific packet preparation based on the action
     if (action == "line-test-start")
     {
         size_t datalen = min(sizeof(_packet_base_linetest_start), sizeof(_txBuffer));
         memcpy(_txBuffer, _packet_base_linetest_start, datalen);
-        memcpy(&_txBuffer[18], &line_id, sizeof(line_id)); // Set line_id
         _txRepeat = ALARMLINES_TX_NUM_REPEAT_LINETEST;
         _txDataLength = datalen;
     }
@@ -276,7 +329,6 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
     {
         size_t datalen = min(sizeof(_packet_base_linetest_stop), sizeof(_txBuffer));
         memcpy(_txBuffer, _packet_base_linetest_stop, datalen);
-        memcpy(&_txBuffer[18], &line_id, sizeof(line_id)); // Set line_id
         _txRepeat = ALARMLINES_TX_NUM_REPEAT_LINETEST;
         _txDataLength = datalen;
     }
@@ -284,8 +336,6 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
     {
         size_t datalen = min(sizeof(_packet_base_firealarm), sizeof(_txBuffer));
         memcpy(_txBuffer, _packet_base_firealarm, min(sizeof(_packet_base_firealarm), sizeof(_txBuffer)));
-        memcpy(&_txBuffer[18], &line_id, sizeof(line_id)); // Set line_id
-
         if (action == "firealarm-start")
             _txBuffer[28] = 0x01; // Set fire alarm start flag
         else
@@ -300,14 +350,18 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Unknown action.\"}");
     }
 
-    /* Notify the pending TX task to start the transmission */
+    // Common packet preparation
+    memcpy(&_txBuffer[18], &lineId, sizeof(lineId)); // Set line id
+    _txBuffer[23] = incPcktSeqNum();                 // Increment and persist sequence number
+
+    // Notify the pending TX task to start the transmission
     if (xSemaphoreGive(_txSemaphore) != pdTRUE)
     {
         ESP_LOGE(TAG, "Failed to give semaphore.");
         return request->reply(500, "application/json", "{\"success\": false, \"reason\": \"Failed to give semaphore.\"}");
     }
 
-    ESP_LOGV(TAG, "Action triggered successfully für line ID '%lu'.", line_id);
+    ESP_LOGV(TAG, "Action triggered successfully für line ID '%lu'.", lineId);
     return request->reply(200, "application/json", "{\"success\": true}");
 }
 
@@ -372,7 +426,7 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
 
     callUpdateHandlers(ALARMLINES_ORIGIN_ID);
 
-    if (acquisition == ALA_GENIUS_PACKET)   // Alarm line has been added from a genius packet
+    if (acquisition == ALA_GENIUS_PACKET) // Alarm line has been added from a genius packet
         _emitNewAlarmLineEvent(id);
 
     return ESP_OK;
@@ -382,8 +436,16 @@ void AlarmLinesService::_emitNewAlarmLineEvent(uint32_t id)
 {
     JsonDocument jsonDoc;
     JsonObject jsonRoot = jsonDoc.to<JsonObject>();
-    jsonRoot["new_alarm_line"] = id;
+    jsonRoot["newAlarmLineId"] = id;
     _eventSocket->emitEvent(ALARMLINES_EVENT_NEW_LINE, jsonRoot);
+}
+
+void AlarmLinesService::_emitActionFinishedEvent(bool timedOut)
+{
+    JsonDocument jsonDoc;
+    JsonObject jsonRoot = jsonDoc.to<JsonObject>();
+    jsonRoot["timedOut"] = timedOut;
+    _eventSocket->emitEvent(ALARMLINES_EVENT_ACTION_FINISHED, jsonRoot);
 }
 
 esp_err_t AlarmLinesService::_removeAlarmLine(uint32_t id)
@@ -419,4 +481,110 @@ esp_err_t AlarmLinesService::_removeAlarmLine(uint32_t id)
     callUpdateHandlers(ALARMLINES_ORIGIN_ID);
 
     return ESP_OK;
+}
+
+uint8_t AlarmLinesService::incPcktSeqNum()
+{
+    // Increment the sequence number (with rollover at 255)
+    _packet_sequence_number = (_packet_sequence_number + 1) % 256;
+
+    // Persist to NVS
+    esp_err_t err = savePcktSeqNum();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to persist incremented packet sequence number: %s", esp_err_to_name(err));
+        // Continue anyway, the in-memory value is still incremented
+    }
+
+    return _packet_sequence_number;
+}
+
+esp_err_t AlarmLinesService::savePcktSeqNum()
+{
+    // Persist to NVS
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open(ALARMLINES_NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (err == ESP_OK)
+    {
+        err = nvs_set_u8(nvs_handle, ALARMLINES_NVS_SEQ_KEY, _packet_sequence_number);
+        if (err == ESP_OK)
+        {
+            err = nvs_commit(nvs_handle);
+            if (err == ESP_OK)
+            {
+                ESP_LOGV(TAG, "Persisted packet sequence number %u to NVS.", _packet_sequence_number);
+            }
+            else
+            {
+                ESP_LOGE(TAG, "Failed to commit packet sequence number to NVS: %s", esp_err_to_name(err));
+            }
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to set packet sequence number in NVS: %s", esp_err_to_name(err));
+        }
+        nvs_close(nvs_handle);
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to open NVS handle for packet sequence number: %s", esp_err_to_name(err));
+    }
+
+    return err;
+}
+
+esp_err_t AlarmLinesService::loadPcktSeqNum()
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open(ALARMLINES_NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
+    if (err == ESP_OK)
+    {
+        err = nvs_get_u8(nvs_handle, ALARMLINES_NVS_SEQ_KEY, &_packet_sequence_number);
+        if (err == ESP_OK)
+        {
+            ESP_LOGI(TAG, "Loaded packet sequence number from NVS: %u", _packet_sequence_number);
+        }
+        else if (err == ESP_ERR_NVS_NOT_FOUND) // First time - initialize to default value
+        {
+            ESP_LOGI(TAG, "Packet sequence number not found in NVS, creating and initializing it to %u.", ALARMLINES_NVS_SEQ_DEFAULT);
+            _packet_sequence_number = ALARMLINES_NVS_SEQ_DEFAULT;
+            esp_err_t save_err = savePcktSeqNum();
+            if (save_err != ESP_OK)
+            {
+                ESP_LOGE(TAG, "Failed to save initial packet sequence number: %s", esp_err_to_name(save_err));
+                err = save_err;
+            }
+            else
+            {
+                err = ESP_OK;
+            }
+        }
+        else // Any other error
+        {
+            ESP_LOGE(TAG, "Failed to get packet sequence number from NVS: %s.", esp_err_to_name(err));
+        }
+
+        nvs_close(nvs_handle);
+    }
+    else if (err == ESP_ERR_NVS_NOT_FOUND) // NVS namespace not found, create it
+    {
+        _packet_sequence_number = ALARMLINES_NVS_SEQ_DEFAULT;
+        ESP_LOGI(TAG, "NVS namespace '%s' not found, creating and initializing packet sequence number to %u.", ALARMLINES_NVS_NAMESPACE, ALARMLINES_NVS_SEQ_DEFAULT);
+        esp_err_t save_err = savePcktSeqNum();
+        if (save_err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to create NVS namespace and save initial packet sequence number: %s", esp_err_to_name(save_err));
+            err = save_err;
+        }
+        else
+        {
+            err = ESP_OK;
+        }
+    }
+    else // Any other error
+    {
+        ESP_LOGE(TAG, "Failed to open NVS handle for reading packet sequence number: %s.", esp_err_to_name(err));
+    }
+
+    return err;
 }

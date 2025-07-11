@@ -24,14 +24,13 @@
 	import Check from '~icons/tabler/check';
 	import Save from '~icons/tabler/device-floppy';
 	import Load from '~icons/tabler/folder-open';
-	import LineTest from '~icons/tabler/topology-star-3';
-	import Play from '~icons/tabler/player-play-filled';
-	import Stop from '~icons/tabler/player-stop-filled';
+	import LineTestStart from '~icons/tabler/location';
+	import LineTestStop from '~icons/tabler/location-off';
 	import Flame from '~icons/tabler/flame-filled';
 	import FlameOff from '~icons/tabler/flame-off';
 	import Manual from '~icons/tabler/forms';
 	import Automatic from '~icons/tabler/access-point';
-	import IconWithOverlay from '$lib/components/IconWithOverlay.svelte';
+	import SpinnerSmall from '$lib/components/SpinnerSmall.svelte';
 
 	const BROADCAST_ID = 0xffffffff; // 4294967295
 
@@ -43,14 +42,58 @@
 
 	let alarmLines: AlarmLines = $state({ lines: [] });
 
+	let activeActions = $state({
+		lineTestStart: [] as boolean[],
+		lineTestStop: [] as boolean[],
+		fireAlarmStart: [] as boolean[],
+		fireAlarmStop: [] as boolean[]
+	});
+
+	let isActionActive = $derived(
+		activeActions.lineTestStart.some((active) => active) ||
+			activeActions.lineTestStop.some((active) => active) ||
+			activeActions.fireAlarmStart.some((active) => active) ||
+			activeActions.fireAlarmStop.some((active) => active)
+	);
+
+	function resetActiveActions() {
+		activeActions.lineTestStart.fill(false);
+		activeActions.lineTestStop.fill(false);
+		activeActions.fireAlarmStart.fill(false);
+		activeActions.fireAlarmStop.fill(false);
+	}
+
 	type NewAlarmLineEvent = {
-		new_alarm_line: number;
+		newAlarmLineId: number;
+	};
+
+	type AlarmLineActionFinishedEvent = {
+		timedOut: boolean;
 	};
 
 	onMount(() => {
+		// Event that signals a new alarm line has been detected (by reception of a Genius packet)
 		socket.on<NewAlarmLineEvent>('new-alarm-line', (data) => {
 			getAlarmLines(); // Reload alarm lines
 			notifications.success('New alarm line detected.', 3000);
+		});
+
+		// Event that signals an action has been finished
+		socket.on('alarm-line-action-finished', (data: AlarmLineActionFinishedEvent) => {
+			// Reset the active action flags
+			resetActiveActions();
+			// Notify the user
+			if (data.timedOut) {
+				notifications.error(
+					`The triggered action timed out.`,
+					5000
+				);
+			} else {
+				notifications.success(
+					`The triggered action finished successfully.`,
+					3000
+				);
+			}
 		});
 	});
 
@@ -96,7 +139,7 @@
 		return;
 	}
 
-	async function postAlarmLineAction(line_id: number, action: string): Promise<boolean> {
+	async function postAlarmLineAction(lineId: number, action: string): Promise<boolean> {
 		let failed: boolean = true;
 
 		try {
@@ -107,7 +150,7 @@
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
-					line_id: line_id,
+					lineId: lineId,
 					action: action
 				})
 			});
@@ -191,6 +234,7 @@
 				let success = await postAlarmLineAction(alarmLines.lines[index].id, 'line-test-start');
 				if (success) {
 					notifications.success('Triggered line test start.', 3000);
+					activeActions.lineTestStart[index] = true;
 				} else {
 					notifications.error('Failed to trigger line test start.', 3000);
 				}
@@ -410,36 +454,33 @@
 																<Delete class="h-6 w-6" />
 															</button>
 														</div>
-														<div class="tooltip tooltip-left" data-tip="Start line test">
-															<button
-																class="btn btn-ghost btn-circle btn-xs"
-																onclick={() => handleLineTestStart(index)}
-															>
-																<IconWithOverlay
-																	baseIcon={LineTest}
-																	overlayIcon={Play}
-																	class="h-6 w-6"
-																	baseClass="h-4 w-4"
-																	overlayClass="h-4 w-4 text-success"
-																	overlayPosition="bottom-right"
-																/>
-															</button>
-														</div>
+														{#if !activeActions.lineTestStart[index]}
+															<div class="tooltip tooltip-left" data-tip="Start line test">
+																<button
+																	class="btn btn-ghost btn-circle btn-xs"
+																	onclick={() => handleLineTestStart(index)}
+																	disabled={isActionActive}
+																>
+																	<LineTestStart class="h-6 w-6" />
+																</button>
+															</div>
+														{:else}
+															<SpinnerSmall />
+														{/if}
+														{#if !activeActions.lineTestStop[index]}
 														<div class="tooltip tooltip-left" data-tip="Stop line test">
 															<button
 																class="btn btn-ghost btn-circle btn-xs"
 																onclick={() => handleLineTestStop(index)}
+																disabled={isActionActive}
 															>
-																<IconWithOverlay
-																	baseIcon={LineTest}
-																	overlayIcon={Stop}
-																	class="h-6 w-6"
-																	baseClass="h-4 w-4"
-																	overlayClass="h-4 w-4"
-																	overlayPosition="bottom-right"
-																/>
+																<LineTestStop class="h-6 w-6" />
 															</button>
 														</div>
+														{:else}
+															<SpinnerSmall />
+														{/if}
+														{#if !activeActions.fireAlarmStart[index]}
 														<div
 															class="tooltip tooltip-left tooltip-error"
 															data-tip="Trigger fire alarm"
@@ -447,18 +488,27 @@
 															<button
 																class="btn btn-ghost btn-circle btn-xs"
 																onclick={() => handleFireAlarmStart(index)}
+																disabled={isActionActive}
 															>
-																<Flame class="text-error h-6 w-6" />
+																<Flame class="h-6 w-6 {!isActionActive ? 'text-error' : ''}" />
 															</button>
 														</div>
+														{:else}
+															<SpinnerSmall />
+														{/if}
+														{#if !activeActions.fireAlarmStop[index]}
 														<div class="tooltip tooltip-left" data-tip="Stop fire alarm">
 															<button
 																class="btn btn-ghost btn-circle btn-xs"
 																onclick={() => handleFireAlarmStop(index)}
+																disabled={isActionActive}
 															>
 																<FlameOff class="h-6 w-6" />
 															</button>
 														</div>
+														{:else}
+															<SpinnerSmall />
+														{/if}
 													</span>
 												</td>
 											</tr>

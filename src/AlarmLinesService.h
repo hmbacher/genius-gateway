@@ -9,6 +9,8 @@
 #include <ESP32SvelteKit.h>
 #include <Utils.hpp>
 #include <cc1101.h>
+#include <nvs_flash.h>
+#include <nvs.h>
 
 #define ALARMLINES_FILE "/config/alarm-lines.json"
 #define ALARMLINES_SERVICE_PATH "/rest/alarm-lines"
@@ -36,6 +38,8 @@
 #define ALARMLINES_TX_PERIOD_MS 10 // 10ms
 #endif
 
+#define ALARMLINES_TX_TIMEOUT_MS 10000LU // 10 seconds
+
 /**
  * Index within the target task's array of task notifications to use
  * NOTE: This value muss be LESS than the value of CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES,
@@ -54,6 +58,12 @@
 #define ALARMLINES_TX_NUM_REPEAT_FIREALARM ALARMLINES_TX_NUM_REPEAT_DEFAULT
 
 #define ALARMLINES_EVENT_NEW_LINE "new-alarm-line"
+#define ALARMLINES_EVENT_ACTION_FINISHED "alarm-line-action-finished"
+
+// Packet sequence number handling
+#define ALARMLINES_NVS_NAMESPACE "gg-alarmlines"
+#define ALARMLINES_NVS_SEQ_KEY "pkt_seq_num"
+#define ALARMLINES_NVS_SEQ_DEFAULT 0
 
 typedef enum alarm_line_acquisition
 {
@@ -155,11 +165,31 @@ public:
 
     esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET, bool toFront = false);
 
+    /**
+     * @brief Increment packet sequence number and persist it
+     * @return The incremented sequence number
+     */
+    uint8_t incPcktSeqNum();
+
+    /**
+     * @brief Save packet sequence number to NVS
+     * @return ESP_OK on success, error code on failure
+     */
+    esp_err_t savePcktSeqNum();
+
+    /**
+     * @brief Load persisted packet sequence number from NVS
+     * @return ESP_OK on success, error code on failure
+     */
+    esp_err_t loadPcktSeqNum();
+
 private:
     static const uint8_t _packet_base_linetest_start[];
     static const uint8_t _packet_base_linetest_stop[];
     static const uint8_t _packet_base_firealarm[];
+    uint8_t _packet_sequence_number;    // Increased with each packet transmission, persisted in NVS
 
+    ESP32SvelteKit *_sveltekit;
     PsychicHttpServer *_server;
     SecurityManager *_securityManager;
     FeaturesService *_featureService;
@@ -172,9 +202,14 @@ private:
     esp_timer_handle_t _timerHandle;
 
     volatile bool _isTransmitting;
+    volatile uint32_t _transmissionTimeElaped;
+    volatile uint32_t _lastLooped;
+    volatile bool _stopTransmission;
     uint32_t _txRepeat;
     uint8_t _txBuffer[CC1101_MAX_PACKET_LEN];
     size_t _txDataLength;
+
+    void _monitorLoop();
 
     void _txLoop();
     static void _txLoopImpl(void *_this)
@@ -192,6 +227,7 @@ private:
     esp_err_t _removeAlarmLine(uint32_t id);
     esp_err_t _performAction(PsychicRequest *request, JsonVariant &json);
     void _emitNewAlarmLineEvent(uint32_t id);
+    void _emitActionFinishedEvent(bool timedOut = false);
 
 };
 
