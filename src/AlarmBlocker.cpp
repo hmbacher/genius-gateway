@@ -1,3 +1,11 @@
+/**
+ * @file AlarmBlocker.cpp
+ * @brief Implementation of the AlarmBlocker service
+ * 
+ * This file contains the implementation of the AlarmBlocker class methods
+ * for managing temporary alarm blocking functionality.
+ */
+
 #include <AlarmBlocker.h>
 
 AlarmBlocker::AlarmBlocker(ESP32SvelteKit *sveltekit) : _sveltekit(sveltekit),
@@ -20,6 +28,8 @@ void AlarmBlocker::loop()
 {
     uint32_t currentMillis = millis();
     uint32_t timeElapsed = currentMillis - _lastLooped;
+    
+    // Process only if enough time has elapsed
     if (timeElapsed >= ALARMBLOCKER_LOOP_PERIOD_MS)
     {
         _lastLooped = currentMillis;
@@ -32,11 +42,13 @@ void AlarmBlocker::loop()
                 _remainingBlockingTimeMS -= timeElapsed;
             else
             {
+                // Time has expired, unblock alarms
                 _remainingBlockingTimeMS = 0;
-                _isBlocked = false; // Unblock when time runs out
+                _isBlocked = false;
                 ESP_LOGI(TAG, "Alarm blocking ended due to time expiration.");
             }
 
+            // Emit current status to WebSocket clients
             _emitRemainingBlockingTime();
         }
         endTransaction();
@@ -45,6 +57,7 @@ void AlarmBlocker::loop()
 
 void AlarmBlocker::_emitRemainingBlockingTime()
 {
+    // Create JSON object with current blocking status
     JsonDocument jsonDoc;
     JsonObject jsonRoot = jsonDoc.to<JsonObject>();
 
@@ -53,5 +66,6 @@ void AlarmBlocker::_emitRemainingBlockingTime()
     jsonRoot["remainingBlockingTimeS"] = _remainingBlockingTimeMS / 1000; // Convert milliseconds to seconds
     endTransaction();
 
+    // Send status update via WebSocket
     _eventSocket->emitEvent(ALARMBLOCKER_EVENT_REMAINING_BLOCK_TIME, jsonRoot);
 }

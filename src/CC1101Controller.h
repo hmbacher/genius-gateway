@@ -18,7 +18,7 @@
 
 #define CC1101CONTROLLER_MAX_GDO0_HIGH_DURATION_MS 200 // Maximum duration for GDO0 high state in milliseconds
 
-class CC1101Controller: ThreadSafeService
+class CC1101Controller : public ThreadSafeService
 {
 public:
     static constexpr const char *TAG = "CC1101Controller";

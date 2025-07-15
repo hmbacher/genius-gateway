@@ -38,7 +38,7 @@ void init_nvs()
         if (err != ESP_OK)
         {
             // NVS partition does not exist, no need to erase
-            ESP_LOGE(TAG, "NVS erasing failed:", esp_err_to_name(err));
+            ESP_LOGE(TAG, "NVS erasing failed: %s", esp_err_to_name(err));
         }
         else
         {
