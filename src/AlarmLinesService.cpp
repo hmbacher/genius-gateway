@@ -79,33 +79,33 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0xFF, 0xFF, 0xFF, 0xFE // SN of smoke detector sensing smoke (0xFFFFFFFE = Gateway)
 };
 
-AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit) : _sveltekit(sveltekit),
-                                                                  _server(sveltekit->getServer()),
-                                                                  _securityManager(sveltekit->getSecurityManager()),
-                                                                  _featureService(sveltekit->getFeatureService()),
-                                                                  _eventSocket(sveltekit->getSocket()),
-                                                                  _httpEndpoint(AlarmLines::read,
-                                                                                AlarmLines::update,
-                                                                                this,
-                                                                                sveltekit->getServer(),
-                                                                                ALARMLINES_SERVICE_PATH,
-                                                                                sveltekit->getSecurityManager(),
-                                                                                AuthenticationPredicates::IS_ADMIN),
-                                                                  _fsPersistence(AlarmLines::read,
-                                                                                 AlarmLines::update,
-                                                                                 this,
-                                                                                 sveltekit->getFS(),
-                                                                                 ALARMLINES_FILE),
-                                                                  _txTaskHandle(nullptr),
-                                                                  _txSemaphore(nullptr),
-                                                                  _timerHandle(nullptr),
-                                                                  _isTransmitting(false),
-                                                                  _transmissionTimeElaped(0),
-                                                                  _lastLooped(0),
-                                                                  _stopTransmission(false),
-                                                                  _txRepeat(0),
-                                                                  _txDataLength(0),
-                                                                  _packet_sequence_number(ALARMLINES_NVS_SEQ_DEFAULT)
+AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, CC1101Controller *cc1101Ctrl) : _sveltekit(sveltekit),
+                                                                                                _server(sveltekit->getServer()),
+                                                                                                _securityManager(sveltekit->getSecurityManager()),
+                                                                                                _featureService(sveltekit->getFeatureService()),
+                                                                                                _eventSocket(sveltekit->getSocket()),
+                                                                                                _httpEndpoint(AlarmLines::read,
+                                                                                                              AlarmLines::update,
+                                                                                                              this,
+                                                                                                              sveltekit->getServer(),
+                                                                                                              ALARMLINES_SERVICE_PATH,
+                                                                                                              sveltekit->getSecurityManager(),
+                                                                                                              AuthenticationPredicates::IS_ADMIN),
+                                                                                                _fsPersistence(AlarmLines::read,
+                                                                                                               AlarmLines::update,
+                                                                                                               this,
+                                                                                                               sveltekit->getFS(),
+                                                                                                               ALARMLINES_FILE),
+                                                                                                _cc1101Ctrl(cc1101Ctrl),
+                                                                                                _txTaskHandle(nullptr),
+                                                                                                _txSemaphore(nullptr),
+                                                                                                _timerHandle(nullptr),
+                                                                                                _isTransmitting(false),
+                                                                                                _transmissionTimeElaped(0),
+                                                                                                _lastTXLoop(0),
+                                                                                                _txRepeat(0),
+                                                                                                _txDataLength(0),
+                                                                                                _packet_sequence_number(ALARMLINES_NVS_SEQ_DEFAULT)
 {
 }
 
@@ -182,9 +182,6 @@ void AlarmLinesService::begin()
     /* Register WebSocket events */
     _eventSocket->registerEvent(ALARMLINES_EVENT_NEW_LINE);
     _eventSocket->registerEvent(ALARMLINES_EVENT_ACTION_FINISHED);
-
-    /* register monitoring loop */
-    _sveltekit->addLoopFunction(std::bind(&AlarmLinesService::_monitorLoop, this));
 }
 
 void AlarmLinesService::_onTimer()
@@ -205,16 +202,27 @@ void AlarmLinesService::_txLoop()
         {
             _isTransmitting = true;
 
+            // Temporarily disbale RX Monitoring
+            _cc1101Ctrl->disableRXMonitoring();
+
+            // Enable TX monitoring
+            bool timedOut = false;
+            _transmissionTimeElaped = 0;
+            _lastTXLoop = millis();
+
             ESP_LOGV(pcTaskGetName(0), "Starting transmission.");
 
             for (int i = 1; i <= _txRepeat; i++)
             {
-                if (_stopTransmission) // Check stop flag
+                uint32_t currentMillis = millis();
+                uint32_t _transmissionTimeElaped = currentMillis - _lastTXLoop;
+                if (_transmissionTimeElaped >= ALARMLINES_TX_TIMEOUT_MS)
                 {
-                    ESP_LOGV(pcTaskGetName(0), "Transmission canceled.");
+                    ESP_LOGW(TAG, "Transmission timeout reached (%lu ms). Cancelling running transmission.", ALARMLINES_TX_TIMEOUT_MS);
+                    timedOut = true;
                     break;
                 }
-
+                
                 gpio_set_level(GPIO_TEST1, 1); // Temporary for testing
                 gpio_set_level(GPIO_TEST2, 1); // Temporary for testing
 
@@ -232,6 +240,8 @@ void AlarmLinesService::_txLoop()
                 if (cc1101_send_data(_txBuffer, _txDataLength) != ESP_OK)
                     ESP_LOGE(pcTaskGetName(0), "Failed to send packet @ iteration %d.", i);
 
+                _lastTXLoop = millis();
+
                 gpio_set_level(GPIO_TEST1, 0); // Temporary for testing
 
                 /* Wait non-blocking for the next timer period */
@@ -248,12 +258,13 @@ void AlarmLinesService::_txLoop()
             _isTransmitting = false;
 
             /* Signal that the transmission is finished */
-            _emitActionFinishedEvent(_stopTransmission);
-
-             _stopTransmission = false; // Reset the stop flag
+            _emitActionFinishedEvent(timedOut);
 
             /* Return to RX state */
             cc1101_set_rx_state();
+
+            // Re-enable RX Monitoring
+            _cc1101Ctrl->enableRXMonitoring();
 
             ESP_LOGV(pcTaskGetName(0), "Transmission finished.");
         }
@@ -267,31 +278,6 @@ void AlarmLinesService::_txLoop()
 
     // never reach here
     vTaskDelete(NULL);
-}
-
-void AlarmLinesService::_monitorLoop()
-{
-    if (!_isTransmitting) // If we are not transmitting, skip the monitoring loop
-        return;
-
-    uint32_t currentMillis = millis();
-
-    if (0 == _lastLooped)
-    {
-        _lastLooped = currentMillis; // Initialize the last looped time
-        return;                      // Skip the first iteration
-    }
-
-    _transmissionTimeElaped += currentMillis - _lastLooped; // add the elapsed time since the last loop
-    _lastLooped = currentMillis;
-
-    if (_transmissionTimeElaped >= ALARMLINES_TX_TIMEOUT_MS)
-    {
-        _transmissionTimeElaped = 0;    // Reset the elapsed time
-        _lastLooped = 0;                // Reset the last looped time
-        _stopTransmission = true;       // Set the stop flag to cancel the transmission
-        ESP_LOGW(TAG, "Transmission timeout (%lu ms) reached. Cancelling running transmission.", ALARMLINES_TX_TIMEOUT_MS);
-    }
 }
 
 esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant &json)

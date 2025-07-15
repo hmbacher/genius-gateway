@@ -9,12 +9,16 @@
 #include <PsychicHttp.h>
 #include <Utils.hpp>
 #include <cc1101.h>
+#include <ThreadSafeService.h>
 
 #define CC1101CONTROLLER_SERVICE_PATH "/rest/cc1101"
-// #define CC1101CONTROLLER_EVENT_STATE "cc1101-state"
-// #define CC1101CONTROLLER_EVENT_PERIOD_MS 10000 // 10 seconds
 
-class CC1101Controller
+#define CC1101CONTROLLER_LOOP_PERIOD_MS 1000 // 1 second
+#define CC1101CONTROLLER_RX_MONITOR_PERIOD_MS 60000 // 1 minute
+
+#define CC1101CONTROLLER_MAX_GDO0_HIGH_DURATION_MS 200 // Maximum duration for GDO0 high state in milliseconds
+
+class CC1101Controller: ThreadSafeService
 {
 public:
     static constexpr const char *TAG = "CC1101Controller";
@@ -24,15 +28,28 @@ public:
     void begin();
     void loop();
 
+    void enableRXMonitoring()
+    {
+        beginTransaction();
+        _rxMonitorEnabled = true;
+        endTransaction();
+    }
+
+    void disableRXMonitoring()
+    {
+        beginTransaction();
+        _rxMonitorEnabled = false;
+        endTransaction();
+    }
+
 private:
     ESP32SvelteKit *_sveltekit;
     PsychicHttpServer *_server;
     SecurityManager *_securityManager;
-    // EventSocket *_eventSocket;
 
-    // volatile uint32_t _lastEmitted; // Last time (millies) the state was emitted
+    volatile uint32_t _lastGDO0Check; // Last time (millies) the state was emitted
 
-    // void _emitCC1101State();
+    bool _rxMonitorEnabled;
 
     esp_err_t _handlerGetStatus(PsychicRequest *request);
     esp_err_t _handlerSetRxState(PsychicRequest *request);

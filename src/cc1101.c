@@ -8,6 +8,7 @@
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
 #include <sys/time.h> // Required for gettimeofday
+#include <esp_timer.h> // Required for esp_timer_get_time (ISR-safe timing)
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -94,6 +95,9 @@ static cc1101_mode_t _mode = CCM_IDLE;
 static spi_device_handle_t _handle;
 
 static void (*_rx_callback)() = NULL;
+
+static uint32_t _last_rising_edge = 0; // Last rising edge timestamp for GDO0 in milliseconds
+static uint32_t _last_falling_edge = 0; // Last falling edge timestamp for GDO0 in milliseconds
 
 static const uint8_t defaultCfg[] = {
     CC1101_DEFVAL_IOCFG2,
@@ -216,20 +220,27 @@ static esp_err_t cc1101_reset(void);
  */
 static inline esp_err_t cc1101_read_rx_fifo(cc1101_packet_t *packet);
 
-/**
- * @brief Flush RX FIFO
- */
-static inline esp_err_t cc1101_flush_rx_fifo(void);
-
 /*
  * Function definitions
  */
 
 static void IRAM_ATTR _rxtx_finish_isr(void *arg)
 {
-    if (_mode == CCM_RX && _rx_callback != NULL)
-    {
-        _rx_callback();
+    // Get current time using ISR-safe function (microseconds since boot)
+    uint32_t current_time_ms = (unsigned long)(esp_timer_get_time() / 1000ULL);
+    // Read current GPIO level to determine edge type
+    int gpio_level = gpio_get_level(CONFIG_GDO0_GPIO);
+    
+    if (gpio_level == 1) {  // Rising edge detected
+        _last_rising_edge = current_time_ms;
+    } else {    // Falling edge detected
+        _last_falling_edge = current_time_ms;
+        
+        // Only call RX callback on falling edge (end of packet)
+        if (_mode == CCM_RX && _rx_callback != NULL)
+        {
+            _rx_callback();
+        }
     }
 }
 
@@ -248,7 +259,7 @@ static esp_err_t cc1101_spi_init()
     buscfg.quadwp_io_num = -1;
     buscfg.quadhd_io_num = -1;
 
-    if (spi_bus_initialize(HOST_ID, &buscfg, SPI_DMA_DISABLED != ESP_OK)) // Not using DMA is faster, but limits the size of transactions
+    if (spi_bus_initialize(HOST_ID, &buscfg, SPI_DMA_DISABLED) != ESP_OK) // Not using DMA is faster, but limits the size of transactions
     {
         ESP_LOGE(TAG, "SPI bus initialization failed.");
         return ESP_FAIL;
@@ -465,7 +476,7 @@ esp_err_t cc1101_init(void (*rx_callback)())
     /* Configure interrupt on GDO0 */
     _rx_callback = rx_callback;
     gpio_config_t io_conf = {
-        .intr_type = GPIO_INTR_NEGEDGE, // GPIO interrupt type : falling edge
+        .intr_type = GPIO_INTR_ANYEDGE, // GPIO interrupt type : both rising and falling edges
         .pin_bit_mask = 1ULL << CONFIG_GDO0_GPIO,
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = 1,
@@ -522,7 +533,7 @@ esp_err_t cc1101_set_tx_state(void)
     return ret;
 }
 
-static inline esp_err_t cc1101_flush_rx_fifo(void)
+esp_err_t cc1101_flush_rx_fifo(void)
 {
     esp_err_t ret;
     ret = cc1101_cmd_strobe(CC1101_SIDLE);
@@ -643,7 +654,7 @@ esp_err_t cc1101_receive_data(cc1101_packet_t *packet)
     if (ret != ESP_OK)
     {
         cc1101_flush_rx_fifo();
-        cc1101_set_rx_state(); // Re-enter RX state after flushing
+        cc1101_set_rx_state();
     }
 
     return ret;
@@ -659,7 +670,7 @@ esp_err_t cc1101_send_data(unsigned char *tx_data, size_t length)
     return ret;
 }
 
-esp_err_t cc1101_check_rx(bool reset_on_any_data)
+esp_err_t cc1101_check_rx_fifo(bool reset_on_any_data)
 {
     uint8_t rxBytes = 0x00;
     if (READ_STATUS_REG(CC1101_RXBYTES, &rxBytes) != ESP_OK)
@@ -685,4 +696,22 @@ cc1101_mode_t cc1101_get_mode(void)
 esp_err_t cc1101_get_state(uint8_t *state)
 {
     return READ_STATUS_REG(CC1101_MARCSTATE, state);
+}
+
+/**
+ * @brief Get the timestamp of the last rising edge on GDO0
+ * @return Timestamp in milliseconds since boot, or 0 if no rising edge occurred
+ */
+uint32_t cc1101_get_last_rising_edge(void)
+{
+    return _last_rising_edge;
+}
+
+/**
+ * @brief Get the timestamp of the last falling edge on GDO0  
+ * @return Timestamp in milliseconds since boot, or 0 if no falling edge occurred
+ */
+uint32_t cc1101_get_last_falling_edge(void)
+{
+    return _last_falling_edge;
 }

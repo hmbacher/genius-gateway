@@ -242,6 +242,15 @@ esp_err_t cc1101_init(void (*rx_callback)());
 
 
 /**
+ * @brief Flush CC1101 RX FIFO buffer
+ * 
+ * This function will flush the RX FIFO buffer by setting to IDLE and stroking the SFRX command strobe.
+ * 
+ * @return ESP_OK if successful, ESP_FAIL otherwise
+ */
+esp_err_t cc1101_flush_rx_fifo(void);
+
+/**
  * @brief Set CC1101 to RX mode
  * 
  * Strobes the RX command strobe SRX to CC1101. This will set the CC1101 to RX mode.
@@ -284,7 +293,7 @@ esp_err_t cc1101_send_data(unsigned char *tx_data, size_t length);
  * 
  * @return ESP_OK if RX FIFO is empty, ESP_FAIL otherwise
  */
-esp_err_t cc1101_check_rx(bool reset_on_any_data);
+esp_err_t cc1101_check_rx_fifo(bool reset_on_any_data);
 
 
 /**
@@ -301,6 +310,18 @@ cc1101_mode_t cc1101_get_mode(void);
  * @return ESP_OK if successful, otherwise an esp_err_t error code
  */
 esp_err_t cc1101_get_state(uint8_t *state);
+
+/**
+ * @brief Get the timestamp of the last rising edge on GDO0
+ * @return Timestamp in microseconds since boot, or 0 if no rising edge occurred
+ */
+uint32_t cc1101_get_last_rising_edge(void);
+
+/**
+ * @brief Get the timestamp of the last falling edge on GDO0  
+ * @return Timestamp in microseconds since boot, or 0 if no falling edge occurred
+ */
+uint32_t cc1101_get_last_falling_edge(void);
 
 #ifdef __cplusplus
 }

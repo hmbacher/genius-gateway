@@ -1,12 +1,10 @@
 # TODO
-- Robustness
-    - Heartbeat, der schaut ob verkrüppelte Packete empfangen wurden und den Empfangsbuffer löscht
-    - Heartbeat, der auf RX zurücksetzt, falls anderer State ist (und ohne dass Packete gesendet werden!)
-
 - ToDos in Kommentaren suchen
 - Klassen-, Methoden- und Eigenschaften-Dokumentation machen
 
 # BUGS
+- Transistion Timeout erreicht bei LineTest (Stop nach Start)
+- SPI bus issue on GDO0 stuck issue (see Srceenshot)
 
 # TESTS
 siehe /tests/tests.md

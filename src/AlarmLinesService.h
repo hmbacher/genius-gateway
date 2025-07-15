@@ -7,6 +7,7 @@
 #include <SecurityManager.h>
 #include <PsychicHttp.h>
 #include <ESP32SvelteKit.h>
+#include <CC1101Controller.h>
 #include <Utils.hpp>
 #include <cc1101.h>
 #include <nvs_flash.h>
@@ -159,7 +160,7 @@ class AlarmLinesService : public StatefulService<AlarmLines>
 public:
     static constexpr const char *TAG = "AlarmLinesService";
 
-    AlarmLinesService(ESP32SvelteKit *sveltekit);
+    AlarmLinesService(ESP32SvelteKit *sveltekit, CC1101Controller *cc1101Ctrl);
 
     void begin();
 
@@ -196,6 +197,7 @@ private:
     EventSocket *_eventSocket;
     HttpEndpoint<AlarmLines> _httpEndpoint;
     FSPersistence<AlarmLines> _fsPersistence;
+    CC1101Controller *_cc1101Ctrl;
 
     TaskHandle_t _txTaskHandle;
     SemaphoreHandle_t _txSemaphore;
@@ -203,8 +205,8 @@ private:
 
     volatile bool _isTransmitting;
     volatile uint32_t _transmissionTimeElaped;
-    volatile uint32_t _lastLooped;
-    volatile bool _stopTransmission;
+    volatile uint32_t _lastTXLoop;
+
     uint32_t _txRepeat;
     uint8_t _txBuffer[CC1101_MAX_PACKET_LEN];
     size_t _txDataLength;

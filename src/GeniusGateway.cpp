@@ -21,7 +21,7 @@ static void nofifyReceivedPacket() // !!! This function is called from ISR !!!
 GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->getServer()),
                                                           _securityManager(sveltekit->getSecurityManager()),
                                                           _gatewayDevices(sveltekit),
-                                                          _alarmLines(sveltekit),
+                                                          _alarmLines(sveltekit, &this->_cc1101Controller),
                                                           _gatewaySettings(sveltekit),
                                                           _gatewayMqttSettingsService(sveltekit),
                                                           _mqttClient(sveltekit->getMqttClient()),
@@ -93,6 +93,7 @@ void GeniusGateway::begin()
     _featureService->addFeature("cc1101_controller", true);
     /* Initialize CC1101Controller */
     _cc1101Controller.begin();
+    _cc1101Controller.enableRXMonitoring();
 #else
     _featureService->addFeature("cc1101_controller", false);
 #endif
@@ -358,6 +359,9 @@ void GeniusGateway::_rx_packets()
         {
             gpio_set_level((gpio_num_t)GPIO_TEST1, 1); // Temporary: Measuring execution time
 
+            // Temprarily disable RX Monitoring
+            _cc1101Controller.disableRXMonitoring();
+
             // Fetch the packet
             if (cc1101_receive_data(&packet) == ESP_OK)
             {
@@ -430,6 +434,9 @@ void GeniusGateway::_rx_packets()
                 gpio_set_level(GPIO_TEST2, 0); // Temporary: Measuring execution time
             }
 
+            // Re-enable RX Monitoring
+            _cc1101Controller.enableRXMonitoring();
+
             gpio_set_level(GPIO_TEST1, 0); // Temporary: Measuring execution time
         }
         else
@@ -441,7 +448,7 @@ void GeniusGateway::_rx_packets()
 
         /* Check for RX overflow or any orphaned data before returning to receive state,
          * as packet handling might have taken too long to fetch next packet in time. */
-        cc1101_check_rx(true);
+        cc1101_check_rx_fifo(true);
     }
 
     // never reach here
