@@ -11,10 +11,6 @@
 #include <cc1101.h>
 #include <AlarmBlocker.h>
 
-// GPIO to use for testing purposes
-#define GPIO_TEST1 GPIO_NUM_21
-#define GPIO_TEST2 GPIO_NUM_14
-
 #define RX_TASK_STACK_SIZE 4096
 #define RX_TASK_PRIORITY 20
 #define RX_TASK_CORE_AFFINITY 1

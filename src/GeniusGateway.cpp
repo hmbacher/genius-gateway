@@ -45,8 +45,8 @@ void GeniusGateway::begin()
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE};
     gpio_config(&io_conf1);
-    gpio_set_level(GPIO_TEST1, 0);
-    gpio_set_level(GPIO_TEST2, 0);
+    gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 0);
+    gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0);
     /* END TEMPORARY */
 
     /* Create packet handling task */
@@ -429,15 +429,15 @@ void GeniusGateway::_rx_packets()
                 }
 
                 /* Send data to WebSocket logger */
-                gpio_set_level(GPIO_TEST2, 1); // Temporary: Measuring execution time
+                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 1); // Temporary: Measuring execution time
                 _wsLogger.logPacket(&packet);
-                gpio_set_level(GPIO_TEST2, 0); // Temporary: Measuring execution time
+                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0); // Temporary: Measuring execution time
             }
 
             // Re-enable RX Monitoring
             _cc1101Controller.enableRXMonitoring();
 
-            gpio_set_level(GPIO_TEST1, 0); // Temporary: Measuring execution time
+            gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 0); // Temporary: Measuring execution time
         }
         else
         {

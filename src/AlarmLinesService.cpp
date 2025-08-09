@@ -186,7 +186,7 @@ void AlarmLinesService::begin()
 
 void AlarmLinesService::_onTimer()
 {
-    gpio_set_level(GPIO_TEST2, 0); // Temporary for testing
+    gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0); // Temporary for testing
 
     /* Notify the waiting (blocked) TX task, to start the next packet transmission iteration */
     xTaskNotifyGiveIndexed(_txTaskHandle, ALARMLINES_TX_TASK_NOTIFICATION_INDEX);
@@ -223,8 +223,8 @@ void AlarmLinesService::_txLoop()
                     break;
                 }
                 
-                gpio_set_level(GPIO_TEST1, 1); // Temporary for testing
-                gpio_set_level(GPIO_TEST2, 1); // Temporary for testing
+                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 1); // Temporary for testing
+                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 1); // Temporary for testing
 
                 /* Resetting the timer for a single iteration */
                 if (i < _txRepeat) // Don't (re)start the timer for the last iteration
@@ -242,7 +242,7 @@ void AlarmLinesService::_txLoop()
 
                 _lastTXLoop = millis();
 
-                gpio_set_level(GPIO_TEST1, 0); // Temporary for testing
+                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 0); // Temporary for testing
 
                 /* Wait non-blocking for the next timer period */
                 if (i < _txRepeat) // Don't wait after the last iteration
