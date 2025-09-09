@@ -5,8 +5,10 @@
 - Nach Tests: Klassen-, Methoden- und Eigenschaften-Dokumentation machen
 - Doku
 - CAE-Doku
+- GH-Feature ausschalten (auch FFC)
 
 # BUGS
+- Technikraum wird nicht exposed.
 - SPI bus issue on GDO0 stuck issue (see Srceenshot).
 
 # TESTS
