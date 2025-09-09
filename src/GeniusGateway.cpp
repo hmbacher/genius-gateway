@@ -201,7 +201,6 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
     // Get optimized MQTT data - only the minimal properties needed for publishing,
     // thread-safe and performance optimized
     auto devicesMqttData = _gatewayDevices.getDevicesMqttData();
-    ESP_LOGE(TAG, "Publishing MQTT data for %zu devices.", devicesMqttData.size());
 
     /* Publish Home Assistant compatible topics */
     if (mqttSettings.haMQTTEnabled)
