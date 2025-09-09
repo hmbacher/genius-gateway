@@ -278,6 +278,18 @@ public:
         return isAlarming;
     }
 
+    uint32_t numAlarmingDevices()
+    {
+        uint32_t numAlarming = 0;
+
+        beginTransaction();
+        numAlarming = _numAlarming;
+        endTransaction();
+
+        return numAlarming;
+
+    }
+
     bool isSmokeDetectorKnown(uint32_t detectorSN)
     {
         bool found = false;
@@ -316,9 +328,8 @@ public:
 private:
     HttpEndpoint<GeniusDevices> _httpEndpoint;
     FSPersistence<GeniusDevices> _fsPersistence;
-    bool _isAlarming = false;
-
-    void updateAlarmState();
+    bool _isAlarming;
+    uint32_t _numAlarming;
 };
 
 #endif // GatewayDevicesService_h

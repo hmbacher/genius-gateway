@@ -11,7 +11,9 @@ GatewayDevicesService::GatewayDevicesService(ESP32SvelteKit *sveltekit) : _httpE
                                                                                          GeniusDevices::update,
                                                                                          this,
                                                                                          sveltekit->getFS(),
-                                                                                         GATEWAY_DEVICES_FILE)
+                                                                                         GATEWAY_DEVICES_FILE),
+                                                                          _isAlarming(false),
+                                                                          _numAlarming(0)
 {
 }
 
@@ -58,6 +60,7 @@ bool GatewayDevicesService::setAlarm(uint32_t detectorSN)
                 device.alarms.push_back(alarm);
 
                 _isAlarming = true;
+                _numAlarming++;
                 updated = true;
 
                 ESP_LOGV(GeniusDevices::TAG, "Alarm started for smoke detector with SN '%lu'.", detectorSN);
@@ -89,19 +92,21 @@ bool GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_
                 device.alarms.back().endingReason = endingReason;
 
                 updated = true;
+                _numAlarming--;
 
                 ESP_LOGV(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", detectorSN);
             }
             break;
         }
     }
+    
+    if (_numAlarming == 0)
+        _isAlarming = false;
+
     endTransaction();
 
     if (updated)
-    {
-        updateAlarmState();
         callUpdateHandlers(ALARM_STATE_CHANGE);
-    }
 
     return updated;
 }
@@ -113,43 +118,23 @@ bool GatewayDevicesService::resetAllAlarms()
     beginTransaction();
     for (auto &device : _state.devices)
     {
-            if (device.isAlarming)
-            {
-                device.isAlarming = false;
-                device.alarms.back().endTime = time(nullptr); // seconds precision
-                device.alarms.back().endingReason = GAE_BY_MANUAL;
+        if (device.isAlarming)
+        {
+            device.isAlarming = false;
+            device.alarms.back().endTime = time(nullptr); // seconds precision
+            device.alarms.back().endingReason = GAE_BY_MANUAL;
 
-                updated = true;
+            updated = true;
 
-                ESP_LOGV(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", detectorSN);
-            }
-            break;
+            ESP_LOGV(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", detectorSN);
+        }
     }
+    _isAlarming = false;
+    _numAlarming = 0;
     endTransaction();
 
     if (updated)
-    {
-        updateAlarmState();
         callUpdateHandlers(ALARM_STATE_CHANGE);
-    }
 
     return updated;
-}
-
-void GatewayDevicesService::updateAlarmState()
-{
-    bool alarming = false;
-
-    beginTransaction();
-    for (auto &device : _state.devices)
-    {
-        if (device.isAlarming)
-        {
-            alarming = true;
-            break;
-        }
-    }
-    _isAlarming = alarming;
-
-    endTransaction();
 }

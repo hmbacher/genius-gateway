@@ -201,17 +201,18 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
     // Get optimized MQTT data - only the minimal properties needed for publishing,
     // thread-safe and performance optimized
     auto devicesMqttData = _gatewayDevices.getDevicesMqttData();
+    ESP_LOGE(TAG, "Publishing MQTT data for %zu devices.", devicesMqttData.size());
 
-    for (const auto &deviceData : devicesMqttData) // Now thread safe and lightweight
+    /* Publish Home Assistant compatible topics */
+    if (mqttSettings.haMQTTEnabled)
     {
-        /* Publish Home Assistant compatible topics */
-        if (mqttSettings.haMQTTEnabled)
+        if (mqttSettings.haMQTTTopicPrefix.isEmpty())
         {
-            if (mqttSettings.haMQTTTopicPrefix.isEmpty())
-            {
-                ESP_LOGW(TAG, "Home Assistant MQTT topic prefix is empty. Cannot publish config topic.");
-            }
-            else
+            ESP_LOGW(TAG, "Home Assistant MQTT topic prefix is empty. Cannot publish config topic.");
+        }
+        else
+        {
+            for (const auto &deviceData : devicesMqttData) // Now thread safe and lightweight
             {
                 /* Publish config topic for device discovery */
                 if (!onlyState)
@@ -257,25 +258,25 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
                 _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str());
             }
         }
+    }
 
-        /* Publish generic alarming topic */
-        if (mqttSettings.alarmEnabled)
+    /* Publish generic alarming topic */
+    if (mqttSettings.alarmEnabled)
+    {
+        if (mqttSettings.alarmTopic.isEmpty())
         {
-            if (mqttSettings.alarmTopic.isEmpty())
-            {
-                ESP_LOGW(TAG, "Alarm MQTT topic is empty. Cannot publish alarming state.");
-            }
-            else
-            {
-                JsonDocument alarming_jsonDoc;
-                bool isAlarming = _gatewayDevices.isAlarming();
-                alarming_jsonDoc["isAlarming"] = isAlarming;
-                alarming_jsonDoc["isAlarmingAsInt"] = isAlarming ? 1 : 0;
+            ESP_LOGW(TAG, "Alarm MQTT topic is empty. Cannot publish alarming state.");
+        }
+        else
+        {
+            JsonDocument alarming_jsonDoc;
+            bool isAlarming = _gatewayDevices.isAlarming();
+            alarming_jsonDoc["isAlarming"] = isAlarming;
+            alarming_jsonDoc["numAlarmingDevices"] = _gatewayDevices.numAlarmingDevices();
 
-                String payload;
-                serializeJson(alarming_jsonDoc, payload);
-                _mqttClient->publish(mqttSettings.alarmTopic.c_str(), 0, true, payload.c_str());
-            }
+            String payload;
+            serializeJson(alarming_jsonDoc, payload);
+            _mqttClient->publish(mqttSettings.alarmTopic.c_str(), 0, true, payload.c_str());
         }
     }
 }
