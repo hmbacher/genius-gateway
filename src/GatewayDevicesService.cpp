@@ -32,7 +32,7 @@ void GatewayDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
     GeniusDevice newDevice = GeniusDevice(
         GeniusComponent<GeniusSmokeDetector>(static_cast<GeniusSmokeDetector>(GSD_UNKNOWN), snSmokeDetector, 0),
         GeniusComponent<GeniusRadioModule>(static_cast<GeniusRadioModule>(GRM_UNKNOWN), snRadioModule, 0),
-        GENIUS_DEVICE_ADDED_FROM_PACKET);
+        GENIUS_DEVICE_DEFAULT_LOCATION);
     // Set registration type
     newDevice.registration = GDR_GENIUS_PACKET;
     // Add the new device to the state
