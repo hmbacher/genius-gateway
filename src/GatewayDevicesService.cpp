@@ -21,9 +21,14 @@ void GatewayDevicesService::begin()
 {
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
+
+    /* Update alarming state after every device update */
+    this->addUpdateHandler([&](const String &originId)
+                           { _updateAlarmingState(); },
+                           false);
 }
 
-void GatewayDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
+bool GatewayDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
                                             const uint32_t snSmokeDetector)
 {
     beginTransaction();
@@ -39,15 +44,18 @@ void GatewayDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
     _state.devices.push_back(newDevice);
 
     endTransaction();
+
     callUpdateHandlers(GENIUS_DEVICE_ADDED_FROM_PACKET);
+    
+    return true;
 }
 
-bool GatewayDevicesService::setAlarm(uint32_t detectorSN)
+const GeniusDevice *GatewayDevicesService::setAlarm(uint32_t detectorSN)
 {
-    bool updated = false;
+    GeniusDevice *updatedDevice = nullptr;
 
     beginTransaction();
-    for (auto &device : _state.devices)
+    for (GeniusDevice &device : _state.devices)
     {
         if (device.smokeDetector.sn == detectorSN)
         {
@@ -61,7 +69,7 @@ bool GatewayDevicesService::setAlarm(uint32_t detectorSN)
 
                 _isAlarming = true;
                 _numAlarming++;
-                updated = true;
+                updatedDevice = &device;
 
                 ESP_LOGV(GeniusDevices::TAG, "Alarm started for smoke detector with SN '%lu'.", detectorSN);
             }
@@ -70,18 +78,18 @@ bool GatewayDevicesService::setAlarm(uint32_t detectorSN)
     }
     endTransaction();
 
-    if (updated)
+    if (updatedDevice)
         callUpdateHandlers(ALARM_STATE_CHANGE);
 
-    return updated;
+    return updatedDevice;
 }
 
-bool GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason)
+const GeniusDevice *GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason)
 {
-    bool updated = false;
+    GeniusDevice *updatedDevice = nullptr;
 
     beginTransaction();
-    for (auto &device : _state.devices)
+    for (GeniusDevice &device : _state.devices)
     {
         if (device.smokeDetector.sn == detectorSN)
         {
@@ -91,7 +99,7 @@ bool GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_
                 device.alarms.back().endTime = time(nullptr); // seconds precision
                 device.alarms.back().endingReason = endingReason;
 
-                updated = true;
+                updatedDevice = &device;
                 _numAlarming--;
 
                 ESP_LOGV(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", detectorSN);
@@ -105,10 +113,10 @@ bool GatewayDevicesService::resetAlarm(uint32_t detectorSN, genius_alarm_ending_
 
     endTransaction();
 
-    if (updated)
+    if (updatedDevice)
         callUpdateHandlers(ALARM_STATE_CHANGE);
 
-    return updated;
+    return updatedDevice;
 }
 
 bool GatewayDevicesService::resetAllAlarms()
@@ -116,7 +124,7 @@ bool GatewayDevicesService::resetAllAlarms()
     bool updated = false;
 
     beginTransaction();
-    for (auto &device : _state.devices)
+    for (GeniusDevice &device : _state.devices)
     {
         if (device.isAlarming)
         {
@@ -137,4 +145,24 @@ bool GatewayDevicesService::resetAllAlarms()
         callUpdateHandlers(ALARM_STATE_CHANGE);
 
     return updated;
+}
+
+void GatewayDevicesService::_updateAlarmingState()
+{
+    bool isAlarming = false;
+    uint32_t numAlarming = 0;
+
+    for (const GeniusDevice &device : _state.devices)
+    {
+        if (device.isAlarming)
+        {
+            isAlarming = true;
+            numAlarming++;
+        }
+    }
+
+    beginTransaction();
+    _isAlarming = isAlarming;
+    _numAlarming = numAlarming;
+    endTransaction();
 }

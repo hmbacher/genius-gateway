@@ -258,12 +258,12 @@ public:
 
     void begin();
 
-    void AddGeniusDevice(const uint32_t snRadioModule,
+    bool AddGeniusDevice(const uint32_t snRadioModule,
                          const uint32_t snSmokeDetector);
 
-    bool setAlarm(uint32_t detectorSN);
+    const GeniusDevice *setAlarm(uint32_t detectorSN);
 
-    bool resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason);
+    const GeniusDevice *resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason);
 
     bool resetAllAlarms();
 
@@ -307,19 +307,35 @@ public:
     }
 
     // Optimized method for MQTT publishing - returns only minimal data needed
-    std::vector<DeviceMqttData> getDevicesMqttData()
+    // If device pointer is provided, returns data only for that specific device
+    // If device is nullptr (default), returns data for all devices
+    std::vector<DeviceMqttData> getDevicesMqttData(const GeniusDevice* device = nullptr)
     {
         std::vector<DeviceMqttData> mqttData;
 
         beginTransaction();
-        mqttData.reserve(_state.devices.size()); // Pre-allocate for efficiency
-        for (const auto &device : _state.devices)
+        
+        if (device == nullptr)
         {
-            mqttData.emplace_back(
-                device.smokeDetector.sn,
-                device.location,
-                device.isAlarming);
+            // Return data for all devices
+            mqttData.reserve(_state.devices.size()); // Pre-allocate for efficiency
+            for (const auto &dev : _state.devices)
+            {
+                mqttData.emplace_back(
+                    dev.smokeDetector.sn,
+                    dev.location,
+                    dev.isAlarming);
+            }
         }
+        else
+        {
+            // Return data for specific device only
+            mqttData.emplace_back(
+                device->smokeDetector.sn,
+                device->location,
+                device->isAlarming);
+        }
+        
         endTransaction();
 
         return mqttData;
@@ -330,6 +346,8 @@ private:
     FSPersistence<GeniusDevices> _fsPersistence;
     bool _isAlarming;
     uint32_t _numAlarming;
+
+    void _updateAlarmingState();
 };
 
 #endif // GatewayDevicesService_h

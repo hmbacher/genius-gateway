@@ -117,7 +117,7 @@ private:
   esp_err_t _handleEndAlarming(PsychicRequest *request, JsonVariant &json);
   esp_err_t _handleEndBlocking(PsychicRequest *request);
 
-  void _mqttPublishDevices(bool onlyStates = false);
+  void _mqttPublishDevices(const GeniusDevice *device = nullptr, bool onlyState = false);
 
   void _rx_packets();
   static void _rx_packetsImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_rx_packets(); }

@@ -98,16 +98,21 @@ void GeniusGateway::begin()
     _featureService->addFeature("cc1101_controller", false);
 #endif
 
-    /* Configure MQTT callback */
+    /* Perform a full publish (all devices and states), if MQTT client connects. */
     _mqttClient->onConnect([this](bool /*sessionPresent*/)
                            { this->_mqttPublishDevices(); });
 
-    /* Configure update handler for when the smoke detector devices change */
+    /* Configure update handler for when the smoke detector devices change.
+     * Only updates the MQTT state if the change did not originate from a
+     * device addition over received alarm packets or alarm state change. */
     _gatewayDevices.addUpdateHandler([&](const String &originId)
-                                     { _mqttPublishDevices(originId == ALARM_STATE_CHANGE); },
+                                     { if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET &&
+                                           originId != ALARM_STATE_CHANGE)
+                                        _mqttPublishDevices(); },
                                      false);
 
-    /* Configure update handler for when the MQTT settings change */
+    /* Configure update handler for when the MQTT settings change:
+     * Perform a full publish (all devices and states), if settings change. */
     _gatewayMqttSettingsService.addUpdateHandler([&](const String &originId)
                                                  { _mqttPublishDevices(); },
                                                  false);
@@ -149,7 +154,11 @@ esp_err_t GeniusGateway::_handleEndAlarming(PsychicRequest *request, JsonVariant
     }
 
     if (_gatewayDevices.resetAllAlarms())
+    {
+        _mqttPublishDevices(nullptr, true); // Re-Publish all devices' state
         _emitAlarmState();
+    }
+
     ESP_LOGI(TAG, "All active alarms have been ended.");
 
     if (blockingTimeS > 0)
@@ -189,7 +198,7 @@ void GeniusGateway::_emitAlarmState()
     _eventSocket->emitEvent(GATEWAY_EVENT_ALARM, root);
 }
 
-void GeniusGateway::_mqttPublishDevices(bool onlyState)
+void GeniusGateway::_mqttPublishDevices(const GeniusDevice *device, bool onlyState)
 {
     if (!_mqttClient->connected())
     {
@@ -200,7 +209,7 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
 
     // Get optimized MQTT data - only the minimal properties needed for publishing,
     // thread-safe and performance optimized
-    auto devicesMqttData = _gatewayDevices.getDevicesMqttData();
+    std::vector<DeviceMqttData> devicesMqttData = _gatewayDevices.getDevicesMqttData(device);
 
     /* Publish Home Assistant compatible topics */
     if (mqttSettings.haMQTTEnabled)
@@ -388,24 +397,31 @@ void GeniusGateway::_rx_packets()
                             {
                                 bool isDetectorKnown = _gatewayDevices.isSmokeDetectorKnown(source_id);
 
+                                bool deviceAdded = false;
                                 if (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
                                 {
                                     uint32_t snRM = EXTRACT32(packet.data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
-                                    _gatewayDevices.AddGeniusDevice(snRM, source_id);
-                                    isDetectorKnown = true; // Now we know the detector, as it was added from packet
+                                    deviceAdded = _gatewayDevices.AddGeniusDevice(snRM, source_id);
+                                    isDetectorKnown = true; // Now we know the detector, as it was intentionally added
                                 }
 
                                 /* Set/Reset alarm */
                                 if (isDetectorKnown)
-                                    _gatewayDevices.setAlarm(source_id);
+                                {
+                                    const GeniusDevice *dev = _gatewayDevices.setAlarm(source_id);
+                                    if (dev)
+                                        _mqttPublishDevices(dev, !deviceAdded);
+                                }
                             }
                             else // packet_details.type == HPT_ALARM_SILENCING
                             {
-                                _gatewayDevices.resetAlarm(source_id, GAE_BY_SMOKE_DETECTOR);
+                                const GeniusDevice *dev = _gatewayDevices.resetAlarm(source_id, GAE_BY_SMOKE_DETECTOR);
+                                if (dev)
+                                    _mqttPublishDevices(dev, true);
                             }
 
                             /* Emit alarm state to front end */
-                            _emitAlarmState();
+                            _emitAlarmState(); // TODO: Is this necessary on every single packet???
 
                             /* Store alarm line id */
                             if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
