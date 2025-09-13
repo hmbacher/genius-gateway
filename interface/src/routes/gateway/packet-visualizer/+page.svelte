@@ -211,7 +211,6 @@
 
 	onDestroy(async () => {
 		ws.close();
-		console.log('WebSocket closed.');
 	});
 
 	let alarmLines: AlarmLines = $state({ lines: [] });
