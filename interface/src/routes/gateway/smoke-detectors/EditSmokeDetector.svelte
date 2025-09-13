@@ -5,7 +5,11 @@
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import type { GeniusComponent, GeniusAlarm, GeniusDevice } from '$lib/types/models';
-	import { GeniusDeviceRegistration, GeniusSmokeDetector, GeniusRadioModule } from '$lib/types/enums';
+	import {
+		GeniusDeviceRegistration,
+		GeniusSmokeDetector,
+		GeniusRadioModule
+	} from '$lib/types/enums';
 	import DateInput from '$lib/components/DateInput.svelte';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
@@ -26,10 +30,18 @@
 	let {
 		isOpen,
 		title,
-		onSaveGeniusDevice,	
+		onSaveGeniusDevice,
 		geniusDevice = $bindable({
-			smokeDetector: { model: GeniusSmokeDetector.GeniusPlusX, sn: 0, productionDate: new Date() } as GeniusComponent,
-			radioModule: { model: GeniusRadioModule.FmBasisX, sn: 0, productionDate: new Date() } as GeniusComponent,
+			smokeDetector: {
+				model: GeniusSmokeDetector.GeniusPlusX,
+				sn: 0,
+				productionDate: new Date()
+			} as GeniusComponent,
+			radioModule: {
+				model: GeniusRadioModule.FmBasisX,
+				sn: 0,
+				productionDate: new Date()
+			} as GeniusComponent,
 			location: '',
 			registration: GeniusDeviceRegistration.Manual, // Default to manual registration
 			alarms: [] as GeniusAlarm[] // No alarms by default
@@ -68,23 +80,6 @@
 		location: false
 	});
 
-	let dateString;
-
-	function convertDateToBindableStr(date: Date) {
-		let month = '' + (date.getMonth() + 1),
-			day = '' + date.getDate(),
-			year = date.getFullYear();
-
-		if (month.length < 2) month = '0' + month;
-		if (day.length < 2) day = '0' + day;
-
-		return [year, month, day].join('-');
-	}
-
-	onMount(() => {
-		dateString = convertDateToBindableStr(geniusDevice.smokeDetector.productionDate);
-	});
-
 	function handleSave() {
 		let valid = true;
 
@@ -107,19 +102,23 @@
 		}
 
 		// --- Validate Production Date
-		// Validate if production date of smoke detector is not in the future
-		if (isNaN(geniusDevice.smokeDetector.productionDate)) {
-			formErrors.smokeDetector.productionDate = true;
-			valid = false;
-		} else {
-			formErrors.smokeDetector.productionDate = false;
+		// Check production date (if applicable)
+		formErrors.smokeDetector.productionDate = false;
+		if (geniusDevice.smokeDetector.productionDate) {
+			if (isNaN(geniusDevice.smokeDetector.productionDate)) {
+				formErrors.smokeDetector.productionDate = true;
+				valid = false;
+			}
 		}
-		// Validate if production date of radio module is not in the future
-		if (isNaN(geniusDevice.radioModule.productionDate)) {
-			formErrors.radioModule.productionDate = true;
-			valid = false;
-		} else {
-			formErrors.radioModule.productionDate = false;
+
+		// --- Validate Production Date
+		// Check production date (if applicable)
+		formErrors.radioModule.productionDate = false;
+		if (geniusDevice.radioModule.productionDate) {
+			if (isNaN(geniusDevice.radioModule.productionDate)) {
+				formErrors.radioModule.productionDate = true;
+				valid = false;
+			}
 		}
 
 		// Validate location
@@ -190,22 +189,31 @@
 						<label class="label" for="smokeDetectorProductionDate">
 							<span class="label-text text-md">Production Date</span>
 						</label>
-						<DateInput
-							bind:date={geniusDevice.smokeDetector.productionDate}
-							id="smokeDetectorProductionDate"
-						/>
-						{#if formErrors.smokeDetector.productionDate}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="smokeDetectorProductionDate" class="label">
-									<span
-										class="label-text-alt text-error {formErrors.smokeDetector.productionDate
-											? ''
-											: 'hidden'}"
-									>
-										Please set a valid date.
-									</span>
-								</label>
-							</div>
+						{#if geniusDevice.smokeDetector.productionDate}
+							<DateInput
+								bind:date={geniusDevice.smokeDetector.productionDate}
+								id="smokeDetectorProductionDate"
+							/>
+							{#if formErrors.smokeDetector.productionDate}
+								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+									<label for="smokeDetectorProductionDate" class="label">
+										<span
+											class="label-text-alt text-error {formErrors.smokeDetector.productionDate
+												? ''
+												: 'hidden'}"
+										>
+											Please set a valid date.
+										</span>
+									</label>
+								</div>
+							{/if}
+						{:else}
+							<input
+								id="smokeDetectorProductionDate"
+								class="input input-bordered"
+								value="Unknown"
+								disabled
+							/>
 						{/if}
 					</div>
 
@@ -236,7 +244,7 @@
 					</div>
 				</div>
 
-				<div class="alert alert-warning shadow-lg">
+				<div class="alert alert-warning shadow-lg mt-1">
 					<Warning class="h-6 w-6 shrink-0" />
 					<span>
 						The serial number is crucial for correctly assigning an alarm signal to the emitting
@@ -273,22 +281,31 @@
 						<label class="label" for="radioModuleProductionDate">
 							<span class="label-text text-md">Production Date</span>
 						</label>
-						<DateInput
-							bind:date={geniusDevice.radioModule.productionDate}
-							id="radioModuleProductionDate"
-						/>
-						{#if formErrors.radioModule.productionDate}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="radioModuleProductionDate" class="label">
-									<span
-										class="label-text-alt text-error {formErrors.radioModule.productionDate
-											? ''
-											: 'hidden'}"
-									>
-										Please set a valid date.
-									</span>
-								</label>
-							</div>
+						{#if geniusDevice.radioModule.productionDate}
+							<DateInput
+								bind:date={geniusDevice.radioModule.productionDate}
+								id="radioModuleProductionDate"
+							/>
+							{#if formErrors.radioModule.productionDate}
+								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+									<label for="radioModuleProductionDate" class="label">
+										<span
+											class="label-text-alt text-error {formErrors.radioModule.productionDate
+												? ''
+												: 'hidden'}"
+										>
+											Please set a valid date.
+										</span>
+									</label>
+								</div>
+							{/if}
+						{:else}
+							<input
+								id="radioModuleProductionDate"
+								class="input input-bordered"
+								value="Unknown"
+								disabled
+							/>
 						{/if}
 					</div>
 
@@ -348,7 +365,7 @@
 								</span>
 							</label>
 						</div>
-					{/if}	
+					{/if}
 				</div>
 
 				<div class="divider my-2"></div>
