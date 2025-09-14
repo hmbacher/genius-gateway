@@ -275,8 +275,8 @@
 						bind:this={formField}
 					>
 						<div>
-							<select class="select w-full" id="apmode" bind:value={apSettings.provision_mode}>
 							<label class="label" for="apmode">Provide Access Point ... </label>
+							<select class="select w-full" id="apmode" bind:value={apSettings.provision_mode}>
 								{#each provisionMode as mode}
 									<option value={mode.id}>
 										{mode.text}
