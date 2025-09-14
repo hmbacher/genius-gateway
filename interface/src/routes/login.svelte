@@ -34,9 +34,7 @@
 				user.init(token.access_token);
 				let username = $user.username;
 				notifications.success('User ' + username + ' signed in', 5000);
-				if (signIn) {
-					signIn();
-				}
+				signIn();
 			} else {
 				username = '';
 				password = '';
@@ -63,20 +61,11 @@
 		<figure class="bg-base-200"><img src={logo} alt="Logo" class="h-auto w-48 lg:w-64" /></figure>
 		<div class="card-body w-80">
 			<h2 class="card-title text-2xl">Login</h2>
-			<form class="form-control w-full max-w-xs">
-				<label class="label" for="user">
-					<span class="label-text text-md">Username</span>
-				</label>
-				<input
-					type="text"
-					class="input input-bordered w-full max-w-xs"
-					id="user"
-					bind:value={username}
-				/>
+			<form class="fieldset w-full max-w-xs">
+				<label class="label" for="user">Username</label>
+				<input type="text" class="input w-full max-w-xs" id="user" bind:value={username} />
 
-				<label class="label" for="pwd">
-					<span class="label-text text-md">Password</span>
-				</label>
+				<label class="label" for="pwd">Password </label>
 				<InputPassword id="pwd" bind:value={password} />
 
 				<div class="card-actions mt-4 justify-end">

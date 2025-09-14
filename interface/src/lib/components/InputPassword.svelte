@@ -41,6 +41,7 @@
 			/>
 			<path d="M3 3l18 18" />
 		</svg>
+
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<svg
 			xmlns="http://www.w3.org/2000/svg"

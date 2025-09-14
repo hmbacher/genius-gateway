@@ -2,22 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-## Upcoming [0.5.0] - tbd
+## Upcoming [0.6.0] - tbd
 
 > [!CAUTION]
 > This update has breaking changes!
 
 ### Added
 
+- Added `GEMINI.md` to store notes about the repository for the Gemini CLI. We are now using the Gemini CLI for development.
+- Added a build script to create a merged firmware file to use with [ESP Web Tools](https://esphome.github.io/esp-web-tools/)
 - Added compatibility with ESP32-C6
+- Added getIP() function to WiFiSettingsService.
 - Added Arduino Log Colors
 - Possibility to add a loop callback to ESP32-Sveltekit to leverage its loop threat. Meant to include custom services so no separate task is needed for them.
 - Change wake-up pin in SleepService during runtime. It is also possible to use the internal pull-up or pull-down resistors now.
 - Get current connection status from ESP32-SvelteKit. Useful for status LED or displays.
 - Battery history graph to gauge battery consumption and device life.
+- Add a status topic (`online` or `offline`) to the MQTT client. It retains its message and sends `offline` as last will and testament, signalling all subscribers when it goes missing.
 - FeatureService sends updates through the event system.
 - WiFiSettingsService can set the WiFi station mode to offline, without deleting the list of networks.
 - Expands menu on selected subitem [#77](https://github.com/theelims/ESP32-sveltekit/pull/77)
+- Refactor System Status and Metrics, added PSRAM [#79](https://github.com/theelims/ESP32-sveltekit/pull/79)
+- Add /rest/coreDump endpoint [#87](https://github.com/theelims/ESP32-sveltekit/pull/87)
+- Rate limiting for MQTT publish messages. Can be configured as factory setting or at runtime. `0` will disable the rate limiting.
 - Added build flag `-D TELEPLOT_TASKS` to plot task heap high water mark with teleplot. You can include this in your tasks as well:
 
 ```cpp
@@ -37,21 +44,33 @@ All notable changes to this project will be documented in this file.
 - MQTT library updated
 - Analytics task was refactored into a loop() function which is called by the ESP32-sveltekit main task.
 - Updated PsychicHttp to v1.2.1 incl. patches.
-- Updated DaisyUI
+- Updated to DaisyUI 5 and Tailwind CSS 4
 - Updated Svelte 5 --> see [Svelte 5 Migration Guide](https://svelte.dev/docs/svelte/v5-migration-guide)
-- Changed platform to latest stable espressif32 6.8.1
+- Changed platform to [PIO Arduino](https://github.com/pioarduino/platform-espressif32) using Arduino 3 Core. Also upgrades ESP-IDF to v5.
+- ESPD_LOGx: replace first argument with TAG and define TAG as 🐼 [#85](https://github.com/theelims/ESP32-sveltekit/pull/85)
+- Replace rtc_get_reset_reason(0) with esp_reset_reason() [#86](https://github.com/theelims/ESP32-sveltekit/pull/86)
+- Default build_interface.py script to npm, if no lock file is found.
 
 ### Fixed
 
 - Ensure thread safety for client subscriptions [#58](https://github.com/theelims/ESP32-sveltekit/pull/58)
-- Isolate non-returning functions in new tasks [#62](https://github.com/theelims/ESP32-sveltekit/pull/62)
 - Deferred websocket event connection to after user validation & login [#72](https://github.com/theelims/ESP32-sveltekit/pull/72)
 - Wrong return type battery service
 - Wrong return types in various getService functions.
 - Add file.close in fileHandler handleRequest [#73](https://github.com/theelims/ESP32-sveltekit/pull/73)
 - Fixed bug in WiFiSettingsService preventing discovery of networks other than the first
+- Fixed mixup pull up and pull down when configuring wake up pin in SleepService.cpp
+- Wifi: Multiple edits bug resolved [#79](https://github.com/theelims/ESP32-sveltekit/pull/79)
+
+### Removed
+
+- Removed async workers in PsychicHttp, as these were not used, but caused linker errors.
 
 ### Migration Guide
+
+#### PIO Arduino & ESP-IDF 5
+
+The firmware is based on the community maintained fork [PIO Arduino](https://github.com/pioarduino/platform-espressif32) of Arduino 3 for ESP32. Which is based on ESP-IDF 5. Please make sure all your dependencies and application code is compatible with ESP-IDF 5.
 
 #### Frontend
 
@@ -63,6 +82,16 @@ To migrate your frontend run
 npm install --force
 npx sv migrate svelte-5
 ```
+
+Also DaisyUI and Tailwind CSS have been updated to their last major versions. Run the official Tailwind upgrade tool:
+
+```
+npx @tailwindcss/upgrade
+```
+
+This will migrate some of your svelte files to the new naming convention of Tailwind. For DaisyUI follow this [guide](https://daisyui.com/docs/upgrade/#changes-from-v4). Likely you'll need to redo all forms, as the components behave differently. Forms will need the `fieldset` class. Inputs will need an additional `w-full` to have the same behavior as before. And [labels](https://daisyui.com/components/label/) have a different syntax, too.
+
+The themes are to be found in `app.css` now. Add them back if they had been changed from the default.
 
 ## [0.5.0] - 2024-05-06
 
