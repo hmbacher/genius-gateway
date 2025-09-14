@@ -1,11 +1,11 @@
-- Alarm von einem unbekannten Gerät und Add Unknown Device ist konfiguriert
+X Alarm von einem unbekannten Gerät und Add Unknown Device ist konfiguriert
     o Device wird hinzugefügt
     o /config und /state topic werden über MQTT verteilt
     o Alarm wird gesetzt
     o /state config wird aktualisiert
     o Alarm-Event geht an FE
 
-- Alarm von einem unbekannten Gerät und Add Unknown Device ist NICHT konfiguiert 
+X Alarm von einem unbekannten Gerät und Add Unknown Device ist NICHT konfiguiert 
     o Device wird NICHT hinzugefügt
     o /config und /state topic werden NICHT über MQTT verteilt
     o Alarm wird NICHT gesetzt
@@ -13,7 +13,7 @@
     o Alarm-Event geht NICHT an FE
 
 - Alarm
-    - Alarm
+    X Alarm
         o WS Event geht an FE
         --> Reload der devices
         --> Alarm-Status in Statusbar
