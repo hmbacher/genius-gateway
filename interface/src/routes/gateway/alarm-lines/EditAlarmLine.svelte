@@ -24,21 +24,28 @@
 		title,
 		onSaveAlarmLine,
 		existingAlarmLines,
-		alarmLine = $bindable({
-				id: 0,
-				name: '',
-				created: new Date(),
-				acquisition: AlarmLineAcquisition.Manual	// Default to manually added
-			})
+		alarmLine: _alarmLine = {
+			id: 0,
+			name: '',
+			created: new Date(),
+			acquisition: AlarmLineAcquisition.Manual // Default to manually added
+		}
 	}: Props = $props();
+	
+	// Make passed object reactive in EditAlarmLine modal
+	// https://github.com/sveltejs/svelte/issues/12320
+	let alarmLine = $state(_alarmLine);	
 
-	let _orgID = $state.snapshot(alarmLine.id);	// Store the original ID to check for duplicates
+	let _orgID = $state.snapshot(alarmLine.id); // Store the original ID to check for duplicates
 
 	let minID = 0x00000001;
 	let maxID = 0xfffffffe;
 
 	let minNameLength = 1;
 	let maxNameLength = 100;
+
+	// Use this to directly access the form's DOM element
+	let formField: any = $state();
 
 	let formErrors = $state({
 		id: {
@@ -79,15 +86,14 @@
 			<h2 class="text-base-content text-start text-2xl font-bold">{title}</h2>
 			<div class="divider my-2"></div>
 			<form
-				class="form-control text-base-content mb-1 w-full"
+				class="fieldset"
 				onsubmit={preventDefault(() => onSaveAlarmLine(alarmLine))}
 				novalidate
+				bind:this={formField}
 			>
 				<div class="flex flex-col gap-2">
 					<div class="flex-1">
-						<label class="label" for="radioModuleSN">
-							<span class="label-text text-md">ID</span>
-						</label>
+						<label class="label" for="AlarmLineID">ID</label>
 						<input
 							type="number"
 							placeholder="Provide a unique ID for the alarm line"
@@ -99,7 +105,7 @@
 								? 'border-error border-2'
 								: ''}"
 							bind:value={alarmLine.id}
-							id="AlramLineID"
+							id="AlarmLineID"
 							oninput={() => {
 								formErrors.id.range = alarmLine.id < minID || alarmLine.id > maxID;
 								formErrors.id.exists = idExists(alarmLine.id);
@@ -108,8 +114,8 @@
 						/>
 						{#if formErrors.id.range}
 							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="AlramLineID" class="label">
-									<span class="label-text-alt text-error text-xs text-wrap">
+								<label for="AlarmLineID" class="label">
+									<span class="text-error text-wrap">
 										The alarm line ID must be a valid number between {minID} and
 										{maxID}.
 									</span>
@@ -117,8 +123,8 @@
 							</div>
 						{:else if formErrors.id.exists}
 							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="AlramLineID" class="label">
-									<span class="label-text-alt text-error text-xs text-wrap">
+								<label for="AlarmLineID" class="label">
+									<span class="text-error text-wrap">
 										This alarm line ID is already registered.
 									</span>
 								</label>
@@ -126,9 +132,7 @@
 						{/if}
 					</div>
 					<div class="flex-1">
-						<label class="label" for="location">
-							<span class="label-text text-md">Name</span>
-						</label>
+						<label class="label" for="AlarmLineName">Name</label>
 						<input
 							type="text"
 							placeholder="Provide a name for the alarm line"
@@ -146,7 +150,7 @@
 						{#if formErrors.name}
 							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 								<label for="AlarmLineName" class="label">
-									<span class="label-text-alt text-error text-xs text-wrap">
+									<span class="text-error text-wrap">
 										Please set a name of length between {minNameLength} and
 										{maxNameLength} characters.
 									</span>

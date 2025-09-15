@@ -31,7 +31,7 @@
 		isOpen,
 		title,
 		onSaveGeniusDevice,
-		geniusDevice = $bindable({
+		geniusDevice: _geniusDevice = {
 			smokeDetector: {
 				model: GeniusSmokeDetector.GeniusPlusX,
 				sn: 0,
@@ -45,8 +45,12 @@
 			location: '',
 			registration: GeniusDeviceRegistration.Manual, // Default to manual registration
 			alarms: [] as GeniusAlarm[] // No alarms by default
-		} as GeniusDevice)
+		} as GeniusDevice
 	}: Props = $props();
+
+	// Make passed object reactive in EditSmokeDetector modal
+	// https://github.com/sveltejs/svelte/issues/12320
+	let geniusDevice = $state(_geniusDevice);
 
 	let smokeDetectorModels = [
 		{
@@ -67,6 +71,9 @@
 
 	let minLocationLength = 1;
 	let maxLocationLength = 40;
+
+	// Use this to directly access the form's DOM element
+	let formField: any = $state();
 
 	let formErrors = $state({
 		smokeDetector: {
@@ -157,11 +164,7 @@
 		>
 			<h2 class="text-base-content text-start text-2xl font-bold">{title}</h2>
 			<div class="divider my-2"></div>
-			<form
-				class="form-control text-base-content mb-1 w-full"
-				onsubmit={preventDefault(handleSave)}
-				novalidate
-			>
+			<form class="fieldset" onsubmit={preventDefault(handleSave)} novalidate bind:this={formField}>
 				<span class="inline-flex items-baseline">
 					<IconSmokeDetector class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 					<span class="text-xl font-semibold">Smoke Detector</span>
@@ -169,9 +172,7 @@
 
 				<div class="flex flex-col lg:flex-row lg:gap-4">
 					<div class="flex-1">
-						<label class="label" for="smokeDetectorModel">
-							<span class="label-text">Model</span>
-						</label>
+						<label class="label" for="smokeDetectorModel">Model</label>
 						<select
 							class="select"
 							id="smokeDetectorModel"
@@ -186,9 +187,7 @@
 					</div>
 
 					<div class="flex-1">
-						<label class="label" for="smokeDetectorProductionDate">
-							<span class="label-text text-md">Production Date</span>
-						</label>
+						<label class="label" for="smokeDetectorProductionDate">Production Date</label>
 						{#if geniusDevice.smokeDetector.productionDate}
 							<DateInput
 								bind:date={geniusDevice.smokeDetector.productionDate}
@@ -197,13 +196,7 @@
 							{#if formErrors.smokeDetector.productionDate}
 								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 									<label for="smokeDetectorProductionDate" class="label">
-										<span
-											class="label-text-alt text-error {formErrors.smokeDetector.productionDate
-												? ''
-												: 'hidden'}"
-										>
-											Please set a valid date.
-										</span>
+										<span class="text-error text-wrap"> Please set a valid date. </span>
 									</label>
 								</div>
 							{/if}
@@ -218,9 +211,7 @@
 					</div>
 
 					<div class="flex-1">
-						<label class="label" for="smokeDetectorSN">
-							<span class="label-text text-md">Serial Number</span>
-						</label>
+						<label class="label" for="smokeDetectorSN">Serial Number</label>
 						<input
 							type="number"
 							min={minSN}
@@ -232,9 +223,7 @@
 						{#if formErrors.smokeDetector.sn}
 							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 								<label for="smokeDetectorSN" class="label">
-									<span
-										class="label-text-alt text-error {formErrors.smokeDetector.sn ? '' : 'hidden'}"
-									>
+									<span class="text-error text-wrap">
 										The serial number must be a valid number between <em>{minSN}</em> and
 										<em>{maxSN}</em>.
 									</span>
@@ -261,9 +250,7 @@
 
 				<div class="flex flex-col lg:flex-row lg:gap-4">
 					<div class="flex-1">
-						<label class="label" for="radioModuleModel">
-							<span class="label-text">Model</span>
-						</label>
+						<label class="label" for="radioModuleModel">Model</label>
 						<select
 							class="select"
 							id="radioModuleModel"
@@ -278,9 +265,7 @@
 					</div>
 
 					<div class="flex-1">
-						<label class="label" for="radioModuleProductionDate">
-							<span class="label-text text-md">Production Date</span>
-						</label>
+						<label class="label" for="radioModuleProductionDate">Production Date</label>
 						{#if geniusDevice.radioModule.productionDate}
 							<DateInput
 								bind:date={geniusDevice.radioModule.productionDate}
@@ -289,13 +274,7 @@
 							{#if formErrors.radioModule.productionDate}
 								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 									<label for="radioModuleProductionDate" class="label">
-										<span
-											class="label-text-alt text-error {formErrors.radioModule.productionDate
-												? ''
-												: 'hidden'}"
-										>
-											Please set a valid date.
-										</span>
+										<span class="text-error text-wrap"> Please set a valid date. </span>
 									</label>
 								</div>
 							{/if}
@@ -310,9 +289,7 @@
 					</div>
 
 					<div class="flex-1">
-						<label class="label" for="radioModuleSN">
-							<span class="label-text text-md">Serial Number</span>
-						</label>
+						<label class="label" for="radioModuleSN">Serial Number</label>
 						<input
 							type="number"
 							min={minSN}
@@ -324,11 +301,8 @@
 						{#if formErrors.radioModule.sn}
 							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 								<label for="radioModuleSN" class="label">
-									<span
-										class="label-text-alt text-error {formErrors.radioModule.sn ? '' : 'hidden'}"
-									>
-										The radio module serial number must be a valid number between <em>{minSN}</em>
-										and
+									<span class="text-error text-wrap">
+										The serial number must be a valid number between <em>{minSN}</em> and
 										<em>{maxSN}</em>.
 									</span>
 								</label>
@@ -345,9 +319,7 @@
 				</span>
 
 				<div>
-					<label class="label" for="location">
-						<span class="label-text text-md">Mounting location (e.g. Living room)</span>
-					</label>
+					<label class="label" for="location">Mounting location (e.g. Living room)</label>
 					<input
 						type="text"
 						min="1"
@@ -359,7 +331,7 @@
 					{#if formErrors.location}
 						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 							<label for="location" class="label">
-								<span class="label-text-alt text-error {formErrors.location ? '' : 'hidden'}">
+								<span class="text-error text-wrap">
 									Please set a location of length between <em>{minLocationLength}</em> and
 									<em>{maxLocationLength}</em> characters.
 								</span>
