@@ -114,6 +114,10 @@ private:
   CC1101Controller _cc1101Controller;
   AlarmBlocker _alarmBlocker;
 
+  // Packet duplicate detection using XOR hash
+  uint32_t _lastPacketHash;
+  bool _hasLastPacketHash;
+
   esp_err_t _handleEndAlarming(PsychicRequest *request, JsonVariant &json);
   esp_err_t _handleEndBlocking(PsychicRequest *request);
 

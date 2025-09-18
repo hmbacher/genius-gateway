@@ -1,6 +1,7 @@
 #include <GeniusGateway.h>
 #include <GatewaySettingsService.h>
 #include <IPUtils.h>
+#include <Utils.hpp>
 
 TaskHandle_t GeniusGateway::xRxTaskHandle = NULL;
 
@@ -30,7 +31,9 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
                                                           _cc1101Controller(sveltekit),
                                                           _alarmBlocker(sveltekit),
                                                           _eventSocket(sveltekit->getSocket()),
-                                                          _featureService(sveltekit->getFeatureService())
+                                                          _featureService(sveltekit->getFeatureService()),
+                                                          _lastPacketHash(0),
+                                                          _hasLastPacketHash(false)
 {
 }
 
@@ -374,77 +377,102 @@ void GeniusGateway::_rx_packets()
             // Fetch the packet
             if (cc1101_receive_data(&packet) == ESP_OK)
             {
-                genius_packet_t packet_details;
-                if (_genius_analyze_packet_data(packet.data, packet.length, &packet_details) == ESP_OK)
-                {
-                    if (packet_details.type == HPT_COMMISSIONING)
+                // Duplicate detection using optimized XOR hash
+                bool isDuplicate = false;
+                if (packet.length > 3)
+                {                    
+                    // Skip first 3 bytes of packet data as first byte is always 0x02 and
+                    // bytes 2-3 are some kind of a varying packet counter
+                    uint32_t currentHash = Utils::xorHash(packet.data + 3, packet.length - 3);
+
+                    if (_hasLastPacketHash && currentHash == _lastPacketHash)
                     {
-                        /* Store new alarm line id */
-                        if (_gatewaySettings.isAddAlarmLineFromCommissioningPacketEnabled())
-                        {
-                            uint32_t newLineID = EXTRACT32(packet.data, DATAPOS_COMISSIONING_NEW_LINE_ID);
-                            snprintf(lineName, sizeof(lineName), "Added from received comissioning packet", newLineID);
-                            _alarmLines.addAlarmLine(newLineID, String(lineName), ALA_GENIUS_PACKET);
-                        }
+                        isDuplicate = true;
+                        ESP_LOGD(TAG, "Duplicate packet detected (hash: 0x%08X)", currentHash);
                     }
-                    else if (packet_details.type == HPT_ALARM_START || packet_details.type == HPT_ALARM_STOP)
+                    else
                     {
-                        uint32_t source_id = EXTRACT32_REV(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
+                        _lastPacketHash = currentHash;
+                        _hasLastPacketHash = true;
+                        ESP_LOGV(TAG, "New packet hash: 0x%08X", currentHash);
+                    }
+                }
 
-                        if (GATEWAY_ID != source_id) // only proceed for alarming/silencing packets NOT originating from Genius Gateway itself
+                // Only process packet if it's not a duplicate, i.e. repeated packet
+                if (!isDuplicate)
+                {
+                    genius_packet_t packet_details;
+                    if (_genius_analyze_packet_data(packet.data, packet.length, &packet_details) == ESP_OK)
+                    {
+                        if (packet_details.type == HPT_COMMISSIONING)
                         {
-                            if (packet_details.type == HPT_ALARM_START)
+                            /* Store new alarm line id */
+                            if (_gatewaySettings.isAddAlarmLineFromCommissioningPacketEnabled())
                             {
-                                bool isDetectorKnown = _gatewayDevices.isSmokeDetectorKnown(source_id);
+                                uint32_t newLineID = EXTRACT32(packet.data, DATAPOS_COMISSIONING_NEW_LINE_ID);
+                                snprintf(lineName, sizeof(lineName), "Added from received comissioning packet", newLineID);
+                                _alarmLines.addAlarmLine(newLineID, String(lineName), ALA_GENIUS_PACKET);
+                            }
+                        }
+                        else if (packet_details.type == HPT_ALARM_START || packet_details.type == HPT_ALARM_STOP)
+                        {
+                            uint32_t source_id = EXTRACT32_REV(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
 
-                                bool deviceAdded = false;
-                                if (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
+                            if (GATEWAY_ID != source_id) // only proceed for alarming/silencing packets NOT originating from Genius Gateway itself
+                            {
+                                if (packet_details.type == HPT_ALARM_START)
                                 {
-                                    uint32_t snRM = EXTRACT32(packet.data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
-                                    deviceAdded = _gatewayDevices.AddGeniusDevice(snRM, source_id);
-                                    isDetectorKnown = true; // Now we know the detector, as it was intentionally added
+                                    bool isDetectorKnown = _gatewayDevices.isSmokeDetectorKnown(source_id);
+
+                                    bool deviceAdded = false;
+                                    if (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
+                                    {
+                                        uint32_t snRM = EXTRACT32(packet.data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
+                                        deviceAdded = _gatewayDevices.AddGeniusDevice(snRM, source_id);
+                                        isDetectorKnown = true; // Now we know the detector, as it was intentionally added
+                                    }
+
+                                    /* Set/Reset alarm */
+                                    if (isDetectorKnown)
+                                    {
+                                        const GeniusDevice *dev = _gatewayDevices.setAlarm(source_id);
+                                        if (dev)
+                                            _mqttPublishDevices(dev, !deviceAdded);
+                                    }
                                 }
-
-                                /* Set/Reset alarm */
-                                if (isDetectorKnown)
+                                else // packet_details.type == HPT_ALARM_SILENCING
                                 {
-                                    const GeniusDevice *dev = _gatewayDevices.setAlarm(source_id);
+                                    const GeniusDevice *dev = _gatewayDevices.resetAlarm(source_id, GAE_BY_SMOKE_DETECTOR);
                                     if (dev)
-                                        _mqttPublishDevices(dev, !deviceAdded);
+                                        _mqttPublishDevices(dev, true);
+                                }
+
+                                /* Emit alarm state to front end */
+                                _emitAlarmState(); // TODO: Is this necessary on every single packet???
+
+                                /* Store alarm line id */
+                                if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
+                                {
+                                    uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
+                                    snprintf(lineName, sizeof(lineName), "Added from received alarming/silencing packet", lineID);
+                                    _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
                                 }
                             }
-                            else // packet_details.type == HPT_ALARM_SILENCING
-                            {
-                                const GeniusDevice *dev = _gatewayDevices.resetAlarm(source_id, GAE_BY_SMOKE_DETECTOR);
-                                if (dev)
-                                    _mqttPublishDevices(dev, true);
-                            }
-
-                            /* Emit alarm state to front end */
-                            _emitAlarmState(); // TODO: Is this necessary on every single packet???
-
-                            /* Store alarm line id */
-                            if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
+                        }
+                        else if (packet_details.type == HPT_LINE_TEST_START ||
+                                 packet_details.type == HPT_LINE_TEST_STOP)
+                        {
+                            if (_gatewaySettings.isAddAlarmLineFromLineTestPacketEnabled())
                             {
                                 uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
-                                snprintf(lineName, sizeof(lineName), "Added from received alarming/silencing packet", lineID);
+                                snprintf(lineName, sizeof(lineName), "Added from received line test packet", lineID);
                                 _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
                             }
                         }
                     }
-                    else if (packet_details.type == HPT_LINE_TEST_START ||
-                             packet_details.type == HPT_LINE_TEST_STOP)
-                    {
-                        if (_gatewaySettings.isAddAlarmLineFromLineTestPacketEnabled())
-                        {
-                            uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
-                            snprintf(lineName, sizeof(lineName), "Added from received line test packet", lineID);
-                            _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
-                        }
-                    }
-                }
+                } // End of !isDuplicate check
 
-                /* Send data to WebSocket logger */
+                /* Send data to WebSocket logger - log ALL packets including duplicates */
                 gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 1); // Temporary: Measuring execution time
                 _wsLogger.logPacket(&packet);
                 gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0); // Temporary: Measuring execution time

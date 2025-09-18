@@ -11,8 +11,6 @@ time_t Utils::iso8601_to_time_t(const String& iso8601_date) {
     tm.tm_year -= 1900; // Adjust year
     tm.tm_mon -= 1;     // Adjust month (0-based)
     return mktime(&tm);
-
-    // TODO: Time Zone correction?
 }
 
 String Utils::time_t_to_iso8601(time_t time_s) {
@@ -20,6 +18,55 @@ String Utils::time_t_to_iso8601(time_t time_s) {
     char buf[25];
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S.000Z", tm);
     return String(buf);
+}
 
-    // TODO: Time Zone correction?
+uint32_t Utils::xorHash(const uint8_t* data, size_t length) {
+    if (!data || length == 0) {
+        return 0;
+    }
+    
+    uint32_t hash = 0;
+    const uint8_t* current = data;
+    size_t remaining = length;
+    
+    // HEAD: Process initial unaligned bytes to reach 4-byte boundary
+    uintptr_t alignment = (uintptr_t)current & 3;
+    if (alignment != 0 && remaining > 0) {
+        size_t bytesToAlign = 4 - alignment;
+        size_t alignBytes = (bytesToAlign < remaining) ? bytesToAlign : remaining;
+        
+        for (size_t i = 0; i < alignBytes; i++) {
+            hash ^= current[i] << ((i & 3) * 8);
+        }
+        
+        current += alignBytes;
+        remaining -= alignBytes;
+    }
+    
+    // BULK: Process aligned data using fast 32-bit word operations
+    if (remaining >= 4) {
+        const uint32_t* words = (const uint32_t*)current;
+        size_t wordCount = remaining / 4;
+        
+        // Process full 32-bit words
+        for (size_t i = 0; i < wordCount; i++) {
+            hash ^= words[i];
+        }
+        
+        current += wordCount * 4;
+        remaining -= wordCount * 4;
+    }
+    
+    // TAIL: Process remaining bytes (0-3 bytes)
+    if (remaining > 0) {
+        uint32_t tailWord = 0;
+        switch (remaining) {
+            case 3: tailWord |= current[2] << 16; [[fallthrough]];
+            case 2: tailWord |= current[1] << 8;  [[fallthrough]];
+            case 1: tailWord |= current[0];       break;
+        }
+        hash ^= tailWord;
+    }
+    
+    return hash;
 }
