@@ -287,6 +287,7 @@
 	}
 
 	let files: any = $state();
+	let fileInput = $state<HTMLInputElement>();
 
 	$effect(() => {
 		if (files) {
@@ -303,22 +304,27 @@
 						postAlarmLines(alarmLines);
 					} else {
 						notifications.error('Invalid alarm lines format.', 3000);
-						files = null; // Reset files to allow re-selection
 					}
 				} catch (error) {
 					console.error('Error parsing file:', error);
 					notifications.error('Error parsing file.', 3000);
 				}
 
-				// Reset files after processing to allow re-selection of the same file
+				// Reset files and clear input value to allow re-selection of the same file
 				files = null;
+				if (fileInput) {
+					fileInput.value = '';
+				}
 			};
 
 			reader.onerror = (ev) => {
 				console.log('Error reading the file:', ev);
 				notifications.error('Error reading file.', 3000);
-				// Reset files on error to allow re-selection
+				// Reset files and clear input value on error to allow re-selection
 				files = null;
+				if (fileInput) {
+					fileInput.value = '';
+				}
 			};
 
 			reader.readAsText(files[0]);
@@ -355,7 +361,7 @@
 							<label for="upload" class="btn btn-primary text-primary-content btn-md">
 								<Load class="h-6 w-6" />
 							</label>
-							<input bind:files id="upload" type="file" class="hidden" />
+							<input bind:files bind:this={fileInput} id="upload" type="file" class="hidden" />
 						</div>
 						<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
 							<button
