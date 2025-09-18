@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+
 	import { modals } from 'svelte-modals';
 	import { fly } from 'svelte/transition';
 	import { slide } from 'svelte/transition';
@@ -10,6 +10,7 @@
 		GeniusSmokeDetector,
 		GeniusRadioModule
 	} from '$lib/types/enums';
+	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import DateInput from '$lib/components/DateInput.svelte';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
@@ -32,6 +33,7 @@
 		title,
 		onSaveGeniusDevice,
 		geniusDevice: _geniusDevice = {
+			id: 0,
 			smokeDetector: {
 				model: GeniusSmokeDetector.GeniusPlusX,
 				sn: 0,
@@ -51,6 +53,24 @@
 	// Make passed object reactive in EditSmokeDetector modal
 	// https://github.com/sveltejs/svelte/issues/12320
 	let geniusDevice = $state(_geniusDevice);
+
+	// Generate unique device ID with collision detection
+	function generateUniqueDeviceId(): number {
+		// Use 32-bit unsigned integer arithmetic to match backend (uint32_t)
+		let candidateId = (Math.floor(Date.now() / 1000) >>> 0); // >>> 0 converts to uint32
+		
+		// Simple linear scan for collision detection - efficient for small device counts
+		while (geniusDevices.devices.some(device => device.id === candidateId)) {
+			candidateId = (candidateId + 1) >>> 0; // Ensure 32-bit wraparound
+		}
+		
+		return candidateId;
+	}
+
+	// Generate unique ID for new devices (when id is 0 or undefined)
+	if (!geniusDevice.id || geniusDevice.id === 0) {
+		geniusDevice.id = generateUniqueDeviceId();
+	}
 
 	let smokeDetectorModels = [
 		{
@@ -78,10 +98,12 @@
 	let formErrors = $state({
 		smokeDetector: {
 			sn: false,
+			snDuplicate: false,
 			productionDate: false
 		},
 		radioModule: {
 			sn: false,
+			snDuplicate: false,
 			productionDate: false
 		},
 		location: false
@@ -99,13 +121,35 @@
 			formErrors.smokeDetector.sn = false;
 		}
 
+		// Check for duplicate smoke detector serial number
+		const duplicateSmokeDetectorSN = geniusDevices.devices.some(device => 
+			device.id !== geniusDevice.id && device.smokeDetector.sn === geniusDevice.smokeDetector.sn
+		);
+		if (duplicateSmokeDetectorSN) {
+			formErrors.smokeDetector.snDuplicate = true;
+			valid = false;
+		} else {
+			formErrors.smokeDetector.snDuplicate = false;
+		}
+
 		// --- Validate Radio Module
-		// Validate if smoke detector SN is within range
+		// Validate if radio module SN is within range
 		if (geniusDevice.radioModule.sn < minSN || geniusDevice.radioModule.sn.length > maxSN) {
 			formErrors.radioModule.sn = true;
 			valid = false;
 		} else {
 			formErrors.radioModule.sn = false;
+		}
+
+		// Check for duplicate radio module serial number
+		const duplicateRadioModuleSN = geniusDevices.devices.some(device => 
+			device.id !== geniusDevice.id && device.radioModule.sn === geniusDevice.radioModule.sn
+		);
+		if (duplicateRadioModuleSN) {
+			formErrors.radioModule.snDuplicate = true;
+			valid = false;
+		} else {
+			formErrors.radioModule.snDuplicate = false;
 		}
 
 		// --- Validate Production Date
@@ -230,6 +274,15 @@
 								</label>
 							</div>
 						{/if}
+						{#if formErrors.smokeDetector.snDuplicate}
+							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+								<label for="smokeDetectorSN" class="label">
+									<span class="text-error text-wrap">
+										This smoke detector serial number is already used by another device.
+									</span>
+								</label>
+							</div>
+						{/if}
 					</div>
 				</div>
 
@@ -304,6 +357,15 @@
 									<span class="text-error text-wrap">
 										The serial number must be a valid number between <em>{minSN}</em> and
 										<em>{maxSN}</em>.
+									</span>
+								</label>
+							</div>
+						{/if}
+						{#if formErrors.radioModule.snDuplicate}
+							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+								<label for="radioModuleSN" class="label">
+									<span class="text-error text-wrap">
+										This radio module serial number is already used by another device.
 									</span>
 								</label>
 							</div>

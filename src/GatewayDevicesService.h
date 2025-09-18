@@ -110,17 +110,21 @@ class GeniusDevice
 public:
     GeniusDevice(const GeniusComponent<GeniusSmokeDetector> &smokeDetector,
                  const GeniusComponent<GeniusRadioModule> &radioModule,
-                 const String &location) : smokeDetector(smokeDetector),
-                                           radioModule(radioModule),
-                                           location(location),
-                                           isAlarming(false),
-                                           registration(GDR_MANUAL)
-
+                 const String &location,
+                 uint32_t id = 0) : smokeDetector(smokeDetector),
+                                   radioModule(radioModule),
+                                   location(location),
+                                   id(id), // Use provided ID (from JSON) or will be set by service
+                                   registration(GDR_MANUAL),
+                                   isAlarming(false),
+                                   published(false)
     {
     }
 
     void toJson(JsonObject &root)
     {
+        // Device ID (for internal tracking, not user-editable)
+        root["id"] = this->id;
         // Smoke detector
         JsonObject smokeDetector = root["smokeDetector"].to<JsonObject>();
         this->smokeDetector.toJson(smokeDetector);
@@ -145,12 +149,14 @@ public:
         }
     }
 
+    uint32_t id; // Unique identifier for device (auto-generated, immutable)
     GeniusComponent<GeniusSmokeDetector> smokeDetector;
     GeniusComponent<GeniusRadioModule> radioModule;
     String location;
     std::vector<genius_device_alarm_t> alarms;
     genius_device_registration_t registration;
     bool isAlarming;
+    bool published; // Whether the current device configuration has been published via MQTT
 };
 
 class GeniusDevices
@@ -173,82 +179,7 @@ public:
         ESP_LOGV(GeniusDevices::TAG, "Smoke detector devices configurations read.");
     }
 
-    static StateUpdateResult update(JsonObject &root, GeniusDevices &geniusDevices)
-    {
-        if (root["devices"].is<JsonArray>())
-        {
-            geniusDevices.devices.clear();
-
-            // iterate over devices
-            int i = 0;
-            for (JsonVariant jsonDeviceArrItem : root["devices"].as<JsonArray>())
-            {
-                if (i++ >= GATEWAY_MAX_DEVICES)
-                {
-                    ESP_LOGE(GeniusDevices::TAG, "Too many smoke detector devices. Maximum allowed is %d.", GATEWAY_MAX_DEVICES);
-                    break;
-                }
-
-                JsonObject smokeDetector = jsonDeviceArrItem["smokeDetector"].as<JsonObject>();
-                JsonObject radioModule = jsonDeviceArrItem["radioModule"].as<JsonObject>();
-
-                GeniusDevice newDevice = GeniusDevice(
-                    GeniusComponent<GeniusSmokeDetector>(
-                        static_cast<GeniusSmokeDetector>(smokeDetector["model"].as<int>()),
-                        smokeDetector["sn"].as<uint32_t>(),
-                        Utils::iso8601_to_time_t(smokeDetector["productionDate"].as<String>())),
-                    GeniusComponent<GeniusRadioModule>(
-                        static_cast<GeniusRadioModule>(radioModule["model"].as<int>()),
-                        radioModule["sn"].as<uint32_t>(),
-                        Utils::iso8601_to_time_t(radioModule["productionDate"].as<String>())),
-                    jsonDeviceArrItem["location"].as<String>());
-
-                // Is alarming?
-                if (jsonDeviceArrItem["isAlarming"].is<bool>())
-                    newDevice.isAlarming = jsonDeviceArrItem["isAlarming"].as<bool>();
-                else
-                    newDevice.isAlarming = false; // Default to not alarming if not specified
-
-                // Registration type
-                if (jsonDeviceArrItem["registration"].is<int>())
-                    newDevice.registration = static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>());
-                else
-                    newDevice.registration = GDR_MANUAL; // Default to manual registration if not specified
-
-                // Logged Alarms
-                if (jsonDeviceArrItem["alarms"].is<JsonArray>())
-                {
-                    // iterate over alarms
-                    int alarms_count = 0;
-                    for (JsonVariant jsonAlarm : jsonDeviceArrItem["alarms"].as<JsonArray>())
-                    {
-                        if (alarms_count++ >= GATEWAY_MAX_ALARMS)
-                        {
-                            ESP_LOGE(GeniusDevices::TAG, "Too many alarms for a smoke detector devices. Maximum allowed is %d.", GATEWAY_MAX_ALARMS);
-                            break;
-                        }
-
-                        newDevice.alarms.push_back(genius_device_alarm_t{
-                            .startTime = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>()),
-                            .endTime = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>()),
-                            .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
-
-                        alarms_count++;
-                    }
-                }
-
-                geniusDevices.devices.push_back(newDevice);
-
-                ESP_LOGV(GeniusDevices::TAG, "Added smoke detector with SN '%lu'.", geniusDevices.devices.back().smokeDetector.sn);
-
-                i++;
-            }
-        }
-
-        ESP_LOGV(GeniusDevices::TAG, "Smoke detector devices configurations updated.");
-
-        return StateUpdateResult::CHANGED;
-    }
+    static StateUpdateResult update(JsonObject &root, GeniusDevices &geniusDevices);
 };
 
 class GatewayDevicesService : public StatefulService<GeniusDevices>
@@ -267,79 +198,16 @@ public:
 
     bool resetAllAlarms();
 
-    bool isAlarming()
-    {
-        bool isAlarming = false;
+    bool isAlarming();
 
-        beginTransaction();
-        isAlarming = _isAlarming;
-        endTransaction();
+    uint32_t numAlarmingDevices();
 
-        return isAlarming;
-    }
-
-    uint32_t numAlarmingDevices()
-    {
-        uint32_t numAlarming = 0;
-
-        beginTransaction();
-        numAlarming = _numAlarming;
-        endTransaction();
-
-        return numAlarming;
-
-    }
-
-    bool isSmokeDetectorKnown(uint32_t detectorSN)
-    {
-        bool found = false;
-        beginTransaction();
-        for (auto &device : _state.devices)
-        {
-            if (device.smokeDetector.sn == detectorSN)
-            {
-                found = true;
-                break;
-            }
-        }
-        endTransaction();
-        return found;
-    }
+    bool isSmokeDetectorKnown(uint32_t detectorSN);
 
     // Optimized method for MQTT publishing - returns only minimal data needed
-    // If device pointer is provided, returns data only for that specific device
-    // If device is nullptr (default), returns data for all devices
-    std::vector<DeviceMqttData> getDevicesMqttData(const GeniusDevice* device = nullptr)
-    {
-        std::vector<DeviceMqttData> mqttData;
+    std::vector<DeviceMqttData> getDevicesMqttData();
 
-        beginTransaction();
-        
-        if (device == nullptr)
-        {
-            // Return data for all devices
-            mqttData.reserve(_state.devices.size()); // Pre-allocate for efficiency
-            for (const auto &dev : _state.devices)
-            {
-                mqttData.emplace_back(
-                    dev.smokeDetector.sn,
-                    dev.location,
-                    dev.isAlarming);
-            }
-        }
-        else
-        {
-            // Return data for specific device only
-            mqttData.emplace_back(
-                device->smokeDetector.sn,
-                device->location,
-                device->isAlarming);
-        }
-        
-        endTransaction();
-
-        return mqttData;
-    }
+    void setPublished(uint32_t smokeDetectorSN);
 
 private:
     HttpEndpoint<GeniusDevices> _httpEndpoint;
@@ -348,6 +216,7 @@ private:
     uint32_t _numAlarming;
 
     void _updateAlarmingState();
+    uint32_t _generateUniqueDeviceId() const;
 };
 
 #endif // GatewayDevicesService_h

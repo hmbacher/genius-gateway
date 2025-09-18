@@ -161,6 +161,7 @@ export type GeniusComponent = {
 };
 
 export type GeniusDevice = {
+	id: number;
 	smokeDetector: GeniusComponent;
 	radioModule: GeniusComponent;
 	location: string;

@@ -103,7 +103,7 @@ void GeniusGateway::begin()
 
     /* Perform a full publish (all devices and states), if MQTT client connects. */
     _mqttClient->onConnect([this](bool /*sessionPresent*/)
-                           { this->_mqttPublishDevices(); });
+                           { this->_mqttPublishDevices(false, true); });
 
     /* Configure update handler for when the smoke detector devices change.
      * Only updates the MQTT state if the change did not originate from a
@@ -158,7 +158,7 @@ esp_err_t GeniusGateway::_handleEndAlarming(PsychicRequest *request, JsonVariant
 
     if (_gatewayDevices.resetAllAlarms())
     {
-        _mqttPublishDevices(nullptr, true); // Re-Publish all devices' state
+        _mqttPublishDevices(true); // Re-Publish all silenced devices' state
         _emitAlarmState();
     }
 
@@ -201,7 +201,7 @@ void GeniusGateway::_emitAlarmState()
     _eventSocket->emitEvent(GATEWAY_EVENT_ALARM, root);
 }
 
-void GeniusGateway::_mqttPublishDevices(const GeniusDevice *device, bool onlyState)
+void GeniusGateway::_mqttPublishDevices(bool onlyState, bool forceAll)
 {
     if (!_mqttClient->connected())
     {
@@ -212,7 +212,12 @@ void GeniusGateway::_mqttPublishDevices(const GeniusDevice *device, bool onlySta
 
     // Get optimized MQTT data - only the minimal properties needed for publishing,
     // thread-safe and performance optimized
-    std::vector<DeviceMqttData> devicesMqttData = _gatewayDevices.getDevicesMqttData(device);
+    std::vector<DeviceMqttData> devicesMqttData = _gatewayDevices.getDevicesMqttData();
+    if (devicesMqttData.empty())
+    {
+        ESP_LOGV(TAG, "No pending devices, skipping MQTT publish.");
+        return;
+    }
 
     /* Publish Home Assistant compatible topics */
     if (mqttSettings.haMQTTEnabled)
@@ -267,6 +272,9 @@ void GeniusGateway::_mqttPublishDevices(const GeniusDevice *device, bool onlySta
                 String payload;
                 serializeJson(state_jsonDoc, payload);
                 _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str());
+
+                // Set device as published
+                _gatewayDevices.setPublished(deviceData.smokeDetectorSN);
             }
         }
     }
@@ -437,14 +445,14 @@ void GeniusGateway::_rx_packets()
                                     {
                                         const GeniusDevice *dev = _gatewayDevices.setAlarm(source_id);
                                         if (dev)
-                                            _mqttPublishDevices(dev, !deviceAdded);
+                                            _mqttPublishDevices(!deviceAdded);
                                     }
                                 }
                                 else // packet_details.type == HPT_ALARM_SILENCING
                                 {
                                     const GeniusDevice *dev = _gatewayDevices.resetAlarm(source_id, GAE_BY_SMOKE_DETECTOR);
                                     if (dev)
-                                        _mqttPublishDevices(dev, true);
+                                        _mqttPublishDevices(true);
                                 }
 
                                 /* Emit alarm state to front end */
