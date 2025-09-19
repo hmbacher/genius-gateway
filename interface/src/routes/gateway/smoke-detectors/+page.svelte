@@ -11,6 +11,7 @@
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
+	import DraggableList from '$lib/components/DraggableList.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EditSmokeDetector from './EditSmokeDetector.svelte';
 	import AlarmLog from './AlarmLog.svelte';
@@ -23,11 +24,11 @@
 	import Check from '~icons/tabler/check';
 	import Number from '~icons/tabler/number';
 	import Factory from '~icons/tabler/building-factory-2';
+	import Grip from '~icons/tabler/grip-horizontal';
 	import Save from '~icons/tabler/device-floppy';
 	import Load from '~icons/tabler/folder-open';
 	import Manual from '~icons/tabler/forms';
 	import Automatic from '~icons/tabler/access-point';
-	
 
 	interface Props {
 		data: PageData;
@@ -111,6 +112,11 @@
 			title: 'Alarms log',
 			geniusDevice: geniusDevices.devices[index]
 		});
+	}
+
+	function handleDeviceReorder(reorderedDevices: GeniusDevice[]) {
+		geniusDevices.devices = reorderedDevices;
+		//postGeniusDevices();
 	}
 
 	let files: any = $state();
@@ -202,114 +208,153 @@
 					</div>
 				{:else}
 					<div class="overflow-x-auto" transition:slide|local={{ duration: 300, easing: cubicOut }}>
-						<table class="table w-full table-auto">
-							<thead>
-								<tr class="font-bold">
-									<th align="left">Location</th>
-									<th align="left">Smoke Detector</th>
-									<th align="left">Radio Module</th>
-									<th align="center">Alarms</th>
-									<th align="center">Registration</th>
-									<th align="right" class="pr-8">Manage</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each geniusDevices.devices as device, index}
-									<tr>
-										<td
-											align="left"
-											class="font-bold {device.location === 'Unknown location'
-												? 'italic text-base-content/70'
-												: ''}">{device.location}</td
-										>
-										<td align="left">
-											<span class="inline-flex items-baseline">
-												<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.smokeDetector.sn}
-											</span><br />
-											<span class="inline-flex items-baseline">
-												<Factory class="lex-shrink-0 mr-2 h-4 w-4" />
-												{#if !device.smokeDetector.productionDate}
-													<span class="italic text-base-content/70">Unknown</span>
-												{:else}
-													{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
+						<!-- Header row -->
+						<div
+							class="grid grid-cols-[40px_1fr_1fr_1fr_80px_80px_100px] gap-2 bg-base-200 px-4 py-2 rounded-t-lg font-bold text-sm"
+						>
+							<div></div>
+							<!-- Space for grip icon -->
+							<div>Location</div>
+							<div>Smoke Detector</div>
+							<div>Radio Module</div>
+							<div class="text-center">Alarms</div>
+							<div class="text-center">Registration</div>
+							<div class="text-right">Manage</div>
+						</div>
+
+						<!-- Draggable device list -->
+						<DraggableList
+							items={geniusDevices.devices}
+							onReorder={handleDeviceReorder}
+							class="space-y-1"
+						>
+							{#snippet children({ item: device, index }: { item: GeniusDevice; index: number })}
+								<div
+									class="rounded-box bg-base-100 grid grid-cols-[40px_1fr_1fr_1fr_80px_80px_100px] gap-2 px-4 py-2 items-center"
+								>
+									<!-- Drag handle -->
+									<div class="flex items-center justify-center">
+										<Grip class="h-6 w-6 text-base-content/30 cursor-grab" />
+									</div>
+
+									<!-- Location -->
+									<div
+										class="font-bold {device.location === 'Unknown location'
+											? 'italic text-base-content/70'
+											: ''} truncate"
+									>
+										{device.location}
+									</div>
+
+									<!-- Smoke Detector -->
+									<div class="text-sm min-w-0">
+										<div class="flex items-baseline">
+											<Number class="flex-shrink-0 mr-1 h-4 w-4" />
+											<span class="truncate">{device.smokeDetector.sn}</span>
+										</div>
+										<div class="flex items-baseline">
+											<Factory class="flex-shrink-0 mr-1 h-4 w-4" />
+											{#if !device.smokeDetector.productionDate}
+												<span class="italic text-base-content/70">Unknown</span>
+											{:else}
+												<span class="truncate"
+													>{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
 														day: '2-digit',
 														month: '2-digit',
 														year: 'numeric'
-													})}
-												{/if}
-											</span>
-										</td>
-										<td align="left">
-											<span class="inline-flex items-baseline">
-												<Number class="lex-shrink-0 mr-2 h-4 w-4" />{device.radioModule.sn}
-											</span><br />
-											<span class="inline-flex items-baseline">
-												<Factory class="lex-shrink-0 mr-2 h-4 w-4" />
-												{#if !device.radioModule.productionDate}
-													<span class="italic text-base-content/70">Unknown</span>
-												{:else}
-													{device.radioModule.productionDate.toLocaleDateString('de-DE', {
+													})}</span
+												>
+											{/if}
+										</div>
+									</div>
+
+									<!-- Radio Module -->
+									<div class="text-sm min-w-0">
+										<div class="flex items-baseline">
+											<Number class="flex-shrink-0 mr-1 h-4 w-4" />
+											<span class="truncate">{device.radioModule.sn}</span>
+										</div>
+										<div class="flex items-baseline">
+											<Factory class="flex-shrink-0 mr-1 h-4 w-4" />
+											{#if !device.radioModule.productionDate}
+												<span class="italic text-base-content/70">Unknown</span>
+											{:else}
+												<span class="truncate"
+													>{device.radioModule.productionDate.toLocaleDateString('de-DE', {
 														day: '2-digit',
 														month: '2-digit',
 														year: 'numeric'
-													})}
-												{/if}
-											</span>
-										</td>
-										<td align="center">
-											{device.alarms.length}<br />
-											{#if device.alarms.length > 0}
+													})}</span
+												>
+											{/if}
+										</div>
+									</div>
+
+									<!-- Alarms -->
+									<div class="text-center text-sm">
+										<div>{device.alarms.length}</div>
+										{#if device.alarms.length > 0}
+											<div>
 												{device.alarms[device.alarms.length - 1].startTime.toLocaleDateString(
 													'de-DE',
 													{ day: '2-digit', month: '2-digit', year: 'numeric' }
 												)}
-											{/if}
-										</td>
-										<td align="center">
-											{#if device.registration === GeniusDeviceRegistration.Manual}
-												<div class="tooltip tooltip-top" data-tip="Manually added Genius device">
-													<Manual class="h-6 w-6" />
-												</div>
-											{:else if device.registration === GeniusDeviceRegistration.GeniusPacket}
-												<div
-													class="tooltip tooltip-top"
-													data-tip="Genius device added from received alert packet"
-												>
-													<Automatic class="h-6 w-6" />
-												</div>
-											{:else}
-												<span class="italic text-base-content/70">Unknown</span>
-											{/if}
-										</td>
+											</div>
+										{/if}
+									</div>
 
-										<td align="right">
-											<span class="my-auto inline-flex flex-row space-x-2">
-												{#if device.alarms.length > 0}
-													<button
-														class="btn btn-ghost btn-circle btn-xs"
-														onclick={() => handleAlarmLog(index)}
-													>
-														<Logs class="h-6 w-6" />
-													</button>
-												{/if}
+									<!-- Registration -->
+									<div class="text-center">
+										{#if device.registration === GeniusDeviceRegistration.Manual}
+											<div class="tooltip tooltip-top" data-tip="Manually added Genius device">
+												<Manual class="h-6 w-6 mx-auto" />
+											</div>
+										{:else if device.registration === GeniusDeviceRegistration.GeniusPacket}
+											<div
+												class="tooltip tooltip-top"
+												data-tip="Genius device added from received alert packet"
+											>
+												<Automatic class="h-6 w-6 mx-auto" />
+											</div>
+										{:else}
+											<span class="italic text-base-content/70">Unknown</span>
+										{/if}
+									</div>
+
+									<!-- Manage buttons -->
+									<div class="text-right">
+										<span class="inline-flex flex-row space-x-1">
+											{#if device.alarms.length > 0}
 												<button
 													class="btn btn-ghost btn-circle btn-xs"
-													onclick={() => handleEdit(index)}
+													onclick={() => {
+														handleAlarmLog(index);
+													}}
 												>
-													<Edit class="h-6 w-6" />
+													<Logs class="h-4 w-4" />
 												</button>
-												<button
-													class="btn btn-ghost btn-circle btn-xs"
-													onclick={() => confirmDelete(index)}
-												>
-													<Delete class="text-error h-6 w-6" />
-												</button>
-											</span>
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
+											{/if}
+											<button
+												class="btn btn-ghost btn-circle btn-xs"
+												onclick={() => {
+													handleEdit(index);
+												}}
+											>
+												<Edit class="h-6 w-6" />
+											</button>
+											<button
+												class="btn btn-ghost btn-circle btn-xs"
+												onclick={() => {
+													confirmDelete(index);
+												}}
+											>
+												<Delete class="text-error h-6 w-6" />
+											</button>
+										</span>
+									</div>
+								</div>
+							{/snippet}
+						</DraggableList>
 					</div>
 				{/if}
 			</div>
