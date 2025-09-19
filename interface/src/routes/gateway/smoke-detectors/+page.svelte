@@ -207,7 +207,7 @@
 						<p class="mx-20 text-center">Click the "+" button to add your first smoke detector.</p>
 					</div>
 				{:else}
-					<div class="overflow-x-auto" transition:slide|local={{ duration: 300, easing: cubicOut }}>
+					<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<!-- Header row -->
 						<div
 							class="grid grid-cols-[40px_1fr_1fr_1fr_80px_80px_100px] gap-2 bg-base-200 px-4 py-2 rounded-t-lg font-bold text-sm"
