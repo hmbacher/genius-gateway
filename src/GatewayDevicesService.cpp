@@ -143,7 +143,7 @@ bool GatewayDevicesService::resetAllAlarms()
 
             updated = true;
 
-            ESP_LOGV(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", detectorSN);
+            ESP_LOGV(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", device.smokeDetector.sn);
         }
     }
     _isAlarming = false;

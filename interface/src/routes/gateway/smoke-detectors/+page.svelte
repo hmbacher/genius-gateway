@@ -210,7 +210,7 @@
 					<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<!-- Header row -->
 						<div
-							class="grid grid-cols-[40px_1fr_1fr_1fr_80px_80px_100px] gap-2 bg-base-200 px-4 py-2 rounded-t-lg font-bold text-sm"
+							class="grid grid-cols-[30px_1fr_1fr_1fr_65px_80px_100px] gap-2 bg-base-200 px-4 py-2 rounded-t-lg font-bold text-sm"
 						>
 							<div></div>
 							<!-- Space for grip icon -->
@@ -230,7 +230,7 @@
 						>
 							{#snippet children({ item: device, index }: { item: GeniusDevice; index: number })}
 								<div
-									class="rounded-box bg-base-100 grid grid-cols-[40px_1fr_1fr_1fr_80px_80px_100px] gap-2 px-4 py-2 items-center"
+									class="rounded-box bg-base-100 grid grid-cols-[30px_1fr_1fr_1fr_65px_80px_100px] gap-2 px-4 py-2 items-center"
 								>
 									<!-- Drag handle -->
 									<div class="flex items-center justify-center">
@@ -239,7 +239,7 @@
 
 									<!-- Location -->
 									<div
-										class="font-bold {device.location === 'Unknown location'
+										class="text-sm font-bold {device.location === 'Unknown location'
 											? 'italic text-base-content/70'
 											: ''} truncate"
 									>
@@ -248,11 +248,11 @@
 
 									<!-- Smoke Detector -->
 									<div class="text-sm min-w-0">
-										<div class="flex items-baseline">
+										<div class="flex items-center">
 											<Number class="flex-shrink-0 mr-1 h-4 w-4" />
 											<span class="truncate">{device.smokeDetector.sn}</span>
 										</div>
-										<div class="flex items-baseline">
+										<div class="flex items-center">
 											<Factory class="flex-shrink-0 mr-1 h-4 w-4" />
 											{#if !device.smokeDetector.productionDate}
 												<span class="italic text-base-content/70">Unknown</span>
@@ -270,11 +270,11 @@
 
 									<!-- Radio Module -->
 									<div class="text-sm min-w-0">
-										<div class="flex items-baseline">
+										<div class="flex items-center">
 											<Number class="flex-shrink-0 mr-1 h-4 w-4" />
 											<span class="truncate">{device.radioModule.sn}</span>
 										</div>
-										<div class="flex items-baseline">
+										<div class="flex items-center">
 											<Factory class="flex-shrink-0 mr-1 h-4 w-4" />
 											{#if !device.radioModule.productionDate}
 												<span class="italic text-base-content/70">Unknown</span>

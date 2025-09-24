@@ -52,6 +52,8 @@
 	use:dndzone={{
 		items: itemsWithIds, 
 		flipDurationMs,
+        dropTargetStyle: {},
+        dropTargetClasses: ["border-round", "border-2", "border-gray-400"],
 		dragDisabled
 	}} 
 	onconsider={handleSort} 
@@ -62,3 +64,14 @@
 		{@render children({ item, index, originalItem: items[index] })}
 	{/each}
 </section>
+
+<style>
+    @reference "$src/app.css";
+	:global(.red-border) {
+		@apply border-2 border-red-500;
+	}
+
+    :global(.blue-outline) {
+        outline: 'rgba(0, 0, 255, 1) solid 4px';
+    }
+</style>
