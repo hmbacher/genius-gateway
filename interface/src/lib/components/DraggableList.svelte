@@ -42,21 +42,22 @@
 			const { id, ...itemWithoutId } = item;
 			return itemWithoutId;
 		});
-		
+
 		// Call the parent's reorder handler
 		onReorder(reorderedItems);
 	}
+
 </script>
 
-<section 
+<section
 	use:dndzone={{
-		items: itemsWithIds, 
+		items: itemsWithIds,
 		flipDurationMs,
-        dropTargetStyle: {},
-        dropTargetClasses: ["border-round", "border-2", "border-gray-400"],
+		dropTargetStyle: {}, // This is to actively clear default styles
+		dropTargetClasses: ['dragzone-outline'], // This applies custom styling
 		dragDisabled
-	}} 
-	onconsider={handleSort} 
+	}}
+	onconsider={handleSort}
 	onfinalize={handleFinalizeSort}
 	class={className}
 >
@@ -66,12 +67,12 @@
 </section>
 
 <style>
-    @reference "$src/app.css";
-	:global(.red-border) {
-		@apply border-2 border-red-500;
+	@reference "$src/app.css";
+	:global(.dragzone-outline) {
+		@apply outline-solid outline-2 outline-(--color-primary);
 	}
+	:global(#dnd-action-dragged-el) {
+		@apply outline-solid outline-2 outline-current;
 
-    :global(.blue-outline) {
-        outline: 'rgba(0, 0, 255, 1) solid 4px';
-    }
+	}
 </style>
