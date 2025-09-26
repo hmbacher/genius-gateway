@@ -116,7 +116,7 @@
 
 	function handleDeviceReorder(reorderedDevices: GeniusDevice[]) {
 		geniusDevices.devices = reorderedDevices;
-		//postGeniusDevices();
+		postGeniusDevices();
 	}
 
 	let files: any = $state();

@@ -38,10 +38,10 @@ bool GatewayDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
         GeniusComponent<GeniusSmokeDetector>(static_cast<GeniusSmokeDetector>(GSD_UNKNOWN), snSmokeDetector, 0),
         GeniusComponent<GeniusRadioModule>(static_cast<GeniusRadioModule>(GRM_UNKNOWN), snRadioModule, 0),
         GENIUS_DEVICE_DEFAULT_LOCATION);
-    
+
     // Generate unique ID with collision detection
     newDevice.id = _generateUniqueDeviceId();
-    
+
     // Set registration type
     newDevice.registration = GDR_GENIUS_PACKET;
     // Add the new device to the state
@@ -50,7 +50,7 @@ bool GatewayDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
     endTransaction();
 
     callUpdateHandlers(GENIUS_DEVICE_ADDED_FROM_PACKET);
-    
+
     return true;
 }
 
@@ -115,7 +115,7 @@ const GeniusDevice *GatewayDevicesService::resetAlarm(uint32_t detectorSN, geniu
             break;
         }
     }
-    
+
     if (_numAlarming == 0)
         _isAlarming = false;
 
@@ -179,15 +179,17 @@ void GatewayDevicesService::_updateAlarmingState()
 uint32_t GatewayDevicesService::_generateUniqueDeviceId() const
 {
     uint32_t candidateId = (uint32_t)time(nullptr);
-    
+
     // Simple linear scan for collision detection - efficient for small device counts
     while (std::any_of(_state.devices.begin(), _state.devices.end(),
-           [candidateId](const GeniusDevice& device) { 
-               return device.id == candidateId; 
-           })) {
+                       [candidateId](const GeniusDevice &device)
+                       {
+                           return device.id == candidateId;
+                       }))
+    {
         candidateId++;
     }
-    
+
     return candidateId;
 }
 
@@ -267,7 +269,7 @@ void GatewayDevicesService::setPublished(uint32_t smokeDetectorSN)
 StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusDevices)
 {
     bool hasChanges = false;
-    
+
     if (!root["devices"].is<JsonArray>())
     {
         ESP_LOGV(GeniusDevices::TAG, "No devices array in JSON, no changes made.");
@@ -275,8 +277,9 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
     }
 
     JsonArray jsonDevices = root["devices"].as<JsonArray>();
-    std::vector<uint32_t> processedDeviceIds; // Track which device IDs we've seen in JSON
-    
+    std::vector<GeniusDevice> newDevicesVector; // Build new devices vector in JSON order
+    std::vector<uint32_t> processedDeviceIds;   // Track which device IDs we've seen in JSON
+
     // Process each device from JSON - add new or update existing
     int deviceCount = 0;
     for (JsonVariant jsonDeviceArrItem : jsonDevices)
@@ -289,16 +292,17 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
 
         JsonObject smokeDetectorJson = jsonDeviceArrItem["smokeDetector"].as<JsonObject>();
         JsonObject radioModuleJson = jsonDeviceArrItem["radioModule"].as<JsonObject>();
-        
+
         uint32_t deviceId = jsonDeviceArrItem["id"].as<uint32_t>();
         processedDeviceIds.push_back(deviceId);
-        
+
         // Check if device exists by ID
         auto existingDevice = std::find_if(geniusDevices.devices.begin(), geniusDevices.devices.end(),
-            [deviceId](const GeniusDevice& device) {
-                return device.id == deviceId;
-            });
-        
+                                           [deviceId](const GeniusDevice &device)
+                                           {
+                                               return device.id == deviceId;
+                                           });
+
         if (existingDevice == geniusDevices.devices.end())
         {
             // New device - add it (use ID from JSON)
@@ -315,11 +319,9 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 deviceId); // Use the ID from JSON
 
             // Set optional properties with defaults
-            newDevice.isAlarming = jsonDeviceArrItem["isAlarming"].is<bool>() ? 
-                jsonDeviceArrItem["isAlarming"].as<bool>() : false;
-            newDevice.registration = jsonDeviceArrItem["registration"].is<int>() ? 
-                static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>()) : GDR_MANUAL;
-            
+            newDevice.isAlarming = jsonDeviceArrItem["isAlarming"].is<bool>() ? jsonDeviceArrItem["isAlarming"].as<bool>() : false;
+            newDevice.registration = jsonDeviceArrItem["registration"].is<int>() ? static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>()) : GDR_MANUAL;
+
             // Process alarms
             if (jsonDeviceArrItem["alarms"].is<JsonArray>())
             {
@@ -338,98 +340,144 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                         .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
                 }
             }
-            
+
             // Mark for republishing
             newDevice.published = false;
-            
-            // Finally add the new device
-            geniusDevices.devices.push_back(newDevice);
-            
+
+            // Add the new device to our ordered vector
+            newDevicesVector.push_back(newDevice);
+
             hasChanges = true;
         }
         else
         {
-            // Update existing device attribute by attribute
+            // Copy existing device and update it (preserves order from JSON)
+            GeniusDevice updatedDevice = *existingDevice;
             bool deviceChanged = false;
-            
+
             // Update smoke detector component...
             // ...model
             GeniusSmokeDetector newSmokeDetectorModel = static_cast<GeniusSmokeDetector>(smokeDetectorJson["model"].as<int>());
-            if (existingDevice->smokeDetector.model != newSmokeDetectorModel)
+            if (updatedDevice.smokeDetector.model != newSmokeDetectorModel)
             {
-                existingDevice->smokeDetector.model = newSmokeDetectorModel;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old model: %d, New model: %d",
+                         updatedDevice.location.c_str(),
+                         static_cast<int>(updatedDevice.smokeDetector.model),
+                         static_cast<int>(newSmokeDetectorModel));
+
+                updatedDevice.smokeDetector.model = newSmokeDetectorModel;
                 deviceChanged = true;
             }
             // ...serial number
             uint32_t newSmokeDetectorSN = smokeDetectorJson["sn"].as<uint32_t>();
-            if (existingDevice->smokeDetector.sn != newSmokeDetectorSN)
+            if (updatedDevice.smokeDetector.sn != newSmokeDetectorSN)
             {
-                existingDevice->smokeDetector.sn = newSmokeDetectorSN;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old SN: %lu, New SN: %lu",
+                         updatedDevice.location.c_str(),
+                         updatedDevice.smokeDetector.sn,
+                         newSmokeDetectorSN);
+
+                updatedDevice.smokeDetector.sn = newSmokeDetectorSN;
                 deviceChanged = true;
             }
             // ...production date
             time_t newSmokeDetectorProdDate = Utils::iso8601_to_time_t(smokeDetectorJson["productionDate"].as<String>());
-            if (existingDevice->smokeDetector.productionDate != newSmokeDetectorProdDate)
+            if (updatedDevice.smokeDetector.productionDate != newSmokeDetectorProdDate)
             {
-                existingDevice->smokeDetector.productionDate = newSmokeDetectorProdDate;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old production date: %s, New production date: %s",
+                         updatedDevice.location.c_str(),
+                         Utils::time_t_to_iso8601(updatedDevice.smokeDetector.productionDate).c_str(),
+                         Utils::time_t_to_iso8601(newSmokeDetectorProdDate).c_str());
+
+                updatedDevice.smokeDetector.productionDate = newSmokeDetectorProdDate;
                 deviceChanged = true;
             }
-            
+
             // Update radio module component...
             // ...model
             GeniusRadioModule newRadioModuleModel = static_cast<GeniusRadioModule>(radioModuleJson["model"].as<int>());
-            if (existingDevice->radioModule.model != newRadioModuleModel)
+            if (updatedDevice.radioModule.model != newRadioModuleModel)
             {
-                existingDevice->radioModule.model = newRadioModuleModel;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old model: %d, New model: %d",
+                         updatedDevice.location.c_str(),
+                         static_cast<int>(updatedDevice.radioModule.model),
+                         static_cast<int>(newRadioModuleModel));
+
+                updatedDevice.radioModule.model = newRadioModuleModel;
                 deviceChanged = true;
             }
             // ...serial number
             uint32_t newRadioModuleSN = radioModuleJson["sn"].as<uint32_t>();
-            if (existingDevice->radioModule.sn != newRadioModuleSN)
+            if (updatedDevice.radioModule.sn != newRadioModuleSN)
             {
-                existingDevice->radioModule.sn = newRadioModuleSN;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old SN: %lu, New SN: %lu",
+                         updatedDevice.location.c_str(),
+                         updatedDevice.radioModule.sn,
+                         newRadioModuleSN);
+
+                updatedDevice.radioModule.sn = newRadioModuleSN;
                 deviceChanged = true;
             }
             // ...production date
             time_t newRadioModuleProdDate = Utils::iso8601_to_time_t(radioModuleJson["productionDate"].as<String>());
-            if (existingDevice->radioModule.productionDate != newRadioModuleProdDate)
+            if (updatedDevice.radioModule.productionDate != newRadioModuleProdDate)
             {
-                existingDevice->radioModule.productionDate = newRadioModuleProdDate;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old production date: %s, New production date: %s",
+                         updatedDevice.location.c_str(),
+                         Utils::time_t_to_iso8601(updatedDevice.radioModule.productionDate).c_str(),
+                         Utils::time_t_to_iso8601(newRadioModuleProdDate).c_str());
+                         
+                updatedDevice.radioModule.productionDate = newRadioModuleProdDate;
                 deviceChanged = true;
             }
-            
+
             // Update location
             String newLocation = jsonDeviceArrItem["location"].as<String>();
-            if (existingDevice->location != newLocation)
+            if (updatedDevice.location != newLocation)
             {
-                existingDevice->location = newLocation;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old location: '%s', New location: '%s'",
+                         updatedDevice.location.c_str(),
+                         updatedDevice.location.c_str(),
+                         newLocation.c_str());
+
+                updatedDevice.location = newLocation;
                 deviceChanged = true;
             }
-            
+
             // NOTE: The following attributes are managed internally and should not be updated from JSON:
             // - isAlarming: Controlled by alarm detection system
-            // - registration: Set when device is first added/detected  
+            // - registration: Set when device is first added/detected
             // - alarms: Managed by alarm start/stop events
-            
+
             /*
             // Update isAlarming
-            bool newIsAlarming = jsonDeviceArrItem["isAlarming"].is<bool>() ? 
+            bool newIsAlarming = jsonDeviceArrItem["isAlarming"].is<bool>() ?
                 jsonDeviceArrItem["isAlarming"].as<bool>() : false;
-            if (existingDevice->isAlarming != newIsAlarming)
+            if (updatedDevice.isAlarming != newIsAlarming)
             {
-                existingDevice->isAlarming = newIsAlarming;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old isAlarming: %s, New isAlarming: %s",
+                         updatedDevice.location.c_str(),
+                         updatedDevice.isAlarming ? "true" : "false",
+                         newIsAlarming ? "true" : "false");
+
+                updatedDevice.isAlarming = newIsAlarming;
                 deviceChanged = true;
             }
-            
+
             // Update registration
-            genius_device_registration_t newRegistration = jsonDeviceArrItem["registration"].is<int>() ? 
+            genius_device_registration_t newRegistration = jsonDeviceArrItem["registration"].is<int>() ?
                 static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>()) : GDR_MANUAL;
-            if (existingDevice->registration != newRegistration)
+            if (updatedDevice.registration != newRegistration)
             {
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old registration: %d, New registration: %d",
+                         updatedDevice.location.c_str(),
+                         static_cast<int>(updatedDevice.registration),
+                         static_cast<int>(newRegistration));
+
                 existingDevice->registration = newRegistration;
                 deviceChanged = true;
             }
-            
+
             // Update alarms (for simplicity, we replace the entire alarms vector if it has changed)
             // A more sophisticated approach would compare individual alarms
             std::vector<genius_device_alarm_t> newAlarms;
@@ -450,44 +498,53 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                         .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
                 }
             }
-            
+
             // Compare alarms (simple size comparison - could be more sophisticated)
-            if (existingDevice->alarms.size() != newAlarms.size())
+            if (updatedDevice.alarms.size() != newAlarms.size())
             {
-                existingDevice->alarms = newAlarms;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Alarms count changed from %d to %d.",
+                         updatedDevice.location.c_str(),
+                         updatedDevice.alarms.size(),
+                         newAlarms.size());
+
+                updatedDevice.alarms = newAlarms;
                 deviceChanged = true;
             }
             */
-            
+
             // Mark for republishing if device changed
             if (deviceChanged)
             {
-                existingDevice->published = false;
+                updatedDevice.published = false;
                 hasChanges = true;
+            }
+
+            // Add updated device to our ordered vector
+            newDevicesVector.push_back(updatedDevice);
+        }
+    }
+
+    // Check if devices have been added or removed
+    if (!hasChanges)
+        hasChanges = geniusDevices.devices.size() != newDevicesVector.size();
+
+    // Check if order changed
+    if (!hasChanges)
+    {
+        for (size_t i = 0; i < geniusDevices.devices.size(); i++)
+        {
+            if (geniusDevices.devices[i].id != newDevicesVector[i].id)
+            {
+                hasChanges = true;
+                break;
             }
         }
     }
-    
-    // Remove devices that are not in the JSON (deleted devices)
-    auto it = geniusDevices.devices.begin();
-    while (it != geniusDevices.devices.end())
-    {
-        uint32_t deviceId = it->id;
-        bool foundInJson = std::find(processedDeviceIds.begin(), processedDeviceIds.end(), deviceId) != processedDeviceIds.end();
-        
-        if (!foundInJson)
-        {
-            ESP_LOGV(GeniusDevices::TAG, "Removed device with ID '%lu' (not found in JSON).", deviceId);
-            it = geniusDevices.devices.erase(it);
-            hasChanges = true;
-        }
-        else
-        {
-            ++it;
-        }
-    }
-    
+
+    // Replace the original vector with the new ordered one
+    geniusDevices.devices = std::move(newDevicesVector);
+
     ESP_LOGV(GeniusDevices::TAG, "Smoke detector devices configurations updated.");
-    
+
     return hasChanges ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
 }
