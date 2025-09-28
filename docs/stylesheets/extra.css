@@ -1,0 +1,142 @@
+/* Custom styles for Genius Gateway documentation */
+
+:root {
+  /* Hekatron-inspired color palette */
+  --md-primary-fg-color: #c62828;
+  --md-primary-fg-color--light: #ef5350;
+  --md-primary-fg-color--dark: #8e0000;
+  --md-accent-fg-color: #ff6f00;
+  --md-accent-fg-color--transparent: rgba(255, 111, 0, 0.1);
+}
+
+/* Custom card styling */
+.md-typeset .grid.cards > * {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  transition: border 250ms, box-shadow 250ms;
+}
+
+.md-typeset .grid.cards > :hover {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 0.2rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+/* Custom admonition styling for gateway-specific notes */
+.md-typeset .admonition.hekatron {
+  border-color: #c62828;
+}
+
+.md-typeset .admonition.hekatron > .admonition-title {
+  background-color: rgba(198, 40, 40, 0.1);
+  border-color: #c62828;
+}
+
+.md-typeset .admonition.hekatron > .admonition-title:before {
+  background-color: #c62828;
+  mask-image: url("data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2M21 9V7L19 3H5L3 7V9C3 10 4 11 5 11V19C5 20.1 5.9 21 7 21H17C18.1 21 19 20.1 19 19V11C20 11 21 10 21 9M17 19H7V11H17V19M8.5 12C7.7 12 7 12.7 7 13.5S7.7 15 8.5 15 10 14.3 10 13.5 9.3 12 8.5 12M15.5 12C14.7 12 14 12.7 14 13.5S14.7 15 15.5 15 17 14.3 17 13.5 16.3 12 15.5 12Z'/></svg>");
+}
+
+/* Code block enhancements */
+.md-typeset .highlight .filename {
+  background-color: var(--md-code-bg-color);
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  font-size: 0.85em;
+  padding: 0.5rem 1rem;
+  margin: 0;
+  border-radius: 0.2rem 0.2rem 0 0;
+}
+
+/* Mermaid diagram styling */
+.mermaid {
+  text-align: center;
+  margin: 1rem 0;
+}
+
+/* Table enhancements */
+.md-typeset table:not([class]) {
+  border-radius: 0.2rem;
+  overflow: hidden;
+  box-shadow: 0 0.05rem 0.2rem rgba(0, 0, 0, 0.1);
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+  font-weight: 500;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 0.2em 0.6em;
+  border-radius: 0.8em;
+  font-size: 0.75em;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-badge.online {
+  background-color: #4caf50;
+  color: white;
+}
+
+.status-badge.offline {
+  background-color: #f44336;
+  color: white;
+}
+
+.status-badge.alarm {
+  background-color: #ff9800;
+  color: white;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+/* Custom icons for gateway-specific content */
+.genius-icon {
+  display: inline-block;
+  width: 1.2em;
+  height: 1.2em;
+  margin-right: 0.3em;
+  vertical-align: text-bottom;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 76.1875em) {
+  .md-typeset .grid.cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dark mode adjustments */
+[data-md-color-scheme="slate"] {
+  --md-code-bg-color: #2d2d2d;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .highlight .filename {
+  background-color: #363636;
+  border-color: #4a4a4a;
+}
+
+/* Print styles */
+@media print {
+  .md-header,
+  .md-sidebar,
+  .md-footer {
+    display: none;
+  }
+  
+  .md-content {
+    margin: 0;
+  }
+  
+  .md-typeset .grid.cards {
+    grid-template-columns: 1fr;
+  }
+}

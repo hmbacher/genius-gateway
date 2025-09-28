@@ -1,98 +1,203 @@
-site_name: ESP32 SvelteKit
+site_name: ESP32 Genius Gateway
+site_description: >-
+  Reverse-engineered gateway for Hekatron Genius Plus X smoke detection systems.
+  Real-time monitoring, MQTT integration, and web-based management interface.
+
+# Repository
+repo_name: hmbacher/genius-gw-svelte
+repo_url: https://github.com/hmbacher/genius-gw-svelte
+edit_uri: edit/main/docs/
 
 nav:
   - Home: index.md
-  - "Build Tools":
-      - gettingstarted.md
-      - buildprocess.md
-  - "Front End":
-      - sveltekit.md
-      - structure.md
-      - stores.md
-      - components.md
-  - "Back End":
-      - statefulservice.md
-      - restfulapi.md
-
-site_author: elims
-site_description: >-
-  A simple, secure and extensible framework for IoT projects on ESP32 platforms with responsive Sveltekit front-end built with TailwindCSS and DaisyUI.
-
-# Repository
-repo_name: theelims/ESP32-sveltekit
-repo_url: https://github.com/theelims/ESP32-sveltekit
+  - Quick Start: quick-start.md
+  
+  - Background:
+    - background/index.md
+    - Hekatron Genius Plus X: background/hekatron-system.md
+    - ESP32 SvelteKit Framework: background/esp32-sveltekit.md
+  
+  - Reverse Engineering:
+    - reverse-engineering/index.md
+    - Protocol Analysis: reverse-engineering/protocol-analysis.md
+    - Packet Structure: reverse-engineering/packet-structure.md
+    - Message Types: reverse-engineering/message-types.md
+    - RF Characteristics: reverse-engineering/rf-analysis.md
+    - Decoding Process: reverse-engineering/methodology.md
+  
+  - Hardware Design:
+    - hardware/index.md
+    - Gateway Overview: hardware/gateway-overview.md
+    - Schematics: hardware/schematics.md
+    - PCB Layout: hardware/pcb-layout.md
+    - Bill of Materials: hardware/bom.md
+    - Assembly Guide: hardware/assembly.md
+  
+  - Gateway Features:
+    - features/index.md
+    - Web Interface: features/web-interface.md
+    - Device Management: features/device-management.md
+    - Packet Visualizer: features/packet-visualizer.md
+    - Alarm Management: features/alarm-management.md
+    - MQTT Integration: features/mqtt-integration.md
+    - Settings & Configuration: features/settings.md
+  
+  - Installation & Setup:
+    - setup/index.md
+    - Hardware Setup: setup/hardware.md
+    - Firmware Installation: setup/firmware.md
+    - Configuration: setup/configuration.md
+    - MQTT & Home Assistant: setup/mqtt-homeassistant.md
+  
+  - API Reference:
+    - api/index.md
+    - REST Endpoints: api/rest-api.md
+    - WebSocket Events: api/websocket-api.md
+    - MQTT Topics: api/mqtt-topics.md
+  
+  - Development:
+    - development/index.md
+    - Build System: development/build-system.md
+    - Code Style: development/code-style.md
+    - Contributing: development/contributing.md
+  
+  - Troubleshooting: troubleshooting.md
+  - FAQ: faq.md
 
 theme:
   name: material
-  logo: media/svelte-logo.png
-  favicon: media/favicon.png
-  icon:
-    repo: fontawesome/brands/github
+  custom_dir: overrides/
+  logo: assets/genius-gateway-logo.png
+  favicon: assets/favicon.png
+  
   palette:
-    # Palette toggle for light mode
+    # Hekatron red inspired theme
     - media: "(prefers-color-scheme: light)"
       scheme: default
+      primary: red
+      accent: deep orange
       toggle:
-        icon: material/weather-night
+        icon: material/brightness-7
         name: Switch to dark mode
-      primary: blue
-      accent: blue
-
-    # Palette toggle for dark mode
+    
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: red
+      accent: deep orange
       toggle:
-        icon: material/weather-sunny
+        icon: material/brightness-4
         name: Switch to light mode
-      primary: indigo
-      accent: indigo
 
   features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - content.tooltips
+    - header.autohide
+    - navigation.expand
+    - navigation.footer
+    - navigation.indexes
     - navigation.instant
-    - navigation.tracking
+    - navigation.instant.prefetch
+    - navigation.sections
     - navigation.tabs
     - navigation.tabs.sticky
-    - navigation.sections
-    - navigation.expand
-    - toc.follow
-    - toc.integrate
     - navigation.top
-    - content.code.copy
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+plugins:
+  - search:
+      separator: '[\s\u200b\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: date
+  - social:
+      cards_layout_options:
+        background_color: "#c62828"
+        color: "#ffffff"
 
 markdown_extensions:
-  - attr_list
-  - md_in_html
-  - tables
+  # Python Markdown
+  - abbr
   - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - tables
+
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
   - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: hmbacher
+      repo: genius-gw-svelte
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - includes/mkdocs.md
+      base_path: [docs/snippets, src/, interface/src/, cae/]
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
 
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/theelims/
-  consent:
-    title: Cookie consent
-    description: >-
-      We use cookies to recognize your repeated visits and preferences, as well
-      as to measure the effectiveness of our documentation and whether users
-      find what they're searching for. With your consent, you're helping us to
-      make our documentation better.
-    actions:
-      - accept
-      - reject
+      link: https://github.com/hmbacher/genius-gw-svelte
+      name: Source Code on GitHub
+  
+  generator: false
+  
+  version:
+    provider: mike
+    default: stable
 
-plugins:
-  - search:
-      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 copyright: |
-  Copyright &copy; 2024 by <a href="https://github.com/theelims"  target="_blank" rel="noopener">elims</a> -
-  <a href="#__consent">Change cookie settings</a>
+  &copy; 2024 <a href="https://github.com/hmbacher" target="_blank" rel="noopener">hmbacher</a>
