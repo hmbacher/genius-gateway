@@ -1,3 +1,6 @@
+/// @file WSLogger.cpp
+/// @brief Implementation of WebSocket logger for CC1101 packet streaming
+
 #include <WSLogger.h>
 
 WSLogger::WSLogger(ESP32SvelteKit *sveltekit) : _server(sveltekit->getServer()),

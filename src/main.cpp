@@ -1,23 +1,12 @@
-/**
- *   ESP32 SvelteKit
- *
- *   A simple, secure and extensible framework for IoT projects for ESP32 platforms
- *   with responsive Sveltekit front-end built with TailwindCSS and DaisyUI.
- *   https://github.com/theelims/ESP32-sveltekit
- *
- *   Copyright (C) 2018 - 2023 rjwats
- *   Copyright (C) 2023 - 2025 theelims
- *
- *   All Rights Reserved. This software may be modified and distributed under
- *   the terms of the LGPL v3 license. See the LICENSE file for details.
- **/
+/// @file main.cpp
+/// @brief Main entry point for ESP32 Genius Gateway application32 SvelteKit
 
 #include <ESP32SvelteKit.h>
 #include <PsychicHttpServer.h>
 #include <GeniusGateway.h>
 #include <nvs_flash.h>
 
-#define SERIAL_BAUD_RATE 115200
+#define SERIAL_BAUD_RATE 115200 ///< Serial communication baud rate
 
 PsychicHttpServer server;
 
@@ -25,8 +14,9 @@ ESP32SvelteKit esp32sveltekit(&server, 150);
 
 GeniusGateway geniusGateway = GeniusGateway(&esp32sveltekit);
 
-constexpr const char *TAG = "main";
+constexpr const char *TAG = "main"; ///< Log tag for main application
 
+/// Initialize NVS flash storage with error handling
 void init_nvs()
 {
     esp_err_t err = nvs_flash_init();
@@ -63,6 +53,7 @@ void init_nvs()
     }
 }
 
+/// Setup ESP32 application - initialize serial, NVS, and services
 void setup()
 {
     // start serial and filesystem
@@ -78,6 +69,7 @@ void setup()
     geniusGateway.begin();
 }
 
+/// Main loop - delete Arduino loop task as ESP32SvelteKit handles everything
 void loop()
 {
     // Delete Arduino loop task, as it is not needed in this example

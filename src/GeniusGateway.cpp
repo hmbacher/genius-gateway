@@ -1,3 +1,8 @@
+/**
+ * @file GeniusGateway.cpp
+ * @brief Implementation of the main gateway service
+ */
+
 #include <GeniusGateway.h>
 #include <GatewaySettingsService.h>
 #include <IPUtils.h>
@@ -389,7 +394,7 @@ void GeniusGateway::_rx_packets()
                 // Duplicate detection using optimized XOR hash
                 bool isDuplicate = false;
                 if (packet.length > 3)
-                {                    
+                {
                     // Skip first 3 bytes of packet data as first byte is always 0x02 and
                     // bytes 2-3 are some kind of a varying packet counter
                     uint32_t currentHash = Utils::xorHash(packet.data + 3, packet.length - 3);

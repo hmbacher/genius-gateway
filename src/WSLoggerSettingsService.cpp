@@ -1,3 +1,6 @@
+/// @file WSLoggerSettingsService.cpp
+/// @brief Implementation of WebSocket logger settings service
+
 #include <WSLoggerSettingsService.h>
 
 WSLoggerSettingsService::WSLoggerSettingsService(ESP32SvelteKit *sveltekit) : _httpEndpoint(WSLoggerSettings::read,

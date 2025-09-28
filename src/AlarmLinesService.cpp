@@ -1,10 +1,13 @@
+/**
+ * @file AlarmLinesService.cpp
+ * @brief Implementation of alarm line management and RF transmission service
+ */
+
 #include <AlarmLinesService.h>
 #include <cc1101.h>
 #include <GeniusGateway.h>
 
-/**
- * Basic Genius packet structure for starting/stopping an alarm line test.
- */
+/// Base packet template for alarm line test operations
 const uint8_t AlarmLinesService::_packet_base_linetest[] = {
     0x02,
     0x00, 0x00, // Counter
@@ -26,9 +29,7 @@ const uint8_t AlarmLinesService::_packet_base_linetest[] = {
     0x04,
     0x00}; // 0x06: Start line test / 0x00 Stop line test (#28)
 
-/**
- * Basic Genius packet structure for starting/stopping a fire alarm.
- */
+/// Base packet template for fire alarm operations
 const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0x02,
     0x00, 0x00, // Counter
@@ -56,6 +57,14 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0xFF, 0xFF, 0xFF, 0xFE // SN of smoke detector sensing smoke (0xFFFFFFFE = Gateway)
 };
 
+/**
+ * @brief Constructor implementation
+ * @details Initializes all member variables and sets up framework dependencies.
+ * HTTP endpoints and file system persistence are configured but not started.
+ * RF transmission components are initialized to safe defaults.
+ *
+ * @note The begin() method must be called after construction to start services.
+ */
 AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, CC1101Controller *cc1101Ctrl) : _sveltekit(sveltekit),
                                                                                                 _server(sveltekit->getServer()),
                                                                                                 _securityManager(sveltekit->getSecurityManager()),
@@ -92,9 +101,7 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, CC1101Controller
 void AlarmLinesService::begin()
 {
     _httpEndpoint.begin();
-    _fsPersistence.readFromFS();
-
-    // Load the persisted packet sequence number from NVS
+    _fsPersistence.readFromFS(); // Load the persisted packet sequence number from NVS
     if (loadPcktSeqNum() != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to load packet sequence number from NVS. Using default value: %u.", ALARMLINES_NVS_SEQ_DEFAULT);
@@ -103,17 +110,17 @@ void AlarmLinesService::begin()
 
 #if FT_ENABLED(FT_ALLOW_BROADCAST)
     _featureService->addFeature("allow_broadcast", true);
-    /* Make sure, that a Broadcast alarm line is always present */
+    // Ensure broadcast alarm line is always present when feature is enabled
     if (!_alarmLineExists(ALARMLINES_ID_BROADCAST))
         addAlarmLine(ALARMLINES_ID_BROADCAST, "Broadcast", ALA_MANUAL, true);
 #else
     _featureService->addFeature("allow_broadcast", false);
-    /* Make sure, that a Broadcast alarm line is removed */
+    // Ensure broadcast alarm line is removed when feature is disabled
     if (_alarmLineExists(ALARMLINES_ID_BROADCAST))
         _removeAlarmLine(ALARMLINES_ID_BROADCAST);
 #endif
 
-    /* Initialize the semaphore for the TX task */
+    // Initialize the semaphore for TX task synchronization
     _txSemaphore = xSemaphoreCreateBinary();
     if (_txSemaphore == nullptr)
     {
@@ -123,7 +130,7 @@ void AlarmLinesService::begin()
 
     ESP_LOGI(TAG, "TX semaphore created (%p).", _txSemaphore);
 
-    /* Create TX task */
+    // Create TX task for handling RF transmission operations
     BaseType_t xReturned;
     xReturned = xTaskCreatePinnedToCore(
         _txLoopImpl,
@@ -142,7 +149,7 @@ void AlarmLinesService::begin()
 
     ESP_LOGI(TAG, "TX task created (%p).", _txTaskHandle);
 
-    /* Setup timer for accurate transmission interval */
+    // Configure ESP timer for accurate transmission intervals
     const esp_timer_create_args_t timer_args = {
         .callback = _onTimerImpl,
         .arg = this,
@@ -153,13 +160,13 @@ void AlarmLinesService::begin()
     if (ret != ESP_OK)
         ESP_LOGE(TAG, "Failed to create TX timer.");
 
-    /* Register endpoint for triggering actions */
+    // Register REST endpoint for triggering alarm line actions
     _server->on(ALARMLINES_PATH_ACTIONS,
                 HTTP_POST,
                 _securityManager->wrapCallback(std::bind(&AlarmLinesService::_performAction, this, std::placeholders::_1, std::placeholders::_2),
                                                AuthenticationPredicates::IS_ADMIN));
 
-    /* Register WebSocket events */
+    // Register WebSocket events for real-time notifications
     _eventSocket->registerEvent(ALARMLINES_EVENT_NEW_LINE);
     _eventSocket->registerEvent(ALARMLINES_EVENT_ACTION_FINISHED);
 }
@@ -168,7 +175,7 @@ void AlarmLinesService::_onTimer()
 {
     gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0); // Temporary for testing
 
-    /* Notify the waiting (blocked) TX task, to start the next packet transmission iteration */
+    // Signal TX task to proceed with next packet transmission
     xTaskNotifyGiveIndexed(_txTaskHandle, ALARMLINES_TX_TASK_NOTIFICATION_INDEX);
 }
 
@@ -178,14 +185,15 @@ void AlarmLinesService::_txLoop()
 
     while (1)
     {
+        // Wait for transmission request via semaphore
         if (xSemaphoreTake(_txSemaphore, portMAX_DELAY) == pdTRUE)
         {
             _isTransmitting = true;
 
-            // Temporarily disbale RX Monitoring
+            // Temporarily disable RX monitoring to avoid interference
             _cc1101Ctrl->disableRXMonitoring();
 
-            // Enable TX monitoring
+            // Initialize transmission monitoring
             bool timedOut = false;
             _transmissionTimeElapsed = 0;
             _lastTXLoop = millis();
@@ -199,6 +207,7 @@ void AlarmLinesService::_txLoop()
 
             for (int i = 1; i <= _txRepeat; i++)
             {
+                // Check for transmission timeout
                 uint32_t currentMillis = millis();
                 uint32_t _transmissionTimeElapsed = currentMillis - _lastTXLoop;
                 if (_transmissionTimeElapsed >= ALARMLINES_TX_TIMEOUT_MS)
@@ -208,10 +217,11 @@ void AlarmLinesService::_txLoop()
                     break;
                 }
 
+                // GPIO timing markers for debug/analysis
                 gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 1); // Temporary for testing
                 gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 1); // Temporary for testing
 
-                /* Resetting the timer for a single iteration */
+                // Configure timer for next iteration (except for last packet)
                 if (i < _txRepeat) // Don't (re)start the timer for the last iteration
                 {
                     esp_err_t ret = esp_timer_start_once(_timerHandle, _txPeriodUs);
@@ -222,20 +232,21 @@ void AlarmLinesService::_txLoop()
                     }
                 }
 
-                // Set packet count (2 bytes from byte 1, little-endian)
+                // Update packet count in transmission buffer (2 bytes, little-endian)
                 *(uint16_t *)&_txBuffer[1] = (uint16_t)_currentPacketCnt;
 
+                // Execute RF packet transmission
                 if (cc1101_send_data(_txBuffer, _txDataLength) != ESP_OK)
                     ESP_LOGE(pcTaskGetName(0), "Failed to send packet @ iteration %d.", i);
 
-                // Update packet count
+                // Progress packet count for fire alarm sequences
                 _currentPacketCnt = std::max(_currentPacketCnt - _packetCntStep, 0.0f);
 
                 _lastTXLoop = millis();
 
                 gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 0); // Temporary for testing
 
-                /* Wait non-blocking for the next timer period */
+                // Wait for timer notification before next packet (except last iteration)
                 if (i < _txRepeat) // Don't wait after the last iteration
                 {
                     if (ulTaskNotifyTakeIndexed(ALARMLINES_TX_TASK_NOTIFICATION_INDEX, pdTRUE, ALARMLINES_TX_TASK_ITERATION_MAX_WAITING_TICKS) != 1)
@@ -248,26 +259,25 @@ void AlarmLinesService::_txLoop()
 
             _isTransmitting = false;
 
-            /* Signal that the transmission is finished */
+            // Notify clients of transmission completion
             _emitActionFinishedEvent(timedOut);
 
-            /* Return to RX state */
+            // Restore RF controller to receive state
             cc1101_set_rx_state();
 
-            // Re-enable RX Monitoring
+            // Re-enable RX monitoring after transmission completion
             _cc1101Ctrl->enableRXMonitoring();
 
             ESP_LOGI(pcTaskGetName(0), "Transmission finished.");
         }
         else
         {
-            /* The call to ulTaskNotifyTake() timed out, if ulTaskNotifyTakeIndexed()
-             * was called with xTicksToWait set to a value < portMAX_DELAY. */
+            // Handle semaphore timeout (should not occur with portMAX_DELAY)
             vTaskDelay(1);
         }
     }
 
-    // never reach here
+    // Task cleanup (should never reach here)
     vTaskDelete(NULL);
 }
 
@@ -286,7 +296,7 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
     if (!jsonObject["lineId"].is<uint32_t>())
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Invalid line ID.\"}");
 
-    // Read line_id as uint32_t and convert to little-endian (if needed)
+    // Extract target alarm line ID and convert to network byte order
     uint32_t lineId = htonl(jsonObject["lineId"].as<uint32_t>());
 
     if (!jsonObject["action"].is<String>())
@@ -294,8 +304,8 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
 
     String action = jsonObject["action"].as<String>();
 
-    // Specific packet preparation based on the action
-    if (action == "line-test-start" || action == "line-test-stop") // start/stop line test
+    // Configure transmission parameters based on requested action
+    if (action == "line-test-start" || action == "line-test-stop") // Line test operations
     {
         _txPeriodUs = ALARMLINES_TX_PERIOD_LINETEST_US;
         _txRepeat = ALARMLINES_TX_NUM_REPEAT_LINETEST;

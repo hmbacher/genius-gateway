@@ -1,3 +1,8 @@
+/**
+ * @file GatewayDevicesService.cpp
+ * @brief Implementation of the gateway devices service
+ */
+
 #include <GatewayDevicesService.h>
 
 GatewayDevicesService::GatewayDevicesService(ESP32SvelteKit *sveltekit) : _httpEndpoint(GeniusDevices::read,
@@ -170,7 +175,7 @@ bool GatewayDevicesService::resetAllAlarms()
 
     _isAlarming = false;
     _numAlarming = 0;
-    
+
     endTransaction();
 
     if (updated)

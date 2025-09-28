@@ -1,3 +1,8 @@
+/**
+ * @file GatewayMqttSettingsService.h
+ * @brief Gateway MQTT settings service for managing MQTT configuration
+ */
+
 #pragma once
 
 #include <HttpEndpoint.h>
@@ -5,12 +10,13 @@
 #include <SettingValue.h>
 #include <ESP32SvelteKit.h>
 
-#define GATEWAY_MQTT_SETTINGS_FILE "/config/mqtt-settings.json"
-#define GATEWAY_MQTT_SETTINGS_PATH "/rest/mqtt-settings"
+#define GATEWAY_MQTT_SETTINGS_FILE "/config/mqtt-settings.json" ///< Configuration file path
+#define GATEWAY_MQTT_SETTINGS_PATH "/rest/mqtt-settings"        ///< REST API service endpoint path
 
-#define GATEWAY_HA_MQTT_TOPIC_PREFIX "homeassistant/binary_sensor/genius-"
-#define GATEWAY_ALARM_MQTT_TOPIC "smarthome/genius-gateway/alarm"
+#define GATEWAY_HA_MQTT_TOPIC_PREFIX "homeassistant/binary_sensor/genius-" ///< Default Home Assistant MQTT topic prefix
+#define GATEWAY_ALARM_MQTT_TOPIC "smarthome/genius-gateway/alarm"          ///< Default alarm MQTT topic
 
+/// Gateway MQTT settings data model class
 class GatewayMqttSettings
 {
 public:
@@ -22,11 +28,10 @@ public:
     {
     }
 
-    boolean haMQTTEnabled;      // Enable Home Assistant compatible MQTT publishing
-    String haMQTTTopicPrefix;   // Home Assistant MQTT topic prefix
-    boolean alarmEnabled;       // Enable alarm publishing over MQTT
-    String alarmTopic;          // MQTT topic for alarm state
-
+    boolean haMQTTEnabled;    ///< Enable Home Assistant compatible MQTT publishing
+    String haMQTTTopicPrefix; ///< Home Assistant MQTT topic prefix
+    boolean alarmEnabled;     ///< Enable alarm publishing over MQTT
+    String alarmTopic;        ///< MQTT topic for alarm state
 
     static void read(GatewayMqttSettings &settings, JsonObject &root)
     {
@@ -54,7 +59,7 @@ public:
         }
 
         // haMQTTTopicPrefix
-        if (root["haMQTTTopicPrefix"].is<String>()) 
+        if (root["haMQTTTopicPrefix"].is<String>())
         {
             String newSetting = root["haMQTTTopicPrefix"];
             if (settings.haMQTTTopicPrefix != newSetting)
@@ -93,22 +98,25 @@ public:
     }
 
 private:
-    static constexpr const char *TAG = "GatewayMqttSettings";
+    static constexpr const char *TAG = "GatewayMqttSettings"; ///< Logging tag
 };
 
+/// Service for managing gateway MQTT configuration settings
 class GatewayMqttSettingsService : public StatefulService<GatewayMqttSettings>
 {
 public:
     GatewayMqttSettingsService(ESP32SvelteKit *sveltekit);
 
+    /// Initialize the gateway MQTT settings service
     void begin();
 
+    /// Get a copy of the current MQTT settings
     GatewayMqttSettings getSettingsCopy() const
     {
         return _state;
     }
 
 private:
-    HttpEndpoint<GatewayMqttSettings> _httpEndpoint;
-    FSPersistence<GatewayMqttSettings> _fsPersistence;
+    HttpEndpoint<GatewayMqttSettings> _httpEndpoint;   ///< REST API endpoint handler
+    FSPersistence<GatewayMqttSettings> _fsPersistence; ///< File system persistence handler
 };

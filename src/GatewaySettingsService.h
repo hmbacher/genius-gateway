@@ -1,3 +1,8 @@
+/**
+ * @file GatewaySettingsService.h
+ * @brief Gateway settings service for managing gateway configuration options
+ */
+
 #ifndef GatewaySettingsService_h
 #define GatewaySettingsService_h
 
@@ -9,26 +14,27 @@
 #include <ESP32SvelteKit.h>
 #include <Utils.hpp>
 
-#define GATEWAY_SETTINGS_FILE "/config/gateway-settings.json"
-#define GATEWAY_SETTINGS_SERVICE_PATH "/rest/gateway-settings"
+#define GATEWAY_SETTINGS_FILE "/config/gateway-settings.json"  ///< Configuration file path
+#define GATEWAY_SETTINGS_SERVICE_PATH "/rest/gateway-settings" ///< REST API service endpoint path
 
-#define GATEWAY_SETTINGS_STR_ALERT_ON_UNKNOWN_DETECTORS "alert_on_unknown_detectors"
-#define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET "add_alarm_line_from_commissioning_packet"
-#define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_ALARM_PACKET "add_alarm_line_from_alarm_packet"
-#define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET "add_alarm_line_from_line_test_packet"
-#define GATEWAY_SETTINGS_DEFAULT_ALERT_ON_UNKNOWN_DETECTORS true
-#define GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET true
-#define GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_ALARM_PACKET true
-#define GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET true
+#define GATEWAY_SETTINGS_STR_ALERT_ON_UNKNOWN_DETECTORS "alert_on_unknown_detectors"                             ///< JSON key for unknown detector alerts
+#define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET "add_alarm_line_from_commissioning_packet" ///< JSON key for commissioning packet line addition
+#define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_ALARM_PACKET "add_alarm_line_from_alarm_packet"                 ///< JSON key for alarm packet line addition
+#define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET "add_alarm_line_from_line_test_packet"         ///< JSON key for line test packet line addition
+#define GATEWAY_SETTINGS_DEFAULT_ALERT_ON_UNKNOWN_DETECTORS true                                                 ///< Default setting for unknown detector alerts
+#define GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET true                                   ///< Default setting for commissioning packet line addition
+#define GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_ALARM_PACKET true                                           ///< Default setting for alarm packet line addition
+#define GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET true                                       ///< Default setting for line test packet line addition
 
+/// Gateway settings data model class
 class GatewaySettings
 {
 
 public:
-    bool alertOnUnknownDetectors = GATEWAY_SETTINGS_DEFAULT_ALERT_ON_UNKNOWN_DETECTORS;
-    bool addALarmLineFromCommissioningPacket = GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET;
-    bool addAlarmLineFromAlarmPacket = GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_ALARM_PACKET;
-    bool addAlarmLineFromLineTestPacket = GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET;
+    bool alertOnUnknownDetectors = GATEWAY_SETTINGS_DEFAULT_ALERT_ON_UNKNOWN_DETECTORS;                           ///< Alert when unknown detectors are discovered
+    bool addALarmLineFromCommissioningPacket = GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET; ///< Add alarm lines from commissioning packets
+    bool addAlarmLineFromAlarmPacket = GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_ALARM_PACKET;                 ///< Add alarm lines from alarm packets
+    bool addAlarmLineFromLineTestPacket = GATEWAY_SETTINGS_DEFAULT_ADD_ALARM_LINE_FROM_LINE_TEST_PACKET;          ///< Add alarm lines from line test packets
 
     static void read(GatewaySettings &gwSettings, JsonObject &root)
     {
@@ -77,25 +83,29 @@ public:
             updated |= true;
         }
 
-        if (updated) {
+        if (updated)
+        {
             ESP_LOGV(GatewaySettings::TAG, "Gateway settings updated.");
             return StateUpdateResult::CHANGED;
         }
-        
+
         return StateUpdateResult::UNCHANGED;
     }
 
 private:
-    static constexpr const char *TAG = "GatewaySettings";
+    static constexpr const char *TAG = "GatewaySettings"; ///< Logging tag
 };
 
+/// Service for managing gateway configuration settings
 class GatewaySettingsService : public StatefulService<GatewaySettings>
 {
 public:
     GatewaySettingsService(ESP32SvelteKit *sveltekit);
 
+    /// Initialize the gateway settings service
     void begin();
 
+    /// Check if alerts on unknown detectors are enabled
     bool isAlertOnUnknownDetectorsEnabled()
     {
         beginTransaction();
@@ -104,6 +114,7 @@ public:
         return val;
     }
 
+    /// Check if alarm line addition from commissioning packets is enabled
     bool isAddAlarmLineFromCommissioningPacketEnabled()
     {
         beginTransaction();
@@ -112,6 +123,7 @@ public:
         return val;
     }
 
+    /// Check if alarm line addition from alarm packets is enabled
     bool isAddAlarmLineFromAlarmPacketEnabled()
     {
         beginTransaction();
@@ -120,6 +132,7 @@ public:
         return val;
     }
 
+    /// Check if alarm line addition from line test packets is enabled
     bool isAddAlarmLineFromLineTestPacketEnabled()
     {
         beginTransaction();
@@ -129,8 +142,8 @@ public:
     }
 
 private:
-    HttpEndpoint<GatewaySettings> _httpEndpoint;
-    FSPersistence<GatewaySettings> _fsPersistence;
+    HttpEndpoint<GatewaySettings> _httpEndpoint;   ///< REST API endpoint handler
+    FSPersistence<GatewaySettings> _fsPersistence; ///< File system persistence handler
 };
 
 #endif // GatewaySettingsService_h

@@ -1,3 +1,8 @@
+/**
+ * @file GatewaySettingsService.cpp
+ * @brief Implementation of the gateway settings service
+ */
+
 #include <GatewaySettingsService.h>
 
 GatewaySettingsService::GatewaySettingsService(ESP32SvelteKit *sveltekit) : _httpEndpoint(GatewaySettings::read,

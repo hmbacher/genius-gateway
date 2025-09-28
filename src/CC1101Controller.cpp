@@ -1,3 +1,8 @@
+/**
+ * @file CC1101Controller.cpp
+ * @brief Implementation of the CC1101 radio controller service
+ */
+
 #include <CC1101Controller.h>
 #include <cc1101.h>
 
@@ -13,13 +18,13 @@ void CC1101Controller::begin()
 {
     _sveltekit->addLoopFunction(std::bind(&CC1101Controller::loop, this));
 
-    /* Register endpoints for CC1101 status */
+    // Register endpoint for CC1101 status
     _server->on(CC1101CONTROLLER_SERVICE_PATH "/state",
                 HTTP_GET,
                 _securityManager->wrapRequest(std::bind(&CC1101Controller::_handlerGetStatus, this, std::placeholders::_1),
                                               AuthenticationPredicates::IS_AUTHENTICATED));
 
-    /* Register endpoints to set the CC1101 ro RX state */
+    // Register endpoint to set the CC1101 to RX state
     _server->on(CC1101CONTROLLER_SERVICE_PATH "/rx",
                 HTTP_POST,
                 _securityManager->wrapRequest(std::bind(&CC1101Controller::_handlerSetRxState, this, std::placeholders::_1),
@@ -30,14 +35,14 @@ void CC1101Controller::loop()
 {
     uint32_t currentMillis = millis();
 
-    // --- 1s: Checking "GDO0-stuck-high" issue ---
+    // Check for GDO0 stuck-high issue every second
     uint32_t timeElapsed = currentMillis - _lastGDO0Check;
     if (timeElapsed >= CC1101CONTROLLER_LOOP_PERIOD_MS)
     {
         _lastGDO0Check = currentMillis;
 
         uint32_t lastRisingEdge = cc1101_get_last_rising_edge();
-        if (!(lastRisingEdge > 0)) // Already stored a rising edge?
+        if (!(lastRisingEdge > 0)) // No rising edge stored yet
             return;
 
         uint32_t current_time_ms = (unsigned long)(esp_timer_get_time() / 1000ULL);
@@ -62,7 +67,7 @@ esp_err_t CC1101Controller::_handlerGetStatus(PsychicRequest *request)
 
     uint8_t cc1101_state = -1;
     bool success = false;
-    bool action = (gpio_get_level(static_cast<gpio_num_t>(CONFIG_GDO0_GPIO)) == 1); // GDO0 high indicates an ongoing packet reception/transmission
+    bool action = (gpio_get_level(static_cast<gpio_num_t>(CONFIG_GDO0_GPIO)) == 1); // GDO0 high indicates ongoing packet reception/transmission
 
     beginTransaction();
 

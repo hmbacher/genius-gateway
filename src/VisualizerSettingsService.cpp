@@ -1,3 +1,6 @@
+/// @file VisualizerSettingsService.cpp
+/// @brief Implementation of packet visualizer settings service
+
 #include <VisualizerSettingsService.h>
 
 VisualizerSettingsService::VisualizerSettingsService(ESP32SvelteKit *sveltekit) : _httpEndpoint(VisualizerSettings::read,

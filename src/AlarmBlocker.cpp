@@ -1,9 +1,6 @@
 /**
  * @file AlarmBlocker.cpp
  * @brief Implementation of the AlarmBlocker service
- * 
- * This file contains the implementation of the AlarmBlocker class methods
- * for managing temporary alarm blocking functionality.
  */
 
 #include <AlarmBlocker.h>
@@ -28,7 +25,7 @@ void AlarmBlocker::loop()
 {
     uint32_t currentMillis = millis();
     uint32_t timeElapsed = currentMillis - _lastLooped;
-    
+
     // Process only if enough time has elapsed
     if (timeElapsed >= ALARMBLOCKER_LOOP_PERIOD_MS)
     {

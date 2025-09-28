@@ -1,3 +1,8 @@
+/**
+ * @file GatewayDevicesService.h
+ * @brief Gateway devices service for managing genius smoke detector devices
+ */
+
 #ifndef GatewayDevicesService_h
 #define GatewayDevicesService_h
 
@@ -10,23 +15,23 @@
 #include <ESP32SvelteKit.h>
 #include <Utils.hpp>
 
-#define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"
-#define GATEWAY_DEVICES_SERVICE_PATH "/rest/gateway-devices"
+#define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"  ///< Configuration file path for device data
+#define GATEWAY_DEVICES_SERVICE_PATH "/rest/gateway-devices"  ///< REST API service endpoint path
 
-#define GATEWAY_MAX_DEVICES 50
-#define GATEWAY_MAX_ALARMS 100
+#define GATEWAY_MAX_DEVICES 50   ///< Maximum number of devices supported
+#define GATEWAY_MAX_ALARMS 100   ///< Maximum number of alarms supported
 
-#define ALARM_STATE_CHANGE "alarm-state-change"
+#define ALARM_STATE_CHANGE "alarm-state-change"  ///< WebSocket event for alarm state changes
 
-#define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"
-#define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"
+#define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"  ///< Event for device discovery
+#define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"  ///< Default location for new devices
 
-// Lightweight structure for MQTT publishing - contains only the minimal properties needed
+/// Lightweight structure for MQTT publishing - contains only the minimal properties needed
 struct DeviceMqttData
 {
-    uint32_t smokeDetectorSN;
-    String location;
-    bool isAlarming;
+    uint32_t smokeDetectorSN;  ///< Smoke detector serial number
+    String location;           ///< Device location string
+    bool isAlarming;          ///< Current alarm state
 
     DeviceMqttData(uint32_t sn, const String &loc, bool alarming)
         : smokeDetectorSN(sn), location(loc), isAlarming(alarming) {}
@@ -34,36 +39,33 @@ struct DeviceMqttData
 
 typedef enum genius_alarm_ending
 {
-    GAE_MIN = -2,              // Minimum value (for enum range checks)
-    GAE_ALARM_ACTIVE = -1,     // Alarm is currently active
-    GAE_BY_SMOKE_DETECTOR = 0, // Alarm was ended by smoke detector
-    GAE_BY_MANUAL,             // Alarm was ended manually via web interface
-    GAE_MAX                    // Maximum value (for enum range checks)
+    GAE_MIN = -2,              ///< Minimum value (for enum range checks)
+    GAE_ALARM_ACTIVE = -1,     ///< Alarm is currently active
+    GAE_BY_SMOKE_DETECTOR = 0, ///< Alarm was ended by smoke detector
+    GAE_BY_MANUAL,             ///< Alarm was ended manually via web interface
+    GAE_MAX                    ///< Maximum value (for enum range checks)
 } genius_alarm_ending_t;
 
 typedef struct genius_device_alarm
 {
-    time_t startTime;
-    time_t endTime;
-    genius_alarm_ending_t endingReason;
+    time_t startTime;                   ///< Alarm start timestamp
+    time_t endTime;                     ///< Alarm end timestamp
+    genius_alarm_ending_t endingReason; ///< How the alarm was ended
 } genius_device_alarm_t;
 
 typedef enum genius_smoke_detector
 {
-    GSD_UNKNOWN = -1, // Unknown smoke detector type
-    GSD_GENIUS_PLUS_X = 0
+    GSD_UNKNOWN = -1,     ///< Unknown smoke detector type
+    GSD_GENIUS_PLUS_X = 0 ///< Genius Plus X smoke detector model
 } GeniusSmokeDetector;
 
 typedef enum genius_radio_module
 {
-    GRM_UNKNOWN = -1, // Unknown radio module type
-    GRM_FM_BASIS_X = 0
+    GRM_UNKNOWN = -1,     ///< Unknown radio module type
+    GRM_FM_BASIS_X = 0    ///< FM Basis X radio module model
 } GeniusRadioModule;
 
-/**
- * @brief Template class for Genius components
- * @tparam T The type of the model attribute
- */
+/// Template class for Genius components
 template <typename T>
 class GeniusComponent
 {
@@ -88,23 +90,21 @@ public:
             root["model"] = static_cast<int>(model);
     }
 
-    T model;
-    uint32_t sn;
-    time_t productionDate; // Production date in seconds since Unix Epoch (UTC)
+    T model;                ///< Component model type
+    uint32_t sn;           ///< Component serial number
+    time_t productionDate; ///< Production date (Unix timestamp)
 };
 
 typedef enum genius_device_registration
 {
-    GDR_MIN = -1,      // Just for boundary checks
-    GDR_BUILT_IN = 0,  // Device is built-in
-    GDR_GENIUS_PACKET, // Device was added via received genius packet
-    GDR_MANUAL,        // Device registered manually (via web interface)
-    GDR_MAX            // Just for boundary checks
+    GDR_MIN = -1,      ///< Boundary check minimum value
+    GDR_BUILT_IN = 0,  ///< Device is built-in
+    GDR_GENIUS_PACKET, ///< Device was added via received genius packet
+    GDR_MANUAL,        ///< Device registered manually (via web interface)
+    GDR_MAX            ///< Boundary check maximum value
 } genius_device_registration_t;
 
-/**
- * @brief Class for Genius devices
- */
+/// Class for Genius devices
 class GeniusDevice
 {
 public:
@@ -179,43 +179,57 @@ public:
         ESP_LOGV(GeniusDevices::TAG, "Smoke detector devices configurations read.");
     }
 
+    /// Update genius devices from JSON object
     static StateUpdateResult update(JsonObject &root, GeniusDevices &geniusDevices);
 };
 
+/// Service for managing gateway devices and smoke detector communication
 class GatewayDevicesService : public StatefulService<GeniusDevices>
 {
 public:
     GatewayDevicesService(ESP32SvelteKit *sveltekit);
 
+    /// Initialize the gateway devices service
     void begin();
 
+    /// Add a genius device based on radio module and smoke detector serial numbers
     bool AddGeniusDevice(const uint32_t snRadioModule,
                          const uint32_t snSmokeDetector);
 
+    /// Set alarm state for a device by detector serial number
     const GeniusDevice *setAlarm(uint32_t detectorSN);
 
+    /// Reset alarm state for a device with specified ending reason
     const GeniusDevice *resetAlarm(uint32_t detectorSN, genius_alarm_ending_t endingReason);
 
+    /// Reset all active alarms
     bool resetAllAlarms();
 
+    /// Check if any device is currently alarming
     bool isAlarming();
 
+    /// Get the number of devices currently alarming
     uint32_t numAlarmingDevices();
 
+    /// Check if a smoke detector is known/registered
     bool isSmokeDetectorKnown(uint32_t detectorSN);
 
-    // Optimized method for MQTT publishing - returns only minimal data needed
+    /// Get minimal device data optimized for MQTT publishing
     std::vector<DeviceMqttData> getDevicesMqttData();
 
+    /// Mark device as published to MQTT
     void setPublished(uint32_t smokeDetectorSN);
 
 private:
-    HttpEndpoint<GeniusDevices> _httpEndpoint;
-    FSPersistence<GeniusDevices> _fsPersistence;
-    bool _isAlarming;
-    uint32_t _numAlarming;
+    HttpEndpoint<GeniusDevices> _httpEndpoint;   ///< REST API endpoint handler
+    FSPersistence<GeniusDevices> _fsPersistence; ///< File system persistence handler
+    bool _isAlarming;                            ///< Current global alarming state
+    uint32_t _numAlarming;                       ///< Number of devices currently alarming
 
+    /// Update internal alarming state counters
     void _updateAlarmingState();
+
+    /// Generate a unique device ID for new devices
     uint32_t _generateUniqueDeviceId() const;
 };
 
