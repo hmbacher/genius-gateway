@@ -3,11 +3,11 @@
 #include <GeniusGateway.h>
 
 /**
- * Basic Genius packet structure for the alarm line test.
+ * Basic Genius packet structure for starting/stopping an alarm line test.
  */
-const uint8_t AlarmLinesService::_packet_base_linetest_start[] = {
+const uint8_t AlarmLinesService::_packet_base_linetest[] = {
     0x02,
-    0xCC, 0x18, // Counter
+    0x00, 0x00, // Counter
     0x00,
     0xFF,
     0xFF,
@@ -24,38 +24,14 @@ const uint8_t AlarmLinesService::_packet_base_linetest_start[] = {
     0x00,
     0x66,
     0x04,
-    0x06};
+    0x00}; // 0x06: Start line test / 0x00 Stop line test (#28)
 
 /**
- * Basic Genius packet structure for the alarm line test.
- */
-const uint8_t AlarmLinesService::_packet_base_linetest_stop[] = {
-    0x02,
-    0xCC, 0x18, // Counter
-    0x00,
-    0xFF,
-    0xFF,
-    0xFF,
-    0xFF,
-    0x00,
-    0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator of the packet (0xFFFFFFFE = Gateway)
-    0x00,
-    0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
-    0x00, 0x00, 0x00, 0x00, // Alarm line ID (#18-#21)
-    0x0F,                   // Hops (#22)
-    0x00,                   // Packet sequence number (#23)
-    0x48,
-    0x00,
-    0x66,
-    0x04,
-    0x00};
-
-/**
- * Basic Genius packet structure for starting fire alarm.
+ * Basic Genius packet structure for starting/stopping a fire alarm.
  */
 const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0x02,
-    0xCC, 0x18, // Counter
+    0x00, 0x00, // Counter
     0x00,
     0xFF,
     0xFF,
@@ -69,6 +45,7 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0x0F,                   // Hops (#22)
     0x00,                   // Packet sequence number (#23)
     0x48,
+
     0x00,
     0x00,
     0x00,
@@ -101,10 +78,13 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, CC1101Controller
                                                                                                 _txSemaphore(nullptr),
                                                                                                 _timerHandle(nullptr),
                                                                                                 _isTransmitting(false),
-                                                                                                _transmissionTimeElaped(0),
+                                                                                                _transmissionTimeElapsed(0),
                                                                                                 _lastTXLoop(0),
                                                                                                 _txRepeat(0),
                                                                                                 _txDataLength(0),
+                                                                                                _packetCntStep(0.0f),
+                                                                                                _currentPacketCnt(0.0f),
+                                                                                                _txPeriodUs(0),
                                                                                                 _packet_sequence_number(ALARMLINES_NVS_SEQ_DEFAULT)
 {
 }
@@ -207,29 +187,33 @@ void AlarmLinesService::_txLoop()
 
             // Enable TX monitoring
             bool timedOut = false;
-            _transmissionTimeElaped = 0;
+            _transmissionTimeElapsed = 0;
             _lastTXLoop = millis();
 
-            ESP_LOGV(pcTaskGetName(0), "Starting transmission.");
+            ESP_LOGI(pcTaskGetName(0), "Starting transmission: packets: %lu, period: %lu us, first packet count: %u, packet count step: %u.",
+                     _txRepeat,
+                     _txPeriodUs,
+                     static_cast<uint16_t>(_currentPacketCnt),
+                     static_cast<uint16_t>(_packetCntStep));
 
             for (int i = 1; i <= _txRepeat; i++)
             {
                 uint32_t currentMillis = millis();
-                uint32_t _transmissionTimeElaped = currentMillis - _lastTXLoop;
-                if (_transmissionTimeElaped >= ALARMLINES_TX_TIMEOUT_MS)
+                uint32_t _transmissionTimeElapsed = currentMillis - _lastTXLoop;
+                if (_transmissionTimeElapsed >= ALARMLINES_TX_TIMEOUT_MS)
                 {
                     ESP_LOGW(TAG, "Transmission timeout reached (%lu ms). Cancelling running transmission.", ALARMLINES_TX_TIMEOUT_MS);
                     timedOut = true;
                     break;
                 }
-                
+
                 gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 1); // Temporary for testing
                 gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 1); // Temporary for testing
 
                 /* Resetting the timer for a single iteration */
                 if (i < _txRepeat) // Don't (re)start the timer for the last iteration
                 {
-                    esp_err_t ret = esp_timer_start_once(_timerHandle, ALARMLINES_TX_PERIOD_MS * 1000); // 10 ms
+                    esp_err_t ret = esp_timer_start_once(_timerHandle, _txPeriodUs);
                     if (ret != ESP_OK)
                     {
                         ESP_LOGE(TAG, "Failed to start TX timer: %s.", esp_err_to_name(ret));
@@ -237,8 +221,14 @@ void AlarmLinesService::_txLoop()
                     }
                 }
 
+                // Set packet count (2 bytes from byte 1, little-endian)
+                *(uint16_t *)&_txBuffer[1] = (uint16_t)_currentPacketCnt;
+
                 if (cc1101_send_data(_txBuffer, _txDataLength) != ESP_OK)
                     ESP_LOGE(pcTaskGetName(0), "Failed to send packet @ iteration %d.", i);
+
+                // Update packet count
+                _currentPacketCnt = std::max(_currentPacketCnt - _packetCntStep, 0.0f);
 
                 _lastTXLoop = millis();
 
@@ -266,7 +256,7 @@ void AlarmLinesService::_txLoop()
             // Re-enable RX Monitoring
             _cc1101Ctrl->enableRXMonitoring();
 
-            ESP_LOGV(pcTaskGetName(0), "Transmission finished.");
+            ESP_LOGI(pcTaskGetName(0), "Transmission finished.");
         }
         else
         {
@@ -304,30 +294,37 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
     String action = jsonObject["action"].as<String>();
 
     // Specific packet preparation based on the action
-    if (action == "line-test-start")
+    if (action == "line-test-start" || action == "line-test-stop") // start/stop line test
     {
-        size_t datalen = min(sizeof(_packet_base_linetest_start), sizeof(_txBuffer));
-        memcpy(_txBuffer, _packet_base_linetest_start, datalen);
+        _txPeriodUs = ALARMLINES_TX_PERIOD_LINETEST_US;
         _txRepeat = ALARMLINES_TX_NUM_REPEAT_LINETEST;
+        _currentPacketCnt = ALARMLINES_LINETEST_FIRST_PCKTCNT;
+        _packetCntStep = ALARMLINES_LINETEST_PCKTCNT_STEP;
+
+        size_t datalen = std::min(sizeof(_packet_base_linetest), sizeof(_txBuffer));
+        memcpy(_txBuffer, _packet_base_linetest, datalen);
+
+        if (action == "line-test-start")
+            _txBuffer[28] = 0x06; // Set line test start flag
+        else
+            _txBuffer[28] = 0x00; // Set line test stop flag
+
         _txDataLength = datalen;
     }
-    else if (action == "line-test-stop")
+    else if (action == "fire-alarm-start" || action == "fire-alarm-stop") // start/stop fire alarm
     {
-        size_t datalen = min(sizeof(_packet_base_linetest_stop), sizeof(_txBuffer));
-        memcpy(_txBuffer, _packet_base_linetest_stop, datalen);
-        _txRepeat = ALARMLINES_TX_NUM_REPEAT_LINETEST;
-        _txDataLength = datalen;
-    }
-    else if (action == "fire-alarm-start" || action == "fire-alarm-stop")
-    {
-        size_t datalen = min(sizeof(_packet_base_firealarm), sizeof(_txBuffer));
-        memcpy(_txBuffer, _packet_base_firealarm, min(sizeof(_packet_base_firealarm), sizeof(_txBuffer)));
-        if (action == "firealarm-start")
+        _txPeriodUs = ALARMLINES_TX_PERIOD_FIREALARM_US;
+        _txRepeat = ALARMLINES_TX_NUM_REPEAT_FIREALARM;
+        _currentPacketCnt = ALARMLINES_FIREALARM_FIRST_PCKTCNT;
+        _packetCntStep = ALARMLINES_FIREALARM_PCKTCNT_STEP;
+
+        size_t datalen = std::min(sizeof(_packet_base_firealarm), sizeof(_txBuffer));
+        memcpy(_txBuffer, _packet_base_firealarm, datalen);
+        if (action == "fire-alarm-start")
             _txBuffer[28] = 0x01; // Set fire alarm start flag
         else
             _txBuffer[30] = 0x01; // Set fire alarm end flag
 
-        _txRepeat = ALARMLINES_TX_NUM_REPEAT_FIREALARM;
         _txDataLength = datalen;
     }
     else

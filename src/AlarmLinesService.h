@@ -33,11 +33,6 @@
 #define ALARMLINES_TX_TASK_CORE_AFFINITY 1
 
 #define ALARMLINES_TX_PERIOD_TIMER_NAME "alarmlines-tx-timer"
-#if CORE_DEBUG_LEVEL >= 4
-#define ALARMLINES_TX_PERIOD_MS 25 // 25ms
-#else
-#define ALARMLINES_TX_PERIOD_MS 10 // 10ms
-#endif
 
 #define ALARMLINES_TX_TIMEOUT_MS 10000LU // 10 seconds
 
@@ -54,9 +49,17 @@
  */
 #define ALARMLINES_TX_TASK_ITERATION_MAX_WAITING_TICKS pdMS_TO_TICKS(1000) // 1 second
 
-#define ALARMLINES_TX_NUM_REPEAT_DEFAULT 300
-#define ALARMLINES_TX_NUM_REPEAT_LINETEST ALARMLINES_TX_NUM_REPEAT_DEFAULT
-#define ALARMLINES_TX_NUM_REPEAT_FIREALARM ALARMLINES_TX_NUM_REPEAT_DEFAULT
+#define ALARMLINES_TX_PERIOD_LINETEST_US 8395 // 8.395 ms
+#define ALARMLINES_TX_NUM_REPEAT_LINETEST 370
+#define ALARMLINES_LINETEST_FIRST_PCKTCNT 0x18CC
+#define ALARMLINES_LINETEST_LAST_PCKTCNT 0x0002
+#define ALARMLINES_LINETEST_PCKTCNT_STEP (float)(ALARMLINES_LINETEST_FIRST_PCKTCNT - ALARMLINES_LINETEST_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_LINETEST - 1)
+
+#define ALARMLINES_TX_PERIOD_FIREALARM_US 9855 // 9.855 ms
+#define ALARMLINES_TX_NUM_REPEAT_FIREALARM 315
+#define ALARMLINES_FIREALARM_FIRST_PCKTCNT 0x18CC
+#define ALARMLINES_FIREALARM_LAST_PCKTCNT 0x000A
+#define ALARMLINES_FIREALARM_PCKTCNT_STEP (float)(ALARMLINES_FIREALARM_FIRST_PCKTCNT - ALARMLINES_FIREALARM_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_FIREALARM - 1)
 
 #define ALARMLINES_EVENT_NEW_LINE "new-alarm-line"
 #define ALARMLINES_EVENT_ACTION_FINISHED "alarm-line-action-finished"
@@ -185,10 +188,9 @@ public:
     esp_err_t loadPcktSeqNum();
 
 private:
-    static const uint8_t _packet_base_linetest_start[];
-    static const uint8_t _packet_base_linetest_stop[];
+    static const uint8_t _packet_base_linetest[];
     static const uint8_t _packet_base_firealarm[];
-    uint8_t _packet_sequence_number;    // Increased with each packet transmission, persisted in NVS
+    uint8_t _packet_sequence_number; // Increased with each packet transmission, persisted in NVS
 
     ESP32SvelteKit *_sveltekit;
     PsychicHttpServer *_server;
@@ -204,12 +206,15 @@ private:
     esp_timer_handle_t _timerHandle;
 
     volatile bool _isTransmitting;
-    volatile uint32_t _transmissionTimeElaped;
+    volatile uint32_t _transmissionTimeElapsed;
     volatile uint32_t _lastTXLoop;
 
     uint32_t _txRepeat;
     uint8_t _txBuffer[CC1101_MAX_PACKET_LEN];
     size_t _txDataLength;
+    float _packetCntStep;    // Step size for packet count
+    float _currentPacketCnt; // Current packet count
+    uint32_t _txPeriodUs;    // TX period in microseconds
 
     void _monitorLoop();
 
@@ -230,6 +235,4 @@ private:
     esp_err_t _performAction(PsychicRequest *request, JsonVariant &json);
     void _emitNewAlarmLineEvent(uint32_t id);
     void _emitActionFinishedEvent(bool timedOut = false);
-
 };
-
