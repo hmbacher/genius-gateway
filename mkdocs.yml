@@ -66,9 +66,9 @@ nav:
 
 theme:
   name: material
-  custom_dir: overrides/
-  logo: assets/genius-gateway-logo.png
-  favicon: assets/favicon.png
+  # custom_dir: overrides/  # Commented out - directory doesn't exist
+  # logo: assets/genius-gateway-logo.png  # Commented out - file doesn't exist
+  # favicon: assets/favicon.png  # Commented out - file doesn't exist
   
   palette:
     # Hekatron red inspired theme
@@ -120,10 +120,6 @@ plugins:
   - git-revision-date-localized:
       enable_creation_date: true
       type: date
-  - social:
-      cards_layout_options:
-        background_color: "#c62828"
-        color: "#ffffff"
 
 markdown_extensions:
   # Python Markdown
