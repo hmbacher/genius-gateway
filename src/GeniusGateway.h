@@ -47,7 +47,7 @@
 
 /**
  * Index within the target task's array of task notifications to use
- * NOTE: This value muss be LESS than the value of CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES,
+ * NOTE: This value must be LESS than the value of CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES,
  * as RX_TASK_NOTIFICATION_INDEX is an 0-based index.
  */
 #define RX_TASK_NOTIFICATION_INDEX 0

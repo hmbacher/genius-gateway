@@ -115,7 +115,7 @@ void AlarmLinesService::begin()
 
     /* Initialize the semaphore for the TX task */
     _txSemaphore = xSemaphoreCreateBinary();
-    if (_txSemaphore == NULL)
+    if (_txSemaphore == nullptr)
     {
         ESP_LOGE(TAG, "Failed to create TX semaphore.");
         return;
@@ -190,9 +190,10 @@ void AlarmLinesService::_txLoop()
             _transmissionTimeElapsed = 0;
             _lastTXLoop = millis();
 
-            ESP_LOGI(pcTaskGetName(0), "Starting transmission: packets: %lu, period: %lu us, first packet count: %u, packet count step: %u.",
+            ESP_LOGI(pcTaskGetName(0), "Starting transmission: packets: %lu, period: %.3f ms, first packet count: %u (0x%04x), packet count step: %u.",
                      _txRepeat,
-                     _txPeriodUs,
+                     _txPeriodUs / 1000.0,
+                     static_cast<uint16_t>(_currentPacketCnt),
                      static_cast<uint16_t>(_currentPacketCnt),
                      static_cast<uint16_t>(_packetCntStep));
 

@@ -59,6 +59,7 @@ const GeniusDevice *GatewayDevicesService::setAlarm(uint32_t detectorSN)
     GeniusDevice *updatedDevice = nullptr;
 
     beginTransaction();
+
     for (GeniusDevice &device : _state.devices)
     {
         if (device.smokeDetector.sn == detectorSN)
@@ -77,11 +78,12 @@ const GeniusDevice *GatewayDevicesService::setAlarm(uint32_t detectorSN)
                 _isAlarming = true;
                 _numAlarming++;
 
-                ESP_LOGV(GeniusDevices::TAG, "Alarm started for smoke detector with SN '%lu'.", detectorSN);
+                ESP_LOGI(GeniusDevices::TAG, "Alarm started for smoke detector with SN '%lu'.", detectorSN);
             }
             break;
         }
     }
+
     endTransaction();
 
     if (updatedDevice)
@@ -95,6 +97,7 @@ const GeniusDevice *GatewayDevicesService::resetAlarm(uint32_t detectorSN, geniu
     GeniusDevice *updatedDevice = nullptr;
 
     beginTransaction();
+
     for (GeniusDevice &device : _state.devices)
     {
         if (device.smokeDetector.sn == detectorSN)
@@ -102,15 +105,23 @@ const GeniusDevice *GatewayDevicesService::resetAlarm(uint32_t detectorSN, geniu
             if (device.isAlarming)
             {
                 device.isAlarming = false;
-                device.alarms.back().endTime = time(nullptr); // seconds precision
-                device.alarms.back().endingReason = endingReason;
+
+                if (!device.alarms.empty()) 
+                {
+                    device.alarms.back().endTime = time(nullptr); // seconds precision
+                    device.alarms.back().endingReason = endingReason;
+                }
+                else
+                {
+                    ESP_LOGW(GeniusDevices::TAG, "No active alarm found for smoke detector with SN '%lu' when trying to reset alarm.", detectorSN);
+                }
 
                 device.published = false; // Mark as not published for MQTT publishing
 
                 updatedDevice = &device;
                 _numAlarming--;
 
-                ESP_LOGV(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", detectorSN);
+                ESP_LOGI(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", detectorSN);
             }
             break;
         }
@@ -132,22 +143,34 @@ bool GatewayDevicesService::resetAllAlarms()
     bool updated = false;
 
     beginTransaction();
+
     for (GeniusDevice &device : _state.devices)
     {
         if (device.isAlarming)
         {
             device.isAlarming = false;
-            device.alarms.back().endTime = time(nullptr); // seconds precision
-            device.alarms.back().endingReason = GAE_BY_MANUAL;
+
+            if (!device.alarms.empty()) 
+            {
+                device.alarms.back().endTime = time(nullptr); // seconds precision
+                device.alarms.back().endingReason = GAE_BY_MANUAL;
+            }
+            else
+            {
+                ESP_LOGW(GeniusDevices::TAG, "No active alarm found for smoke detector with SN '%lu' when trying to reset all alarms.", device.smokeDetector.sn);
+            }
+
             device.published = false; // Mark as not published for MQTT publishing
 
             updated = true;
 
-            ESP_LOGV(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", device.smokeDetector.sn);
+            ESP_LOGI(GeniusDevices::TAG, "Alarm ended for smoke detector with SN '%lu'.", device.smokeDetector.sn);
         }
     }
+
     _isAlarming = false;
     _numAlarming = 0;
+    
     endTransaction();
 
     if (updated)

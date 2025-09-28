@@ -3,7 +3,7 @@
 #include <IPUtils.h>
 #include <Utils.hpp>
 
-TaskHandle_t GeniusGateway::xRxTaskHandle = NULL;
+TaskHandle_t GeniusGateway::xRxTaskHandle = nullptr;
 
 static void nofifyReceivedPacket() // !!! This function is called from ISR !!!
 {
@@ -341,7 +341,7 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
     case LEN_LINE_TEST_PACKET:
         if (packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] == 0) // 0 indicates END/STOP of line test
             analyzed_packet->type = HPT_LINE_TEST_STOP;
-        else if (packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] & (0x04 | 0x06) > 0) // 0x04 and 0x06 are known indicators for START of line test
+        else if ((packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] & 0x04) > 0) // 0x04 and 0x06 are known indicators for START of line test (0x04 includes 0x06)
             analyzed_packet->type = HPT_LINE_TEST_START;
         else
             analyzed_packet->type = HPT_UNKNOWN;
@@ -365,7 +365,8 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
 void GeniusGateway::_rx_packets()
 {
     cc1101_packet_t packet;
-    char lineName[64];
+    // Buffer for alarm line names - sized for reasonable line name lengths
+    char lineName[64] = {0};
 
     ESP_LOGI(pcTaskGetName(0), "Started.");
 

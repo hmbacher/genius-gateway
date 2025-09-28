@@ -10,6 +10,15 @@ public:
     {
     }
 
+    ~ThreadSafeService()
+    {
+        if (_accessMutex != nullptr)
+        {
+            vSemaphoreDelete(_accessMutex);
+            _accessMutex = nullptr;
+        }
+    }
+
 protected:
     inline void beginTransaction()
     {

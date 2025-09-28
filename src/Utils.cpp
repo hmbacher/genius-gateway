@@ -15,6 +15,7 @@ time_t Utils::iso8601_to_time_t(const String& iso8601_date) {
 
 String Utils::time_t_to_iso8601(time_t time_s) {
     struct tm *tm = gmtime(&time_s);
+    // Buffer size for ISO8601 format: "YYYY-MM-DDTHH:MM:SS.000Z" = 24 chars + null terminator
     char buf[25];
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S.000Z", tm);
     return String(buf);
