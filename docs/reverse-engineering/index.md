@@ -53,20 +53,14 @@ graph TD
 
 The reverse engineering documentation is organized into several detailed sections:
 
+### [Genius Components](genius-components.md)
+Analysis of smoke detector and radio module PCB components and architecture.
+
+### [RF Configuration](rf-configuration.md)  
+RF settings, frequencies, and radio module configuration details.
+
 ### [Protocol Analysis](protocol-analysis.md)
 High-level protocol overview, communication patterns, and timing analysis.
-
-### [Packet Structure](packet-structure.md)  
-Detailed packet formats, header fields, and payload structures.
-
-### [Message Types](message-types.md)
-Classification of different message types and their purposes.
-
-### [RF Characteristics](rf-analysis.md)
-Physical layer analysis including frequency, modulation, and power measurements.
-
-### [Decoding Process](methodology.md)
-Tools, techniques, and methodology used for protocol analysis.
 
 ## Validation Methods
 

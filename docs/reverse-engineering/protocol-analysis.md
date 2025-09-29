@@ -279,10 +279,10 @@ class GatewayDevicesService {
 };
 ```
 
-The implementation can be found in:
-- [`src/GeniusGateway.cpp`](../../src/GeniusGateway.cpp) - Main protocol handling
-- [`src/GatewayDevicesService.cpp`](../../src/GatewayDevicesService.cpp) - Device management
-- [`src/cc1101.c`](../../src/cc1101.c) - Low-level RF interface
+The implementation can be found in the source code:
+- `src/GeniusGateway.cpp` - Main protocol handling
+- `src/GatewayDevicesService.cpp` - Device management  
+- `src/cc1101.c` - Low-level RF interface
 
 ## Validation Results
 
@@ -296,6 +296,8 @@ Protocol analysis validated through extensive testing:
 
 ## Next Steps
 
-- **[Packet Structure](packet-structure.md)** - Detailed packet format analysis
-- **[Message Types](message-types.md)** - Complete message type catalog  
-- **[RF Analysis](rf-analysis.md)** - Physical layer measurement results
+For more detailed analysis of the communication system:
+
+- **[Genius Components](genius-components.md)** - Hardware component analysis
+- **[RF Configuration](rf-configuration.md)** - Radio frequency settings and parameters  
+- **[Gateway Implementation](../features/index.md)** - See how the protocol is implemented in the gateway

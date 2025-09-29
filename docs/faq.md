@@ -53,7 +53,7 @@ Answers to common questions about the ESP32 Genius Gateway.
     Try triggering a test alarm on the detectors to generate RF traffic. Ensure detectors have FM Basis Radio Module installed and are within range. You can also add devices manually using their serial numbers.
 
 ??? question "How do I integrate with Home Assistant?"
-    Configure MQTT settings in the gateway and enable Home Assistant discovery. Devices will automatically appear in Home Assistant. See the [MQTT Integration Guide](features/mqtt-integration.md) for detailed setup instructions.
+    Configure MQTT settings in the gateway and enable Home Assistant discovery. Devices will automatically appear in Home Assistant. See the [Smart Home Integration Guide](features/smart-home-integration.md) for detailed setup instructions.
 
 ??? question "Can I access the gateway remotely over the internet?"
     For security reasons, the gateway does not expose services directly to the internet. Use VPN, reverse proxy, or Home Assistant's remote access features for secure remote monitoring.
@@ -117,7 +117,7 @@ Answers to common questions about the ESP32 Genius Gateway.
 ## Development and Customization  
 
 ??? question "Can I modify the gateway software for custom features?"
-    Yes, the gateway is open source. The software can be modified, extended, and customized. See the [Development Guide](development/index.md) for information on building and modifying the code.
+    Yes, the gateway is open source. The software can be modified, extended, and customized. The source code is available on GitHub for modification and extension.
 
 ??? question "Can I integrate the gateway with other home automation systems besides Home Assistant?"
     Yes, the gateway provides standard MQTT, REST API, and WebSocket interfaces that work with most automation systems including OpenHAB, Domoticz, Node-RED, and custom applications.
@@ -126,7 +126,7 @@ Answers to common questions about the ESP32 Genius Gateway.
     Development is ongoing with community contributions. Feature requests and bug reports can be submitted through GitHub. Support for additional Hekatron devices and protocols may be added based on demand and availability of devices for analysis.
 
 ??? question "How can I contribute to the project?"
-    Contributions are welcome through GitHub including code contributions, documentation improvements, testing, and sharing experiences. See the [Contributing Guide](development/contributing.md) for details.
+    Contributions are welcome through GitHub including code contributions, documentation improvements, testing, and sharing experiences. Visit the GitHub repository for contribution guidelines.
 
 ## Commercial and Professional Use
 

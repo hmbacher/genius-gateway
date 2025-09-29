@@ -125,7 +125,7 @@ Now that your gateway is operational:
 
 - **[Explore Features](features/index.md)** - Learn about all gateway capabilities
 - **[Device Management](features/device-management.md)** - Configure and monitor your smoke detectors  
-- **[MQTT Integration](features/mqtt-integration.md)** - Set up advanced home automation
+- **[Smart Home Integration](features/smart-home-integration.md)** - Set up advanced home automation
 - **[Packet Visualizer](features/packet-visualizer.md)** - Monitor RF communication in real-time
 
 ## Troubleshooting

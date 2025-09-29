@@ -81,8 +81,8 @@ PCB design files, layout considerations, and manufacturing specifications.
 ### [Bill of Materials](bom.md)
 Complete component list with part numbers, specifications, and sourcing information.
 
-### [Assembly Guide](assembly.md)
-Step-by-step assembly instructions for DIY builders and manufacturers.
+### [Case](case.md)
+Compatible cases and enclosure options with mounting and assembly details.
 
 ## Design Files
 
@@ -174,4 +174,4 @@ Under the following terms:
 
 - **[Gateway Overview](gateway-overview.md)** - Understand the system-level design approach
 - **[Schematics](schematics.md)** - Review detailed circuit designs and component selection
-- **[Assembly Guide](assembly.md)** - Build your own gateway hardware
+- **[Case](case.md)** - Explore enclosure options and mounting solutions

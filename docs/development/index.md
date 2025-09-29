@@ -32,9 +32,14 @@ genius-gateway/
 
 ## Development Topics
 
-- **[Build System](build-system.md)** - Setting up the development environment
-- **[Code Style](code-style.md)** - Coding standards and guidelines
-- **[Contributing](contributing.md)** - How to contribute to the project
+### Build System
+Setting up the development environment with PlatformIO for backend development and npm/Vite for frontend development.
+
+### Code Style
+The project follows standard C++ and TypeScript coding conventions with automated formatting and linting.
+
+### Contributing
+Contributions are welcome through GitHub pull requests. Please ensure code follows project standards and includes appropriate tests.
 
 ## Architecture
 
@@ -61,9 +66,12 @@ The gateway uses a modular architecture with well-defined interfaces:
 
 ## Contributing
 
-We welcome contributions! Please see the [Contributing Guide](contributing.md) for:
+We welcome contributions through GitHub! To contribute:
 
-- Code contribution guidelines
-- Issue reporting procedures
-- Feature request process
-- Development workflow
+- Fork the repository on GitHub
+- Create a feature branch for your changes
+- Follow the existing code style and conventions
+- Test your changes thoroughly
+- Submit a pull request with clear description
+
+For bug reports and feature requests, please use the GitHub Issues tracker.

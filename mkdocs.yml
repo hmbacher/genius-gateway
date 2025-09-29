@@ -4,8 +4,8 @@ site_description: >-
   Real-time monitoring, MQTT integration, and web-based management interface.
 
 # Repository
-repo_name: hmbacher/genius-gw-svelte
-repo_url: https://github.com/hmbacher/genius-gw-svelte
+repo_name: hmbacher/genius-gateway
+repo_url: https://github.com/hmbacher/genius-gateway
 edit_uri: edit/main/docs/
 
 nav:
@@ -14,53 +14,46 @@ nav:
   
   - Background:
     - background/index.md
-    - Hekatron Genius Plus X: background/hekatron-system.md
-    - ESP32 SvelteKit Framework: background/esp32-sveltekit.md
+    - Hekatron Genius Plus X: background/hekatron-system.md # Describing the system
+    - ESP32 SvelteKit Framework: background/esp32-sveltekit.md # Describing the framework
   
   - Reverse Engineering:
     - reverse-engineering/index.md
-    - Protocol Analysis: reverse-engineering/protocol-analysis.md
-    - Packet Structure: reverse-engineering/packet-structure.md
-    - Message Types: reverse-engineering/message-types.md
-    - RF Characteristics: reverse-engineering/rf-analysis.md
-    - Decoding Process: reverse-engineering/methodology.md
+    - Genius Components: reverse-engineering/genius-components.md # Describing the smoke detector's and radio module's PCBs
+    - RF Configuration: reverse-engineering/rf-configuration.md # Describing the RF settings and frequencies
+    - Protocol Analysis: reverse-engineering/protocol-analysis.md # Describing the protocol and the packages reversed engineered so far
   
-  - Hardware Design:
+  - Gateway Hardware:
     - hardware/index.md
-    - Gateway Overview: hardware/gateway-overview.md
-    - Schematics: hardware/schematics.md
-    - PCB Layout: hardware/pcb-layout.md
-    - Bill of Materials: hardware/bom.md
-    - Assembly Guide: hardware/assembly.md
+    - Gateway Overview: hardware/gateway-overview.md  # General hardware overview with some pictures of the assembled gateway
+    - Schematics: hardware/schematics.md # Describing the basic electronic components, with a screenshot and links to the EasyEDA project and the PDF
+    - PCB Layout: hardware/pcb-layout.md # Describing the PCB layout with a screenshot and links to the design files
+    - Bill of Materials: hardware/bom.md # Describing the BOM with a table of components and links to suppliers
+    - Case: hardware/case.md # Describing the compatible cases with manufacturers, models, links and some pictures
   
   - Gateway Features:
     - features/index.md
-    - Web Interface: features/web-interface.md
-    - Device Management: features/device-management.md
-    - Packet Visualizer: features/packet-visualizer.md
-    - Alarm Management: features/alarm-management.md
-    - MQTT Integration: features/mqtt-integration.md
-    - Settings & Configuration: features/settings.md
-  
+    - System Overview: features/overview.md # Screenshot of the web interface's main page and basic explanation of the content, in normal operating mode and fire alerting mode
+    - Gateway Settings: features/settings.md # Describing the Genius Gateway settings available in the web interface
+    - Device Management: features/device-management.md # Describing the smoke detectors management features of the web interface, including typical actions, with screenshots
+    - Packet Visualizer: features/packet-visualizer.md # Describing the packet visualizer tool and its usage, with screenshots
+    - Alarm Lines Management: features/alarm-lines-management.md # Describing the alarm lines management features of the web interface, including typical actions, with screenshots
+    - WebSocket Logging Interface: features/websocket-interface.md # Describing the WebSocket logging interface and its usage, with screenshots
+    - Smart Home Integration via MQTT: features/smart-home-integration.md # Describing the smart home integration features via MQTT, with screenshots
+
   - Installation & Setup:
     - setup/index.md
-    - Hardware Setup: setup/hardware.md
-    - Firmware Installation: setup/firmware.md
-    - Configuration: setup/configuration.md
-    - MQTT & Home Assistant: setup/mqtt-homeassistant.md
+    - Hardware Setup: setup/hardware.md # Just referencing to Gateway Hardware section
+    - Firmware Build & Installation: setup/firmware.md # Describing how to build and install the firmware, especially describes basic configuration options (build flags)
+    - Configuration: setup/configuration.md # Describes post-installation configuration of the gateway via web interface
+    - MQTT & Home Assistant: setup/mqtt-homeassistant.md # Describes how to set up MQTT and Home Assistant integration
   
   - API Reference:
     - api/index.md
-    - REST Endpoints: api/rest-api.md
-    - WebSocket Events: api/websocket-api.md
-    - MQTT Topics: api/mqtt-topics.md
-  
-  - Development:
-    - development/index.md
-    - Build System: development/build-system.md
-    - Code Style: development/code-style.md
-    - Contributing: development/contributing.md
-  
+    - REST Endpoints: api/rest-api.md # Listing and describing all available REST API endpoints
+    - WebSocket Events: api/websocket-api.md # Listing and describing all available WebSocket events
+    - MQTT Topics: api/mqtt-topics.md # Listing and describing all available MQTT topics
+
   - Troubleshooting: troubleshooting.md
   - FAQ: faq.md
 
@@ -178,7 +171,7 @@ markdown_extensions:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/hmbacher/genius-gw-svelte
+      link: https://github.com/hmbacher/genius-gateway
       name: Source Code on GitHub
   
   generator: false

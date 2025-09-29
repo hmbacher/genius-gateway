@@ -61,7 +61,7 @@ mindmap
 
 The gateway provides a modern, responsive web interface accessible from any device:
 
-### [Web Interface](web-interface.md)
+### [System Overview](overview.md)
 Complete tour of the web-based management interface with screenshots and feature explanations.
 
 ### [Device Management](device-management.md)
@@ -70,14 +70,17 @@ Detailed guide to discovering, configuring, and monitoring smoke detectors throu
 ### [Packet Visualizer](packet-visualizer.md)
 Real-time packet monitoring and analysis tools for protocol debugging and system optimization.
 
-### [Alarm Management](alarm-management.md)
+### [Alarm Lines Management](alarm-lines-management.md)
 Alarm detection, notification, and management features including custom alarm rules and escalation.
 
-### [MQTT Integration](mqtt-integration.md)  
+### [Smart Home Integration](smart-home-integration.md)  
 Complete MQTT integration guide including Home Assistant setup and custom automation examples.
 
-### [Settings & Configuration](settings.md)
+### [Gateway Settings](settings.md)
 System configuration options, user management, and advanced settings for power users.
+
+### [WebSocket Interface](websocket-interface.md)
+WebSocket logging interface for real-time communication and debugging capabilities.
 
 ## Feature Matrix
 
@@ -203,6 +206,6 @@ The gateway is designed to be easily extended:
 
 ## Next Steps
 
-- **[Web Interface](web-interface.md)** - Take a guided tour of the web interface
+- **[System Overview](overview.md)** - Take a guided tour of the web interface
 - **[Device Management](device-management.md)** - Learn how to configure and monitor your devices
-- **[MQTT Integration](mqtt-integration.md)** - Set up home automation integration
+- **[Smart Home Integration](smart-home-integration.md)** - Set up home automation integration
