@@ -149,7 +149,7 @@ If you can't find the answer to your question here:
 4. **Report Issues**: Create a new GitHub issue for bugs or feature requests
 
 **Useful Links:**
-- [GitHub Repository](https://github.com/hmbacher/genius-gw-svelte)
-- [Issue Tracker](https://github.com/hmbacher/genius-gw-svelte/issues)
-- [Community Discussions](https://github.com/hmbacher/genius-gw-svelte/discussions)
+- [GitHub Repository](https://github.com/hmbacher/genius-gateway)
+- [Issue Tracker](https://github.com/hmbacher/genius-gateway/issues)
+- [Community Discussions](https://github.com/hmbacher/genius-gateway/discussions)
 - [Documentation Home](index.md)

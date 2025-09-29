@@ -113,7 +113,7 @@ graph TB
 
 ## Community & Support
 
-- **GitHub**: [hmbacher/genius-gw-svelte](https://github.com/hmbacher/genius-gw-svelte)
+- **GitHub**: [hmbacher/genius-gateway](https://github.com/hmbacher/genius-gateway)
 - **Issues**: Report bugs and request features on GitHub
 - **Discussions**: Join the community discussion for help and sharing
 

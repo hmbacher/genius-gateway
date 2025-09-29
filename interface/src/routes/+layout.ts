@@ -10,7 +10,7 @@ export const load = (async ({ fetch }) => {
 	return {
 		features: item,
 		title: 'Overview',
-		github: 'hmbacher/genius-gw-svelte',
+		github: 'hmbacher/genius-gateway',
 		copyright: '2025 hmbacher',
 		appName: 'Genius Gateway'
 	};

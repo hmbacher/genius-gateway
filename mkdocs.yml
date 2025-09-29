@@ -146,7 +146,7 @@ markdown_extensions:
       normalize_issue_symbols: true
       repo_url_shorthand: true
       user: hmbacher
-      repo: genius-gw-svelte
+      repo: genius-gateway
   - pymdownx.mark
   - pymdownx.smartsymbols
   - pymdownx.snippets:

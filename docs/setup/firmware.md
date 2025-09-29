@@ -33,8 +33,8 @@ The ESP32 Genius Gateway firmware is built using PlatformIO, a professional deve
 *[Content to be added: Git repository information]*
 
 ```bash
-git clone https://github.com/hmbacher/genius-gw-svelte.git
-cd genius-gw-svelte
+git clone https://github.com/hmbacher/genius-gateway.git
+cd genius-gateway
 ```
 
 #### Repository Structure

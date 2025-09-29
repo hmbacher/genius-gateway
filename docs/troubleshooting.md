@@ -250,8 +250,8 @@ For suspected hardware issues:
 
 ### Community Support
 
-- **GitHub Issues**: [Report bugs and request features](https://github.com/hmbacher/genius-gw-svelte/issues)
-- **Discussions**: [Community help and sharing](https://github.com/hmbacher/genius-gw-svelte/discussions)  
+- **GitHub Issues**: [Report bugs and request features](https://github.com/hmbacher/genius-gateway/issues)
+- **Discussions**: [Community help and sharing](https://github.com/hmbacher/genius-gateway/discussions)  
 - **Documentation**: Check this documentation for updates and additional guides
 
 ### Professional Support
