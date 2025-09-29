@@ -1,67 +1,116 @@
-# ESP32 SvelteKit - Create Amazing IoT Projects
+# ESP32 Genius Gateway
 
-<div style="flex">
-<img src="/docs/media/Screenshot_light.png" style="height:320px"> 
-<img src="/docs/media/Screenshot_mobile.png" style="height:320px"> 
-</div>
+> **Reverse-engineered gateway for Hekatron Genius Plus X smoke detection systems**
 
-A simple and extensible framework for ESP32 based IoT projects with a feature-rich, beautiful, and responsive front-end build with [Sveltekit](https://kit.svelte.dev/), [TailwindCSS](https://tailwindcss.com/) and [DaisyUI](https://daisyui.com/). This is a project template to get you started in no time backed by a powerful back end service, an amazing front end served from the ESP32 and an easy to use build chain to get everything going.
+A sophisticated IoT gateway that enables monitoring and integration of Hekatron Genius Plus X smoke detectors through reverse-engineered RF communication protocols. Built on ESP32 with modern web technologies.
 
-It was forked from the fabulous [rjwats/esp8266-react](https://github.com/rjwats/esp8266-react) project, from where it inherited the mighty back end services.
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hmbacher.github.io/genius-gateway/)
+[![License: Hardware](https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
+[![License: Software](https://img.shields.io/badge/License-GPL%20v3%2FMIT-green.svg)](LICENSE)
+[![License: Docs](https://img.shields.io/badge/License-CC%20BY%204.0-blue.svg)](https://creativecommons.org/licenses/by/4.0/)
 
-> **Tip**: This template repository is not meant to be used stand alone. If you're just looking for a WiFi manager there are plenty of options available. This is a starting point when you need a rich web UI.
+## 🔥 What is the Genius Gateway?
 
-## Features
+The **ESP32 Genius Gateway** is a reverse-engineered interface for Hekatron Genius Plus X smoke detection systems. It enables real-time monitoring, MQTT integration, and web-based management of Genius smoke detectors without requiring proprietary Hekatron gateways.
 
-### :butterfly: Beautiful UI powered by DaisyUI and TailwindCSS
+### Key Features
 
-Beautiful, responsive UI which works equally well on desktop and on mobile. Gently animated for a snappy and modern feeling without ever being obtrusive or in the way. Easy theming with DaisyUI and media-queries to respect the users wish for a light or dark theme.
+- **🔍 Protocol Reverse Engineering** - Complete analysis of proprietary Genius communication protocol
+- **📡 RF Communication** - CC1101-based 868 MHz radio interface compatible with FM Basis Radio Modules  
+- **🌐 Modern Web Interface** - Responsive Svelte-based web UI for device management and monitoring
+- **📊 Real-time Monitoring** - Live packet visualization, alarm states, and device status monitoring
+- **🏠 Home Automation** - MQTT integration with Home Assistant and other automation platforms
+- **⚙️ Open Source** - Complete hardware and software designs available under open licenses
 
-### :t-rex: Low Memory Footprint and Easy Customization by Courtesy of SvelteKit
+## 🚀 Quick Start
 
-SvelteKit is ideally suited to be served from constrained devices like an ESP32. It's unique approach leads to very slim files. No bloatware like other popular JS frameworks. Not only the low memory footprint make it ideal but the developer experience is also outstanding letting you customize the front end with ease. Adapt and add functionality as you need it. The back end has you covered as well.
+1. **Hardware Setup** - Assemble or order the gateway hardware (ESP32-S3 + CC1101)
+2. **Firmware Installation** - Flash the firmware to your ESP32
+3. **Configuration** - Configure WiFi and basic settings via web interface
+4. **MQTT Integration** - Connect to Home Assistant or other automation systems
 
-### :telephone: Rich Communication Interfaces
+## 📡 System Architecture
 
-Comes with a rich set of communication interfaces to cover most standard needs of an IoT application. Like MQTT client, HTTP RESTful API, a WebSocket based Event Socket and a classic Websocket Server. All communication channels are stateful and fully synchronized. Changes propagate and are communicated to all other participants. The states can be persisted on the file system as well. For accurate time keeping time can by synchronized over NTP.
+```
+┌─────────────────────┐    868MHz RF    ┌──────────────────┐    WiFi/MQTT    ┌─────────────────┐
+│ Hekatron Genius     │ ◄─────────────► │ ESP32 Gateway    │ ◄──────────────► │ Home Automation │
+│ Smoke Detectors     │                 │ (CC1101 Radio)   │                 │ Systems         │
+└─────────────────────┘                 └──────────────────┘                 └─────────────────┘
+```
 
-### :file_cabinet: WiFi Provisioning and Management
+The gateway monitors RF communications between Hekatron devices and translates them into standard protocols (MQTT, HTTP, WebSocket) for integration with modern home automation systems.
 
-Naturally ESP32 SvelteKit comes with rich features to manage all your WiFi needs. From pulling up an access point for provisioning or as fall back, to fully manage your WiFi networks. Scan for available networks and connect to them. Advanced configuration options like static IP are on board as well.
+## 🛠️ Technical Specifications
 
-### :old_key: Secured API and User Management
+- **Hardware**: ESP32-S3 microcontroller with CC1101 sub-GHz transceiver
+- **Frequency**: 868.35 MHz (European SRD band)
+- **Protocol**: Reverse-engineered Hekatron Genius Plus X communication
+- **Range**: Typically 30-100m depending on environment
+- **Connectivity**: WiFi, MQTT, HTTP REST API, WebSocket
+- **Interface**: Modern responsive web UI built with SvelteKit
 
-Manage different user of your app with two authorization levels. An administrator and a guest user. Authenticate their API calls with a JWT token. Manage the user's profile from the admin interface. Use at own risk, as it is neither secure without the ability to use TLS/SSL encryption on the ESP32 server, nor very convenient, as only an admin can change passwords.
+## 📖 Documentation
 
-### :airplane: OTA Upgrade Service
+**Complete documentation is available at: [https://hmbacher.github.io/genius-gateway/](https://hmbacher.github.io/genius-gateway/)**
 
-The framework can provide two different channels for Over-the-Air updates. Either by uploading a \*.bin file from the web interface. Or by pulling a firmware image from an update server. This is implemented with the github release page as an example. It is even possible to have different build environments at the same time and the Github OTA process pulls the correct binary.
+The documentation includes:
 
-### :building_construction: Automated Build Chain
+- **[Quick Start Guide](https://hmbacher.github.io/genius-gateway/quick-start/)** - Get up and running in 30 minutes
+- **[Background Information](https://hmbacher.github.io/genius-gateway/background/)** - Understanding Hekatron systems and ESP32 SvelteKit
+- **[Reverse Engineering](https://hmbacher.github.io/genius-gateway/reverse-engineering/)** - Protocol analysis and RF communication details  
+- **[Hardware Design](https://hmbacher.github.io/genius-gateway/hardware/)** - Complete schematics, PCB layout, and assembly guide
+- **[Gateway Features](https://hmbacher.github.io/genius-gateway/features/)** - Web interface, device management, and packet visualization
+- **[Installation & Setup](https://hmbacher.github.io/genius-gateway/setup/)** - Hardware setup, firmware building, and configuration
+- **[API Reference](https://hmbacher.github.io/genius-gateway/api/)** - REST endpoints, WebSocket events, and MQTT topics
 
-The automated build chain takes out the pain and tears of getting all the bits and pieces play nice together. The repository contains a PlatformIO project at its heart. A SvelteKit project for the frontend code and a mkdocs project for the documentation go alongside. The PlatformIO build tools not only build the SvelteKit frontend with Vite, but also ensure that the build results are gzipped and find their way into the flash memory of the ESP32. You have two choices to serve the frontend either from the flash partition, or embedded into the firmware binary. The latter is much more friendly if your frontend code should be distributed OTA as well, leaving all configuration files intact.
+## 🔧 Development
 
-### :icecream: Compatible with all ESP32 Flavours
+The project is built using:
 
-The code runs on many variants of the ESP32 chip family. From the plain old ESP32, the ESP32-S3 and ESP32-C3. Other ESP32 variants might work, but haven't been tested. Sorry, no support for the older ESP8266. Go with one of the ESP32's instead.
+- **Backend**: C++ with Arduino framework and PlatformIO
+- **Frontend**: SvelteKit with TypeScript and Vite  
+- **Hardware**: KiCad for PCB design and schematics
+- **Documentation**: MkDocs with Material theme
 
-## Visit the Project Site
+### Project Structure
 
-[https://theelims.github.io/ESP32-sveltekit/](https://theelims.github.io/ESP32-sveltekit/)
+```
+genius-gateway/
+├── src/                 # C++ backend source code
+├── interface/           # SvelteKit frontend application  
+├── lib/                 # Arduino libraries and dependencies
+├── docs/               # Documentation source (MkDocs)
+├── cae/                # Hardware design files (KiCad)
+├── scripts/            # Build and utility scripts
+└── data/               # Web assets and configuration files
+```
 
-## Libraries Used
+## ⚠️ Important Notes
 
-- [SvelteKit](https://kit.svelte.dev/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [DaisyUI](https://daisyui.com/)
-- [tabler ICONS](https://tabler-icons.io/)
-- [unplugin-icons](https://github.com/antfu/unplugin-icons)
-- [svelte-modals](https://svelte-modals.mattjennings.io/)
-- [svelte-dnd-list](https://github.com/tarb/svelte-dnd-list)
-- [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
-- [PsychicHttp](https://github.com/hoeken/PsychicHttp)
-- [PsychicMqttClient](https://github.com/theelims/PsychicMqttClient)
+- **Reverse Engineering**: This is a reverse-engineered implementation not affiliated with Hekatron
+- **Safety**: Use at your own risk and ensure compliance with local regulations
+- **RF Regulations**: Operates as receive-only monitor compliant with European 868 MHz SRD regulations
+- **Fire Safety**: Does not replace official Hekatron controllers or compromise detector safety functions
 
-## Licensing
+## 📄 License
 
-ESP32 SvelteKit is distributed with two licenses for different sections of the code. The back end code inherits the GNU LESSER GENERAL PUBLIC LICENSE Version 3 and is therefore distributed with said license. The front end code is distributed under the MIT License. See the [LICENSE](LICENSE) for a full text of both licenses.
+This project uses multiple licenses for different components:
+
+- **Hardware Design**: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) - PCB, schematics, CAD files
+- **Backend Software**: [GPL v3](LICENSE) - ESP32 firmware, protocol implementation  
+- **Frontend Software**: [MIT](LICENSE) - Web interface and frontend components
+- **Documentation**: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) - All documentation and guides
+
+See the [LICENSE](LICENSE) file for complete details and rationale for each license choice.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please see the [documentation](https://hmbacher.github.io/genius-gateway/) for development guidelines.
+
+- **GitHub Repository**: [hmbacher/genius-gateway](https://github.com/hmbacher/genius-gateway)
+- **Issues & Bug Reports**: [GitHub Issues](https://github.com/hmbacher/genius-gateway/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/hmbacher/genius-gateway/discussions)
+
+---
+
+**🔗 For complete documentation, visit: [https://hmbacher.github.io/genius-gateway/](https://hmbacher.github.io/genius-gateway/)**

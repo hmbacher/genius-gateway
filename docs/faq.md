@@ -137,7 +137,7 @@ Answers to common questions about the ESP32 Genius Gateway.
     Professional support, custom development, and commercial licensing options may be available. Contact the project maintainer through GitHub for commercial inquiries.
 
 ??? question "Can I sell products based on this design?"
-    The hardware design is licensed under CC BY-SA 4.0 and software under LGPL v3/MIT. Commercial use is permitted following the respective license terms including attribution and sharing improvements.
+    The hardware design is licensed under CC BY-SA 4.0 and software under GPL v3/MIT. Commercial use is permitted following the respective license terms including attribution and sharing improvements.
 
 ## Still Need Help?
 

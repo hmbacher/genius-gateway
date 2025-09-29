@@ -4,11 +4,11 @@
 
 // From AlarmLinesService.h
 export enum AlarmLineAcquisition {
-  /** Alarm line built-in (e.g. broadcast) */
+  /** /< Built-in alarm line (e.g. broadcast line) */
   BuiltIn = 0,
-  /** Alarm line added via received genius packet */
+  /** /< Discovered via received genius packet */
   GeniusPacket,
-  /** Alarm line added manually (via web interface) */
+  /** /< Manually added via web interface */
   Manual,
 }
 
@@ -21,54 +21,56 @@ export enum Cc1101Mode {
 
 // From GatewayDevicesService.h
 export enum GeniusAlarmEnding {
-  /** Alarm is currently active */
+  /** /< Alarm is currently active */
   AlarmActive = -1,
-  /** Alarm was ended by smoke detector */
+  /** /< Alarm was ended by smoke detector */
   BySmokeDetector = 0,
-  /** Alarm was ended manually via web interface */
+  /** /< Alarm was ended manually via web interface */
   ByManual,
 }
 
 // From GatewayDevicesService.h
 export enum GeniusSmokeDetector {
-  /** Unknown smoke detector type */
+  /** /< Unknown smoke detector type */
   Unknown = -1,
+  /** /< Genius Plus X smoke detector model */
   GeniusPlusX = 0,
 }
 
 // From GatewayDevicesService.h
 export enum GeniusRadioModule {
-  /** Unknown radio module type */
+  /** /< Unknown radio module type */
   Unknown = -1,
+  /** /< FM Basis X radio module model */
   FmBasisX = 0,
 }
 
 // From GatewayDevicesService.h
 export enum GeniusDeviceRegistration {
-  /** Device is built-in */
+  /** /< Device is built-in */
   BuiltIn = 0,
-  /** Device was added via received genius packet */
+  /** /< Device was added via received genius packet */
   GeniusPacket,
-  /** Device registered manually (via web interface) */
+  /** /< Device registered manually (via web interface) */
   Manual,
 }
 
 // From GeniusGateway.h
 export enum GeniusPacketType {
-  /** Unknown packet type */
+  /** /< Unknown packet type */
   Unknown = -1,
-  /** Commissioning packet (comissioning of smoke detectors to an alarm line) */
+  /** /< Commissioning packet (smoke detector assignment to alarm line) */
   Commissioning = 0,
-  /** Discovery request packet (request for smoke detectors to self identify) */
+  /** /< Discovery request packet (request for smoke detectors to identify) */
   DiscoveryRequest,
-  /** Discovery response packet (response from smoke detectors with their IDs) */
+  /** /< Discovery response packet (smoke detector identification response) */
   DiscoveryResponse,
-  /** Alarm start packet (indicating smoke has been detected) */
+  /** /< Alarm start packet (smoke detection notification) */
   AlarmStart,
-  /** Alarm stop packet (indicating smoke has been cleared or alarm has been silenced) */
+  /** /< Alarm stop packet (smoke cleared or alarm silenced) */
   AlarmStop,
-  /** Line test start packet (indicating a line test has been started) */
+  /** /< Line test start packet (line test initiation) */
   LineTestStart,
-  /** Line test stop packet (indicating a line test has been stopped) */
+  /** /< Line test stop packet (line test completion) */
   LineTestStop,
 }

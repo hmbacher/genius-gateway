@@ -109,7 +109,7 @@ graph TB
 **Current Version**: v0.6.0  
 **Hardware**: ESP32-S3 with CC1101 radio module  
 **Protocol Support**: Hekatron Genius Plus X (FM Basis Radio Module)  
-**License**: Hardware: CC BY-SA 4.0, Software: LGPL v3 (backend) / MIT (frontend)
+**License**: Hardware: CC BY-SA 4.0, Software: GPL v3 (backend) / MIT (frontend), Documentation: CC BY 4.0
 
 ## Community & Support
 

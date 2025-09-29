@@ -2,6 +2,7 @@
 .clang_complete
 .gcc-flags.json
 *Thumbs.db
+/data
 /data/www
 /interface/build
 /interface/node_modules
@@ -20,3 +21,4 @@ ssl_certs/cacert.pem
 .aid
 sdkconfig
 .venv
+compile_commands.json

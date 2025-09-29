@@ -1,11 +1,64 @@
-ESP32 SvelteKit is distributed with two licenses for different sections of the
-code. The back end code inherits the GNU LESSER GENERAL PUBLIC LICENSE Version 3
-and is therefore distributed with said license. The front end code is distributed
-under the MIT License.
+# Genius Gateway - Multi-License Structure
 
-MIT License
+The Genius Gateway project uses different licenses for different components to best serve the open source hardware and software communities while protecting the work done in reverse engineering.
 
-Copyright (C) 2023 - 2024 theelims
+## License Summary
+
+| Component | License | Files | Rationale |
+|-----------|---------|-------|-----------|
+| **Hardware** | CC BY-SA 4.0 | `cae/*`, hardware docs | Open hardware standard with ShareAlike |
+| **Backend Software** | GPL v3 | `src/*`, `lib/*`, firmware | Strong copyleft for reverse engineering work |
+| **Frontend Software** | MIT | `interface/*`, web assets | Permissive for UI customization |
+| **Documentation** | CC BY 4.0 | `docs/*`, `README.md` | Attribution-only for documentation |
+
+---
+
+## Hardware License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+
+**Applies to:** PCB designs, schematics, CAD files, mechanical drawings, hardware documentation
+
+**Files:** `cae/*`, hardware-related documentation in `docs/hardware/*`
+
+**License URL:** https://creativecommons.org/licenses/by-sa/4.0/
+
+**Summary:** You are free to share and adapt the hardware designs, even commercially, as long as you provide attribution and distribute derivatives under the same license.
+
+**Attribution:** "Genius Gateway Hardware Design by hmbacher (https://github.com/hmbacher/genius-gateway) is licensed under CC BY-SA 4.0"
+
+---
+
+## Backend Software License: GNU General Public License v3 (GPL v3)
+
+**Applies to:** ESP32 firmware, protocol implementation, reverse engineering code, backend services
+
+**Files:** `src/*`, `lib/*`, `platformio.ini`, build scripts related to firmware
+
+Copyright (C) 2024 hmbacher
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+**Rationale:** The GPL v3 ensures that improvements to the reverse-engineered protocol implementation and firmware remain open source, preventing proprietary derivatives while allowing commercial use.
+
+---
+
+## Frontend Software License: MIT License
+
+**Applies to:** Web interface, SvelteKit application, frontend assets
+
+**Files:** `interface/*`, `data/www/*`, frontend build tools
+
+Copyright (c) 2024 hmbacher
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,29 +78,72 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-                   GNU LESSER GENERAL PUBLIC LICENSE
-                       Version 3, 29 June 2007
+**Rationale:** The permissive MIT license allows maximum flexibility for users who want to customize or integrate the web interface.
 
-Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
-Everyone is permitted to copy and distribute verbatim copies
-of this license document, but changing it is not allowed.
+---
 
-This version of the GNU Lesser General Public License incorporates
-the terms and conditions of version 3 of the GNU General Public
-License, supplemented by the additional permissions listed below.
+## Documentation License: Creative Commons Attribution 4.0 International (CC BY 4.0)
 
-0. Additional Definitions.
+**Applies to:** All documentation, guides, and explanatory content
 
-As used herein, "this License" refers to version 3 of the GNU Lesser
-General Public License, and the "GNU GPL" refers to version 3 of the GNU
-General Public License.
+**Files:** `docs/*`, `README.md`, `CHANGELOG.md`, wiki content
 
-"The Library" refers to a covered work governed by this License,
-other than an Application or a Combined Work as defined below.
+**License URL:** https://creativecommons.org/licenses/by/4.0/
 
-An "Application" is any work that makes use of an interface provided
-by the Library, but which is not otherwise based on the Library.
-Defining a subclass of a class defined by the Library is deemed a mode
+**Attribution:** "Genius Gateway Documentation by hmbacher (https://github.com/hmbacher/genius-gateway) is licensed under CC BY 4.0"
+
+**Rationale:** Attribution-only licensing encourages broad reuse of documentation while requiring appropriate credit.
+
+---
+
+## Third-Party Components
+
+This project builds upon and includes components from other open source projects:
+
+### ESP32 SvelteKit Framework
+- **License:** LGPL v3 (backend), MIT (frontend)
+- **Author:** theelims
+- **URL:** https://github.com/theelims/ESP32-sveltekit
+- **Usage:** Base framework for ESP32 web applications
+
+### Arduino Libraries
+Various Arduino libraries used are subject to their respective licenses. See individual library documentation for details.
+
+---
+
+## Reverse Engineering Disclaimer
+
+This project contains reverse-engineered implementations of proprietary protocols. This work is conducted under the principles of:
+
+- **Interoperability:** Enabling integration with open source systems
+- **Education:** Advancing understanding of IoT communication protocols  
+- **Fair Use:** Reverse engineering for compatibility purposes
+- **No Circumvention:** Not bypassing security measures or copy protection
+
+**Important:** This project is not affiliated with, endorsed by, or supported by Hekatron. Users must ensure compliance with local laws and regulations regarding reverse engineering and RF monitoring.
+
+---
+
+## Contributing
+
+By contributing to this project, you agree that:
+
+1. **Hardware contributions** will be licensed under CC BY-SA 4.0
+2. **Backend software contributions** will be licensed under GPL v3
+3. **Frontend software contributions** will be licensed under MIT
+4. **Documentation contributions** will be licensed under CC BY 4.0
+5. You have the right to license your contributions under these terms
+
+---
+
+## License Compatibility
+
+- **GPL v3 ↔ LGPL v3:** Compatible (GPL can use LGPL components)
+- **MIT ↔ GPL v3:** Compatible (GPL can use MIT components)
+- **CC BY-SA 4.0 ↔ Other Licenses:** Hardware designs are independent of software licenses
+- **CC BY 4.0:** Compatible with all other licenses used
+
+For questions about licensing, please open an issue in the GitHub repository.
 of using an interface provided by the Library.
 
 A "Combined Work" is a work produced by combining or linking an
