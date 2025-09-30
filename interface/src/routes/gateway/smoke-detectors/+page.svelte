@@ -331,7 +331,7 @@
 														handleAlarmLog(index);
 													}}
 												>
-													<Logs class="h-4 w-4" />
+													<Logs class="h-6 w-6" />
 												</button>
 											{/if}
 											<button
