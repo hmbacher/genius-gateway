@@ -1,10 +1,10 @@
 # MQTT & Home Assistant
 
-This page describes how to set up MQTT broker connection and Home Assistant integration for the ESP32 Genius Gateway.
+This page describes how to set up MQTT broker connection and Home Assistant integration for the Genius Gateway.
 
 ## Overview
 
-Integrating the ESP32 Genius Gateway with Home Assistant via MQTT enables powerful home automation scenarios, centralized monitoring, and advanced alerting capabilities. This guide covers the complete setup process from MQTT broker configuration to Home Assistant device integration.
+Integrating the Genius Gateway with Home Assistant via MQTT enables powerful home automation scenarios, centralized monitoring, and advanced alerting capabilities. This guide covers the complete setup process from MQTT broker configuration to Home Assistant device integration.
 
 ## MQTT Broker Setup
 
@@ -383,4 +383,4 @@ mosquitto_sub -h localhost -t "homeassistant/+/genius_gateway_+/config" -v
 
 ---
 
-*This guide provides comprehensive setup instructions for integrating your ESP32 Genius Gateway with Home Assistant via MQTT, enabling powerful home automation capabilities.*
+*This guide provides comprehensive setup instructions for integrating your Genius Gateway with Home Assistant via MQTT, enabling powerful home automation capabilities.*

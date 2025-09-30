@@ -1,4 +1,4 @@
-# ESP32 Genius Gateway
+# Genius Gateway
 
 <div class="grid cards" markdown>
 
@@ -38,7 +38,7 @@
 
 ## What is the Genius Gateway?
 
-The **ESP32 Genius Gateway** is a reverse-engineered interface for Hekatron Genius Plus X smoke detection systems. It enables real-time monitoring, MQTT integration, and web-based management of Genius smoke detectors without requiring proprietary Hekatron gateways.
+The **Genius Gateway** is a reverse-engineered interface for Hekatron Genius Plus X smoke detection systems. It enables real-time monitoring, MQTT integration, and web-based management of Genius smoke detectors without requiring proprietary Hekatron gateways.
 
 ### Key Features
 

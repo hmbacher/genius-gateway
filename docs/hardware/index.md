@@ -1,6 +1,6 @@
 # Hardware Design
 
-Complete hardware design documentation for the ESP32 Genius Gateway.
+Complete hardware design documentation for the Genius Gateway.
 
 ## Design Overview
 

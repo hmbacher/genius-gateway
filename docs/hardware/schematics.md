@@ -1,10 +1,10 @@
 # Schematics
 
-This page describes the basic electronic components of the ESP32 Genius Gateway, including schematic diagrams and design documentation.
+This page describes the basic electronic components of the Genius Gateway, including schematic diagrams and design documentation.
 
 ## Overview
 
-The ESP32 Genius Gateway schematic represents the complete electronic design, showing how all components are interconnected to create a functional RF gateway for the Hekatron Genius Plus X system.
+The Genius Gateway schematic represents the complete electronic design, showing how all components are interconnected to create a functional RF gateway for the Hekatron Genius Plus X system.
 
 ## Complete Schematic
 
@@ -92,4 +92,4 @@ The ESP32 Genius Gateway schematic represents the complete electronic design, sh
 
 ---
 
-*This schematic documentation provides the complete electrical design foundation for the ESP32 Genius Gateway.*
+*This schematic documentation provides the complete electrical design foundation for the Genius Gateway.*

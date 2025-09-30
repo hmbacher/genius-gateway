@@ -1,10 +1,10 @@
 # Case
 
-This page describes compatible enclosures for the ESP32 Genius Gateway, including manufacturers, models, and assembly pictures.
+This page describes compatible enclosures for the Genius Gateway, including manufacturers, models, and assembly pictures.
 
 ## Overview
 
-Selecting the right enclosure is important for protecting the ESP32 Genius Gateway hardware while maintaining optimal RF performance. This page provides information about tested and recommended enclosure options.
+Selecting the right enclosure is important for protecting the Genius Gateway hardware while maintaining optimal RF performance. This page provides information about tested and recommended enclosure options.
 
 ## Recommended Cases
 
@@ -134,4 +134,4 @@ Selecting the right enclosure is important for protecting the ESP32 Genius Gatew
 
 ---
 
-*This case selection guide ensures proper protection and performance for your ESP32 Genius Gateway hardware.*
+*This case selection guide ensures proper protection and performance for your Genius Gateway hardware.*

@@ -4,7 +4,7 @@ This page describes the printed circuit board (PCB) layout design with screensho
 
 ## Overview
 
-The PCB layout for the ESP32 Genius Gateway is designed to provide optimal performance for RF communication while maintaining compact size and manufacturability. The design follows best practices for mixed-signal PCB layout with careful attention to RF performance.
+The PCB layout for the Genius Gateway is designed to provide optimal performance for RF communication while maintaining compact size and manufacturability. The design follows best practices for mixed-signal PCB layout with careful attention to RF performance.
 
 ## PCB Layout Screenshots
 
@@ -112,4 +112,4 @@ The PCB layout for the ESP32 Genius Gateway is designed to provide optimal perfo
 
 ---
 
-*This PCB layout documentation provides complete manufacturing and assembly information for the ESP32 Genius Gateway.*
+*This PCB layout documentation provides complete manufacturing and assembly information for the Genius Gateway.*

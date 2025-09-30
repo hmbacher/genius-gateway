@@ -4,7 +4,7 @@ This page provides screenshots of the web interface's main page and explains the
 
 ## Overview
 
-The ESP32 Genius Gateway web interface serves as the central control panel for monitoring and managing your Hekatron Genius Plus X smoke detection system. The interface provides real-time status information, device management capabilities, and comprehensive system monitoring.
+The Genius Gateway web interface serves as the central control panel for monitoring and managing your Hekatron Genius Plus X smoke detection system. The interface provides real-time status information, device management capabilities, and comprehensive system monitoring.
 
 ## Normal Operating Mode
 
@@ -115,4 +115,4 @@ When a fire condition is detected, the interface transforms to prioritize critic
 
 ---
 
-*This overview provides the foundation for understanding the ESP32 Genius Gateway's user interface and operational modes.*
+*This overview provides the foundation for understanding the Genius Gateway's user interface and operational modes.*

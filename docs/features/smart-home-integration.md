@@ -4,7 +4,7 @@ This page describes the smart home integration features via MQTT, including Home
 
 ## Overview
 
-The ESP32 Genius Gateway provides comprehensive smart home integration through MQTT (Message Queuing Telemetry Transport) protocol. This integration enables seamless connectivity with popular home automation platforms like Home Assistant, OpenHAB, and custom IoT systems.
+The Genius Gateway provides comprehensive smart home integration through MQTT (Message Queuing Telemetry Transport) protocol. This integration enables seamless connectivity with popular home automation platforms like Home Assistant, OpenHAB, and custom IoT systems.
 
 ## MQTT Integration Architecture
 
@@ -239,4 +239,4 @@ genius-gateway/
 
 ---
 
-*The MQTT integration provides powerful and flexible smart home connectivity for the ESP32 Genius Gateway.*
+*The MQTT integration provides powerful and flexible smart home connectivity for the Genius Gateway.*

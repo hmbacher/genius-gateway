@@ -1,10 +1,10 @@
 # Configuration
 
-This page describes post-installation configuration of the ESP32 Genius Gateway via the web interface.
+This page describes post-installation configuration of the Genius Gateway via the web interface.
 
 ## Overview
 
-After successful firmware installation, the ESP32 Genius Gateway requires initial configuration to begin monitoring your Hekatron Genius Plus X smoke detection system. This configuration is performed through the intuitive web-based interface.
+After successful firmware installation, the Genius Gateway requires initial configuration to begin monitoring your Hekatron Genius Plus X smoke detection system. This configuration is performed through the intuitive web-based interface.
 
 ## Initial Setup Process
 
@@ -293,4 +293,4 @@ The gateway starts in Access Point (AP) mode for initial configuration:
 
 ---
 
-*This configuration guide ensures your ESP32 Genius Gateway is properly set up and optimized for your specific environment and requirements.*
+*This configuration guide ensures your Genius Gateway is properly set up and optimized for your specific environment and requirements.*

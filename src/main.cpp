@@ -1,5 +1,5 @@
 /// @file main.cpp
-/// @brief Main entry point for ESP32 Genius Gateway application32 SvelteKit
+/// @brief Main entry point for Genius Gateway application32 SvelteKit
 
 #include <ESP32SvelteKit.h>
 #include <PsychicHttpServer.h>

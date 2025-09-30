@@ -1,6 +1,6 @@
 # Gateway Features
 
-Comprehensive overview of the ESP32 Genius Gateway's capabilities and user interface.
+Comprehensive overview of the Genius Gateway's capabilities and user interface.
 
 ## Feature Overview
 

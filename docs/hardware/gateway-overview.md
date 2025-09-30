@@ -1,10 +1,10 @@
 # Gateway Overview
 
-This page provides a general hardware overview of the ESP32 Genius Gateway with assembled gateway pictures and key specifications.
+This page provides a general hardware overview of the Genius Gateway with assembled gateway pictures and key specifications.
 
 ## Overview
 
-The ESP32 Genius Gateway is a custom-designed hardware platform that enables communication with Hekatron Genius Plus X smoke detection systems. Built around the powerful ESP32-S3 microcontroller, it provides both RF communication capabilities and a comprehensive web-based management interface.
+The Genius Gateway is a custom-designed hardware platform that enables communication with Hekatron Genius Plus X smoke detection systems. Built around the powerful ESP32-S3 microcontroller, it provides both RF communication capabilities and a comprehensive web-based management interface.
 
 ## Assembled Gateway Pictures
 

@@ -4,7 +4,7 @@ This page describes the packet visualizer tool and its usage for analyzing RF co
 
 ## Overview
 
-The Packet Visualizer is a powerful diagnostic tool that provides real-time visualization and analysis of RF communication packets between the ESP32 Genius Gateway and Hekatron Genius Plus X smoke detectors. This tool is essential for troubleshooting communication issues and understanding protocol behavior.
+The Packet Visualizer is a powerful diagnostic tool that provides real-time visualization and analysis of RF communication packets between the Genius Gateway and Hekatron Genius Plus X smoke detectors. This tool is essential for troubleshooting communication issues and understanding protocol behavior.
 
 ## Main Visualizer Interface
 

@@ -1,6 +1,6 @@
 # Installation & Setup
 
-Complete installation and setup guide for the ESP32 Genius Gateway.
+Complete installation and setup guide for the Genius Gateway.
 
 ## Overview
 

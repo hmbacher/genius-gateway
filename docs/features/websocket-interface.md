@@ -4,7 +4,7 @@ This page describes the WebSocket logging interface and its usage for real-time 
 
 ## Overview
 
-The WebSocket Logging Interface provides real-time access to system logs, debug information, and operational data from the ESP32 Genius Gateway. This powerful tool enables developers, system administrators, and advanced users to monitor system behavior in real-time.
+The WebSocket Logging Interface provides real-time access to system logs, debug information, and operational data from the Genius Gateway. This powerful tool enables developers, system administrators, and advanced users to monitor system behavior in real-time.
 
 ## Main Logging Interface
 
@@ -202,4 +202,4 @@ The main interface features:
 
 ---
 
-*The WebSocket Logging Interface provides powerful real-time monitoring and debugging capabilities for the ESP32 Genius Gateway.*
+*The WebSocket Logging Interface provides powerful real-time monitoring and debugging capabilities for the Genius Gateway.*

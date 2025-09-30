@@ -4,7 +4,7 @@ This page describes the smoke detector management features of the web interface,
 
 ## Overview
 
-The Device Management section provides comprehensive tools for monitoring, configuring, and maintaining Hekatron Genius Plus X smoke detectors connected to your ESP32 Genius Gateway. This interface allows you to perform all necessary device operations remotely.
+The Device Management section provides comprehensive tools for monitoring, configuring, and maintaining Hekatron Genius Plus X smoke detectors connected to your Genius Gateway. This interface allows you to perform all necessary device operations remotely.
 
 ## Device List View
 

@@ -1,10 +1,10 @@
 # REST Endpoints
 
-This page lists and describes all available REST API endpoints for programmatic access to the ESP32 Genius Gateway.
+This page lists and describes all available REST API endpoints for programmatic access to the Genius Gateway.
 
 ## Overview
 
-The ESP32 Genius Gateway provides a comprehensive REST API for programmatic access to all system functions. This API enables integration with custom applications, automation systems, and third-party software.
+The Genius Gateway provides a comprehensive REST API for programmatic access to all system functions. This API enables integration with custom applications, automation systems, and third-party software.
 
 ## API Base URL
 
@@ -421,4 +421,4 @@ All API endpoints return errors in a consistent format:
 
 ---
 
-*This REST API provides comprehensive programmatic access to all ESP32 Genius Gateway functions for integration and automation purposes.*
+*This REST API provides comprehensive programmatic access to all Genius Gateway functions for integration and automation purposes.*

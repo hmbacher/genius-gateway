@@ -4,7 +4,7 @@ This page documents the MQTT topic structure and message formats for integration
 
 ## Overview
 
-The ESP32 Genius Gateway publishes comprehensive data to MQTT topics for seamless integration with home automation systems. The topic structure follows best practices for organization and Home Assistant auto-discovery.
+The Genius Gateway publishes comprehensive data to MQTT topics for seamless integration with home automation systems. The topic structure follows best practices for organization and Home Assistant auto-discovery.
 
 ## Topic Structure
 
@@ -53,7 +53,7 @@ homeassistant/sensor/246F28ABCDEF_gateway_status/config
   "json_attributes_topic": "genius-gateway/esp32-gateway/24:6F:28:AB:CD:EF/attributes",
   "device": {
     "identifiers": ["genius_gateway_246F28ABCDEF"],
-    "name": "ESP32 Genius Gateway",
+    "name": "Genius Gateway",
     "model": "ESP32-S3",
     "manufacturer": "Custom",
     "sw_version": "1.2.3",
@@ -632,4 +632,4 @@ sensor:
 
 ---
 
-*The MQTT topic structure provides comprehensive integration capabilities for the ESP32 Genius Gateway with home automation platforms.*
+*The MQTT topic structure provides comprehensive integration capabilities for the Genius Gateway with home automation platforms.*

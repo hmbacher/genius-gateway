@@ -4,7 +4,7 @@ This page references the Gateway Hardware section for complete hardware setup in
 
 ## Overview
 
-The hardware setup for the ESP32 Genius Gateway involves several stages, from PCB assembly to final installation in an appropriate enclosure. This page provides a quick overview and directs you to the comprehensive hardware documentation.
+The hardware setup for the Genius Gateway involves several stages, from PCB assembly to final installation in an appropriate enclosure. This page provides a quick overview and directs you to the comprehensive hardware documentation.
 
 ## Quick Hardware Setup Guide
 

@@ -1,10 +1,10 @@
 # WebSocket API
 
-This page describes the WebSocket API for real-time communication with the ESP32 Genius Gateway.
+This page describes the WebSocket API for real-time communication with the Genius Gateway.
 
 ## Overview
 
-The WebSocket API provides real-time, bidirectional communication with the ESP32 Genius Gateway. This enables instant notifications of device status changes, live data streaming, and interactive control capabilities.
+The WebSocket API provides real-time, bidirectional communication with the Genius Gateway. This enables instant notifications of device status changes, live data streaming, and interactive control capabilities.
 
 ## WebSocket Connection
 
@@ -562,4 +562,4 @@ class GatewayWebSocket {
 
 ---
 
-*The WebSocket API enables powerful real-time integration capabilities for the ESP32 Genius Gateway system.*
+*The WebSocket API enables powerful real-time integration capabilities for the Genius Gateway system.*

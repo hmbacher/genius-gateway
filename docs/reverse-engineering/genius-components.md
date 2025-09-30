@@ -53,4 +53,4 @@ The Hekatron Genius Plus X system consists of several hardware components that w
 
 ---
 
-*This page provides the foundation for understanding the physical hardware that the ESP32 Genius Gateway interfaces with.*
+*This page provides the foundation for understanding the physical hardware that the Genius Gateway interfaces with.*

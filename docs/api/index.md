@@ -1,6 +1,6 @@
 # API Reference
 
-Complete API documentation for the ESP32 Genius Gateway.
+Complete API documentation for the Genius Gateway.
 
 ## Overview
 

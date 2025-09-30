@@ -4,7 +4,7 @@ This page describes the Genius Gateway configuration options available through t
 
 ## Overview
 
-The Gateway Settings section provides comprehensive configuration options for customizing the ESP32 Genius Gateway's operation. These settings control RF communication parameters, network configuration, user interface preferences, and system behavior.
+The Gateway Settings section provides comprehensive configuration options for customizing the Genius Gateway's operation. These settings control RF communication parameters, network configuration, user interface preferences, and system behavior.
 
 ## System Configuration
 
@@ -163,4 +163,4 @@ The Gateway Settings section provides comprehensive configuration options for cu
 
 ---
 
-*These settings provide complete control over your ESP32 Genius Gateway's operation and integration with your environment.*
+*These settings provide complete control over your Genius Gateway's operation and integration with your environment.*

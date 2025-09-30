@@ -1,4 +1,4 @@
-site_name: ESP32 Genius Gateway
+site_name: Genius Gateway
 site_description: >-
   Reverse-engineered gateway for Hekatron Genius Plus X smoke detection systems.
   Real-time monitoring, MQTT integration, and web-based management interface.
@@ -10,12 +10,8 @@ edit_uri: edit/main/docs/
 
 nav:
   - Home: index.md
-  - Quick Start: quick-start.md
-  
-  - Background:
-    - background/index.md
-    - Hekatron Genius Plus X: background/hekatron-system.md # Describing the system
-    - ESP32 SvelteKit Framework: background/esp32-sveltekit.md # Describing the framework
+ 
+  - Background: background.md
   
   - Reverse Engineering:
     - reverse-engineering/index.md
@@ -47,22 +43,22 @@ nav:
     - Firmware Build & Installation: setup/firmware.md # Describing how to build and install the firmware, especially describes basic configuration options (build flags)
     - Configuration: setup/configuration.md # Describes post-installation configuration of the gateway via web interface
     - MQTT & Home Assistant: setup/mqtt-homeassistant.md # Describes how to set up MQTT and Home Assistant integration
-  
+
   - API Reference:
     - api/index.md
     - REST Endpoints: api/rest-api.md # Listing and describing all available REST API endpoints
     - WebSocket Events: api/websocket-api.md # Listing and describing all available WebSocket events
     - MQTT Topics: api/mqtt-topics.md # Listing and describing all available MQTT topics
 
-  - Troubleshooting: troubleshooting.md
+  - License: license.md # Contains licensing information like in /LICENSE 
+
   - FAQ: faq.md
 
 theme:
   name: material
-  # custom_dir: overrides/  # Commented out - directory doesn't exist
-  # logo: assets/genius-gateway-logo.png  # Commented out - file doesn't exist
-  # favicon: assets/favicon.png  # Commented out - file doesn't exist
-  
+  # custom_dir: overrides/  # Currently no overrides
+  logo: assets/images/doc/logo.png
+  favicon: assets/images/doc/favicon.png
   palette:
     # Hekatron red inspired theme
     - media: "(prefers-color-scheme: light)"

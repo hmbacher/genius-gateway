@@ -1,10 +1,10 @@
 # Firmware Build & Installation
 
-This page describes how to build and install the ESP32 Genius Gateway firmware, including build configuration options and build flags.
+This page describes how to build and install the Genius Gateway firmware, including build configuration options and build flags.
 
 ## Overview
 
-The ESP32 Genius Gateway firmware is built using PlatformIO, a professional development platform for embedded systems. This guide covers the complete process from source code compilation to firmware installation on your hardware.
+The Genius Gateway firmware is built using PlatformIO, a professional development platform for embedded systems. This guide covers the complete process from source code compilation to firmware installation on your hardware.
 
 ## Development Environment Setup
 
@@ -22,7 +22,7 @@ The ESP32 Genius Gateway firmware is built using PlatformIO, a professional deve
 #### Hardware Requirements
 
 *[Content to be added: Hardware needed for development]*
-- ESP32 Genius Gateway hardware
+- Genius Gateway hardware
 - USB cable for programming and debugging
 - Computer with sufficient resources for compilation
 
@@ -320,4 +320,4 @@ build_flags =
 
 ---
 
-*This guide provides complete instructions for building and installing the ESP32 Genius Gateway firmware with all available configuration options.*
+*This guide provides complete instructions for building and installing the Genius Gateway firmware with all available configuration options.*

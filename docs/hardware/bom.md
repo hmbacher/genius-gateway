@@ -1,10 +1,10 @@
 # Bill of Materials (BOM)
 
-This page provides a comprehensive bill of materials for the ESP32 Genius Gateway, including component specifications, supplier information, and procurement links.
+This page provides a comprehensive bill of materials for the Genius Gateway, including component specifications, supplier information, and procurement links.
 
 ## Overview
 
-The Bill of Materials (BOM) contains all components required to build the ESP32 Genius Gateway. Components are organized by category with detailed specifications, manufacturer part numbers, and suggested suppliers.
+The Bill of Materials (BOM) contains all components required to build the Genius Gateway. Components are organized by category with detailed specifications, manufacturer part numbers, and suggested suppliers.
 
 ## Complete BOM Table
 
@@ -113,4 +113,4 @@ The Bill of Materials (BOM) contains all components required to build the ESP32 
 
 ---
 
-*This BOM provides complete procurement information for building the ESP32 Genius Gateway hardware.*
+*This BOM provides complete procurement information for building the Genius Gateway hardware.*
