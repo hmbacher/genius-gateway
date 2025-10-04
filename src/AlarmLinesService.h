@@ -87,10 +87,7 @@ public:
     std::vector<genius_alarm_line_t> lines;          ///< Vector containing all managed alarm lines
 
     /// Deserialize alarm lines from JSON object
-    static void read(AlarmLines &alarmLines, JsonObject &root);
-
-    /// Serialize alarm lines to JSON object
-    static JsonObject &write(JsonObject &root, AlarmLines &alarmLines)
+    static void read(AlarmLines &alarmLines, JsonObject &root)
     {
         JsonArray jsonDevices = root["lines"].to<JsonArray>();
         for (auto &line : alarmLines.lines)
