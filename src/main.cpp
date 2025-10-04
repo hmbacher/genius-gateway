@@ -5,6 +5,7 @@
 #include <PsychicHttpServer.h>
 #include <GeniusGateway.h>
 #include <nvs_flash.h>
+#include <esp_http_server.h>
 
 #define SERIAL_BAUD_RATE 115200 ///< Serial communication baud rate
 
@@ -61,6 +62,14 @@ void setup()
 
     // Initialize NVS flash storage
     init_nvs();
+
+    // Configure HTTP server for larger headers (needed when using Cloudflare)
+    server.config.recv_wait_timeout = 60;
+    server.config.send_wait_timeout = 60;
+    // Increase stack size to handle larger headers
+    server.config.stack_size = 8192;  // Default is 4096
+    // Allow more simultaneous connections  
+    server.config.max_open_sockets = 8;  // Default is 7
 
     // start ESP32-SvelteKit
     esp32sveltekit.begin();
