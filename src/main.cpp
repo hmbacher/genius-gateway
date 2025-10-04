@@ -70,6 +70,10 @@ void setup()
     server.config.stack_size = 8192;  // Default is 4096
     // Allow more simultaneous connections  
     server.config.max_open_sockets = 8;  // Default is 7
+    // Increase max header length
+    server.config.max_req_hdr_len = 2048; // Default is 1024
+    // Increase max URI length
+    server.config.max_uri_len = 1024; // Default is 512
 
     // start ESP32-SvelteKit
     esp32sveltekit.begin();
