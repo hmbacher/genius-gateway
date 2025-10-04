@@ -26,7 +26,6 @@ compile_commands.json
 # pioarduino Hybrid Compile feature
 .dummy
 managed_components
-ssl_certs
 dependencies.lock
 sdkconfig*
 CMakeLists.txt
