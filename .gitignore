@@ -22,3 +22,12 @@ ssl_certs/cacert.pem
 sdkconfig
 .venv
 compile_commands.json
+
+# pioarduino Hybrid Compile feature
+.dummy
+managed_components
+ssl_certs
+dependencies.lock
+sdkconfig*
+CMakeLists.txt
+src/CMakeLists.txt
