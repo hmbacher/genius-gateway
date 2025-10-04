@@ -2,6 +2,8 @@
  * Utility functions for serializing and deserializing objects containing Uint8Array
  */
 
+import { downloadObjectAsJson } from "./misc";
+
 export interface SerializablePacket {
   [key: string]: any;
   data?: Uint8Array;
@@ -10,16 +12,14 @@ export interface SerializablePacket {
 /**
  * Safely serialize an object containing Uint8Array to JSON string
  */
-export function serializePacket(obj: SerializablePacket): string {
-  return JSON.stringify(obj, (key, value) => {
-    if (value instanceof Uint8Array) {
-      return {
-        __type: 'Uint8Array',
-        data: Array.from(value)
-      };
-    }
-    return value;
-  }, 2);
+export function packetSerializer(this: any, key: string, value: any): any {
+  if (value instanceof Uint8Array) {
+    return {
+      __type: 'Uint8Array',
+      data: Array.from(value)
+    };
+  }
+  return value;
 }
 
 /**
@@ -37,12 +37,6 @@ export function deserializePacket(jsonString: string): SerializablePacket {
 /**
  * Downloads a Genius Packet as a JSON file
  */
-export function downloadPacketAsJson(exportPacket: any, exportName: string){
-    var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(serializePacket(exportPacket));
-    var downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", exportName);
-    document.body.appendChild(downloadAnchorNode); // required for Firefox
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-  }
+export function downloadPacketAsJson(exportPacket: any, exportName: string) {
+  downloadObjectAsJson(exportPacket, exportName, true, packetSerializer);
+}

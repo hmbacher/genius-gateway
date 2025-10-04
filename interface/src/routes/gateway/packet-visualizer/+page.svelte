@@ -363,12 +363,6 @@
 			reader.readAsText(files[0]);
 		}
 	});
-
-	function handleSavePacketsLogToDisk() {
-		const now = new Date();
-		const formattedDate = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-		downloadPacketAsJson(packets, `genius-packets-${formattedDate}`);
-	}
 </script>
 
 <SettingsCard collapsible={true}>
@@ -438,7 +432,7 @@
 				<button
 					class="btn btn-primary text-primary-content btn-md"
 					disabled={packets.length === 0}
-					onclick={handleSavePacketsLogToDisk}
+					onclick={() => downloadPacketAsJson(packets, 'genius-packets')}
 				>
 					<IconSave class="h-6 w-6" />
 				</button>

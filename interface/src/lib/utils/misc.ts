@@ -10,12 +10,20 @@ export function jsonDateReviver(key: string, value: any) {
     return value;
 }
 
-export function downloadObjectAsJson(exportObj: any, exportName: string){
-    var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
+export function downloadObjectAsJson(exportObj: any, exportName: string, appendDateTimeStr: boolean = true, customSerializer?: ((this: any, key: string, value: any) => any) | undefined) {
+
+    let appendStr = '';
+    if (appendDateTimeStr) {
+        const now = new Date();
+        appendStr = `-${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+    }
+
+    var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, customSerializer, 2));
+
     var downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", exportName);
+    downloadAnchorNode.setAttribute("download", exportName + appendStr);
     document.body.appendChild(downloadAnchorNode); // required for Firefox
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
-  }
+}

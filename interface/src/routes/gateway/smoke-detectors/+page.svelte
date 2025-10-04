@@ -193,7 +193,7 @@
 					<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
 						<button
 							class="btn btn-primary text-primary-content btn-md"
-							onclick={() => downloadObjectAsJson(geniusDevices, 'genius-devices')}
+							onclick={() => downloadObjectAsJson(geniusDevices, 'genius-smoke-detectors')}
 						>
 							<Save class="h-6 w-6" />
 						</button>
