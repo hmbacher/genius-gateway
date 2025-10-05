@@ -18,6 +18,7 @@ from prebuild_utils import is_build_task
 # Check if this script should run (works for both standalone and PlatformIO execution)
 if not is_build_task(['build', 'upload', 'buildfs', 'erase_upload']):
     # Skip script execution for all other tasks
+    print("Skipping enum generation for non-build task.")
     sys.exit(0)
 
 # Import PlatformIO environment
