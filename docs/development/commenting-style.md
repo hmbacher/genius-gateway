@@ -2,6 +2,9 @@
 
 This document defines modern, lightweight commenting standards for the Genius Gateway project, optimized for IDE integration and code readability.
 
+!!! info "Purpose"
+    This guide serves both human developers and AI assistants, providing clear standards for code documentation that enhance maintainability and collaboration.
+
 ## Philosophy
 
 - **Clarity over verbosity**: Comments should enhance understanding, not clutter code
@@ -12,30 +15,36 @@ This document defines modern, lightweight commenting standards for the Genius Ga
 ## Modern Approach
 
 ### Balance Documentation Needs
-```cpp
-// Modern: Clean and IDE-friendly
-class NetworkManager {
-    void reconnectWithBackoff(); // Implements exponential backoff for network recovery
-    
-private:
-    int connectionAttempts;      ///< Current retry count (IDE shows in hover)
-    std::string serverAddress;  ///< Target server URL
-};
 
-// Traditional (avoid): Over-documented
-/**
- * @brief Class for managing network connections
- * @details This class handles network connection management with automatic
- * retry logic and exponential backoff algorithms for improved reliability.
- */
-class NetworkManager {
+=== "Modern (Recommended)"
+
+    ```cpp
+    // Clean and IDE-friendly
+    class NetworkManager {
+        void reconnectWithBackoff(); // Implements exponential backoff for network recovery
+        
+    private:
+        int connectionAttempts;      ///< Current retry count (IDE shows in hover)
+        std::string serverAddress;  ///< Target server URL
+    };
+    ```
+
+=== "Traditional (Avoid)"
+
+    ```cpp
     /**
-     * @brief Reconnect to server with exponential backoff
-     * @details Implements exponential backoff algorithm starting with 1s delay
+     * @brief Class for managing network connections
+     * @details This class handles network connection management with automatic
+     * retry logic and exponential backoff algorithms for improved reliability.
      */
-    void reconnectWithBackoff();
-};
-```
+    class NetworkManager {
+        /**
+         * @brief Reconnect to server with exponential backoff
+         * @details Implements exponential backoff algorithm starting with 1s delay
+         */
+        void reconnectWithBackoff();
+    };
+    ```
 
 ## General Principles
 
@@ -45,30 +54,41 @@ class NetworkManager {
 4. **Strategic documentation**: Document public APIs and complex algorithms
 5. **Maintenance**: Keep comments up-to-date with code changes
 
+## C++ Files (.cpp, .hpp, .h)
+
 ### Function Documentation - Strategic Approach
-```cpp
-// Public API: Document interface contract
-/**
- * @brief Processes user input with validation
- * @param input User input string to process  
- * @param maxLength Maximum allowed length [1-255]
- * @return 0 on success, -1 on invalid input
- * @note Thread-safe operation
- */
-int processInput(const std::string& input, size_t maxLength);
 
-// Private/Internal: Lighter documentation
-void validateUserPermissions(); // Checks current user against ACL database
+=== "Public API"
 
-// Complex algorithms: Explain the approach
-void optimizedSort() {
-    // Using quicksort with median-of-three pivot selection
-    // Provides O(n log n) average case with good cache locality
-    // Implementation details...
-}
-```
+    ```cpp
+    /**
+     * @brief Processes user input with validation
+     * @param input User input string to process  
+     * @param maxLength Maximum allowed length [1-255]
+     * @return 0 on success, -1 on invalid input
+     * @note Thread-safe operation
+     */
+    int processInput(const std::string& input, size_t maxLength);
+    ```
+
+=== "Private/Internal"
+
+    ```cpp
+    void validateUserPermissions(); // Checks current user against ACL database
+    ```
+
+=== "Complex Algorithms"
+
+    ```cpp
+    void optimizedSort() {
+        // Using quicksort with median-of-three pivot selection
+        // Provides O(n log n) average case with good cache locality
+        // Implementation details...
+    }
+    ```
 
 ### Member Variables - IDE Integration
+
 ```cpp
 class PacketManager {
 private:
@@ -84,6 +104,7 @@ private:
 ```
 
 ### Implementation Comments
+
 ```cpp
 // In .cpp files: Focus on implementation details and algorithms
 void PacketManager::reconnect() {
@@ -99,36 +120,15 @@ void PacketManager::reconnect() {
 }
 ```
 
-// MyClass.cpp - Implementation Details
-int MyClass::processInput(const std::string& input, size_t maxLength) {
-    // === Input Validation ===
-    if (input.empty()) {
-        ESP_LOGW(TAG, "Empty input rejected");
-        return -1;
-    }
-    
-    // === Data Processing ===
-    // Use Boyer-Moore algorithm for performance
-    // This is 3x faster than naive search for our typical data
-    for (size_t i = 0; i < input.length(); i++) {
-        // Complex algorithm implementation
-    }
-    
-    return 0;
-}
-```
-
----
-
-## C++ Files (.cpp, .hpp, .h when used in C++ context)
-
 ### Single Line Comments
+
 ```cpp
 // Use double-slash for all single line comments
 int count = 0;  // Initialize counter
 ```
 
 ### Multi-Line Comments
+
 ```cpp
 // Use multiple single-line comments for multi-line explanations
 // This approach is preferred in modern C++ as it's safer
@@ -138,33 +138,8 @@ void processData() {
 }
 ```
 
-### Function Documentation (Public APIs)
-```cpp
-/**
- * @brief Brief description of the function
- * @param paramName Description of parameter
- * @param anotherParam Description with constraints [range: 0-255]
- * @return Description of return value and possible error codes
- * @throws std::exception Description of when exceptions are thrown
- * @note Additional important notes
- * @warning Critical warnings about usage
- * @example
- * ```cpp
- * auto result = myFunction(42, "test");
- * if (result != SUCCESS) handleError();
- * ```
- */
-ErrorCode myFunction(int paramName, const std::string& anotherParam);
-```
-
-### Private/Internal Function Documentation
-```cpp
-// Brief explanation of internal function purpose
-// Additional details if complex logic is involved
-void internalHelper();
-```
-
 ### Class Documentation
+
 ```cpp
 /**
  * @brief Brief description of the class purpose
@@ -184,6 +159,7 @@ private:
 ```
 
 ### File Headers
+
 ```cpp
 /**
  * @file filename.hpp
@@ -192,7 +168,7 @@ private:
  * main classes/functions, and overall architecture.
  * 
  * @author Your Name
- * @date 2025-09-28
+ * @date 2025-10-05
  * @copyright Copyright (C) 2025 Your Company
  * @license MIT License
  */
@@ -207,35 +183,39 @@ private:
 
 // === Constants ===
 #define MAX_BUFFER_SIZE 1024  // Maximum buffer size in bytes
-
 ```
 
 ### Macro Definitions
-```cpp
-// Simple macros
-#define MAX_RETRIES 3  // Maximum number of retry attempts
 
-// Complex macros with detailed explanation
-/**
- * @brief Extracts 32-bit value from buffer with network byte order conversion
- * @param buffer Pointer to buffer containing data
- * @param pos Byte offset in buffer (must be <= buffer_size - 4)
- * @warning No bounds checking performed - caller must validate pos
- */
-#define EXTRACT32(buffer, pos) (__ntohl(*(uint32_t *)&buffer[pos]))
-```
+=== "Simple Macros"
 
----
+    ```cpp
+    #define MAX_RETRIES 3  // Maximum number of retry attempts
+    ```
 
-## C Files (.c, .h when used in pure C)
+=== "Complex Macros"
+
+    ```cpp
+    /**
+     * @brief Extracts 32-bit value from buffer with network byte order conversion
+     * @param buffer Pointer to buffer containing data
+     * @param pos Byte offset in buffer (must be <= buffer_size - 4)
+     * @warning No bounds checking performed - caller must validate pos
+     */
+    #define EXTRACT32(buffer, pos) (__ntohl(*(uint32_t *)&buffer[pos]))
+    ```
+
+## C Files (.c, .h)
 
 ### Single Line Comments
+
 ```c
 /* Use C-style comments for all single line comments */
 int count = 0;  /* Initialize counter */
 ```
 
 ### Multi-Line Comments
+
 ```c
 /*
  * Use traditional C-style block comments
@@ -247,7 +227,8 @@ void processData(void) {
 }
 ```
 
-### Function Documentation (Public APIs)
+### Function Documentation
+
 ```c
 /**
  * @brief Brief description of the function
@@ -263,16 +244,8 @@ void processData(void) {
 int my_function(int param_name, const char* another_param);
 ```
 
-### Private/Internal Function Documentation
-```c
-/*
- * Brief explanation of internal function purpose.
- * Additional details if complex logic is involved.
- */
-static void internal_helper(void);
-```
-
 ### File Headers
+
 ```c
 /**
  * @file filename.c
@@ -281,7 +254,7 @@ static void internal_helper(void);
  * main functions, and overall purpose.
  * 
  * @author Your Name
- * @date 2025-09-28
+ * @date 2025-10-05
  * @copyright Copyright (C) 2025 Your Company
  * @license MIT License
  */
@@ -298,29 +271,10 @@ static void internal_helper(void);
 
 /* === Static Variables === */
 static int s_retry_count = 0;  /* Global retry counter */
-
-/* === Function Implementations === */
-/* ... rest of file */
-```
-
-### Macro Definitions
-```c
-/* Simple macros */
-#define MAX_RETRIES 3  /* Maximum number of retry attempts */
-
-/*
- * Complex macros with detailed explanation
- * 
- * Extracts 32-bit value from buffer with network byte order conversion.
- * 
- * @param buffer Pointer to buffer containing data
- * @param pos Byte offset in buffer (must be <= buffer_size - 4)
- * @warning No bounds checking performed - caller must validate pos
- */
-#define EXTRACT32(buffer, pos) (__ntohl(*(uint32_t *)&buffer[pos]))
 ```
 
 ### Struct Documentation
+
 ```c
 /**
  * @brief Brief description of struct purpose
@@ -333,27 +287,27 @@ typedef struct {
 } packet_context_t;
 ```
 
----
-
 ## Enforcement Rules
 
-1. **File Headers**: REQUIRED for all .c, .cpp, .h, .hpp files
-2. **Public API Documentation**: REQUIRED for all public functions/methods
-3. **Complex Logic**: REQUIRED comments for algorithms > 10 lines
-4. **Magic Numbers**: REQUIRED explanation for all numeric constants
-5. **TODO/FIXME**: Must include date and author name
-6. **Language Consistency**: Each file type must use its designated style
+!!! warning "Required Documentation"
+    1. **File Headers**: REQUIRED for all .c, .cpp, .h, .hpp files
+    2. **Public API Documentation**: REQUIRED for all public functions/methods
+    3. **Complex Logic**: REQUIRED comments for algorithms > 10 lines
+    4. **Magic Numbers**: REQUIRED explanation for all numeric constants
+    5. **TODO/FIXME**: Must include date and author name
 
-## Example TODO Format
+### TODO Format
+
 ```cpp
-// TODO(username, 2025-09-28): Implement error recovery logic
-// FIXME(username, 2025-09-28): Memory leak in cleanup function
-// HACK(username, 2025-09-28): Temporary workaround for issue #123
+// TODO(username, 2025-10-05): Implement error recovery logic
+// FIXME(username, 2025-10-05): Memory leak in cleanup function
+// HACK(username, 2025-10-05): Temporary workaround for issue #123
 ```
 
 ## Modern Lightweight Summary
 
-### ✅ Recommended Approach (What We're Using)
+### ✅ Recommended Approach
+
 ```cpp
 class NetworkManager {
 public:
@@ -369,6 +323,7 @@ private:
 ```
 
 ### ❌ Avoid Over-Documentation
+
 ```cpp
 // Too verbose - avoid this approach
 class NetworkManager {
@@ -382,12 +337,16 @@ private:
 };
 ```
 
-### Key Benefits of Our Approach
+### Key Benefits
+
 - **IDE Integration**: `///<` provides hover tooltips in VS Code, CLion, Visual Studio
 - **Minimal Overhead**: Only 4 characters vs 13+ for full Doxygen blocks
 - **Professional**: Follows industry best practices for embedded C++
 - **Future-Proof**: Compatible with documentation generation if needed later
 - **Readable**: Clean code that doesn't sacrifice clarity for brevity
+
+!!! tip "IDE Support"
+    This commenting style is optimized for modern IDEs and provides excellent IntelliSense/hover tooltip integration while keeping the code clean and readable.
 
 ---
 

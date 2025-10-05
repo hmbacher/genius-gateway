@@ -50,6 +50,10 @@ nav:
     - WebSocket Events: api/websocket-api.md # Listing and describing all available WebSocket events
     - MQTT Topics: api/mqtt-topics.md # Listing and describing all available MQTT topics
 
+  - Development:
+    - development/index.md
+    - Commenting Style Guide: development/commenting-style.md # Code commenting standards and best practices
+
   - License: license.md # Contains licensing information like in /LICENSE 
 
   - FAQ: faq.md

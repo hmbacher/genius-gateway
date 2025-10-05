@@ -23,8 +23,9 @@ ssl_certs/cacert.pem
 # Own exceptions ===
 # Misc
 compile_commands.json
-#/scripts/__pycache__
-# pioarduino Hybrid Compile feature
+/scripts/__pycache__
+/ssl_certs
+# pioarduino's Hybrid Compile feature
 .dummy
 managed_components
 dependencies.lock
