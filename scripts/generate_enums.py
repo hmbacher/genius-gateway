@@ -1,15 +1,28 @@
-#!/usr/bin/env python3
-"""
-Generate TypeScript enums from C++ header files.
-This script parses C++ enum definitions and creates corresponding TypeScript enums.
-Can be used both as standalone script and as PlatformIO pre-action.
-"""
+# Generate TypeScript enums from C++ header files.
+# This script parses C++ enum definitions and creates corresponding TypeScript enums.
+# Can be used both as standalone script and as PlatformIO pre-action.
+# Copyright (C) 2025 hmbacher
+#
+# All Rights Reserved. This software may be modified and distributed under
+# the terms of the LGPL v3 license. See the LICENSE file for details.
 
 import re
 import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
+
+# Import shared prebuild utilities
+from prebuild_utils import is_build_task
+
+# Check if this script should run (works for both standalone and PlatformIO execution)
+if not is_build_task(['build', 'upload', 'buildfs', 'erase_upload']):
+    # Skip script execution for all other tasks
+    sys.exit(0)
+
+# Import PlatformIO environment
+Import("env")
+project_dir = env["PROJECT_DIR"]
 
 # ANSI color codes for terminal output
 class Colors:
@@ -212,43 +225,26 @@ def generate_enums_main(project_dir_override=None):
     return True
 
 
-def main():
-    """Main function for standalone execution."""
-    generate_enums_main()
+# Execute directly as PlatformIO pre-build script (like other scripts)
+print()
+print("running: generate_enums.py")
+print("=" * 50)
+print("Generating TypeScript enums from C++ headers...")
+print("=" * 50)
 
-
-# PlatformIO integration
 try:
-    # This will only work when script is imported by PlatformIO
-    Import("env")
-    
-    # When used as pre: script, run immediately instead of registering pre-action
-    project_dir = env["PROJECT_DIR"]
-    
+    success = generate_enums_main(project_dir)
     print()
-    print("running: generate_enums.py")
-    print("=" * 50)
-    print("Generating TypeScript enums from C++ headers...")
-    print("=" * 50)
-    
-    try:
-        success = generate_enums_main(project_dir)
-        print()
-        if success:
-            print(f"{Colors.GREEN}✓ TypeScript enums generated successfully{Colors.RESET}")
-        else:
-            print(f"{Colors.RED}✗ Failed to generate enums{Colors.RESET}")
-            raise RuntimeError("Enum generation failed - breaking build")
-        print()
-    except RuntimeError:
-        # Re-raise RuntimeError to break the build
-        raise
-    except Exception as e:
-        print(f"{Colors.RED}✗ Error running enum generation: {e}{Colors.RESET}")
-        # Break the build on unexpected errors
-        raise RuntimeError(f"Enum generation failed: {e}") from e
-        
-except:
-    # Running as standalone script or PlatformIO not available
-    if __name__ == "__main__":
-        main()
+    if success:
+        print(f"{Colors.GREEN}✓ TypeScript enums generated successfully{Colors.RESET}")
+    else:
+        print(f"{Colors.RED}✗ Failed to generate enums{Colors.RESET}")
+        raise RuntimeError("Enum generation failed - breaking build")
+    print()
+except RuntimeError:
+    # Re-raise RuntimeError to break the build
+    raise
+except Exception as e:
+    print(f"{Colors.RED}✗ Error running enum generation: {e}{Colors.RESET}")
+    # Break the build on unexpected errors
+    raise RuntimeError(f"Enum generation failed: {e}") from e
