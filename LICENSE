@@ -1,287 +1,175 @@
-# Genius Gateway - Multi-License Structure
+# Genius Gateway - License
 
-The Genius Gateway project uses different licenses for different components to best serve the open source hardware and software communities while protecting the work done in reverse engineering.
-
-## License Summary
-
-| Component | License | Files | Rationale |
-|-----------|---------|-------|-----------|
-| **Hardware** | CC BY-SA 4.0 | `cae/*`, hardware docs | Open hardware standard with ShareAlike |
-| **Backend Software** | GPL v3 | `src/*`, `lib/*`, firmware | Strong copyleft for reverse engineering work |
-| **Frontend Software** | MIT | `interface/*`, web assets | Permissive for UI customization |
-| **Documentation** | CC BY 4.0 | `docs/*`, `README.md` | Attribution-only for documentation |
+The Genius Gateway project uses different licenses for different components to ensure open sharing for personal and educational purposes while prohibiting commercial use.
 
 ---
 
-## Hardware License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+## Hardware Design
 
-**Applies to:** PCB designs, schematics, CAD files, mechanical drawings, hardware documentation
+**Applies to:** PCB designs, schematics, CAD files, mechanical drawings
 
 **Files:** `cae/*`, hardware-related documentation in `docs/hardware/*`
 
-**License URL:** https://creativecommons.org/licenses/by-sa/4.0/
+**License:** Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
 
-**Summary:** You are free to share and adapt the hardware designs, even commercially, as long as you provide attribution and distribute derivatives under the same license.
+**License URL:** https://creativecommons.org/licenses/by-nc-sa/4.0/
 
-**Attribution:** "Genius Gateway Hardware Design by hmbacher (https://github.com/hmbacher/genius-gateway) is licensed under CC BY-SA 4.0"
+You are free to:
+- **Share**: Copy and redistribute the material in any medium or format for non-commercial purposes
+- **Adapt**: Remix, transform, and build upon the material for non-commercial purposes
+
+Under the following terms:
+- **Attribution**: You must give appropriate credit and indicate if changes were made
+- **NonCommercial**: You may not use the material for commercial purposes
+- **ShareAlike**: If you remix or transform the material, you must distribute under the same license
+
+This license allows private and educational use while prohibiting commercial use without permission.
+
+**Attribution:** "Genius Gateway Hardware Design by hmbacher (https://github.com/hmbacher/genius-gateway) is licensed under CC BY-NC-SA 4.0"
 
 ---
 
-## Backend Software License: GNU General Public License v3 (GPL v3)
+## Software
 
-**Applies to:** ESP32 firmware, protocol implementation, reverse engineering code, backend services
+**Applies to:** ESP32 firmware, protocol implementation, reverse engineering code, backend services, web interface
 
-**Files:** `src/*`, `lib/*`, `platformio.ini`, build scripts related to firmware
+**Files:** `src/*`, `lib/*`, `interface/*`, `data/www/*`, firmware build scripts
 
-Copyright (C) 2024 hmbacher
+**License:** GNU Affero General Public License v3.0 with Commons Clause (AGPL-3.0 + Commons Clause)
+
+**License URL:** https://www.gnu.org/licenses/agpl-3.0.en.html
+
+Copyright (C) 2024-2025 Genius Gateway Project
+
+You are free to:
+- **Use**: Run the software for personal and educational purposes
+- **Study**: Access and study the source code
+- **Modify**: Create modified versions for personal and educational use
+- **Share**: Distribute the original or modified versions for non-commercial purposes
+
+Under the following terms:
+- **Source Code**: Modified versions must be made available under the same license
+- **NonCommercial**: You may not sell, rent, lease, or otherwise use the software for commercial purposes
+- **Attribution**: You must give appropriate credit
+
+### AGPL-3.0 License Text
 
 This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
+it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-**Rationale:** The GPL v3 ensures that improvements to the reverse-engineered protocol implementation and firmware remain open source, preventing proprietary derivatives while allowing commercial use.
+### Commons Clause License Condition v1.0
 
----
+The Software is provided to you by the Licensor under the License, as defined below,
+subject to the following condition:
 
-## Frontend Software License: MIT License
+Without limiting other conditions in the License, the grant of rights under the License
+will not include, and the License does not grant to you, the right to Sell the Software.
 
-**Applies to:** Web interface, SvelteKit application, frontend assets
+For purposes of the foregoing, "Sell" means practicing any or all of the rights granted
+to you under the License to provide to third parties, for a fee or other consideration
+(including without limitation fees for hosting or consulting/support services related to
+the Software), a product or service whose value derives, entirely or substantially, from
+the functionality of the Software.
 
-**Files:** `interface/*`, `data/www/*`, frontend build tools
+**Note**: Third-party frameworks and libraries (ESP32SvelteKit, Arduino, etc.) retain their original licenses. Please refer to their respective license files in the source code.
 
-Copyright (c) 2024 hmbacher
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-**Rationale:** The permissive MIT license allows maximum flexibility for users who want to customize or integrate the web interface.
+**Rationale:** The AGPL-3.0 with Commons Clause ensures that improvements to the reverse-engineered protocol implementation remain open source while prohibiting commercial use without permission.
 
 ---
 
-## Documentation License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+## Documentation and Assets
 
-**Applies to:** All documentation, guides, and explanatory content
+**Applies to:** All documentation, guides, images, traces, and downloadable content
 
-**Files:** `docs/*`, `README.md`, `CHANGELOG.md`, wiki content
+**Files:** `docs/*`, `README.md`, `CHANGELOG.md`, logic analyzer traces, images
 
-**License URL:** https://creativecommons.org/licenses/by/4.0/
+**License:** Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
 
-**Attribution:** "Genius Gateway Documentation by hmbacher (https://github.com/hmbacher/genius-gateway) is licensed under CC BY 4.0"
+**License URL:** https://creativecommons.org/licenses/by-nc-sa/4.0/
 
-**Rationale:** Attribution-only licensing encourages broad reuse of documentation while requiring appropriate credit.
+You are free to:
+- **Share**: Copy and redistribute the material in any medium or format for non-commercial purposes
+- **Adapt**: Remix, transform, and build upon the material for non-commercial purposes
+
+Under the following terms:
+- **Attribution**: You must give appropriate credit and indicate if changes were made
+- **NonCommercial**: You may not use the material for commercial purposes
+- **ShareAlike**: If you remix or transform the material, you must distribute under the same license
+
+This license allows private and educational use while prohibiting commercial use without permission.
+
+**Attribution:** "Genius Gateway Documentation by hmbacher (https://github.com/hmbacher/genius-gateway) is licensed under CC BY-NC-SA 4.0"
 
 ---
 
 ## Third-Party Components
 
-This project builds upon and includes components from other open source projects:
+This project builds upon and includes components from other open source projects. These third-party components retain their original licenses:
 
 ### ESP32 SvelteKit Framework
 - **License:** LGPL v3 (backend), MIT (frontend)
 - **Author:** theelims
 - **URL:** https://github.com/theelims/ESP32-sveltekit
 - **Usage:** Base framework for ESP32 web applications
+- **Note:** The ESP32 SvelteKit framework retains its original licenses. Genius Gateway modifications and additions to the framework are licensed under AGPL-3.0 + Commons Clause.
 
 ### Arduino Libraries
 Various Arduino libraries used are subject to their respective licenses. See individual library documentation for details.
 
----
-
-## Reverse Engineering Disclaimer
-
-This project contains reverse-engineered implementations of proprietary protocols. This work is conducted under the principles of:
-
-- **Interoperability:** Enabling integration with open source systems
-- **Education:** Advancing understanding of IoT communication protocols  
-- **Fair Use:** Reverse engineering for compatibility purposes
-- **No Circumvention:** Not bypassing security measures or copy protection
-
-**Important:** This project is not affiliated with, endorsed by, or supported by Hekatron. Users must ensure compliance with local laws and regulations regarding reverse engineering and RF monitoring.
+### PsychicHttp
+- **License:** LGPL v2.1
+- **URL:** https://github.com/hoeken/PsychicHttp
+- **Usage:** HTTP server library for ESP32
 
 ---
 
-## Contributing
+## License Compatibility and Important Notes
 
-By contributing to this project, you agree that:
+### Third-Party Dependencies
+This project uses third-party libraries and frameworks that retain their original licenses:
+- **ESP32 SvelteKit**: LGPL v3 (backend), MIT (frontend)
+- **PsychicHttp**: LGPL v2.1
+- **Arduino libraries**: Various licenses (see respective library documentation)
+- **Other dependencies**: See individual library documentation for license details
 
-1. **Hardware contributions** will be licensed under CC BY-SA 4.0
-2. **Backend software contributions** will be licensed under GPL v3
-3. **Frontend software contributions** will be licensed under MIT
-4. **Documentation contributions** will be licensed under CC BY 4.0
-5. You have the right to license your contributions under these terms
+### License Interaction
+- **Genius Gateway code** is licensed under AGPL-3.0 + Commons Clause (more restrictive than underlying frameworks)
+- **Third-party components** retain their original licenses (LGPL, MIT, etc.)
+- **Hardware designs** (CC BY-NC-SA 4.0) and **Documentation** (CC BY-NC-SA 4.0) are independent of software licenses
+
+### Important Legal Considerations
+
+1. **AGPL-3.0 Network Requirement**: If you provide the software as a network service (e.g., hosting it on a server accessible to users), you must make the complete source code available to those users.
+
+2. **Commons Clause Restriction**: The Commons Clause prohibits selling the software or offering it as a paid service. This means:
+   - ❌ You cannot sell the software itself
+   - ❌ You cannot offer it as a hosted/SaaS service for a fee
+   - ❌ You cannot provide consulting/support services where the value primarily comes from the software
+   - ✅ You can use it personally or for educational purposes
+   - ✅ You can modify and share it non-commercially
+
+3. **Hardware & Documentation**: Both use CC BY-NC-SA 4.0, which prohibits commercial use without permission.
+
+### Commercial Use
+
+**All components (hardware, software, documentation) prohibit commercial use without explicit permission.**
+
+For commercial licensing inquiries or questions about licensing, please open an issue in the GitHub repository or contact the project maintainer.
 
 ---
 
-## License Compatibility
+## Contact
 
-- **GPL v3 ↔ LGPL v3:** Compatible (GPL can use LGPL components)
-- **MIT ↔ GPL v3:** Compatible (GPL can use MIT components)
-- **CC BY-SA 4.0 ↔ Other Licenses:** Hardware designs are independent of software licenses
-- **CC BY 4.0:** Compatible with all other licenses used
-
-For questions about licensing, please open an issue in the GitHub repository.
-of using an interface provided by the Library.
-
-A "Combined Work" is a work produced by combining or linking an
-Application with the Library. The particular version of the Library
-with which the Combined Work was made is also called the "Linked
-Version".
-
-The "Minimal Corresponding Source" for a Combined Work means the
-Corresponding Source for the Combined Work, excluding any source code
-for portions of the Combined Work that, considered in isolation, are
-based on the Application, and not on the Linked Version.
-
-The "Corresponding Application Code" for a Combined Work means the
-object code and/or source code for the Application, including any data
-and utility programs needed for reproducing the Combined Work from the
-Application, but excluding the System Libraries of the Combined Work.
-
-1. Exception to Section 3 of the GNU GPL.
-
-You may convey a covered work under sections 3 and 4 of this License
-without being bound by section 3 of the GNU GPL.
-
-2. Conveying Modified Versions.
-
-If you modify a copy of the Library, and, in your modifications, a
-facility refers to a function or data to be supplied by an Application
-that uses the facility (other than as an argument passed when the
-facility is invoked), then you may convey a copy of the modified
-version:
-
-a) under this License, provided that you make a good faith effort to
-ensure that, in the event an Application does not supply the
-function or data, the facility still operates, and performs
-whatever part of its purpose remains meaningful, or
-
-b) under the GNU GPL, with none of the additional permissions of
-this License applicable to that copy.
-
-3. Object Code Incorporating Material from Library Header Files.
-
-The object code form of an Application may incorporate material from
-a header file that is part of the Library. You may convey such object
-code under terms of your choice, provided that, if the incorporated
-material is not limited to numerical parameters, data structure
-layouts and accessors, or small macros, inline functions and templates
-(ten or fewer lines in length), you do both of the following:
-
-a) Give prominent notice with each copy of the object code that the
-Library is used in it and that the Library and its use are
-covered by this License.
-
-b) Accompany the object code with a copy of the GNU GPL and this license
-document.
-
-4. Combined Works.
-
-You may convey a Combined Work under terms of your choice that,
-taken together, effectively do not restrict modification of the
-portions of the Library contained in the Combined Work and reverse
-engineering for debugging such modifications, if you also do each of
-the following:
-
-a) Give prominent notice with each copy of the Combined Work that
-the Library is used in it and that the Library and its use are
-covered by this License.
-
-b) Accompany the Combined Work with a copy of the GNU GPL and this license
-document.
-
-c) For a Combined Work that displays copyright notices during
-execution, include the copyright notice for the Library among
-these notices, as well as a reference directing the user to the
-copies of the GNU GPL and this license document.
-
-d) Do one of the following:
-
-       0) Convey the Minimal Corresponding Source under the terms of this
-       License, and the Corresponding Application Code in a form
-       suitable for, and under terms that permit, the user to
-       recombine or relink the Application with a modified version of
-       the Linked Version to produce a modified Combined Work, in the
-       manner specified by section 6 of the GNU GPL for conveying
-       Corresponding Source.
-
-       1) Use a suitable shared library mechanism for linking with the
-       Library.  A suitable mechanism is one that (a) uses at run time
-       a copy of the Library already present on the user's computer
-       system, and (b) will operate properly with a modified version
-       of the Library that is interface-compatible with the Linked
-       Version.
-
-e) Provide Installation Information, but only if you would otherwise
-be required to provide such information under section 6 of the
-GNU GPL, and only to the extent that such information is
-necessary to install and execute a modified version of the
-Combined Work produced by recombining or relinking the
-Application with a modified version of the Linked Version. (If
-you use option 4d0, the Installation Information must accompany
-the Minimal Corresponding Source and Corresponding Application
-Code. If you use option 4d1, you must provide the Installation
-Information in the manner specified by section 6 of the GNU GPL
-for conveying Corresponding Source.)
-
-5. Combined Libraries.
-
-You may place library facilities that are a work based on the
-Library side by side in a single library together with other library
-facilities that are not Applications and are not covered by this
-License, and convey such a combined library under terms of your
-choice, if you do both of the following:
-
-a) Accompany the combined library with a copy of the same work based
-on the Library, uncombined with any other library facilities,
-conveyed under the terms of this License.
-
-b) Give prominent notice with the combined library that part of it
-is a work based on the Library, and explaining where to find the
-accompanying uncombined form of the same work.
-
-6. Revised Versions of the GNU Lesser General Public License.
-
-The Free Software Foundation may publish revised and/or new versions
-of the GNU Lesser General Public License from time to time. Such new
-versions will be similar in spirit to the present version, but may
-differ in detail to address new problems or concerns.
-
-Each version is given a distinguishing version number. If the
-Library as you received it specifies that a certain numbered version
-of the GNU Lesser General Public License "or any later version"
-applies to it, you have the option of following the terms and
-conditions either of that published version or of any later version
-published by the Free Software Foundation. If the Library as you
-received it does not specify a version number of the GNU Lesser
-General Public License, you may choose any version of the GNU Lesser
-General Public License ever published by the Free Software Foundation.
-
-If the Library as you received it specifies that a proxy can decide
-whether future versions of the GNU Lesser General Public License shall
-apply, that proxy's public statement of acceptance of any version is
-permanent authorization for you to choose that version for the
-Library.
+For licensing questions, commercial use requests, or general inquiries:
+- **GitHub Issues**: https://github.com/hmbacher/genius-gateway/issues
+- **Project Maintainer**: hmbacher
