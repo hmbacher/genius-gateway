@@ -8,26 +8,27 @@ repo_name: hmbacher/genius-gateway
 repo_url: https://github.com/hmbacher/genius-gateway
 edit_uri: edit/main/docs/
 
+# Watch configuration
+watch:
+  - docs
+
 nav:
   - Home: index.md
  
-  - Background: background.md
+  - Background: background.md # Project background, motivation, and goals
   
   - Reverse Engineering:
     - reverse-engineering/index.md
-    - Genius Components: reverse-engineering/genius-components.md # Describing the smoke detector's and radio module's PCBs
-    - RF Configuration: reverse-engineering/rf-configuration.md # Describing the RF settings and frequencies
+    - FM Basis X - PCB: reverse-engineering/fm-basis-x-pcb.md # Describing the smoke detector's and radio module's PCBs
+    - FM Basis X - RF: reverse-engineering/fm-basis-x-rf.md # Describing the RF settings and frequencies
     - Protocol Analysis: reverse-engineering/protocol-analysis.md # Describing the protocol and the packages reversed engineered so far
+    - Protocol Captures: reverse-engineering/protocol-captures.md # Listing and describing all captured communication with links to DSL files
+    - UART Analysis: reverse-engineering/uart-analysis.md # Describing the UART interface btw. smoke detector and radio module
+    - EEPROM Analysis: reverse-engineering/eeprom-analysis.md # Describing the EEPROM structure and the data stored there
   
-  - Gateway Hardware:
-    - hardware/index.md
-    - Gateway Overview: hardware/gateway-overview.md  # General hardware overview with some pictures of the assembled gateway
-    - Schematics: hardware/schematics.md # Describing the basic electronic components, with a screenshot and links to the EasyEDA project and the PDF
-    - PCB Layout: hardware/pcb-layout.md # Describing the PCB layout with a screenshot and links to the design files
-    - Bill of Materials: hardware/bom.md # Describing the BOM with a table of components and links to suppliers
-    - Case: hardware/case.md # Describing the compatible cases with manufacturers, models, links and some pictures
-  
-  - Gateway Features:
+  - Hardware: hardware.md # Schematics, PCB layout, BOM & manufacturing, CAD files
+
+  - Features:
     - features/index.md
     - System Overview: features/overview.md # Screenshot of the web interface's main page and basic explanation of the content, in normal operating mode and fire alerting mode
     - Gateway Settings: features/settings.md # Describing the Genius Gateway settings available in the web interface
@@ -50,13 +51,7 @@ nav:
     - WebSocket Events: api/websocket-api.md # Listing and describing all available WebSocket events
     - MQTT Topics: api/mqtt-topics.md # Listing and describing all available MQTT topics
 
-  - Development:
-    - development/index.md
-    - Commenting Style Guide: development/commenting-style.md # Code commenting standards and best practices
-
   - License: license.md # Contains licensing information like in /LICENSE 
-
-  - FAQ: faq.md
 
 theme:
   name: material
@@ -113,6 +108,18 @@ plugins:
   - git-revision-date-localized:
       enable_creation_date: true
       type: date
+      enable_git_follow: false
+  - glightbox:
+      touchNavigation: true
+      loop: false
+      effect: zoom
+      slide_effect: slide
+      width: 100%
+      height: auto
+      zoomable: true
+      draggable: true
+      auto_caption: false
+      caption_position: bottom
 
 markdown_extensions:
   # Python Markdown
