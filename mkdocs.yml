@@ -38,17 +38,12 @@ nav:
     - WebSocket Logging Interface: features/websocket-interface.md # Describing the WebSocket logging interface and its usage, with screenshots
     - Smart Home Integration via MQTT: features/smart-home-integration.md # Describing the smart home integration features via MQTT, with screenshots
 
-  - Installation & Setup:
-    - setup/index.md
-    - Hardware Setup: setup/hardware.md # Just referencing to Gateway Hardware section
-    - Firmware Build & Installation: setup/firmware.md # Describing how to build and install the firmware, especially describes basic configuration options (build flags)
-    - Configuration: setup/configuration.md # Describes post-installation configuration of the gateway via web interface
-    - MQTT & Home Assistant: setup/mqtt-homeassistant.md # Describes how to set up MQTT and Home Assistant integration
+  - Setup: setup.md # Installation and setup instructions
 
   - API Reference:
     - api/index.md
-    - REST Endpoints: api/rest-api.md # Listing and describing all available REST API endpoints
-    - WebSocket Events: api/websocket-api.md # Listing and describing all available WebSocket events
+    - HTTP API: api/http-api.md # Listing and describing all available REST API endpoints
+    - WebSocket API: api/websocket-api.md # Listing and describing all available WebSocket events
     - MQTT Topics: api/mqtt-topics.md # Listing and describing all available MQTT topics
 
   - License: license.md # Contains licensing information like in /LICENSE 
@@ -184,7 +179,7 @@ extra:
   generator: false
   
   version:
-    provider: mike
+    provider: hmbacher
     default: stable
 
 extra_css:

@@ -53,7 +53,7 @@ The **Genius Gateway** is a reverse-engineered interface for [:octicons-arrow-ri
 
 - :material-smoke-detector: **Manage smoke detectors** - Real-time monitoring and control
 - :material-view-list: **Manage alarm lines** - Configure and monitor alarm communications  
-- :material-chart-line: **Visualize and analyze packets** - Real-time packet inspection tools
+- :material-chart-line: **Capture, visualize and analyze packets** - Real-time packet inspection tools
 - :material-cog: **Manage gateway settings** - Complete configuration interface
 - :material-message-processing: **MQTT and WebSocket support** - Modern API interfaces for integration
 - :simple-homeassistant: **Home Assistant integration** - Native support with automatic discovery
