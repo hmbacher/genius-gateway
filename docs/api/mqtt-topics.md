@@ -6,7 +6,7 @@ This document describes the MQTT topics published by the Genius Gateway. The gat
 
 ### MQTT Configuration
 
-MQTT functionality is mainly configured via [:material-arrow-right: web frontend](../features/index.md) or HTTP API endpoints:
+MQTT functionality is mainly configured via [web frontend](../features/index.md) or HTTP API endpoints:
 
 - **Framework MQTT Settings:** `/rest/mqttSettings` - Basic MQTT connection settings
 - **Gateway MQTT Settings:** `/rest/mqtt-settings` - Genius Gateway specific publishing options
@@ -105,10 +105,10 @@ homeassistant/binary_sensor/genius-{smoke_detector_sn}/config
 
 **:material-publish: Publishing Behavior**
 
-- Published when smoke detector is first [:material-arrow-right: created](../features/device-management.md#create) or [:material-arrow-right: imported](../features/device-management.md#import)
+- Published when smoke detector is first [created](../features/device-management.md#create) or [imported](../features/device-management.md#import)
 - Re-published when MQTT connection is established
-- Re-published when [:material-arrow-right: MQTT settings change](../features/settings.md#mqtt-configuration)
-- Published only if [:material-arrow-right: device publishing](../features/settings.md#mqtt-configuration) is enabled
+- Re-published when [MQTT settings change](../features/settings.md#mqtt-configuration)
+- Published only if [device publishing](../features/settings.md#mqtt-configuration) is enabled
 
 **:material-home-assistant: Home Assistant Integration**
 
@@ -156,8 +156,8 @@ Published when device *is* alarming:
 
 - Published when device alarm state changes
 - Re-published when MQTT connection is established
-- Re-published when [:material-arrow-right: device configuration changes](../features/device-management.md#change) (location, etc.)
-- Published only if [:material-arrow-right: device publishing](../features/settings.md#mqtt-configuration) is enabled
+- Re-published when [device configuration changes](../features/device-management.md#change) (location, etc.)
+- Published only if [device publishing](../features/settings.md#mqtt-configuration) is enabled
 
 **:material-home-assistant: Home Assistant Integration**
 
@@ -209,7 +209,7 @@ Published when two smoke detectors are alarming (example):
 
 - Published whenever any device alarm state changes
 - Re-published when MQTT connection is established
-- Published only if [:material-arrow-right: simple alarm publishing](../features/settings.md#mqtt-configuration) is enabled
+- Published only if [simple alarm publishing](../features/settings.md#mqtt-configuration) is enabled
 
 **:material-home-automation: Integration**
 

@@ -4,7 +4,7 @@ Deep dive into the Hekatron Genius Plus X communication protocol structure and b
 
 ## CC1101 Packet Mode Structure
 
-When the CC1101 operates in packet mode, all CC1101 packets are structured as follows. The packet format is determined by the configuration settings analyzed in the [:material-arrow-right: FM Basis X - RF](fm-basis-x-rf.md) section.
+When the CC1101 operates in packet mode, all CC1101 packets are structured as follows. The packet format is determined by the configuration settings analyzed in the [FM Basis X - RF](fm-basis-x-rf.md) section.
 
 ### Basic Packet Structure
 
@@ -15,7 +15,7 @@ Based on the CC1101 configuration, each packet contains the following elements:
 | **Preamble** | 0-3 | 4 bytes | 0xAAAAAAAA | Synchronization sequence for clock recovery | MDMCFG1[6:4] = 010 |
 | **Sync Word** | 4-5 | 2 bytes | 0xD391 | Packet detection pattern | SYNC1=0xD3, SYNC0=0x91 |
 | **Length** | 6 | 1 byte | 0x01-0x3D | Payload length (N bytes, max 59)[^1] | Variable length mode (PKTCTRL0[1:0]=01) |
-| **Payload** | 7 to N+6 | 1-59[^1] bytes | Data (whitened) | Application data with whitening applied. This section contains the [:material-arrow-right: Genius Plus X Packets](#genius-plus-x-packets) | Data whitening ON (PKTCTRL0[6]=1) |
+| **Payload** | 7 to N+6 | 1-59[^1] bytes | Data (whitened) | Application data with whitening applied. This section contains the [Genius Plus X Packets](#genius-plus-x-packets) | Data whitening ON (PKTCTRL0[6]=1) |
 | **CRC** | N+7 to N+8 | 2 bytes | CRC-16 | Error detection checksum over length + payload | CRC enabled (PKTCTRL0[2]=1) |
 | **Status** | N+9 to N+10 | 2 bytes | RSSI + LQI | Signal quality metrics appended by receiver | Status append (PKTCTRL1[2]=1) |
 
@@ -78,7 +78,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | 0 | 1 | `0x02` | | Unknown, seems to be constant |
-| 1-2 | 2 | `CC18 - 0000`<br>(`6.348 - 0`)<br>*little endian* | Pkt-# | A *packet repetition counter* that decreases with each packet repetition. It is not entirely clear how the decrementation occurs (see [:material-arrow-right: Repetition](#repetition) for details). |
+| 1-2 | 2 | `CC18 - 0000`<br>(`6.348 - 0`)<br>*little endian* | Pkt-# | A *packet repetition counter* that decreases with each packet repetition. It is not entirely clear how the decrementation occurs (see [Repetition](#repetition) for details). |
 | 3 | 1 | `0x00` | | Unknown, seems to be constant |
 | 4 | 1 | `0xFF` | | Unknown, seems to be constant |
 | 5 | 1 | `0xFF` | | Unknown, seems to be constant |
@@ -99,17 +99,17 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 ### Repetition
 
-All packets are transmitted multiple times by the radio module. The packets are sent with a period of approximately 10 ms. The repeated packets are identical except for the `Pkt-#` field (see [:material-arrow-right: Basic Structure Analysis](#basic-structure-analysis)). The `Pkt-#` field starts with an individual initial value in the first packet, which is decremented with each repetition.
+All packets are transmitted multiple times by the radio module. The packets are sent with a period of approximately 10 ms. The repeated packets are identical except for the `Pkt-#` field (see [Basic Structure Analysis](#basic-structure-analysis)). The `Pkt-#` field starts with an individual initial value in the first packet, which is decremented with each repetition.
 
 The number of repetitions, the exact period for packet repetitions, as well as the initial value and decrementation slightly differ depending on the packet type:
 
 | Packet Type | Repetitions<br>$N$ | Period Time<br>$T$ | Initial *Pkt-#*<br>$PC_{Start}$ | *Pkt-#* Decrement<br>$\Delta=\frac{PC_{Start}}{N - 1}$ |
 |:------------|------------:|-------:|----------------:|:---------:|
-| [:material-arrow-right: Alarm Line Commissioning](#alarm-line-commissioning) | 309 x | ~10.06 ms | 6.348 (CC 18) | ~20,6 |
-| [:material-arrow-right: Alarming (Start/Stop)](#alarming-start-stop) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
-| [:material-arrow-right: Line Test (Start/Stop)](#line-test-start-stop) | 370 x | ~8,40 ms | 6.348 (CC 18) | ~17,2 |
-| [:material-arrow-right: Discovery Request](#discovery-request) | 26 x | ~8,19 ms | 427 (AB 01) | ~17,1 |
-| [:material-arrow-right: Discovery Response](#discovery-response) | 24 x| ~9,02 ms | 427 (AB 01) | ~18,6 |
+| [Alarm Line Commissioning](#alarm-line-commissioning) | 309 x | ~10.06 ms | 6.348 (CC 18) | ~20,6 |
+| [Alarming (Start/Stop)](#alarming-start-stop) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
+| [Line Test (Start/Stop)](#line-test-start-stop) | 370 x | ~8,40 ms | 6.348 (CC 18) | ~17,2 |
+| [Discovery Request](#discovery-request) | 26 x | ~8,19 ms | 427 (AB 01) | ~17,1 |
+| [Discovery Response](#discovery-response) | 24 x| ~9,02 ms | 427 (AB 01) | ~18,6 |
 
 !!! note "Pkt-# decrement"
     It can be observed that the decrement is not constant across packet repetitions but exhibits a certain amount of jitter. This is likely caused by a higher-resolution underlying counter whose value may vary slightly with each iteration and is then rounded and stored as an unsigned integer in the `Pkt-#` field.
@@ -152,9 +152,9 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
-| *0-26* | *27* | | | *See [:material-arrow-right: Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
+| *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x03` | | Unknown, seems to be constant |
-| 28-31 | 4 | `XX XX XX XX`<br>*big endian* | New Line-ID | The alarm line ID to be assigned during commissioning.<br><ul><li>When initiated by an already commissioned device: Contains the existing alarm line ID (same as `Line-ID`).</li><li>When initiated by a new device: Contains a newly generated alarm line ID (while `Line-ID` is `00 00 00 00`).</li></ul>See [:material-arrow-right: Observations](#observations) for more details. |
+| 28-31 | 4 | `XX XX XX XX`<br>*big endian* | New Line-ID | The alarm line ID to be assigned during commissioning.<br><ul><li>When initiated by an already commissioned device: Contains the existing alarm line ID (same as `Line-ID`).</li><li>When initiated by a new device: Contains a newly generated alarm line ID (while `Line-ID` is `00 00 00 00`).</li></ul>See [Observations](#observations) for more details. |
 | 32 | 1 | `XX` | Ho(urs) | Hour of the smoke detector's current time in format `0-23`h |
 | 33 | 1 | `XX` | Mi(nutes) | Minute of the smoke detector's current time in format `0-59`min |
 | 34 | 1 | `XX` | Se(conds) | Second of the smoke detector's current time in format `0-59`s |
@@ -230,7 +230,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
-| *0-26* | *27* | | | *See [:material-arrow-right: Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
+| *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x00` | | Unknown, seems to be constant |
 | 28 | 1 | `XX` | Start | Start flag<br><br>`0x01`: Starting fire alarm<br>`0x00`: Otherwise |
 | 29 | 1 | `0x00` | | Unknown, seems to be constant |
@@ -247,7 +247,7 @@ For more information on performing the line test, please refer to the smoke dete
 
 The `Line-ID` field contains the ID of the alarm line for which the line test should be started or stopped.
 
-Line tests can be initiated or stopped from the Genius Gateway for known alarm lines. Further details can be found in [:material-arrow-right: Alarm Lines Management](../features/alarm-lines-management.md).
+Line tests can be initiated or stopped from the Genius Gateway for known alarm lines. Further details can be found in [Alarm Lines Management](../features/alarm-lines-management.md).
 
 ##### Basic properties
 
@@ -269,7 +269,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
-| *0-26* | *27* | | | *See [:material-arrow-right: Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
+| *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x04` | | Unknown, seems to be constant |
 | 28 | 1 | `XX` | Start/Stop | `0x06`: Start/Perform line test<br>`0x00`: Stop line test |
 
@@ -281,11 +281,11 @@ It is not confirmed that this packet is actually a request for discovering smoke
 
 ##### Observations
 
-These packets occur in connection with commissioning. Once the initiating radio module has sent the [:material-arrow-right: Alarm Line Commissioning Packet](#alarm-line-commissioning), these Discovery Requests are *sometimes* (the exact conditions are not known) additionally transmitted. In my experiments, these requests were answered with [:material-arrow-right: Discovery Response Packets](#discovery-response). The radio module serial numbers contained in them did not belong to my own radio modules and were unknown to me.
+These packets occur in connection with commissioning. Once the initiating radio module has sent the [Alarm Line Commissioning Packet](#alarm-line-commissioning), these Discovery Requests are *sometimes* (the exact conditions are not known) additionally transmitted. In my experiments, these requests were answered with [Discovery Response Packets](#discovery-response). The radio module serial numbers contained in them did not belong to my own radio modules and were unknown to me.
 
-Since many residential units in my apartment complex are equipped with smoke detectors from the [Hekatron Genius Plus X :material-open-in-new:](https://www.hekatron-brandschutz.de/produkte/rauchmelder/produkte/genius-plus-x){ target=_blank} system, my current assumption is that the [:material-arrow-right: Discovery Response Packets](#discovery-response) could originate from smoke detectors (i.e. their radio modules) belonging to my neighbors. It may also specifically be their *unnetworked* smoke detectors, i.e., those that are installed in the base but for which commissioning (to register them in an alarm line) has not been performed.
+Since many residential units in my apartment complex are equipped with smoke detectors from the [Hekatron Genius Plus X :material-open-in-new:](https://www.hekatron-brandschutz.de/produkte/rauchmelder/produkte/genius-plus-x){ target=_blank} system, my current assumption is that the [Discovery Response Packets](#discovery-response) could originate from smoke detectors (i.e. their radio modules) belonging to my neighbors. It may also specifically be their *unnetworked* smoke detectors, i.e., those that are installed in the base but for which commissioning (to register them in an alarm line) has not been performed.
 
-Furthermore, it appears that each radio module (in its own smoke detector network) that either receives the Discovery Request or is involved in the ongoing commissioning also sends the Discovery Request itself (not forwarding it, but initiating it with its own serial number). Each radio module that sent a Discovery Request itself responded to the other requests with its own [:material-arrow-right: Discovery Response](#discovery-response).
+Furthermore, it appears that each radio module (in its own smoke detector network) that either receives the Discovery Request or is involved in the ongoing commissioning also sends the Discovery Request itself (not forwarding it, but initiating it with its own serial number). Each radio module that sent a Discovery Request itself responded to the other requests with its own [Discovery Response](#discovery-response).
 
 !!! tip "Hypothesis"
     Since this packet type is not forwarded by other radio modules, only smoke detectors within direct transmission/reception range of the initiating module can respond. Thus, this part of the protocol could serve to allow smoke detectors to detect all other directly reachable smoke detectors in their vicinity.
@@ -314,20 +314,20 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
-| *0-26* | *27* | | | *See [:material-arrow-right: Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
+| *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x00` | | Unknown, seems to be constant |
 
 </div>
 
 #### Discovery Response
 
-Like [:material-arrow-right: Discovery Requests](#discovery-request) it is not confirmed that this packet is actually the response to a previous request for discovering smoke detectors. Rather, this designation was chosen based on conclusions drawn from the observed packets and protocol behavior.
+Like [Discovery Requests](#discovery-request) it is not confirmed that this packet is actually the response to a previous request for discovering smoke detectors. Rather, this designation was chosen based on conclusions drawn from the observed packets and protocol behavior.
 
 ##### Observations
 
-Radio modules seem to respond with this packet to a previous [:material-arrow-right: Discovery Request](#discovery-request). The `Org-SN` and `Fwd-SN` fields are populated with the serial number of the responding radio module. Additionally, the `Req-SN` field contains the serial number of the requesting radio module. This makes it possible to identify which requesting radio module the response is intended for.
+Radio modules seem to respond with this packet to a previous [Discovery Request](#discovery-request). The `Org-SN` and `Fwd-SN` fields are populated with the serial number of the responding radio module. Additionally, the `Req-SN` field contains the serial number of the requesting radio module. This makes it possible to identify which requesting radio module the response is intended for.
 
-Further details are described in the [:material-arrow-right: Discovery Request](#discovery-request) section.
+Further details are described in the [Discovery Request](#discovery-request) section.
 
 ##### Basic properties
 
@@ -349,12 +349,12 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
-| *0-26* | *27* | | | *See [:material-arrow-right: Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
+| *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x01` | | Unknown, seems to be constant |
-| 28-31 | 4 | `XX XX XX XX`<br>*big endian* | Req-SN | Serial number of the radio module that sent the original [:material-arrow-right: Discovery Request](#discovery-request).<br><br>This field allows the requesting module to identify that this response is directed to its specific request, enabling proper association between requests and responses in environments with multiple simultaneous discovery operations. |
+| 28-31 | 4 | `XX XX XX XX`<br>*big endian* | Req-SN | Serial number of the radio module that sent the original [Discovery Request](#discovery-request).<br><br>This field allows the requesting module to identify that this response is directed to its specific request, enabling proper association between requests and responses in environments with multiple simultaneous discovery operations. |
 
 </div>
 
-[^1]: See [:material-arrow-right: Packet Limitations](#packet-limitations) section for details on the 64-byte total packet size limit that constrains the maximum payload to 59 bytes in practice.
-[^2]: Genius Gateway uses FF FF FF FE (4294967294) as serial number when it sends packets. See [:material-arrow-right: Alarm Lines Management](../features/alarm-lines-management.md) for more information.
+[^1]: See [Packet Limitations](#packet-limitations) section for details on the 64-byte total packet size limit that constrains the maximum payload to 59 bytes in practice.
+[^2]: Genius Gateway uses FF FF FF FE (4294967294) as serial number when it sends packets. See [Alarm Lines Management](../features/alarm-lines-management.md) for more information.
  

@@ -1,118 +1,92 @@
-# System Overview
-
-This page provides screenshots of the web interface's main page and explains the content in both normal operating mode and fire alerting mode.
-
-## Overview
-
-The Genius Gateway web interface serves as the central control panel for monitoring and managing your Hekatron Genius Plus X smoke detection system. The interface provides real-time status information, device management capabilities, and comprehensive system monitoring.
-
-## Normal Operating Mode
-
-### Main Dashboard
-
-*[Content to be added: Screenshot of the web interface main page in normal operating mode]*
-
-The main dashboard displays:
-
-#### System Status Panel
-
-*[Content to be added: Description of system status indicators]*
-- **Gateway Status**: Connection status and uptime information
-- **Network Statistics**: RF communication statistics and quality metrics
-- **Device Count**: Total number of connected smoke detectors
-- **Last Update**: Timestamp of most recent device communication
-
-#### Device Overview Grid
-
-*[Content to be added: Description of device status grid]*
-- **Device Status Cards**: Individual status for each smoke detector
-- **Battery Levels**: Visual battery status indicators
-- **Signal Strength**: RF signal quality for each device
-- **Device Types**: Different detector types and their capabilities
-
-#### Recent Activity Feed
-
-*[Content to be added: Description of activity log section]*
-- **Communication Log**: Recent device communications
-- **Status Changes**: Device status change notifications
-- **System Events**: Gateway operational events
-
-#### Quick Actions Panel
-
-*[Content to be added: Description of available quick actions]*
-- **System Test**: Initiate system-wide test procedures
-- **Device Discovery**: Search for new devices
-- **Refresh Data**: Manual data refresh controls
-
-## Fire Alert Mode
-
-### Alert Dashboard
-
-*[Content to be added: Screenshot of the web interface during fire alert condition]*
-
-When a fire condition is detected, the interface transforms to prioritize critical information:
-
-#### Alert Status Panel
-
-*[Content to be added: Description of alert status display]*
-- **Alert Level**: Visual indication of alert severity
-- **Affected Areas**: Geographic or zone information for alerts
-- **Alert Timeline**: Sequence of alert events
-- **Acknowledge Controls**: Options to acknowledge or silence alerts
-
-#### Critical Device Information
-
-*[Content to be added: Description of alert-focused device display]*
-- **Alerting Devices**: Highlighted status of devices in alarm
-- **Device Locations**: Enhanced location information for emergency response
-- **Signal Paths**: Communication path status during emergency
-
-#### Emergency Actions
-
-*[Content to be added: Description of emergency-specific controls]*
-- **Alert Acknowledgment**: Acknowledge alert conditions
-- **Manual Test**: Emergency system testing capabilities
-- **External Notifications**: Integration with emergency services or notifications
-
-## Interface Features
-
-### Navigation
-
-*[Content to be added: Description of navigation structure]*
-- **Main Menu**: Access to all major system functions
-- **Breadcrumb Navigation**: Current location within the interface
-- **Quick Access Toolbar**: Frequently used functions
-
-### Real-Time Updates
-
-*[Content to be added: Description of real-time data updates]*
-- **WebSocket Connection**: Live data streaming from gateway
-- **Auto-Refresh**: Configurable automatic refresh intervals
-- **Status Notifications**: Pop-up notifications for important events
-
-### Responsive Design
-
-*[Content to be added: Description of mobile and tablet compatibility]*
-- **Mobile Optimization**: Touch-friendly interface for mobile devices
-- **Tablet Support**: Optimized layout for tablet displays
-- **Desktop Experience**: Full-featured desktop interface
-
-## User Experience Features
-
-### Visual Indicators
-
-*[Content to be added: Description of visual status indicators]*
-- **Color Coding**: Consistent color scheme for different status types
-- **Icons and Symbols**: Intuitive iconography for quick status recognition
-- **Progress Indicators**: Visual feedback for system operations
-
-### Accessibility
-
-*[Content to be added: Accessibility features]*
-- **High Contrast Mode**: Enhanced visibility options
-- **Keyboard Navigation**: Full keyboard accessibility
-- **Screen Reader Support**: Compatibility with assistive technologies
-
+---
+icon: tabler/heartbeat
 ---
 
-*This overview provides the foundation for understanding the Genius Gateway's user interface and operational modes.*
+# Overview
+
+The Overview page serves as the main dashboard of the Genius Gateway web interface, providing an at-a-glance view of all registered smoke detectors and their current status. This page is the default landing page after login and offers quick access to alarm management functions.
+
+![Overview Dashboard](../assets/images/software/gg-gateway-overview.png)
+
+## Device Status Grid
+
+The Overview page displays all registered smoke detectors in a responsive grid layout. Each device is represented by a status card showing:
+
+#### Device Information
+- **Location**: The assigned location name for easy identification
+- :tabler-number: **Smoke Detector Serial Number**: Unique identifier of the smoke detector unit
+- :tabler-buildung-factory-2: **Production Date**: Manufacturing date (if configured)
+- :tabler-bell: **Alarm Counter and Last Alarm Date**: Total number of recorded alarms and date of the most recent alarm event (if any alarms exist)
+
+#### Visual States
+Status cards change appearance based on the device state:
+
+- :tabler-heart: **Normal Mode**: Blue/primary color scheme indicating standby operation
+
+    ![Standby Status Card](../assets/images/software/gg-gateway-overview-status-card-standby.png){ .off-glb }
+
+- :tabler-flame: **Alarm Mode**: Red/error color scheme with fire icon for active alarms
+
+    ![Alarming Status Card](../assets/images/software/gg-gateway-overview-status-card-alarming.png){ .off-glb }
+
+- :tabler-external-link: **Foreign Detector**: External link icon for detectors from other alarm lines
+
+    ![Foreign Alarming Status Card](../assets/images/software/gg-gateway-overview-status-card-alarming-unknown.png){ .off-glb } 
+    ![Foreign Standby Status Card](../assets/images/software/gg-gateway-overview-status-card-standby-unknown.png){ .off-glb }
+
+!!! info "Foreign Detectors"
+    Devices marked as "foreign" are smoke detectors from neighboring alarm lines that are received by your gateway but not part of your currently configured system.  
+    To process alarms from foreign "Process alerts from unknown smoke detectors" setting to be enabled in [Gateway Settings](gateway-settings.md#process-alerts-from-unknown-smoke-detectors). 
+
+## Alarm Management
+
+When one or more smoke detectors are actively alarming, the Overview page displays an alarm management section at the top of the device grid.
+
+![Alarming Overview](../assets/images/software/gg-gateway-overview-alarming.png)
+
+### End All Active Alarms
+
+The **End all active alarms** button (:tabler-bell-off:) becomes visible when any device is in alarm state.
+
+![End All Active Alarms Button](../assets/images/software/gg-gateway-overview-button-end-all-active-alarms.png){ .off-glb }
+
+Clicking this button opens a dialog where you can:
+
+![End Alarming Dialog](../assets/images/software/gg-gateway-overview-dialog-end-alarming.png){ .off-glb }
+
+1. Specify an alarm blocking time (0-600 seconds)
+2. Confirm the action to end all active alarms
+3. Temporarily prevent new alarms during the blocking period
+
+#### Alarm Blocking Counter
+
+When an alarm blocking time is active, a countdown is displayed showing the remaining seconds:
+
+![Blocking Counter](../assets/images/software/gg-gateway-overview-blocking-counter.png)
+
+You can press the counter button to immediately end the blocking period and resume normal alarm processing:
+
+![Blocking Counter Press](../assets/images/software/gg-gateway-overview-blocking-counter-press.png){ .off-glb }
+
+A confirmation dialog will appear to verify the action:
+
+![Blocking End Confirmation](../assets/images/software/gg-gateway-overview-blocking-end-confirmation.png){ .off-glb }
+
+This feature is useful for:
+
+- Silencing false alarms after investigation
+- Stopping alarm propagation during testing
+- Managing nuisance alarms while addressing the root cause
+
+!!! warning "Alarm Blocking Time"
+    Setting a blocking time prevents the gateway from processing new alarm signals during the specified period. Use this feature carefully to avoid missing genuine fire alerts.
+
+## Empty State
+
+If no smoke detectors are configured, the Overview page displays an informational message with a link to the [Device Management](device-management.md) page, guiding users to add their first devices.
+
+## Related Documentation
+
+- [Device Management](device-management.md) - Add, edit, and configure smoke detectors
+- [Gateway Settings](gateway-settings.md) - Configure alarming behavior and system settings
+- [Alarm Lines](alarm-lines.md) - Manage alarm line topology and foreign detector behavior

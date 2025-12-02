@@ -657,14 +657,18 @@ struct cc1101_packet {
 ```
 
 **Buffer Contents:**
-- First byte: Length
-- Next N bytes: Packet data
-- Last 2 bytes: Status (RSSI, LQI, CRC)
+
+- First byte: Packet length
+- Next N (Packt length) bytes: Packet data
+- Last 2 bytes: Status (RSSI, LQI / CRC)
 
 **Binary Stream Details:**
+
 - **Type:** `HTTPD_WS_TYPE_BINARY`
-- **Size:** 64 bytes per packet (fixed structure size)
+- **Size:** 80 bytes per packet (fixed structure size)
 - **Frequency:** Real-time as packets are received
+
+For further details, also see [WebSocket Logging Interface](../features/websocket-interface.md).
 
 ### Usage Notes
 

@@ -6,9 +6,9 @@ Logic analyzer traces for CC1101 communication, as well as UART and EEPROM commu
 
 The radio module's microcontroller communicates with three peripheral devices using two serial interfaces.
 
-The MSP430 communicates with the [:material-arrow-right: CC1101 RF transceiver](fm-basis-x-pcb.md#rf-transceiver) and the [:material-arrow-right: EEPROM](fm-basis-x-pcb.md#eeprom) via a shared [SPI bus :material-open-in-new:](https://en.wikipedia.org/wiki/Serial_Peripheral_Interface){ target=_blank }.
+The MSP430 communicates with the [CC1101 RF transceiver](fm-basis-x-pcb.md#rf-transceiver) and the [EEPROM](fm-basis-x-pcb.md#eeprom) via a shared [SPI bus :material-open-in-new:](https://en.wikipedia.org/wiki/Serial_Peripheral_Interface){ target=_blank }.
 
-The MSP430 communicates via the [:material-arrow-right: 6-pin header](fm-basis-x-pcb.md#board-to-board-connection) with the smoke detector's microcontroller over a [2-wire UART :material-open-in-new:](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter){ target=_blank }.
+The MSP430 communicates via the [6-pin header](fm-basis-x-pcb.md#board-to-board-connection) with the smoke detector's microcontroller over a [2-wire UART :material-open-in-new:](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter){ target=_blank }.
 
 
 ## Logic Analyzer

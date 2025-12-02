@@ -2,7 +2,7 @@
 
 Analysis of the UART communication has not yet been completed.
 
-However, the [:material-arrow-right: Trace files](./protocol-captures.md#trace-files) contain some recorded UART communication.
+However, the [Trace files](./protocol-captures.md#trace-files) contain some recorded UART communication.
 
 There seems to be some kind of header byte, specifying the purpose/meaning of the transmission.
 

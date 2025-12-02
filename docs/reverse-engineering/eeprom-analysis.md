@@ -7,13 +7,13 @@
 
 ### Interpretation
 
-The interpretation of the EEPROM commands was done using the [Datasheet :material-open-in-new:](https://www.st.com/resource/en/datasheet/m95512-w.pdf){ target=_blank }. It explains read and write sequences, so that an interpretation of the raw data could be done from the recorded UART traffic with the help of [:material-arrow-right: Protocol Decoders](protocol-captures.md#decoders).
+The interpretation of the EEPROM commands was done using the [Datasheet :material-open-in-new:](https://www.st.com/resource/en/datasheet/m95512-w.pdf){ target=_blank }. It explains read and write sequences, so that an interpretation of the raw data could be done from the recorded UART traffic with the help of [Protocol Decoders](protocol-captures.md#decoders).
 
 ### Data
 
-The following shows and evaluates 2 traces. Further EEPROM traces are part of the [:material-arrow-right: Trace Files](./protocol-captures.md#trace-files).
+The following shows and evaluates 2 traces. Further EEPROM traces are part of the [Trace Files](./protocol-captures.md#trace-files).
 
-The [:material-arrow-right: Memory Map](#memory-map) shows the memory areas referenced in the traces (*Section* column).
+The [Memory Map](#memory-map) shows the memory areas referenced in the traces (*Section* column).
 
 The traces and the memory map can also be downloaded as [:material-download: Excel detail](../assets/downloads/logic-analyzer/eeprom-traces.xlsx).
 

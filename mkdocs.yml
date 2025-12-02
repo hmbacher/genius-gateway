@@ -31,14 +31,16 @@ nav:
   - Features:
     - features/index.md
     - System Overview: features/overview.md # Screenshot of the web interface's main page and basic explanation of the content, in normal operating mode and fire alerting mode
-    - Gateway Settings: features/settings.md # Describing the Genius Gateway settings available in the web interface
+    - Gateway Settings: features/gateway-settings.md # Describing the Genius Gateway settings available in the web interface
     - Device Management: features/device-management.md # Describing the smoke detectors management features of the web interface, including typical actions, with screenshots
     - Packet Visualizer: features/packet-visualizer.md # Describing the packet visualizer tool and its usage, with screenshots
     - Alarm Lines Management: features/alarm-lines-management.md # Describing the alarm lines management features of the web interface, including typical actions, with screenshots
     - WebSocket Logging Interface: features/websocket-interface.md # Describing the WebSocket logging interface and its usage, with screenshots
     - Smart Home Integration via MQTT: features/smart-home-integration.md # Describing the smart home integration features via MQTT, with screenshots
 
-  - Setup: setup.md # Installation and setup instructions
+  - Setup:
+    - General Setup: setup/general-setup.md # Installation and setup instructions
+    - Configuring Genius Gateway: setup/configuring-gateway.md # Configuring Genius Gateway for the first time and typical configuration options
 
   - API Reference:
     - api/index.md
@@ -50,9 +52,11 @@ nav:
 
 theme:
   name: material
-  # custom_dir: overrides/  # Currently no overrides
   logo: assets/images/doc/logo.png
+  custom_dir: docs/overrides
   favicon: assets/images/doc/favicon.png
+  icon:
+    repo: fontawesome/brands/github
   palette:
     # Hekatron red inspired theme
     - media: "(prefers-color-scheme: light)"
@@ -138,6 +142,9 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
       emoji_index: !!python/name:material.extensions.emoji.twemoji
+      options:
+        custom_icons:
+          - docs/overrides/.icons
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span

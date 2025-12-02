@@ -4,7 +4,7 @@
 
 ## Licensing
 
-For legal aspects and licensing information, please refer to the [:material-arrow-right: License](../license.md#hardware-design) page.
+For legal aspects and licensing information, please refer to the [License](../license.md#hardware-design) page.
 
 ## Experimental setup
 
@@ -43,7 +43,7 @@ PCB manufacturing and assembly were performed by [JLCPCB :material-open-in-new:]
 
 Download the schematic as a PDF: [:material-file-pdf-box: gg-schematic-main-v1.1.pdf](../assets/downloads/cae/schematics/gg-schematic-main-v1.1.pdf){ target=_blank }
 
-Schematics are also available in various formats as part of the [:material-arrow-right: Design Files](./pcb.md#design-files).
+Schematics are also available in various formats as part of the [Design Files](./pcb.md#design-files).
 
 ### PCB Layout
 
@@ -59,13 +59,13 @@ Schematics are also available in various formats as part of the [:material-arrow
 
 </div>
 
-PCB layout files are available in various formats as part of the [:material-arrow-right: Design Files](./pcb.md#design-files).
+PCB layout files are available in various formats as part of the [Design Files](./pcb.md#design-files).
 
 ### Manufacturing
 
 Download Gerber file bundle: [:material-zip-box: gg-gerber-v1.1.zip](../assets/downloads/cae/pcb/gg-gerber-v1.1.zip){ target=_blank }
 
-PCB design-related files are available in various formats as part of the [:material-arrow-right: Design Files](./pcb.md#design-files).
+PCB design-related files are available in various formats as part of the [Design Files](./pcb.md#design-files).
 
 ### BOM
 

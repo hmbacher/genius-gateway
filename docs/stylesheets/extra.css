@@ -321,3 +321,12 @@ img[src*="#uart-sample"] {
    width:150%;
    height:auto;
 }
+
+/* Improve heading distinction from bold text */
+.md-typeset h4 {
+  font-size: 1.1em;
+  margin-top: 1.5em;
+  font-style: italic;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  padding-bottom: 0.3em;
+}

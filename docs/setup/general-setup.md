@@ -1,8 +1,8 @@
-# Setup
+# General Setup
 
 ## Hardware Setup
 
-Wähle entweder das [:material-arrow-right: experimentelle Setup](../hardware.md#experimental-setup), um die Funktionen von Genius Gateway zu testen, oder die [:material-arrow-right: Genius Gateway Platine](../hardware.md#final-hardware), um Genius Gateway in Betrieb zu nehmen.
+Wähle entweder das [experimentelle Setup](../hardware.md#experimental-setup), um die Funktionen von Genius Gateway zu testen, oder die [Genius Gateway Platine](../hardware.md#final-hardware), um Genius Gateway in Betrieb zu nehmen.
 
 ## Software bauen und installieren
 
@@ -117,14 +117,14 @@ Das Standard-Kennwort für den `admin`-Account lautet `admin`.
 
 ### WiFi-Settings
 
-Genius Gateway kann [:material-arrow-right: in ein vorhandenes WiFi-Netzwerk integriert werden](../features/settings.md#wi-fi-configuration).
+Genius Gateway kann [in ein vorhandenes WiFi-Netzwerk integriert werden](../features/settings.md#wi-fi-configuration).
 
 ### User
 
 Standardmäßig sind zwei Benutzer angelegt. Ein `admin`-Account mit erweiterten Rechten und ein `guest`-Account mit verminderten Rechten.
 
-Es können [:material-arrow-right: weitere Benutzer](../features/settings.md#user-interface-settings) mit eigenem Benutzernamen und Passwort angelegt werden.
+Es können [weitere Benutzer](../features/settings.md#user-interface-settings) mit eigenem Benutzernamen und Passwort angelegt werden.
 
 ### MQTT
 
-Für die Integration in ein Smart Home-System muss der [:material-arrow-right: lokale MQTT-Broker angegeben](../features/settings.md#mqtt-configuration) werden.
+Für die Integration in ein Smart Home-System muss der [lokale MQTT-Broker angegeben](../features/settings.md#mqtt-configuration) werden.
