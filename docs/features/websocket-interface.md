@@ -1,205 +1,106 @@
+---
+icon: tabler/brackets-angle
+---
+
 # WebSocket Logging Interface
 
-This page describes the WebSocket logging interface and its usage for real-time system monitoring with screenshots.
+The WebSocket Logger provides real-time streaming of RF packets from the CC1101 radio to connected clients via WebSocket protocol. This enables external tools and the built-in Packet Visualizer to receive and analyze packets as they are captured.
+
+!!! info "Access Required"
+    WebSocket Logger settings require **administrator** privileges to view and modify.
 
 ## Overview
 
-The WebSocket Logging Interface provides real-time access to system logs, debug information, and operational data from the Genius Gateway. This powerful tool enables developers, system administrators, and advanced users to monitor system behavior in real-time.
+The WebSocket Logger acts as a bridge between the gateway's RF packet reception and client applications that need real-time packet data. When enabled, all received packets are immediately streamed to connected WebSocket clients, providing live monitoring and analysis capabilities.
 
-## Main Logging Interface
+![WebSocket Logger Settings](../assets/images/software/gg-gateway-websocket-logger.png)
 
-### Real-Time Log Display
+## :tabler-adjustments: WebSocket Logger Settings
 
-*[Content to be added: Screenshot of the main WebSocket logging interface showing live log stream]*
+### Enable WebSocket Logger
 
-The main interface features:
+**Default:** Disabled
 
-#### Live Log Stream
+Controls whether the WebSocket logging service is active and accepting client connections.
 
-*[Content to be added: Description of real-time log display]*
-- **Continuous Updates**: Live streaming of log messages as they occur
-- **Timestamp Display**: Precise timestamps for each log entry
-- **Log Level Indicators**: Visual indicators for different log severity levels
-- **Message Formatting**: Structured display of log message content
-- **Auto-Scroll**: Automatic scrolling to show latest log entries
+**When enabled:**
 
-#### Log Level Classification
+- The WebSocket server accepts connections at `ws://[gateway-ip]/ws/logger`
+- All received RF packets are streamed in real-time to connected clients
+- The [Packet Visualizer](packet-visualizer.md) can display live packet data
+- External tools can connect to receive raw packet streams
+- An informational message displays the WebSocket connection URL
 
-**Log Level Hierarchy:**
-1. **ERROR**: Critical errors requiring immediate attention
-2. **WARN**: Warning conditions that should be monitored
-3. **INFO**: General information about system operation
-4. **DEBUG**: Detailed debugging information for development
-5. **TRACE**: Very detailed trace information for deep debugging
+**When disabled:**
 
-## Log Filtering and Search
+- The WebSocket server rejects all connection attempts
+- No packet data is transmitted over WebSocket
+- The [Packet Visualizer](packet-visualizer.md) cannot receive live packets (file import still works)
+- Reduces system load when real-time monitoring is not needed
 
-### Filter Configuration
+!!! warning "Performance Impact"
+    Packets are sent to connected clients **synchronously** during packet reception. A slow network connection or multiple connected clients can significantly impact packet processing performance and may lead to packet loss. For best results, use a fast local network connection and limit the number of simultaneous clients. See [Performance Considerations](#performance-considerations) for details.
 
-*[Content to be added: Screenshot of log filtering interface]*
+## WebSocket Connection
 
-#### Basic Filters
+When the logger is enabled, clients can connect using:
 
-**Available Filter Options:**
-1. **Log Level**: Filter by minimum log level (Error, Warn, Info, Debug, Trace)
-2. **Component**: Filter by specific system components or modules
-3. **Time Range**: Show logs within specific time windows
-4. **Message Content**: Filter based on message text content
-5. **Device ID**: Show logs related to specific smoke detectors
+```
+ws://[gateway-ip-address]/ws/logger
+```
 
-#### Advanced Filtering
+### Connection Details
 
-*[Content to be added: Advanced filter configuration]*
-- **Regular Expressions**: Use regex patterns for complex filtering
-- **Multiple Criteria**: Combine multiple filter criteria with AND/OR logic
-- **Custom Patterns**: Save and reuse custom filter configurations
-- **Exclusion Filters**: Exclude specific types of log messages
+- **Protocol:** WebSocket (RFC 6455)
+- **Data Format:** Binary (raw packet data structure)
+- **Authentication:** Follows gateway security settings
+- **Path:** `/ws/logger`
 
-### Search Functionality
+### Data Structure
 
-*[Content to be added: Log search capabilities]*
-- **Real-Time Search**: Search through live log stream
-- **Historical Search**: Search through stored log history
-- **Pattern Recognition**: Identify recurring log patterns
-- **Context Display**: Show surrounding log entries for search results
+Each WebSocket message contains the complete `cc1101_packet_t` structure (80 bytes total):
 
-## System Component Logging
+| Offset | Size<br>(incl. padding) | Type | Description |
+|--------|------|------|-------------|
+| 0 | 8 bytes | uint64_t | Packet reception timestamp (microseconds) |
+| 8 | 64 bytes | uint8_t[64] | *RX FIFO buffer*<br>*Byte 8+ 0*: Packet length byte from CC1101 (number of bytes following, including status bytes)<br>*Byte 8+ 1 to byte 8+ length*: Actual packet data, see [Genius Plus X Packets](../reverse-engineering/protocol-analysis.md#genius-plus-x-packets)<br>*Byte 8+ length+1*: RSSI<br>*Byte 8+ length+2*: LQI/CRC   |
+| 72 | 4 bytes | uint8_t* | Pointer to packet data within buffer (client-side: ignore/treat as reserved) |
+| 76 | 4 bytes | size_t | Packet data length (number of data bytes, excluding status bytes) |
 
-### RF Communication Logs
+## Use Cases
 
-*[Content to be added: Screenshot of RF communication logging]*
+### Built-in Packet Visualizer
 
-#### CC1101 Transceiver Logs
+The [Packet Visualizer](packet-visualizer.md) uses the WebSocket Logger internally to display live packet data with interpretation and highlighting. This is the primary use case for most users.
 
-**RF-Specific Log Categories:**
-1. **Packet Transmission**: Outgoing packet transmission details
-2. **Packet Reception**: Incoming packet reception information
-3. **RF Configuration**: Transceiver configuration changes
-4. **Signal Quality**: RSSI, SNR, and link quality measurements
-5. **Error Conditions**: RF communication errors and recovery
+### External Analysis Tools
 
-#### Protocol Processing
+Developers and researchers can create custom tools that connect to the WebSocket to:
 
-*[Content to be added: Protocol-level logging information]*
-- **Packet Parsing**: Details about packet interpretation and parsing
-- **Protocol State**: Communication protocol state machine transitions
-- **Device Discovery**: Logs related to device discovery and registration
-- **Command Processing**: Logs for command transmission and responses
+- Capture packet streams for offline analysis
+- Implement custom packet filtering or alerting
+- Integrate with other monitoring systems
+- Perform protocol research and reverse engineering
 
-### Web Server Logs
+### API Integration
 
-*[Content to be added: Web server and HTTP logging]*
-- **HTTP Requests**: Incoming web requests and responses
-- **WebSocket Connections**: WebSocket connection events and data
-- **Authentication**: User authentication attempts and results
-- **API Calls**: REST API endpoint access and usage
+For detailed information about WebSocket API usage and integration, see [WebSocket API](../api/websocket-api.md#wslogger-packet-stream).
 
-### System Operation Logs
+## Performance Considerations
 
-#### Device Management
+The WebSocket Logger is designed for diagnostic and development purposes. Consider the following when enabling it:
 
-*[Content to be added: Device management logging]*
-- **Device Registration**: New device discovery and registration
-- **Status Updates**: Device status changes and updates
-- **Configuration Changes**: Device configuration modifications
-- **Health Monitoring**: Device health checks and diagnostics
+1. **Packet Processing Overhead:** Each received packet triggers a synchronous WebSocket send operation to all connected clients
+2. **Network Latency:** Slow clients can block packet processing, causing the RX FIFO to overflow
+3. **Multiple Clients:** Each additional client multiplies the synchronous send overhead
+4. **Continuous Operation:** Consider disabling the logger when real-time monitoring is not needed
 
-#### MQTT Integration
+!!! tip "Optimal Usage"
+    Enable the WebSocket Logger only when actively using the Packet Visualizer or external monitoring tools. Disable it during normal gateway operation to ensure optimal packet reception performance.
 
-*[Content to be added: MQTT communication logging]*
-- **Connection Status**: MQTT broker connection events
-- **Message Publishing**: Outgoing MQTT message publishing
-- **Message Reception**: Incoming MQTT command messages
-- **Integration Events**: Home Assistant and other integration events
+## Related Documentation
 
-## Log Export and Storage
-
-### Export Options
-
-*[Content to be added: Screenshot of log export interface]*
-
-#### Export Formats
-
-**Available Export Formats:**
-1. **Plain Text**: Simple text format for basic analysis
-2. **JSON**: Structured JSON format for programmatic analysis
-3. **CSV**: Comma-separated values for spreadsheet analysis
-4. **Syslog**: Standard syslog format for external log servers
-
-#### Export Configuration
-
-*[Content to be added: Export customization options]*
-- **Time Range Selection**: Export specific time periods
-- **Filter Application**: Export only filtered log data
-- **Compression**: Compress exported files for storage efficiency
-- **Scheduling**: Automated periodic log exports
-
-### Log Storage Management
-
-#### Local Storage
-
-*[Content to be added: Local log storage configuration]*
-- **Storage Limits**: Configure maximum log file sizes
-- **Retention Policies**: Automatic cleanup of old log files
-- **Rotation Settings**: Log file rotation configuration
-- **Performance Impact**: Balance logging detail with system performance
-
-#### Remote Logging
-
-*[Content to be added: Remote log server configuration]*
-- **Syslog Servers**: Send logs to external syslog servers
-- **Cloud Logging**: Integration with cloud-based logging services
-- **Real-Time Streaming**: Stream logs to external monitoring systems
-- **Backup Logging**: Redundant logging for critical systems
-
-## Development and Debugging
-
-### Debug Mode Configuration
-
-*[Content to be added: Screenshot of debug configuration interface]*
-
-#### Debug Level Control
-
-**Debug Configuration Options:**
-1. **Component-Specific Levels**: Set different debug levels per component
-2. **Runtime Adjustment**: Change debug levels without system restart
-3. **Performance Monitoring**: Monitor performance impact of debug logging
-4. **Selective Enabling**: Enable debugging only for specific operations
-
-#### Development Tools
-
-*[Content to be added: Developer-focused logging tools]*
-- **Function Tracing**: Trace function entry and exit
-- **Memory Usage**: Monitor memory allocation and usage
-- **Performance Metrics**: Track system performance and bottlenecks
-- **Error Tracking**: Detailed error tracking and stack traces
-
-### Remote Debugging Support
-
-*[Content to be added: Remote debugging capabilities]*
-- **Remote Log Access**: Access logs from multiple gateway instances
-- **Distributed Logging**: Aggregate logs from multiple devices
-- **Real-Time Monitoring**: Monitor multiple gateways simultaneously
-- **Centralized Analysis**: Centralized analysis of distributed log data
-
-## Integration with External Tools
-
-### Log Analysis Tools
-
-*[Content to be added: Integration with external log analysis]*
-- **ELK Stack**: Integration with Elasticsearch, Logstash, and Kibana
-- **Splunk**: Splunk integration for enterprise log analysis
-- **Grafana**: Visualization of log-based metrics and trends
-- **Custom Dashboards**: Create custom monitoring dashboards
-
-### Monitoring and Alerting
-
-*[Content to be added: Monitoring system integration]*
-- **Alert Triggers**: Generate alerts based on log patterns
-- **Threshold Monitoring**: Alert on log rate or error thresholds
-- **Automated Responses**: Trigger automated responses to log events
-- **Notification Integration**: Send alerts via email, SMS, or messaging
-
----
-
-*The WebSocket Logging Interface provides powerful real-time monitoring and debugging capabilities for the Genius Gateway.*
+- [Packet Visualizer](packet-visualizer.md) - Built-in tool for real-time packet analysis
+- [MQTT Topics](../api/mqtt-topics.md) - MQTT integration and message formats
+- [Protocol Analysis](../reverse-engineering/protocol-analysis.md) - Packet structure and field definitions
+- [Gateway Settings](gateway-settings.md) - Configure packet processing behavior

@@ -1,121 +1,41 @@
 # Genius Gateway
 
-<div class="grid cards" markdown>
+!!! danger "IMPORTANT DISCLAIMER"
+    This is a reverse-engineered implementation **NOT AFFILIATED** with Hekatron. 
 
--   :material-smoke-detector:{ .lg .middle } __Hekatron Integration__
-
-    ---
-
-    Reverse-engineered gateway for Hekatron Genius Plus X smoke detection systems with real-time monitoring and control
-
-    [:octicons-arrow-right-24: Getting started](quick-start.md)
-
--   :material-wifi:{ .lg .middle } __MQTT & Home Assistant__
-
-    ---
-
-    Seamless integration with Home Assistant and other MQTT-based home automation systems
-
-    [:octicons-arrow-right-24: MQTT Setup](setup/mqtt-homeassistant.md)
-
--   :material-web:{ .lg .middle } __Web Interface__
-
-    ---
-
-    Modern responsive web interface for device management, packet visualization, and system configuration
-
-    [:octicons-arrow-right-24: Features overview](features/index.md)
-
--   :material-chip:{ .lg .middle } __Hardware Design__
-
-    ---
-
-    Complete open-source hardware design with schematics, PCB layout, and assembly documentation
-
-    [:octicons-arrow-right-24: Hardware docs](hardware/index.md)
-
-</div>
+    **You are solely responsible for ensuring compliance with all local regulations regarding RF communication and fire safety systems. The authors assume no liability for any damages or safety issues.**
+    
+    **USE AT YOUR OWN RISK!** 
 
 ## What is the Genius Gateway?
 
-The **Genius Gateway** is a reverse-engineered interface for Hekatron Genius Plus X smoke detection systems. It enables real-time monitoring, MQTT integration, and web-based management of Genius smoke detectors without requiring proprietary Hekatron gateways.
+![Genius Gateway Rendering](./assets/images/hardware/gateway/gg-3d-v1.1.png)
 
-### Key Features
+---
 
-**🔍 Protocol Reverse Engineering**
-: Complete analysis and implementation of the proprietary Genius communication protocol
+![Genius Gateway connects to Hekatron Genius Plus X and Smart Home Systems](./assets/images/doc/gg-systemoverview.svg){ .off-glb }
 
-**📡 RF Communication**  
-: CC1101-based 868 MHz radio interface compatible with FM Basis Radio Modules
+---
 
-**🌐 Web Interface**
-: Modern Svelte-based responsive web interface for device management and monitoring
+The **Genius Gateway** is a reverse-engineered interface for [Hekatron Genius Plus X](background.md) smoke detection systems. It enables real-time monitoring, MQTT integration, and web-based management of Genius smoke detectors without requiring proprietary Hekatron gateways.
 
-**📊 Real-time Monitoring**
-: Live packet visualization, alarm states, and device status monitoring
+## Key Features
 
-**🏠 Home Automation**
-: MQTT integration with Home Assistant and other automation platforms
+- :material-smoke-detector: **Manage smoke detectors** - Real-time monitoring and control
+- :material-view-list: **Manage alarm lines** - Configure and monitor alarm communications  
+- :material-chart-line: **Capture, visualize and analyze packets** - Real-time packet inspection tools
+- :material-cog: **Manage gateway settings** - Complete configuration interface
+- :material-message-processing: **MQTT and WebSocket support** - Modern API interfaces for integration
+- :simple-homeassistant: **Home Assistant integration** - Native support with automatic discovery
 
-**⚙️ Open Source**
-: Complete hardware and software designs available under open licenses
+## Getting Started
 
-## Quick Start
+Get your Genius Gateway up and running:
 
-Get your Genius Gateway up and running in minutes:
+1. Review the documentation structure to understand how information is organized
+2. Perform the [General Setup](setup/general-setup.md)
+3. [Configure Genius Gateway](setup/configure-gateway.md) to use its full potential
 
-1. **[Hardware Setup](setup/hardware.md)** - Assemble or order the gateway hardware
-2. **[Firmware Installation](setup/firmware.md)** - Flash the firmware to your ESP32
-3. **[Configuration](setup/configuration.md)** - Configure WiFi and basic settings
-4. **[MQTT Integration](setup/mqtt-homeassistant.md)** - Connect to Home Assistant
+## Source Code
 
-## Architecture Overview
-
-```mermaid
-graph TB
-    subgraph "Hekatron Ecosystem"
-        SD1[Smoke Detector 1]
-        SD2[Smoke Detector 2] 
-        SD3[Smoke Detector N]
-    end
-    
-    subgraph "Genius Gateway"
-        CC1101[CC1101 Radio]
-        ESP32[ESP32-S3]
-        Web[Web Interface]
-    end
-    
-    subgraph "Home Automation"
-        MQTT[MQTT Broker]
-        HA[Home Assistant]
-        Other[Other Systems]
-    end
-    
-    SD1 -.->|868 MHz RF| CC1101
-    SD2 -.->|868 MHz RF| CC1101  
-    SD3 -.->|868 MHz RF| CC1101
-    CC1101 --> ESP32
-    ESP32 --> Web
-    ESP32 -->|MQTT| MQTT
-    MQTT --> HA
-    MQTT --> Other
-```
-
-## Project Status
-
-!!! success "Production Ready"
-    The Genius Gateway is actively used in production environments and provides stable, reliable operation.
-
-**Current Version**: v0.6.0  
-**Hardware**: ESP32-S3 with CC1101 radio module  
-**Protocol Support**: Hekatron Genius Plus X (FM Basis Radio Module)  
-**License**: Hardware: CC BY-SA 4.0, Software: GPL v3 (backend) / MIT (frontend), Documentation: CC BY 4.0
-
-## Community & Support
-
-- **GitHub**: [hmbacher/genius-gateway](https://github.com/hmbacher/genius-gateway)
-- **Issues**: Report bugs and request features on GitHub
-- **Discussions**: Join the community discussion for help and sharing
-
-!!! warning "Disclaimer"
-    This is a reverse-engineered implementation not affiliated with Hekatron. Use at your own risk and ensure compliance with local regulations regarding RF communication and fire safety systems.
+[View on GitHub :fontawesome-brands-github:{ .github }](https://github.com/hmbacher/genius-gateway){ .md-button .md-button--primary }

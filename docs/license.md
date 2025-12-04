@@ -1,0 +1,184 @@
+# Genius Gateway - License
+
+The Genius Gateway project uses different licenses for different components to ensure open sharing for personal and educational purposes while prohibiting commercial use.
+
+## License Overview
+
+| Component | License | Applies To | Details |
+|-----------|---------|------------|---------|
+| **Hardware Design** | CC BY-NC-SA 4.0 | PCB designs, schematics, CAD files, mechanical drawings | [Hardware Design](#hardware-design) |
+| **Software** | AGPL-3.0 + Commons Clause | ESP32 firmware, protocol implementation, backend services, web interface | [Software](#software) |
+| **Documentation** | CC BY-NC-SA 4.0 | All documentation, guides, images, traces, downloadable content | [Documentation and Assets](#documentation-and-assets) |
+| **Third-Party Components** | Various (LGPL, MIT, etc.) | ESP32 SvelteKit, Arduino libraries, PsychicHttp, other dependencies | [Third-Party Components](#third-party-components) |
+
+!!! warning "Commercial Use Prohibited"
+    All Genius Gateway components (hardware, software, documentation) prohibit commercial use without explicit permission. See [Commercial Use](#commercial-use) for details.
+
+## Hardware Design
+
+**Applies to:** PCB designs, schematics, CAD files, mechanical drawings
+
+**Files:** `docs/assets/downloads/cae/*`, `docs/assets/downloads/cad/*`
+
+**License:** Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+
+**License URL:** https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+You are free to:
+
+- **Share**: Copy and redistribute the material in any medium or format for non-commercial purposes
+- **Adapt**: Remix, transform, and build upon the material for non-commercial purposes
+
+Under the following terms:
+
+- **Attribution**: You must give appropriate credit and indicate if changes were made
+- **NonCommercial**: You may not use the material for commercial purposes
+- **ShareAlike**: If you remix or transform the material, you must distribute under the same license
+
+This license allows private and educational use while prohibiting commercial use without permission.
+
+## Software
+
+**Applies to:** ESP32 firmware, protocol implementation, reverse engineering code, backend services, web interface
+
+**Files:** `src/*`
+
+**License:** GNU Affero General Public License v3.0 with Commons Clause (AGPL-3.0 + Commons Clause)
+
+**License URL:** https://www.gnu.org/licenses/agpl-3.0.en.html
+
+Copyright (C) 2024-2025 Genius Gateway Project
+
+You are free to:
+
+- **Use**: Run the software for personal and educational purposes
+- **Study**: Access and study the source code
+- **Modify**: Create modified versions for personal and educational use
+- **Share**: Distribute the original or modified versions for non-commercial purposes
+
+Under the following terms:
+
+- **Source Code**: Modified versions must be made available under the same license
+- **NonCommercial**: You may not sell, rent, lease, or otherwise use the software for commercial purposes
+- **Attribution**: You must give appropriate credit
+
+### AGPL-3.0 License Text
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+### Commons Clause License Condition v1.0
+
+The Software is provided to you by the Licensor under the License, as defined below,
+subject to the following condition:
+
+Without limiting other conditions in the License, the grant of rights under the License
+will not include, and the License does not grant to you, the right to Sell the Software.
+
+For purposes of the foregoing, "Sell" means practicing any or all of the rights granted
+to you under the License to provide to third parties, for a fee or other consideration
+(including without limitation fees for hosting or consulting/support services related to
+the Software), a product or service whose value derives, entirely or substantially, from
+the functionality of the Software.
+
+**Note**: Third-party frameworks and libraries (ESP32SvelteKit, Arduino, etc.) retain their original licenses. Please refer to their respective license files in the source code.
+
+**Rationale:** The AGPL-3.0 with Commons Clause ensures that improvements to the reverse-engineered protocol implementation remain open source while prohibiting commercial use without permission.
+
+## Documentation and Assets
+
+**Applies to:** All documentation, guides, images, traces, and downloadable content
+
+**Files:** `docs/*`, `README.md`, `CHANGELOG.md`
+
+**License:** Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+
+**License URL:** https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+You are free to:
+
+- **Share**: Copy and redistribute the material in any medium or format for non-commercial purposes
+- **Adapt**: Remix, transform, and build upon the material for non-commercial purposes
+
+Under the following terms:
+
+- **Attribution**: You must give appropriate credit and indicate if changes were made
+- **NonCommercial**: You may not use the material for commercial purposes
+- **ShareAlike**: If you remix or transform the material, you must distribute under the same license
+
+This license allows private and educational use while prohibiting commercial use without permission.
+
+**Attribution:** "Genius Gateway Documentation by hmbacher (https://github.com/hmbacher/genius-gateway) is licensed under CC BY-NC-SA 4.0"
+
+## Third-Party Components
+
+This project builds upon and includes components from other open source projects. These third-party components retain their original licenses:
+
+### ESP32 SvelteKit Framework
+
+- **License:** LGPL v3 (backend), MIT (frontend)
+- **Author:** theelims
+- **URL:** https://github.com/theelims/ESP32-sveltekit
+- **Usage:** Base framework for ESP32 web applications
+- **Note:** The ESP32 SvelteKit framework retains its original licenses. Genius Gateway modifications and additions to the framework are licensed under AGPL-3.0 + Commons Clause.
+
+### Arduino Libraries
+Various Arduino libraries used are subject to their respective licenses. See individual library documentation for details.
+
+### PsychicHttp
+
+- **License:** LGPL v2.1
+- **URL:** https://github.com/hoeken/PsychicHttp
+- **Usage:** HTTP server library for ESP32
+
+## License Compatibility and Important Notes
+
+### Third-Party Dependencies
+This project uses third-party libraries and frameworks that retain their original licenses:
+
+- **ESP32 SvelteKit**: LGPL v3 (backend), MIT (frontend)
+- **PsychicHttp**: LGPL v2.1
+- **Arduino libraries**: Various licenses (see respective library documentation)
+- **Other dependencies**: See individual library documentation for license details
+
+### License Interaction
+
+- **Genius Gateway code** is licensed under AGPL-3.0 + Commons Clause (more restrictive than underlying frameworks)
+- **Third-party components** retain their original licenses (LGPL, MIT, etc.)
+- **Hardware designs** (CC BY-NC-SA 4.0) and **Documentation** (CC BY-NC-SA 4.0) are independent of software licenses
+
+### Important Legal Considerations
+
+1. **AGPL-3.0 Network Requirement**: If you provide the software as a network service (e.g., hosting it on a server accessible to users), you must make the complete source code available to those users.
+
+2. **Commons Clause Restriction**: The Commons Clause prohibits selling the software or offering it as a paid service. This means:
+   - ❌ You cannot sell the software itself
+   - ❌ You cannot offer it as a hosted/SaaS service for a fee
+   - ❌ You cannot provide consulting/support services where the value primarily comes from the software
+   - ✅ You can use it personally or for educational purposes
+   - ✅ You can modify and share it non-commercially
+
+3. **Hardware & Documentation**: Both use CC BY-NC-SA 4.0, which prohibits commercial use without permission.
+
+### Commercial Use
+
+**All components (hardware, software, documentation) prohibit commercial use without explicit permission.**
+
+For commercial licensing inquiries or questions about licensing, please open an issue in the GitHub repository or contact the project maintainer.
+
+## Contact
+
+For licensing questions, commercial use requests, or general inquiries:
+
+- **GitHub Issues**: https://github.com/hmbacher/genius-gateway/issues
+- **Project Maintainer**: hmbacher

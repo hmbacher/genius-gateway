@@ -1,202 +1,225 @@
-# Alarm Lines Management
-
-This page describes the alarm lines management features of the web interface, including typical actions and screenshots.
-
-## Overview
-
-The Alarm Lines Management system provides comprehensive control over the alarm line configuration and monitoring for Hekatron Genius Plus X systems. Alarm lines represent logical groupings of smoke detectors that can trigger coordinated responses during fire events.
-
-## Alarm Lines Overview
-
-### Main Alarm Lines Dashboard
-
-*[Content to be added: Screenshot of the main alarm lines management interface]*
-
-The dashboard displays:
-
-#### Active Alarm Lines
-
-*[Content to be added: Description of alarm line status display]*
-- **Line Identification**: Unique identifiers for each alarm line
-- **Line Status**: Current operational status of each line
-- **Device Count**: Number of detectors assigned to each line
-- **Zone Coverage**: Geographic areas covered by each line
-- **Alert Status**: Current alert level for each line
-
-#### System-Wide Status
-
-*[Content to be added: Overall system status information]*
-- **Total Lines Configured**: Number of active alarm lines
-- **Devices Online**: Count of operational devices per line
-- **Recent Activity**: Latest alarm line events and status changes
-- **System Health**: Overall alarm system operational status
-
-## Individual Alarm Line Management
-
-### Alarm Line Configuration
-
-*[Content to be added: Screenshot of alarm line configuration interface]*
-
-#### Basic Line Settings
-
-**Configuration Options:**
-1. **Line Identification**: Name and description for the alarm line
-2. **Priority Level**: Emergency response priority assignment
-3. **Response Type**: Type of response required for this line
-4. **Coverage Area**: Geographic or logical area definition
-
-#### Device Assignment
-
-*[Content to be added: Device-to-line assignment interface]*
-- **Available Devices**: List of unassigned smoke detectors
-- **Current Assignments**: Devices currently assigned to this line
-- **Drag-and-Drop Assignment**: Easy device assignment interface
-- **Bulk Assignment**: Assign multiple devices simultaneously
-
-### Line Behavior Configuration
-
-#### Alert Handling
-
-*[Content to be added: Screenshot of alert configuration interface]*
-
-**Alert Settings:**
-1. **Trigger Conditions**: What conditions activate the alarm line
-2. **Response Delays**: Configurable delays before full activation
-3. **Escalation Rules**: Progressive alert escalation procedures
-4. **Auto-Reset**: Automatic line reset after alert conditions clear
-
-#### Notification Settings
-
-*[Content to be added: Line-specific notification configuration]*
-- **Notification Recipients**: Who gets alerted for this line
-- **Notification Methods**: Email, SMS, webhook, or local alerts
-- **Message Templates**: Custom alert message formatting
-- **Quiet Periods**: Time windows when notifications are suppressed
-
-## Alarm Line Operations
-
-### Manual Line Control
-
-*[Content to be added: Screenshot of manual control interface]*
-
-#### Direct Control Actions
-
-**Available Manual Controls:**
-1. **Line Test**: Test all devices on the alarm line
-2. **Manual Activation**: Manually trigger alarm line for testing
-3. **Line Reset**: Reset alarm conditions and clear alerts
-4. **Maintenance Mode**: Temporarily disable line for maintenance
-
-#### Status Override
-
-*[Content to be added: Status override capabilities]*
-- **Force Normal**: Override alert conditions to normal status
-- **Maintenance Lock**: Prevent accidental activation during service
-- **Emergency Override**: Emergency response control options
-- **Bypass Mode**: Temporarily bypass specific devices on the line
-
-### Bulk Line Operations
-
-#### Multi-Line Management
-
-*[Content to be added: Screenshot of bulk operations interface]*
-
-**Bulk Operations Available:**
-1. **System-Wide Test**: Test all alarm lines simultaneously
-2. **Configuration Sync**: Apply settings across multiple lines
-3. **Status Reset**: Reset multiple lines after system events
-4. **Maintenance Scheduling**: Schedule maintenance across lines
-
-#### Zone-Based Operations
-
-*[Content to be added: Geographic zone management]*
-- **Zone Testing**: Test all lines within a specific zone
-- **Zone Status**: Consolidated status for geographic areas
-- **Zone Configuration**: Apply common settings to zone-based lines
-- **Emergency Procedures**: Zone-specific emergency response plans
-
-## Alarm Line Monitoring
-
-### Real-Time Status Monitoring
-
-*[Content to be added: Screenshot of real-time monitoring interface]*
-
-#### Live Status Display
-
-**Monitoring Features:**
-1. **Line Status Indicators**: Real-time status of each alarm line
-2. **Device Health Monitoring**: Individual device status within lines
-3. **Communication Quality**: RF link quality for line devices
-4. **Alert Timeline**: Chronological display of line events
-
-#### Historical Analysis
-
-*[Content to be added: Historical alarm line data analysis]*
-- **Event History**: Complete log of alarm line activities
-- **Performance Metrics**: Line reliability and response time analysis
-- **Trend Analysis**: Long-term patterns in line behavior
-- **Maintenance History**: Service and maintenance event tracking
-
-### Alert and Event Management
-
-#### Active Alert Handling
-
-*[Content to be added: Screenshot of active alert management]*
-
-**Alert Management Features:**
-1. **Alert Acknowledgment**: Acknowledge active alerts
-2. **Alert Escalation**: Manual escalation of alert conditions
-3. **Response Coordination**: Coordinate emergency response activities
-4. **Documentation**: Record response actions and outcomes
-
-#### Event Logging
-
-*[Content to be added: Comprehensive event logging system]*
-- **Automatic Logging**: All line activities automatically recorded
-- **Manual Annotations**: Add notes and comments to events
-- **Report Generation**: Generate reports for compliance and analysis
-- **Data Export**: Export event data for external analysis
-
-## Advanced Alarm Line Features
-
-### Custom Response Procedures
-
-*[Content to be added: Screenshot of custom response configuration]*
-
-#### Response Automation
-
-**Automation Capabilities:**
-1. **Automated Notifications**: Trigger external systems on alert
-2. **Integration Triggers**: Activate building systems (HVAC, lighting)
-3. **Escalation Workflows**: Automated escalation based on response time
-4. **Recovery Procedures**: Automated system recovery after events
-
-#### External Integrations
-
-*[Content to be added: Integration with external systems]*
-- **Building Management Systems**: Integration with HVAC and lighting
-- **Security Systems**: Coordination with security and access control
-- **Fire Department**: Direct connection to emergency services
-- **Mobile Applications**: Push notifications to mobile devices
-
-### Compliance and Reporting
-
-#### Regulatory Compliance
-
-*[Content to be added: Compliance monitoring and reporting]*
-- **Code Compliance**: Ensure compliance with fire safety codes
-- **Inspection Reports**: Generate reports for regulatory inspections
-- **Documentation**: Maintain required documentation and records
-- **Audit Trails**: Complete audit trail of all system activities
-
-#### Performance Reporting
-
-*[Content to be added: System performance reporting]*
-- **Response Time Analysis**: Measure and report system response times
-- **Reliability Metrics**: Calculate and track system reliability
-- **Maintenance Reports**: Schedule and track maintenance activities
-- **Cost Analysis**: Track operational and maintenance costs
-
+---
+icon: tabler/topology-ring-2
 ---
 
-*The Alarm Lines Management system provides comprehensive control and monitoring for your fire safety infrastructure.*
+# Alarm Lines Management
+
+The Alarm Lines Management page provides a centralized interface for configuring and managing alarm lines in your Genius system. Alarm lines represent logical groupings of smoke detectors that communicate using the same radio ID, enabling coordinated alarm behavior across connected devices. This page allows you to add, edit, delete, and test alarm lines, as well as manage configurations via export/import functionality.
+
+![Alarm Lines Management](../assets/images/software/gg-gateway-alarm-lines.png)
+
+!!! info "Access Requirements"
+    Alarm Lines Management is only accessible to users with administrator privileges.
+
+## Understanding Alarm Lines
+
+In Genius smoke detector systems, an **alarm line** is a communication channel identified by a unique numeric ID (`1` to `4294967294`). All smoke detectors configured for the same alarm line ID will:
+
+- Receive and relay alarm signals from any detector on that line
+- Trigger coordinated alarm responses (sirens activate simultaneously)
+- Participate in line tests and system diagnostics
+
+Each alarm line in your system must be registered in the gateway to enable proper monitoring and control.
+
+## Alarm Lines List Overview
+
+The alarm lines table displays all registered alarm lines with the following columns:
+
+#### ID
+The unique numeric identifier for the alarm line (1-4294967294). This ID must match the configuration in your smoke detectors for proper communication.
+
+#### Name
+A descriptive label for the alarm line (e.g., "First Floor", "Building A"). This helps identify the line in the interface and notifications.
+
+#### Registered
+The date and time when the alarm line was first added to the gateway, displayed in DD.MM.YYYY HH:MM:SS format.
+
+#### Acquisition
+Indicates how the alarm line was added to the system:
+
+- :tabler-forms: **Manual**: Alarm line was manually configured by an administrator
+- :tabler-access-point: **Automatic**: Alarm line was automatically registered when the gateway received a Genius packet with a new alarm line ID
+
+#### Manage
+Action buttons for alarm line operations (described in detail below).
+
+## Initial Setup
+
+When you first access the Alarm Lines Management page with no alarm lines configured, you'll see a helpful message:
+
+> **No alarm lines registered yet.**
+>
+> Click the "+" button to manually add an alarm line or start the commissioning procedure of your smoke detectors.
+
+You can proceed to [add a new alarm line](#adding-a-new-alarm-line) by either:
+
+1. **Manual Registration**: Explicitly add alarm line IDs you've configured in your smoke detectors (recommended for planned installations)
+2. **Automatic Discovery**: Enable automatic alarm line registration in [Gateway Settings](gateway-settings.md#add-alarm-line-id-of-received-line-test-packets-automatically), then trigger any smoke detector—the gateway will automatically register the alarm line when it receives the packet
+
+## Adding a New Alarm Line
+
+### Manually Registering a New Alarm Line
+
+!!! danger "For Advanced Users Only"
+    Manual alarm line registration is only recommended for experienced and knowledgeable users and should only be performed for testing and development purposes. The alarm line ID must be known or determined beforehand.
+
+    When using Genius Gateway to integrate an existing Genius smoke detector network into a home automation system, packet-based [automatic discovery of existing alarm lines](../setup/configure-gateway.md#adding-alarm-lines) should always be preferred.
+
+To manually register a new alarm line:
+
+1. Click the :tabler-circle-plus: **Add alarm line** button in the top-right corner
+2. The "Add alarm line" dialog opens with empty fields
+
+    ![Add Alarm Line](../assets/images/software/gg-gateway-alarm-lines-add.png)
+
+3. Configure the alarm line as follows:
+
+    ***ID***  
+    Enter the alarm line ID (`1 - 4294967294`) that matches the configuration in your smoke detectors. This ID must be unique—the gateway will display an error if you attempt to register an ID that already exists.
+
+    !!! warning "ID Validation"
+        - The ID must be between `1` and `4294967294`
+        - The ID must not already exist in your alarm lines list
+        - The ID must match the alarm line configuration in your physical smoke detectors
+
+    ***Name***  
+    Enter a descriptive name (1-100 characters) to identify this alarm line. Use meaningful names like "First Floor", "East Wing", or "Building A - Zone 1" to help distinguish between multiple alarm lines.
+
+4. Click **Save** to register the alarm line
+
+The new alarm line will immediately appear in the table and is ready to receive and process alarm packets.
+
+### Automatic Alarm Line Discovery
+
+When [automatic alarm line registration](gateway-settings.md#alarm-lines) is enabled in Gateway Settings, the gateway will automatically create new alarm line entries when it receives Genius packets with previously unknown alarm line IDs.
+
+**Discovery Process:**
+
+1. A smoke detector transmits a packet (alarm, line test, or status)
+2. The gateway extracts the alarm line ID from the received packet
+3. If the ID is not registered, the gateway automatically creates a new entry with:
+    - **ID**: Extracted from the packet
+    - **Name**: Auto-generated as "Alarm Line [ID]"
+    - **Acquisition**: Marked as "Automatic" (:tabler-access-point:)
+4. A success notification appears: "New alarm line detected."
+
+You can later edit automatically discovered alarm lines to assign meaningful names.
+
+!!! tip "Discover during Commissioning"
+    Enable [automatic registration during smoke detector commissioning](gateway-settings.md#add-alarm-line-id-of-received-commissioning-packets-automatically) to quickly discover the alarm line that is currently set up in a commissioning process. After commissioning, assign meaningful names to each discovered line.
+
+## Editing an Alarm Line
+
+To modify an existing alarm line:
+
+1. Click the :tabler-pencil: **Edit alarm line** button in the alarm line's row
+2. The "Edit alarm line" dialog opens with current values
+
+    ![Edit Alarm Line](../assets/images/software/gg-gateway-alarm-lines-edit.png)
+
+3. Modify the **ID** and/or **Name** fields as needed
+
+    !!! danger "Changing the ID"
+        If you change an alarm line's ID, ensure your physical smoke detectors are reconfigured to match. Mismatched IDs will prevent proper alarm communication.
+    
+4. Click **Save** to apply changes
+
+## Deleting an Alarm Line
+
+To remove an alarm line from the system:
+
+1. Click the :tabler-trash: **Delete alarm line** button in the alarm line's row
+2. A confirmation dialog appears asking you to verify the deletion
+3. Click **Yes** to permanently remove the alarm line
+
+!!! warning "Consequences"
+    Deleting an alarm line does not affect the physical smoke detector configuration — devices will continue operating on their configured alarm line ID.
+
+## Import and Export
+
+### Exporting Alarm Lines to File
+
+To save your current alarm lines configuration:
+
+1. Click the :tabler-device-floppy: **Save alarm lines to file** button in the top-right corner
+2. Rename and save the file to the desired location
+
+This file contains all alarm line configurations and can be used for backup or migration to another gateway.
+
+### Importing Alarm Lines from File
+
+!!! warning "Import Replaces All Alarm Lines"
+    Importing alarm lines **replaces** the current configuration entirely. All existing alarm lines will be overwritten with the imported data.
+
+To restore alarm lines from a previously exported file:
+
+1. Click the :tabler-folder-open: **Load alarm lines from file** button in the top-right corner
+2. Select a valid alarm lines file from your computer
+3. The gateway validates and imports the configuration
+4. All existing alarm lines are replaced with the imported ones
+
+## Alarm Line Actions
+
+Each alarm line supports several test and diagnostic actions. These actions transmit RF commands to all smoke detectors configured for that alarm line.
+
+!!! info "Action Behavior"
+    - Only one action can be triggered at a time across all alarm lines
+    - While the Genius Gateway is actively transmitting RF packets for the triggered action, a spinner icon is shown 
+
+### :tabler-location: Start Line Test
+
+Initiates a line test on the selected alarm line. This command triggers all smoke detectors on the line to perform a coordinated test sequence.
+
+1. Click the :tabler-location: **Start line test** button
+2. A confirmation dialog appears
+3. Click **Yes** to proceed
+4. The gateway transmits the appropriate commands [repetitively](../reverse-engineering/protocol-analysis.md#repetition) via RF
+5. The button displays a spinner while RF transmission is in progress
+
+### :tabler-location-off: Stop Line Test
+
+Stops an active line test on the selected alarm line.
+
+1. Click the :tabler-location-off: **Stop line test** button
+2. The gateway immediately transmits the appropriate commands [repetitively](../reverse-engineering/protocol-analysis.md#repetition) via RF
+3. The button displays a spinner while RF transmission is in progress
+
+### :tabler-flame-filled: Trigger Fire Alarm
+
+Manually triggers a fire alarm on the selected alarm line. This activates all smoke detectors on the line as if smoke were detected.
+
+!!! danger "Fire Alarm Warning"
+    Triggering a fire alarm will activate sirens on all connected smoke detectors (i.e., all smoke detectors belonging to the corresponding alarm line).
+    
+    **Only use this feature for testing purposes in controlled conditions.**
+
+!!! warning "Fire Alarm Detection"
+    Self-triggered fire alarms are ignored by the gateway.
+
+1. Click the :tabler-flame-filled: **Trigger fire alarm** button
+2. A confirmation dialog appears
+3. Click **Yes** to proceed
+4. The gateway transmits the appropriate commands [repetitively](../reverse-engineering/protocol-analysis.md#repetition) via RF
+5. The button displays a spinner while RF transmission is in progress
+
+### :tabler-flame-off: Stop Fire Alarm
+
+Stops an active fire alarm on the selected alarm line.
+
+1. Click the :tabler-flame-off: **Stop fire alarm** button
+2. The gateway immediately transmits the appropriate commands [repetitively](../reverse-engineering/protocol-analysis.md#repetition) via RF
+3. The button displays a spinner while RF transmission is in progress
+
+## Action Notifications
+
+When an action is triggered, an initial notification confirms the action was sent. The gateway then monitors for completion and displays one of two notifications:
+
+- **Success**: "The triggered action finished successfully." (action completed normally)
+- **Timeout**: "The triggered action timed out." (no response received from Genius Gateway within timeout period)
+
+## Related Documentation
+
+- [Gateway Settings](gateway-settings.md) - Configure automatic alarm line registration and packet processing behavior
+- [Overview](overview.md) - View real-time alarm status across all alarm lines and devices
+- [Device Management](device-management.md) - Configure individual smoke detector devices
+

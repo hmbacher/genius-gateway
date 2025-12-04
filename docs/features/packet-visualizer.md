@@ -1,189 +1,120 @@
+---
+icon: tabler/zoom-scan
+---
+
 # Packet Visualizer
 
-This page describes the packet visualizer tool and its usage for analyzing RF communication with screenshots.
+The Packet Visualizer provides real-time monitoring and analysis of RF communication packets from Hekatron Genius Plus X smoke detectors. This powerful diagnostic tool allows you to observe the wireless communication in your smoke detector network, helping with troubleshooting, protocol analysis, and system verification.
+
+![Packet Visualizer](../assets/images/software/gg-gateway-packet-analyzer.png)
+
+!!! info "WebSocket Logger Required"
+    The Packet Visualizer requires the WebSocket Logger to be enabled. If disabled, you'll see an informational message with a link to enable it in the [WebSocket Logger Settings](websocket-interface.md).
 
 ## Overview
 
-The Packet Visualizer is a powerful diagnostic tool that provides real-time visualization and analysis of RF communication packets between the Genius Gateway and Hekatron Genius Plus X smoke detectors. This tool is essential for troubleshooting communication issues and understanding protocol behavior.
+The Packet Visualizer displays captured RF packets in real-time with intelligent deduplication, detailed interpretation, and visual highlighting. Each packet type is automatically identified and decoded to show meaningful information about detector communication, alarms, commissioning activities, and network topology.
 
-## Main Visualizer Interface
+## :tabler-adjustments-alt: Visualizer Settings
 
-### Live Packet Stream
+The Visualizer Settings card allows you to customize how packets are displayed:
 
-*[Content to be added: Screenshot of the main packet visualizer interface showing live packet capture]*
+### Show packet details (data interpretation and highlighting)
 
-The main interface displays:
+**Default:** Enabled
 
-#### Real-Time Packet List
+When enabled, the visualizer interprets packet data and highlights important fields with color coding and labels:
 
-*[Content to be added: Description of packet list display]*
-- **Timestamp**: Precise time when packet was received/transmitted
-- **Direction**: Incoming (from devices) or outgoing (to devices) indicators
-- **Source/Destination**: Device addresses or identifiers
-- **Packet Type**: Classification of packet content
-- **Size**: Packet size in bytes
-- **Status**: Success, error, or retry indicators
+- **Packet type identification:** Automatic detection of packet types (alarm, commissioning, discovery, etc.)
+- **Field highlighting:** Important bytes are color-coded and labeled
+- **Data interpretation:** Serial numbers, line IDs, timestamps, and other fields are decoded
+- **Location mapping:** Serial numbers are matched to configured device locations
 
-#### Packet Content Preview
+When disabled, packets are shown in raw hexadecimal format without interpretation.
 
-*[Content to be added: Hex and ASCII packet content display]*
-- **Raw Data View**: Hexadecimal representation of packet contents
-- **ASCII Interpretation**: Human-readable ASCII interpretation where applicable
-- **Field Highlighting**: Color-coded packet fields and structures
-- **Protocol Parsing**: Automatic parsing of known packet structures
+![Raw Packet View](../assets/images/software/gg-gateway-packet-analyzer-raw.png)
 
-## Detailed Packet Analysis
+### Show meta data of packets
 
-### Packet Detail View
+**Default:** Enabled
 
-*[Content to be added: Screenshot of detailed packet analysis interface]*
+When enabled, displays metadata information for each packet:
 
-Selecting any packet opens the detailed analysis view:
+- **Packet number:** Sequential ID for tracking packet order
+- **Receive timestamps:** System time (microseconds) of first and last repetition of this packet  
 
-#### Packet Header Analysis
+    !!! info "Timestamp Behavior"
+        Timestamps represent system time in microseconds with the following behavior:
+        
+        - **With NTP configured:** Actual Unix epoch timestamps (microseconds since January 1, 1970 UTC)
+        - **Without NTP:** Time since gateway boot in microseconds
+        
+        Timestamps are consistent and monotonically increasing within a session, making them suitable for packet timing analysis regardless of NTP availability.
 
-*[Content to be added: Packet header breakdown]*
-- **Protocol Version**: Communication protocol version identification
-- **Packet Type**: Detailed packet type classification
-- **Sequence Numbers**: Packet sequencing and ordering information
-- **Address Fields**: Source and destination device addressing
-- **Control Flags**: Protocol control and status flags
+- **Repetition counter:** Number of times an identical packet was received
+- **Packet length:** How many data bytes the packet contains
 
-#### Payload Decoding
+When disabled, only the packet data itself is shown without metadata headers.
 
-*[Content to be added: Payload content analysis]*
-- **Data Structure**: Organized display of packet payload
-- **Field Interpretation**: Meaning and significance of each data field
-- **Value Conversion**: Conversion of raw values to engineering units
-- **Status Information**: Device status information contained in packet
 
-#### Error Detection and Correction
+## :tabler-logs: Genius Packets Display
 
-*[Content to be added: Packet integrity analysis]*
-- **Checksum Verification**: CRC or checksum validation status
-- **Error Detection**: Identification of corrupted or invalid packets
-- **Correction Information**: Error correction capabilities and results
-- **Retry Analysis**: Analysis of packet retransmission attempts
+The main packet display area shows all captured RF packets with real-time updates. Packets are automatically deduplicated using hash-based detection - identical packets increment a counter [instead of creating duplicate entries](#packet-deduplication).
 
-## Filtering and Search
+### Packet Information
 
-### Filter Options
+Each displayed packet shows general information and packet-specific details based on the packet type. For complete field descriptions and packet structure details, see the [Protocol Analysis](../reverse-engineering/protocol-analysis.md) documentation.
 
-*[Content to be added: Screenshot of packet filtering interface]*
+### Packet Actions
 
-#### Basic Filters
+The toolbar provides several actions for managing captured packets:
 
-**Available Filter Criteria:**
-1. **Device Address**: Show packets from/to specific devices
-2. **Packet Type**: Filter by specific packet types
-3. **Time Range**: Filter packets within specific time windows
-4. **Direction**: Show only incoming or outgoing packets
-5. **Status**: Filter by success, error, or retry status
+#### :tabler-copy: Copy packet data to clipboard
 
-#### Advanced Filters
+Copies all captured packet data to the system clipboard in JSON format. Useful for:
 
-*[Content to be added: Advanced filtering capabilities]*
-- **Protocol Field Values**: Filter based on specific field contents
-- **Data Pattern Matching**: Search for specific data patterns
-- **Signal Quality**: Filter based on RF signal quality metrics
-- **Complex Logic**: Combine multiple filter criteria with AND/OR logic
+- Sharing packet logs for troubleshooting
+- External analysis with other tools
+- Documentation and reporting
 
-### Search Functionality
+#### :tabler-trash: Clear packet logs
 
-*[Content to be added: Packet search capabilities]*
-- **Content Search**: Search packet contents for specific data
-- **Pattern Recognition**: Identify recurring communication patterns
-- **Anomaly Detection**: Highlight unusual or unexpected packets
-- **Bookmark System**: Save and recall interesting packets
+Clears all captured packets from the display. A confirmation dialog appears to prevent accidental deletion.
 
-## Statistics and Analysis
+#### :tabler-folder-open: Load packets log from file
 
-### Communication Statistics
+Imports previously saved packet logs from a file.
 
-*[Content to be added: Screenshot of statistics dashboard]*
+!!! tip "Re-analyzing Imported Packets"
+    After loading a file, you'll be prompted whether to re-analyze the packets using your current device and alarm line configurations. Choosing "No" displays the originally saved interpreted information, while "Yes" re-interprets the packets based on your current configuration.
 
-#### Traffic Analysis
+This is useful for:
 
-**Statistical Displays:**
-1. **Packet Rate**: Packets per second over time
-2. **Data Volume**: Bytes transmitted/received over time
-3. **Error Rate**: Communication error statistics
-4. **Device Activity**: Per-device communication activity levels
+- Reviewing historical packet captures
+- Analyzing packets offline
+- Comparing packet behavior across different time periods
 
-#### Protocol Analysis
+#### :tabler-device-floppy: Save packet logs to file
 
-*[Content to be added: Protocol-level statistics]*
-- **Packet Type Distribution**: Frequency of different packet types
-- **Response Times**: Communication latency measurements
-- **Retry Statistics**: Analysis of communication reliability
-- **Protocol Efficiency**: Overhead and efficiency metrics
+Exports all captured packets to a file. The file includes:
 
-### Signal Quality Metrics
+- Complete packet data in serialized format
+- Timestamps and metadata
+- All interpreted information
 
-*[Content to be added: RF performance analysis]*
-- **RSSI Trends**: Received signal strength over time
-- **SNR Analysis**: Signal-to-noise ratio measurements
-- **Link Quality**: Overall RF link quality assessment
-- **Interference Detection**: RF interference identification and analysis
+## Packet Deduplication
 
-## Export and Logging
+The visualizer uses intelligent hash-based deduplication to prevent display clutter from repeated packet transmissions. When an identical packet is received:
 
-### Data Export Options
+- The repetition counter increments
+- The "last seen" timestamp updates
+- No new packet entry is created
 
-*[Content to be added: Screenshot of export interface]*
+This is essential because smoke detectors transmit important packets [multiple times](../reverse-engineering/protocol-analysis.md#repetition) to ensure reliable delivery across the mesh network.
 
-#### Export Formats
+## Related Documentation
 
-**Available Export Formats:**
-1. **CSV Format**: Comma-separated values for spreadsheet analysis
-2. **JSON Export**: Structured data format for programmatic analysis
-3. **PCAP Format**: Standard packet capture format for Wireshark analysis
-4. **Plain Text**: Human-readable text format
-
-#### Export Customization
-
-*[Content to be added: Export customization options]*
-- **Field Selection**: Choose which packet fields to include
-- **Time Range Selection**: Export specific time periods
-- **Filter Application**: Export only filtered packet data
-- **Format Options**: Customize output format details
-
-### Continuous Logging
-
-*[Content to be added: Automated logging configuration]*
-- **Log File Management**: Automatic log file creation and rotation
-- **Storage Limits**: Disk space management for packet logs
-- **Trigger-Based Logging**: Start/stop logging based on specific events
-- **Remote Logging**: Send packet data to external logging systems
-
-## Troubleshooting with the Visualizer
-
-### Common Issues and Diagnosis
-
-#### Communication Problems
-
-**Diagnostic Approach:**
-1. **Check Packet Flow**: Verify bidirectional communication
-2. **Analyze Error Rates**: Identify patterns in communication failures
-3. **Signal Quality Assessment**: Evaluate RF link quality
-4. **Protocol Compliance**: Verify proper protocol implementation
-
-#### Device-Specific Issues
-
-*[Content to be added: Device-specific troubleshooting guidance]*
-- **Device Discovery Problems**: Diagnose device detection issues
-- **Configuration Issues**: Identify device configuration problems
-- **Performance Issues**: Analyze device response and performance
-- **Maintenance Alerts**: Understand device maintenance requirements
-
-### Advanced Analysis Techniques
-
-*[Content to be added: Advanced diagnostic techniques]*
-- **Pattern Analysis**: Identify communication patterns and anomalies
-- **Timing Analysis**: Evaluate communication timing and synchronization
-- **Correlation Analysis**: Correlate packet data with system events
-- **Predictive Analysis**: Identify potential future communication issues
-
----
-
-*The Packet Visualizer provides essential insights into the RF communication system for effective troubleshooting and optimization.*
+- [WebSocket Logger](websocket-interface.md) - Enable real-time packet streaming
+- [Protocol Analysis](../reverse-engineering/protocol-analysis.md) - Detailed packet structure documentation
+- [Device Management](device-management.md) - Configure detector locations for packet interpretation
+- [Alarm Lines](alarm-lines-management.md) - Configure alarm line names for better packet labeling

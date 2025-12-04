@@ -22,11 +22,151 @@
 }
 
 /* Custom admonition styling for gateway-specific notes */
-.md-typeset .admonition.hekatron {
+.md-typeset .admonition.gg {
   border-color: #c62828;
 }
 
-.md-typeset .admonition.hekatron > .admonition-title {
+.md-typeset .admonition.gg > .admonition-title {
+  background-color: rgba(198, 40, 40, 0.1);
+  border-color: #c62828;
+}
+
+.md-typeset .admonition.gg > .admonition-title:before {
+  background-color: #c62828;
+  mask-image: url("data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M10 2c0 -.88 1.056 -1.331 1.692 -.722c1.958 1.876 3.096 5.995 1.75 9.12l-.08 .174l.012 .003c.625 .133 1.203 -.43 2.303 -2.173l.14 -.224a1 1 0 0 1 1.582 -.153c1.334 1.435 2.601 4.377 2.601 6.27c0 4.265 -3.591 7.705 -8 7.705s-8 -3.44 -8 -7.706c0 -2.252 1.022 -4.716 2.632 -6.301l.605 -.589c.241 -.236 .434 -.43 .618 -.624c1.43 -1.512 2.145 -2.924 2.145 -4.78' /></svg>");
+}
+
+/* Code block enhancements */
+.md-typeset .highlight .filename {
+  background-color: var(--md-code-bg-color);
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  font-size: 0.85em;
+  padding: 0.5rem 1rem;
+  margin: 0;
+  border-radius: 0.2rem 0.2rem 0 0;
+}
+
+/* Mermaid diagram styling */
+.mermaid {
+  text-align: center;
+  margin: 1rem 0;
+}
+
+/* Table enhancements */
+.md-typeset table:not([class]) {
+  border-radius: 0.2rem;
+  overflow: hidden;
+  box-shadow: 0 0.05rem 0.2rem rgba(0, 0, 0, 0.1);
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+  font-weight: 500;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 0.2em 0.6em;
+  border-radius: 0.8em;
+  font-size: 0.75em;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-badge.online {
+  background-color: #4caf50;
+  color: white;
+}
+
+.status-badge.offline {
+  background-color: #f44336;
+  color: white;
+}
+
+.status-badge.alarm {
+  background-color: #ff9800;
+  color: white;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+/* Custom icons for gateway-specific content */
+.genius-icon {
+  display: inline-block;
+  width: 1.2em;
+  height: 1.2em;
+  margin-right: 0.3em;
+  vertical-align: text-bottom;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 76.1875em) {
+  .md-typeset .grid.cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dark mode adjustments */
+[data-md-color-scheme="slate"] {
+  --md-code-bg-color: #2d2d2d;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .highlight .filename {
+  background-color: #363636;
+  border-color: #4a4a4a;
+}
+
+/* Print styles */
+@media print {
+  .md-header,
+  .md-sidebar,
+  .md-footer {
+    display: none;
+  }
+  
+  .md-content {
+    margin: 0;
+  }
+  
+  .md-typeset .grid.cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Protocol analysis packet table styling */
+.pckt-table table th {
+  min-width: 1rem !important;
+}
+
+.pckt-table table th:first-of-type {
+  width: 10%;
+}
+
+.pckt-table table th:nth-of-type(2) {
+  width: 10%;
+}
+
+.pckt-table table th:nth-of-type(3) {
+  width: 17%;
+}
+
+.pckt-table table th:nth-of-type(4) {
+  width: 13%;
+}
+
+.pckt-table table th:nth-of-type(5) {
+  width: 50%;
+}
+
+hekatron > .admonition-title {
   background-color: rgba(198, 40, 40, 0.1);
   border-color: #c62828;
 }
@@ -139,4 +279,71 @@
   .md-typeset .grid.cards {
     grid-template-columns: 1fr;
   }
+}
+
+/* Traces table styling */
+.traces-table table th {
+  min-width: 1rem !important;
+}
+
+.traces-table table th:first-of-type {
+  width: 30%;
+}
+
+.traces-table table th:nth-of-type(2) {
+  width: 40%;
+}
+
+.traces-table table th:nth-of-type(3) {
+  width: 10%;
+}
+
+.traces-table table th:nth-of-type(4) {
+  width: 10%;
+}
+
+.traces-table table th:nth-of-type(5) {
+  width: 10%;
+}
+
+/* Custom list markers */
+/* First-level list items use squares */
+.md-typeset ul li {
+  list-style-type: square;
+}
+
+/* Second-level list items use dashes instead of circles */
+.md-typeset ul ul li::marker {
+  content: '— ';
+}
+
+img[src*="#uart-sample"] {
+   width:150%;
+   height:auto;
+}
+
+/* Improve heading distinction from bold text */
+.md-typeset h4 {
+  font-size: 1.1em;
+  margin-top: 1.5em;
+  font-style: italic;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  padding-bottom: 0.3em;
+}
+
+/* Frame color indicators for detector identification */
+.frame-pink { 
+  color: #D400AA;
+  border: 2px solid #D400AA;
+  padding: 0.1em 0.4em;
+  border-radius: 0.25em;
+  display: inline-block;
+}
+
+.frame-orange {
+  color: #DD5500;
+  border: 2px solid #DD5500;
+  padding: 0.1em 0.4em;
+  border-radius: 0.25em;
+  display: inline-block;
 }
