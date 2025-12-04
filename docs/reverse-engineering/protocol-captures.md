@@ -44,5 +44,3 @@ The following decoders should be installed for evaluating the trace files:
 | [:material-download: firealarm-start-stop.dsl](../assets/downloads/logic-analyzer/firealarm-start-stop.dsl){ target=_blank } | Fire alarm is triggered and ended on a smoke detector. | :material-check-bold: | | |
 
 </div>
-
-
