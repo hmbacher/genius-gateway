@@ -325,31 +325,37 @@
 									<div class="text-right">
 										<span class="inline-flex flex-row space-x-1">
 											{#if device.alarms.length > 0}
+												<div class="tooltip tooltip-left" data-tip="Show alarm log">
+													<button
+														class="btn btn-ghost btn-circle btn-xs"
+														onclick={() => {
+															handleAlarmLog(index);
+														}}
+													>
+														<Logs class="h-6 w-6" />
+													</button>
+												</div>
+											{/if}
+											<div class="tooltip tooltip-left" data-tip="Edit smoke detector">
 												<button
 													class="btn btn-ghost btn-circle btn-xs"
 													onclick={() => {
-														handleAlarmLog(index);
+														handleEdit(index);
 													}}
 												>
-													<Logs class="h-6 w-6" />
+													<Edit class="h-6 w-6" />
 												</button>
-											{/if}
-											<button
-												class="btn btn-ghost btn-circle btn-xs"
-												onclick={() => {
-													handleEdit(index);
-												}}
-											>
-												<Edit class="h-6 w-6" />
-											</button>
-											<button
-												class="btn btn-ghost btn-circle btn-xs"
-												onclick={() => {
-													confirmDelete(index);
-												}}
-											>
-												<Delete class="text-error h-6 w-6" />
-											</button>
+											</div>
+											<div class="tooltip tooltip-left" data-tip="Delete smoke detector">
+												<button
+													class="btn btn-ghost btn-circle btn-xs"
+													onclick={() => {
+														confirmDelete(index);
+													}}
+												>
+													<Delete class="text-error h-6 w-6" />
+												</button>
+											</div>
 										</span>
 									</div>
 								</div>
