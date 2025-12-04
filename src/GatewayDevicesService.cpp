@@ -296,7 +296,10 @@ std::vector<DeviceMqttData> GatewayDevicesService::getDevicesMqttData()
             mqttData.emplace_back(
                 dev.smokeDetector.sn,
                 dev.location,
-                dev.isAlarming);
+                dev.isAlarming,
+                dev.smokeDetector.productionDate,
+                dev.radioModule.sn,
+                dev.radioModule.productionDate);
         }
     }
 

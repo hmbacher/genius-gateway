@@ -283,13 +283,46 @@ void GeniusGateway::_mqttPublishDevices(bool onlyState)
                     dev_jsonObj["manufacturer"] = "Hekatron Vertriebs GmbH";
                     dev_jsonObj["model"] = "Genius Plus X";
                     dev_jsonObj["name"] = "Rauchmelder";
-
                     dev_jsonObj["serial_number"] = deviceData.smokeDetectorSN;
                     dev_jsonObj["suggested_area"] = deviceData.location;
+                    
+                    // Add attributes topic for entity attributes
+                    config_jsonDoc["json_attributes_topic"] = "~/attributes";
 
                     String config_payload;
                     serializeJson(config_jsonDoc, config_payload);
                     _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str());
+                }
+
+                /* Publish attributes topic with additional device metadata */
+                if (!onlyState)
+                {
+                    String attrTopic = mqttSettings.haMQTTTopicPrefix + deviceData.smokeDetectorSN + "/attributes";
+                    JsonDocument attr_jsonDoc;
+                    
+                    // Add production date in dd.mm.yy format
+                    if (deviceData.smokeDetectorProdDate > 0) {
+                        struct tm *tm = gmtime(&deviceData.smokeDetectorProdDate);
+                        char dateBuf[9];
+                        strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y", tm);
+                        attr_jsonDoc["Production Date"] = String(dateBuf);
+                    }
+                    
+                    // Add radio module information as flat attributes for better rendering
+                    if (deviceData.radioModuleSN > 0) {
+                        attr_jsonDoc["FM Basis X - Serial"] = String(deviceData.radioModuleSN);
+                        
+                        if (deviceData.radioModuleProdDate > 0) {
+                            struct tm *tm = gmtime(&deviceData.radioModuleProdDate);
+                            char dateBuf[9];
+                            strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y", tm);
+                            attr_jsonDoc["FM Basis X - Production Date"] = String(dateBuf);
+                        }
+                    }
+                    
+                    String attr_payload;
+                    serializeJson(attr_jsonDoc, attr_payload);
+                    _mqttClient->publish(attrTopic.c_str(), 0, true, attr_payload.c_str());
                 }
 
                 /* Pubish state topic */

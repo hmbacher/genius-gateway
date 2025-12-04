@@ -53,12 +53,18 @@
 /// Lightweight structure for MQTT publishing - contains only the minimal properties needed
 struct DeviceMqttData
 {
-    uint32_t smokeDetectorSN;  ///< Smoke detector serial number
-    String location;           ///< Device location string
-    bool isAlarming;          ///< Current alarm state
+    uint32_t smokeDetectorSN;         ///< Smoke detector serial number
+    String location;                  ///< Device location string
+    bool isAlarming;                  ///< Current alarm state
+    time_t smokeDetectorProdDate;     ///< Smoke detector production date
+    uint32_t radioModuleSN;           ///< Radio module serial number
+    time_t radioModuleProdDate;       ///< Radio module production date
 
-    DeviceMqttData(uint32_t sn, const String &loc, bool alarming)
-        : smokeDetectorSN(sn), location(loc), isAlarming(alarming) {}
+    DeviceMqttData(uint32_t sn, const String &loc, bool alarming, 
+                   time_t sdProdDate, uint32_t rmSN, time_t rmProdDate)
+        : smokeDetectorSN(sn), location(loc), isAlarming(alarming),
+          smokeDetectorProdDate(sdProdDate), radioModuleSN(rmSN), 
+          radioModuleProdDate(rmProdDate) {}
 };
 
 typedef enum genius_alarm_ending
