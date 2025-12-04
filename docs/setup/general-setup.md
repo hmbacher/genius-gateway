@@ -2,20 +2,20 @@
 
 ## Hardware Setup
 
-Wähle entweder das [experimentelle Setup](../hardware.md#experimental-setup), um die Funktionen von Genius Gateway zu testen, oder die [Genius Gateway Platine](../hardware.md#final-hardware), um Genius Gateway in Betrieb zu nehmen.
+Choose either the [experimental setup](../hardware.md#experimental-setup) to test the functions of Genius Gateway, or the [Genius Gateway PCB](../hardware.md#final-hardware) to put Genius Gateway into operation.
 
-## Software bauen und installieren
+## Build and Install Software
 
 ### IDE und Plugins
 
-Das Projekt basiert auf dem [PlatformIO :material-open-in-new:](https://platformio.org/){ target=_blank } Build System. Leider unterstützt PlatformIO [Espressif Arduino 3.x :material-open-in-new:](https://github.com/espressif/arduino-esp32){ target=_blank } nicht. 
+The project is based on the [PlatformIO :material-open-in-new:](https://platformio.org/){ target=_blank } build system. Unfortunately, PlatformIO does not support [Espressif Arduino 3.x :material-open-in-new:](https://github.com/espressif/arduino-esp32){ target=_blank }. 
 
-Glücklicherweise gibt es [piorduino :material-open-in-new:](https://github.com/pioarduino){ target=_blank }: a community-maintained fork of the PlatformIO IDE for Visual Studio Code that provides support for Espressif microcontrollers, especially the newer ESP32 boards and the latest Arduino Core for them.
+Fortunately, there is [piorduino :material-open-in-new:](https://github.com/pioarduino){ target=_blank }: a community-maintained fork of the PlatformIO IDE for Visual Studio Code that provides support for Espressif microcontrollers, especially the newer ESP32 boards and the latest Arduino Core for them.
 
 1. Download and install [Microsoft VSCode :material-open-in-new:](https://code.visualstudio.com/){ target=_blank }.
 2. Install [Pioarduino IDE (pioarduino) :material-open-in-new:](https://marketplace.visualstudio.com/items?itemName=pioarduino.pioarduino-ide&ssr=false#review-details){ target=_blank } extension from within VSCode.
 
-### GitHub-Projekt clonen
+### Clone GitHub Project
 
 1. Clone the project to your local environment  
     ```bash
@@ -28,7 +28,7 @@ Glücklicherweise gibt es [piorduino :material-open-in-new:](https://github.com/
     vscode .
     ```
 
-### Konfiguration
+### Configuration
 
 #### Target board 
 
@@ -47,11 +47,11 @@ default_envs = seeed-xiao-esp32s3
 ```
 
 !!! note "No PSRAM used"
-    Da PSRAM nicht notwendig ist bzw. von Genius Gateway nicht verwendet wird, ist es nicht notwendig Varianten von `esp32-s3-devkitc-1` anzulegen (z.B. `esp32-s3-devkitc-1-n8r2`).
+    Since PSRAM is not necessary or not used by Genius Gateway, it is not necessary to create variants of `esp32-s3-devkitc-1` (e.g., `esp32-s3-devkitc-1-n8r2`).
 
 #### SPI bus wiring
 
-Abhängig vom technischen Aufbau müssen ggf. die SPI Bus-relevanten Signalleitungen angepasst werden. Das erfolgt über die Datei `config.ini`:  
+Depending on the technical setup, the SPI bus-related signal lines may need to be adjusted. This is done via the `config.ini` file:  
 ```ini
 [config]
 build_flags = 
@@ -79,21 +79,21 @@ build_flags =
 
 #### More build options
 
-Die Datei platformio.ini ist die Hauptdatei zur Steuerung des Software Builds. Sie referenziert auf drei weitere Dateien, deren Inhalt vom Build-System ausgewertet werden:
+The platformio.ini file is the main file for controlling the software build. It references three additional files whose content is evaluated by the build system:
 - `features.ini`
 - `factory-settings.ini`
 - `config.ini`
 
 !!! critical
-    In den aufgelisteten Dateien können Einstellungen vorgenommen werden, die sich auf den Build und den späteren Funktionsumfang des Genius Gateway auswirken.
+    Settings can be made in the listed files that affect the build and the later functionality of the Genius Gateway.
 
-    Für den regulären Funktionsumfang müssen keine Anpassungen, über die oben hinaus beschriebenen, vorgenommen werden.
+    For regular functionality, no adjustments beyond those described above need to be made.
 
 ### Build
 
 #### Build Software
 
-Starten Sie den *Build* Task für entsprechende project environment (target device):  
+Start the *Build* task for the corresponding project environment (target device):  
 
 ![Execute Build](../assets/images/doc/vscode-tasks-build.png "Executing pioarduino Build in VSCode"){ .off-glb }
 
@@ -107,24 +107,33 @@ Start the *Upload and Monitor* Task and pick the right serial interface if asked
 
 After the device has been successfully flashed, it will restart and you will see its serial output in VSCode's terminal window.
 
-## Grundkonfiguration von Genius Gateway
+## Initial Configuration of Genius Gateway
 
-Nach der ersten Inbetriebnahme besitzt das Gerät die in [factory_settings.ini :material-open-in-new:](https://github.com/hmbacher/genius-gateway/blob/main/factory_settings.ini){ target=_blank } hinterlegten Einstellungen.
+After the first startup, the device has the settings stored in [factory_settings.ini :material-open-in-new:](https://github.com/hmbacher/genius-gateway/blob/main/factory_settings.ini){ target=_blank }.
 
-Das Gerät erzeugt ein eigenes WiFi Netzwerk mit der SSID `Genius-Gateway-XXX` und dem Passwort `genius-gateway`. Über die IP-Adresse [192.168.4.1 :material-open-in-new:](http://192.168.4.1) kann auf die Genius Gateway Web-Oberfläche zugegriffen werden.
+The device creates its own WiFi network with the SSID `Genius-Gateway-XXX` and the password `genius-gateway`. The Genius Gateway web interface can be accessed via the IP address [192.168.4.1 :material-open-in-new:](http://192.168.4.1).
 
-Das Standard-Kennwort für den `admin`-Account lautet `admin`.
+The default password for the `admin` account is `admin`.
 
-### WiFi-Settings
+### WiFi Settings
 
-Genius Gateway kann [in ein vorhandenes WiFi-Netzwerk integriert werden](../features/settings.md#wi-fi-configuration).
+Genius Gateway can be [integrated into an existing WiFi network](wifi.md).
 
-### User
+### Users
 
-Standardmäßig sind zwei Benutzer angelegt. Ein `admin`-Account mit erweiterten Rechten und ein `guest`-Account mit verminderten Rechten.
+By default, two users are created: an `admin` account with elevated privileges and a `guest` account with limited privileges.
 
-Es können [weitere Benutzer](../features/settings.md#user-interface-settings) mit eigenem Benutzernamen und Passwort angelegt werden.
+Additional users can be created with their own username and password. See the [Users](users.md#adding-a-user) page for details on managing user accounts.
+
+### Change JWT Secret
+
+For security reasons, it is strongly recommended to change the default JWT (JSON Web Token) secret after initial setup. The JWT secret is used to sign authentication tokens and should be unique for your gateway.
+
+To change the JWT token, navigate to the [Security Settings](users.md#security-settings) section on the Users page and enter a new JWT secret value. Note that changing the JWT secret will sign out all users immediately.
+
+!!! tip "How to get a secure JWT Secret"
+    You can generate a cryptographically strong JWT secret using an online tool such as [RandomKeygen :material-open-in-new:](https://randomkeygen.com/){ target=_blank }. Use a Fort Knox Password (256-bit or higher) for maximum security.
 
 ### MQTT
 
-Für die Integration in ein Smart Home-System muss der [lokale MQTT-Broker angegeben](../features/settings.md#mqtt-configuration) werden.
+For integration into a smart home system, the local MQTT broker must be configured. See the [MQTT Settings](../features/gateway-settings.md) page for details on configuring the MQTT connection.

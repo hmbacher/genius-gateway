@@ -1,242 +1,151 @@
-# Smart Home Integration via MQTT
+---
+icon: tabler/smart-home
+---
 
-This page describes the smart home integration features via MQTT, including Home Assistant integration and screenshots.
+# Smart Home Integration
 
-## Overview
+Genius Gateway offers two levels of smart home integration via MQTT, allowing you to choose between simple alarm notifications and full Home Assistant device integration with comprehensive automation capabilities.
 
-The Genius Gateway provides comprehensive smart home integration through MQTT (Message Queuing Telemetry Transport) protocol. This integration enables seamless connectivity with popular home automation platforms like Home Assistant, OpenHAB, and custom IoT systems.
+| Approach | Description | Best for |
+|----------|-------------|----------|
+| [Simple Alarm Publishing](#simple-alarm-publishing) | Basic fire alarm notifications forwarded to your smart home system without individual device tracking. | Quick setup, simple alarm notifications for all smart home systems with MQTT interface |
+| [Home Assistant Integration](#home-assistant-integration) |Full device integration with automatic discovery, individual detector tracking, and rich automation possibilities. | Home Assistant users, detailed monitoring, advanced automation scenarios |
 
-## MQTT Integration Architecture
+| Feature | Simple Alarm Publishing | Home Assistant Integration |
+|---------|:-----------------------:|:--------------------------:|
+| **Setup Complexity** | :material-star::material-star::material-star:<br>Minimal - one topic | :material-star:<br>Moderate - add detectors |
+| **Detector Configuration** | :material-star::material-star::material-star:<br>Not required | :material-star:<br>Required |
+| **Device Tracking** | :material-close: | **:material-check:**<br>Individual Entities |
+| **Location Information** | :material-close: | **:material-check:**<br>Customizable |
+| **Automation Capabilities** | :material-star:<br>Basic - single trigger | :material-star::material-star::material-star:<br>Advanced - per detector |
+| **Platform Support** | :material-star::material-star::material-star:<br>Any MQTT platform | :material-star::material-star:<br>Home Assistant optimized |
+| **Unknown Detectors** | **:material-check:**<br>Supported | **:material-check:**<br>Supported |
+| **Historical Data**<br>(besides Genius Gateway) | :material-star:<br>Limited | :material-star::material-star::material-star:<br>Full Home Assistant history |
 
-### System Overview
+## Simple Alarm Publishing
 
-*[Content to be added: Diagram showing MQTT integration architecture]*
+### Overview
 
-The MQTT integration connects:
+Simple alarm publishing provides a straightforward way to integrate fire alarm detection into your smart home system. When any smoke detector in range triggers an alarm, Genius Gateway publishes a message to a central MQTT topic.
 
-#### Gateway to MQTT Broker
+**Key Characteristics:**
 
-*[Content to be added: Description of gateway-to-broker connection]*
-- **Broker Connection**: Secure connection to MQTT broker
-- **Topic Hierarchy**: Organized topic structure for all data
-- **Quality of Service**: Reliable message delivery configuration
-- **Authentication**: Secure authentication with username/password or certificates
+- **Single topic** for all alarm events
+- **No device configuration** required in Genius Gateway
+- **Detects unknown detectors** within radio range (if enabled)
+- **System agnostic** - compatible with any MQTT-capable smart home platform
 
-#### MQTT Broker to Home Automation
+### How It Works
 
-*[Content to be added: Integration with home automation platforms]*
-- **Home Assistant**: Native Home Assistant MQTT discovery
-- **OpenHAB**: OpenHAB MQTT binding integration
-- **Node-RED**: Flow-based integration with Node-RED
-- **Custom Systems**: Integration with custom IoT platforms
+1. **Detection**: Genius Gateway continuously monitors 868 MHz radio traffic for Genius Plus X alarm signals
+2. **Processing**: When an alarm packet is detected, the gateway processes the alarm state
+3. **Publishing**: Alarm information is published to the configured MQTT topic
+4. **Counter**: The message includes how many detectors are currently in alarm state
+
+See the [MQTT API - Global Alarm State Topic](../api/mqtt-topics.md#global-alarm-state-topic) for detailed payload format and examples.
+
+### Configuration Requirements
+
+To enable simple alarm publishing:
+
+1. **[Configure MQTT broker connection](../setup/connections.md#mqtt)** - Set up connection to your MQTT broker
+2. **[Enable Simple Alarm Publishing](../setup/connections.md#simple-alarm-publishing)** - Configure the alarm topic and enable publishing
+3. **[(Optional) Enable unknown detector processing](gateway-settings.md#process-alerts-from-unknown-smoke-detectors)** - Allow detection of detectors not explicitly configured
+
+!!! gg "Works with Known and Unknown Detectors"
+    Simple Alarm Publishing works with or without smoke detectors configured in Genius Gateway. However, if no smoke detectors are configured, [processing alarms from unknown smoke detectors](gateway-settings.md#process-alerts-from-unknown-smoke-detectors) **must** be enabled for Genius Gateway to detect and forward fire alarms.
 
 ## Home Assistant Integration
 
-### Auto-Discovery Configuration
+### Home Assistant's MQTT Discovery
 
-*[Content to be added: Screenshot of Home Assistant auto-discovery setup]*
+The Home Assistant integration leverages [MQTT Discovery :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) to automatically register each smoke detector as an individual device in Home Assistant. This provides rich functionality including:
 
-#### MQTT Discovery Setup
+- **Automatic device discovery** - No manual configuration in Home Assistant
+- **Individual detector tracking** - Monitor each detector's state separately
+- **Rich device information** - Model, manufacturer, serial numbers, location
+- **Automation capabilities** - Create detector-specific automations
+- **Historical data** - Track alarm history per detector
+- **Dashboard integration** - Visual representation of detector network
 
-**Configuration Process:**
-1. **Enable Discovery**: Activate MQTT discovery in gateway settings
-2. **Discovery Topic**: Configure Home Assistant discovery topic prefix
-3. **Device Registration**: Automatic device registration in Home Assistant
-4. **Entity Creation**: Automatic creation of sensors and controls
+Home Assistant's MQTT Discovery allows devices to automatically register themselves by publishing configuration messages to specific topics. When Genius Gateway publishes a discovery message:
 
-#### Device Entities
+1. Home Assistant detects the configuration message,
+2. automatically creates a binary sensor entity for the smoke detector,
+3. updates state in real-time when detector status changes and
+4. syncs configuration when location or settings change in Genius Gateway
 
-*[Content to be added: Home Assistant device entities created]*
-- **Binary Sensors**: Smoke detection status for each detector
-- **Sensors**: Battery level, signal strength, and diagnostic data
-- **Device Trackers**: Online/offline status for each smoke detector
-- **Buttons**: Test buttons for manual device testing
-- **Diagnostics**: System health and performance metrics
+### Benefits for Home Assistant Users
 
-### Home Assistant Dashboard
+**Automatic Setup:**
 
-*[Content to be added: Screenshot of Home Assistant dashboard showing Genius Gateway devices]*
+- Zero manual configuration in Home Assistant required 
+- Devices appear instantly in Home Assistant
+- Updates propagate automatically
 
-#### Lovelace Cards
+**Rich Entity Information:**
 
-**Dashboard Elements:**
-1. **Status Overview**: System-wide status summary card
-2. **Device Grid**: Individual smoke detector status cards
-3. **Battery Monitoring**: Battery level monitoring for all devices
-4. **Alert History**: Recent alerts and system events
-5. **System Diagnostics**: Gateway health and performance metrics
+- Device class (Smoke detector)
+- Manufacturer: (Hekatron)
+- Model (Genius Plus X)
+- Serial number
+- Configurable location names
 
-#### Automated Actions
+**Advanced Automations:**
 
-*[Content to be added: Home Assistant automation examples]*
-- **Alert Responses**: Automated responses to fire alerts
-- **Maintenance Reminders**: Battery replacement and service reminders
-- **Integration with Other Systems**: Coordinate with lighting, HVAC, and security
-- **Mobile Notifications**: Push notifications to mobile devices
+- Detector-specific triggers
+- Location-based actions
+- Group multiple detectors
 
-## MQTT Topic Structure
+### Visual Integration
 
-### Topic Hierarchy
+**Overview Dashboard:**
 
-*[Content to be added: Complete MQTT topic structure documentation]*
+![Multiple smoke detectors displayed in Home Assistant's overview dashboard showing their online status and locations](../assets/images/doc/ha/ha-overview.png)
+*Multiple Genius Plus X smoke detectors automatically discovered and displayed with their configured locations*
 
-#### Base Topic Structure
+**Detector Detail View:**
 
-```
-genius-gateway/
-├── status/                    # Gateway status information
-├── devices/                   # Individual device data
-│   ├── {device-id}/
-│   │   ├── state/            # Device state information
-│   │   ├── battery/          # Battery status
-│   │   ├── signal/           # RF signal quality
-│   │   └── commands/         # Device control commands
-├── system/                    # System-wide information
-│   ├── health/               # System health metrics
-│   ├── statistics/           # Communication statistics
-│   └── logs/                 # System logs (if enabled)
-└── config/                    # Configuration topics
-    ├── discovery/            # Auto-discovery information
-    └── settings/             # System settings
-```
+![Individual smoke detector detail page showing alarm state, device information, and entity controls](../assets/images/doc/ha/ha-details-detecting.png)
+*Detailed view of a single detector showing real-time alarm state, manufacturer information, model, and serial number*
 
-#### Device-Specific Topics
+**Device Information:**
 
-*[Content to be added: Detailed device topic structure]*
-- **State Topics**: Current device operational state
-- **Attribute Topics**: Device attributes and metadata
-- **Command Topics**: Commands sent to devices
-- **Status Topics**: Device status and health information
+![Device information panel displaying all smoke detector attributes including location, firmware, and configuration](../assets/images/doc/ha/ha-details2-detecting.png)
+*Complete device information with manufacturer details, model identification, and assigned area for automation purposes*
 
-### Message Formats
 
-#### JSON Message Structure
+### Configuration Requirements
 
-*[Content to be added: Example JSON message formats]*
+To enable Home Assistant MQTT Discovery integration in Genius Gateway:
 
-**Device Status Message Example:**
-```json
-{
-  "device_id": "12345678",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "state": "normal",
-  "battery_level": 85,
-  "signal_strength": -45,
-  "last_test": "2024-01-14T09:00:00Z",
-  "online": true
-}
+1. **[Add smoke detectors to Genius Gateway](../setup/configure-gateway.md#adding-smoke-detectors)** - Register detectors with serial numbers and locations
+2. **[Configure MQTT broker connection](../setup/connections.md#mqtt)** - Set up connection (must be same broker as Home Assistant)
+3. **[Enable Device Publishing](../setup/connections.md#device-publishing)** - Enable Home Assistant MQTT Discovery and adjust the topic prefix if your Home Assistant uses a non-default discovery prefix
+
+Ensure MQTT Discovery is enabled in your Home Assistant configuration:
+
+```yaml
+# configuration.yaml
+mqtt:
+  broker: YOUR_BROKER_IP
+  discovery: true  # This is usually enabled by default
+  discovery_prefix: homeassistant  # Must match Genius Gateway prefix
 ```
 
-**Alert Message Example:**
-```json
-{
-  "device_id": "12345678",
-  "alert_type": "smoke_detected",
-  "severity": "high",
-  "timestamp": "2024-01-15T10:35:00Z",
-  "location": "Living Room",
-  "acknowledged": false
-}
-```
+### Configuration Synchronization
 
-## Configuration and Setup
+Changes made in Genius Gateway automatically synchronize to Home Assistant:
 
-### Gateway MQTT Configuration
+- **Location Updates:** When you edit a detector's location in Genius Gateway, the change is published via MQTT Discovery and updates the device name in Home Assistant.
+- **Detector Addition:** New detectors added to Genius Gateway automatically appear in Home Assistant within seconds.
 
-*[Content to be added: Screenshot of MQTT configuration interface]*
 
-#### Broker Settings
 
-**Configuration Options:**
-1. **Broker Address**: MQTT broker hostname or IP address
-2. **Port Configuration**: MQTT broker port (usually 1883 or 8883 for SSL)
-3. **Authentication**: Username and password configuration
-4. **SSL/TLS Settings**: Secure connection configuration with certificates
-5. **Keep-Alive**: Connection keep-alive interval settings
+## Related Documentation
 
-#### Topic Configuration
-
-*[Content to be added: Topic configuration options]*
-- **Base Topic**: Root topic prefix for all gateway messages
-- **Device Topics**: Topic structure for individual devices
-- **Discovery Prefix**: Home Assistant discovery topic prefix
-- **Retain Settings**: Message retention configuration
-
-### Quality of Service (QoS) Settings
-
-#### QoS Level Configuration
-
-**QoS Options:**
-1. **QoS 0 (At most once)**: Fast, no delivery guarantee
-2. **QoS 1 (At least once)**: Guaranteed delivery, possible duplicates
-3. **QoS 2 (Exactly once)**: Guaranteed single delivery (highest overhead)
-
-#### Message-Specific QoS
-
-*[Content to be added: QoS configuration for different message types]*
-- **Alert Messages**: High QoS for critical alerts
-- **Status Updates**: Medium QoS for important status information
-- **Diagnostic Data**: Low QoS for non-critical diagnostic information
-- **Command Messages**: High QoS for reliable command delivery
-
-## Advanced Integration Features
-
-### Custom MQTT Clients
-
-*[Content to be added: Screenshot of custom MQTT client configuration]*
-
-#### Third-Party Integration
-
-**Integration Possibilities:**
-1. **Node-RED Flows**: Visual programming for complex automations
-2. **InfluxDB**: Time-series database integration for historical data
-3. **Grafana Dashboards**: Advanced visualization and monitoring
-4. **Custom Applications**: Integration with custom software applications
-
-#### API-Style MQTT Usage
-
-*[Content to be added: Using MQTT as an API interface]*
-- **Command-Response Patterns**: Request-response communication patterns
-- **Batch Operations**: Bulk operations through MQTT commands
-- **Configuration Management**: Remote configuration through MQTT
-- **Firmware Updates**: Over-the-air updates via MQTT (if supported)
-
-### Security and Privacy
-
-#### MQTT Security
-
-*[Content to be added: Security configuration options]*
-- **TLS Encryption**: Encrypted communication with MQTT broker
-- **Certificate Authentication**: Client certificate authentication
-- **Access Control Lists**: Topic-level access control
-- **Message Encryption**: Additional payload encryption if required
-
-#### Privacy Considerations
-
-*[Content to be added: Privacy and data protection features]*
-- **Data Minimization**: Configure what data is shared via MQTT
-- **Anonymous Mode**: Remove identifying information from messages
-- **Local Processing**: Keep sensitive data processing local to gateway
-- **Retention Policies**: Configure message retention and cleanup
-
-## Troubleshooting MQTT Integration
-
-### Connection Issues
-
-*[Content to be added: Common connection troubleshooting]*
-- **Connectivity Testing**: Test MQTT broker connectivity
-- **Authentication Debugging**: Diagnose authentication failures
-- **Firewall Configuration**: Network firewall configuration requirements
-- **SSL Certificate Issues**: Troubleshooting certificate problems
-
-### Message Delivery Issues
-
-*[Content to be added: Message delivery troubleshooting]*
-- **QoS Configuration**: Ensure appropriate QoS levels
-- **Topic Permissions**: Verify topic access permissions
-- **Message Size Limits**: Check for message size restrictions
-- **Rate Limiting**: Handle broker rate limiting
-
----
-
-*The MQTT integration provides powerful and flexible smart home connectivity for the Genius Gateway.*
+- **[Configure Gateway](../setup/configure-gateway.md)** - Step-by-step setup guide for both integration types
+- **[Connections - MQTT](../setup/connections.md#mqtt)** - Detailed MQTT configuration including broker setup and authentication
+- **[Gateway Settings](gateway-settings.md)** - Enable unknown detector processing and automatic alarm line discovery
+- **[MQTT API](../api/mqtt-topics.md)** - Complete MQTT topic structure and payload documentation
+- **[Device Management](device-management.md)** - Adding and managing smoke detectors in Genius Gateway

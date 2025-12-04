@@ -11,43 +11,13 @@
 
 ![Genius Gateway Rendering](./assets/images/hardware/gateway/gg-3d-v1.1.png)
 
-The **Genius Gateway** is a reverse-engineered interface for [:octicons-arrow-right-24: Hekatron Genius Plus X](background.md) smoke detection systems. It enables real-time monitoring, MQTT integration, and web-based management of Genius smoke detectors without requiring proprietary Hekatron gateways.
+---
 
-<div class="grid cards" markdown>
+![Genius Gateway connects to Hekatron Genius Plus X and Smart Home Systems](./assets/images/doc/gg-systemoverview.svg){ .off-glb }
 
--   :material-smoke-detector:{ .lg .middle } __Hekatron Integration__
+---
 
-    ---
-
-    Reverse-engineered gateway for Hekatron Genius Plus X smoke detection systems with real-time monitoring and control
-
-    [:octicons-arrow-right-24: Getting started](quick-start.md)
-
--   :material-wifi:{ .lg .middle } __MQTT & Home Assistant__
-
-    ---
-
-    Seamless integration with Home Assistant and other MQTT-based home automation systems
-
-    [:octicons-arrow-right-24: MQTT Setup](setup/mqtt-homeassistant.md)
-
--   :material-web:{ .lg .middle } __Web Interface__
-
-    ---
-
-    Modern responsive web interface for device management, packet visualization, and system configuration
-
-    [:octicons-arrow-right-24: Features overview](features/index.md)
-
--   :material-chip:{ .lg .middle } __Hardware Design__
-
-    ---
-
-    Complete open-source hardware design with schematics, PCB layout, and assembly documentation
-
-    [:octicons-arrow-right-24: Hardware docs](hardware/index.md)
-
-</div>
+The **Genius Gateway** is a reverse-engineered interface for [Hekatron Genius Plus X](background.md) smoke detection systems. It enables real-time monitoring, MQTT integration, and web-based management of Genius smoke detectors without requiring proprietary Hekatron gateways.
 
 ## Key Features
 
@@ -58,14 +28,13 @@ The **Genius Gateway** is a reverse-engineered interface for [:octicons-arrow-ri
 - :material-message-processing: **MQTT and WebSocket support** - Modern API interfaces for integration
 - :simple-homeassistant: **Home Assistant integration** - Native support with automatic discovery
 
-## Getting started
+## Getting Started
 
-Get your Genius Gateway up and running in minutes:
+Get your Genius Gateway up and running:
 
-1. **[Hardware Setup](setup/hardware.md)** - Set up test devices or specific gateway hardware
-2. **[Firmware Installation](setup/firmware.md)** - Prepare, build, and install firmware
-3. **[Configuration](setup/configuration.md)** - Configure the gateway
-4. **[MQTT Integration](setup/mqtt-homeassistant.md)** - Integrate gateway into home automation systems
+1. Review the documentation structure to understand how information is organized
+2. Perform the [General Setup](setup/general-setup.md)
+3. [Configure Genius Gateway](setup/configure-gateway.md) to use its full potential
 
 ## Source Code
 

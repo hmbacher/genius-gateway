@@ -36,11 +36,16 @@ nav:
     - Packet Visualizer: features/packet-visualizer.md # Describing the packet visualizer tool and its usage, with screenshots
     - Alarm Lines Management: features/alarm-lines-management.md # Describing the alarm lines management features of the web interface, including typical actions, with screenshots
     - WebSocket Logging Interface: features/websocket-interface.md # Describing the WebSocket logging interface and its usage, with screenshots
-    - Smart Home Integration via MQTT: features/smart-home-integration.md # Describing the smart home integration features via MQTT, with screenshots
+    - Smart Home Integration: features/smart-home-integration.md # Describing the smart home integration features via MQTT, with screenshots
 
   - Setup:
-    - General Setup: setup/general-setup.md # Installation and setup instructions
-    - Configuring Genius Gateway: setup/configuring-gateway.md # Configuring Genius Gateway for the first time and typical configuration options
+    - setup/index.md
+    - General Setup: setup/general-setup.md # Hardware installation and initial software setup instructions
+    - Configure Genius Gateway: setup/configure-gateway.md # Configuring Genius Gateway for the first time and typical configuration options
+    - Connections: setup/connections.md # Describes interfaces like NTP and MQTT
+    - WiFi: setup/wifi.md # Instructions on how to set up WiFi connectivity
+    - Users: setup/users.md # Managing users and permissions in Genius Gateway
+    - System: setup/system.md # System functions like status, metrics and firmware updates
 
   - API Reference:
     - api/index.md

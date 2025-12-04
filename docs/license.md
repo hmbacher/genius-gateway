@@ -2,6 +2,18 @@
 
 The Genius Gateway project uses different licenses for different components to ensure open sharing for personal and educational purposes while prohibiting commercial use.
 
+## License Overview
+
+| Component | License | Applies To | Details |
+|-----------|---------|------------|---------|
+| **Hardware Design** | CC BY-NC-SA 4.0 | PCB designs, schematics, CAD files, mechanical drawings | [Hardware Design](#hardware-design) |
+| **Software** | AGPL-3.0 + Commons Clause | ESP32 firmware, protocol implementation, backend services, web interface | [Software](#software) |
+| **Documentation** | CC BY-NC-SA 4.0 | All documentation, guides, images, traces, downloadable content | [Documentation and Assets](#documentation-and-assets) |
+| **Third-Party Components** | Various (LGPL, MIT, etc.) | ESP32 SvelteKit, Arduino libraries, PsychicHttp, other dependencies | [Third-Party Components](#third-party-components) |
+
+!!! warning "Commercial Use Prohibited"
+    All Genius Gateway components (hardware, software, documentation) prohibit commercial use without explicit permission. See [Commercial Use](#commercial-use) for details.
+
 ## Hardware Design
 
 **Applies to:** PCB designs, schematics, CAD files, mechanical drawings
