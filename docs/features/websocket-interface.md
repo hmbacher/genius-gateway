@@ -101,6 +101,6 @@ The WebSocket Logger is designed for diagnostic and development purposes. Consid
 ## Related Documentation
 
 - [Packet Visualizer](packet-visualizer.md) - Built-in tool for real-time packet analysis
-- [API Documentation](../api/websocket.md) - WebSocket API specification and usage
+- [MQTT Topics](../api/mqtt-topics.md) - MQTT integration and message formats
 - [Protocol Analysis](../reverse-engineering/protocol-analysis.md) - Packet structure and field definitions
 - [Gateway Settings](gateway-settings.md) - Configure packet processing behavior

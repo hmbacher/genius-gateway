@@ -60,7 +60,7 @@ When you first access the Device Management page with no smoke detectors configu
 You can proceed to [add a new smoke detector](#adding-a-new-detector) by either:
 
 1. **Manual Registration**: Explicitly add smoke detectors you've configured (recommended for planned installations)
-2. **Automatic Discovery**: Enable automatic device registration in [Gateway Settings](gateway-settings.md#automatically-register-new-devices), then trigger any smoke detector—the gateway will automatically register the device when it receives an alarm packet
+2. **Automatic Discovery**: Enable automatic device registration in [Gateway Settings](gateway-settings.md#process-alerts-from-unknown-smoke-detectors), then trigger any smoke detector—the gateway will automatically register the device when it receives an alarm packet
 
 ## Reordering Devices
 
@@ -213,5 +213,5 @@ You can import a previously exported device configuration:
 ## Related Documentation
 
 - [Gateway Settings](gateway-settings.md) - Configure alarming behavior and alarm line topology
-- [MQTT Integration](mqtt.md) - Monitor device status and alarms via MQTT
-- [System Status](system-status.md) - View overall gateway health and connectivity
+- [MQTT Integration](../setup/connections.md#mqtt) - Monitor device status and alarms via MQTT
+- [System Status](../setup/system.md) - View overall gateway health and connectivity

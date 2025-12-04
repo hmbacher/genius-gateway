@@ -9,7 +9,7 @@ The Packet Visualizer provides real-time monitoring and analysis of RF communica
 ![Packet Visualizer](../assets/images/software/gg-gateway-packet-analyzer.png)
 
 !!! info "WebSocket Logger Required"
-    The Packet Visualizer requires the WebSocket Logger to be enabled. If disabled, you'll see an informational message with a link to enable it in the [WebSocket Logger Settings](websocket-logger.md).
+    The Packet Visualizer requires the WebSocket Logger to be enabled. If disabled, you'll see an informational message with a link to enable it in the [WebSocket Logger Settings](websocket-interface.md).
 
 ## Overview
 
@@ -114,7 +114,7 @@ This is essential because smoke detectors transmit important packets [multiple t
 
 ## Related Documentation
 
-- [WebSocket Logger](websocket-logger.md) - Enable real-time packet streaming
+- [WebSocket Logger](websocket-interface.md) - Enable real-time packet streaming
 - [Protocol Analysis](../reverse-engineering/protocol-analysis.md) - Detailed packet structure documentation
 - [Device Management](device-management.md) - Configure detector locations for packet interpretation
-- [Alarm Lines](alarm-lines.md) - Configure alarm line names for better packet labeling
+- [Alarm Lines](alarm-lines-management.md) - Configure alarm line names for better packet labeling

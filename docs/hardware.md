@@ -1,10 +1,10 @@
 # Hardware
 
-![Genius Gateway Rendering](../assets/images/hardware/gateway/gg-3d-pcb-v1.1.png)
+![Genius Gateway Rendering](assets/images/hardware/gateway/gg-3d-pcb-v1.1.png)
 
 ## Licensing
 
-For legal aspects and licensing information, please refer to the [License](../license.md#hardware-design) page.
+For legal aspects and licensing information, please refer to the [License](license.md#hardware-design) page.
 
 ## Experimental setup
 
@@ -34,45 +34,45 @@ PCB manufacturing and assembly were performed by [JLCPCB :material-open-in-new:]
 
 <div class="grid cards" style="width: 50%" markdown>
 
--   ![Genius Gateway Schematics](../assets/images/hardware/gateway/gg-schematics-main-v1.1.svg "Genius Gateway Schematics")
+-   ![Genius Gateway Schematics](assets/images/hardware/gateway/gg-schematics-main-v1.1.svg "Genius Gateway Schematics")
     
     **Schematics**  
     Overall Genius Gateway schematics
 
 </div>
 
-Download the schematic as a PDF: [:material-file-pdf-box: gg-schematic-main-v1.1.pdf](../assets/downloads/cae/schematics/gg-schematic-main-v1.1.pdf){ target=_blank }
+Download the schematic as a PDF: [:material-file-pdf-box: gg-schematic-main-v1.1.pdf](assets/downloads/cae/schematics/gg-schematic-main-v1.1.pdf){ target=_blank }
 
-Schematics are also available in various formats as part of the [Design Files](./pcb.md#design-files).
+Schematics are also available in various formats as part of the Design Files section below.
 
 ### PCB Layout
 
 <div class="grid cards" markdown>
 
--   ![Genius Gateway PCB Layout Top Side](../assets/images/hardware/gateway/gg-pcb-top-v1.1.png "Genius Gateway Layout PCB Top Side")
+-   ![Genius Gateway PCB Layout Top Side](assets/images/hardware/gateway/gg-pcb-top-v1.1.png "Genius Gateway Layout PCB Top Side")
     
     PCB Layout Top Side
 
--   ![Genius Gateway PCB Layout Bottom Side](../assets/images/hardware/gateway/gg-pcb-bottom-v1.1.png "Genius Gateway PCB Layout Bottom Side")
+-   ![Genius Gateway PCB Layout Bottom Side](assets/images/hardware/gateway/gg-pcb-bottom-v1.1.png "Genius Gateway PCB Layout Bottom Side")
     
     PCB Layout Bottom Side
 
 </div>
 
-PCB layout files are available in various formats as part of the [Design Files](./pcb.md#design-files).
+PCB layout files are available in various formats as part of the Design Files section below.
 
 ### Manufacturing
 
-Download Gerber file bundle: [:material-zip-box: gg-gerber-v1.1.zip](../assets/downloads/cae/pcb/gg-gerber-v1.1.zip){ target=_blank }
+Download Gerber file bundle: [:material-zip-box: gg-gerber-v1.1.zip](assets/downloads/cae/pcb/gg-gerber-v1.1.zip){ target=_blank }
 
-PCB design-related files are available in various formats as part of the [Design Files](./pcb.md#design-files).
+PCB design-related files are available in various formats as part of the Design Files section below.
 
 ### BOM
 
 #### Electronic parts
 
 1. PCB Assembly  
-    Download the detailed EasyEDA BOM as an Excel file: [:material-file-excel-box: gg-pcb-bom-v1.1.xlsx](../assets/downloads/cae/pcb/gg-pcb-bom-v1.1.xlsx){ target=_blank }
+    Download the detailed EasyEDA BOM as an Excel file: [:material-file-excel-box: gg-pcb-bom-v1.1.xlsx](assets/downloads/cae/pcb/gg-pcb-bom-v1.1.xlsx){ target=_blank }
 
 2. [SEED XIAO ESP32-S3 :material-open-in-new:](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) with soldered pin headers as plug-in module
 
@@ -99,9 +99,9 @@ PCB design-related files are available in various formats as part of the [Design
 
 | File | Format | Comment |
 |------|--------|---------|
-| [:material-download: gg-easyeda-pro-v1.1.epro](../assets/downloads/cae/gg-easyeda-pro-v1.1.epro) | EasyEDA Pro | |
-| [:material-download: gg-altium-designer-v1.1.zip](../assets/downloads/cae/gg-altium-designer-v1.1.zip) | Altium Designer | **:material-alert-circle-outline: Untested** |
-| [:material-download: gg-mentor-pads-v1.1.zip](../assets/downloads/cae/gg-mentor-pads-v1.1.zip) | Mentor Graphics PADS | **:material-alert-circle-outline: Untested** |
+| [:material-download: gg-easyeda-pro-v1.1.epro](assets/downloads/cae/gg-easyeda-pro-v1.1.epro) | EasyEDA Pro | |
+| [:material-download: gg-altium-designer-v1.1.zip](assets/downloads/cae/gg-altium-designer-v1.1.zip) | Altium Designer | **:material-alert-circle-outline: Untested** |
+| [:material-download: gg-mentor-pads-v1.1.zip](assets/downloads/cae/gg-mentor-pads-v1.1.zip) | Mentor Graphics PADS | **:material-alert-circle-outline: Untested** |
 
 ## CAD
 

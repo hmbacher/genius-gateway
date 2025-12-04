@@ -49,7 +49,7 @@ When enabled, the gateway will automatically add smoke detectors to your device 
 
 Alarm line IDs are unique identifiers that group smoke detectors into logical networks. These IDs are essential for [alarm line management functions](alarm-lines-management.md) such as line tests and test alarms. The gateway can automatically learn and store these IDs from various types of radio packets.
 
-For detailed information about alarm line IDs and their role in the Hekatron Genius system, see [Protocol Analysis - General Packet Structure](../reverse-engineering/protocol-analysis.md#general-packet-structure).
+For detailed information about alarm line IDs and their role in the Hekatron Genius system, see [Protocol Analysis - Base Packet Structure](../reverse-engineering/protocol-analysis.md#base-packet-structure).
 
 #### Add alarm line ID of received commissioning packets automatically
 
@@ -88,7 +88,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 - Alarm packets don't update your alarm line list
 - Alarm line IDs must be added through other means
 
-**Learn more:** [Alarm Packets](../reverse-engineering/protocol-analysis.md#alarm-packets)
+**Learn more:** [Alarm Packets](../reverse-engineering/protocol-analysis.md#alarming-startstop)
 
 #### Add alarm line ID of received line test packets automatically
 
@@ -107,7 +107,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 - Line test packets don't update your alarm line list
 - Alarm line IDs must be added manually
 
-**Learn more:** [Line Test Packets](../reverse-engineering/protocol-analysis.md#line-test-packets)
+**Learn more:** [Line Test Packets](../reverse-engineering/protocol-analysis.md#line-test-startstop)
 
 ## Related Documentation
 

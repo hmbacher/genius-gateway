@@ -89,4 +89,4 @@ If no smoke detectors are configured, the Overview page displays an informationa
 
 - [Device Management](device-management.md) - Add, edit, and configure smoke detectors
 - [Gateway Settings](gateway-settings.md) - Configure alarming behavior and system settings
-- [Alarm Lines](alarm-lines.md) - Manage alarm line topology and foreign detector behavior
+- [Alarm Lines](alarm-lines-management.md) - Manage alarm line topology and foreign detector behavior

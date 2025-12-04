@@ -99,15 +99,15 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 ### Repetition
 
-All packets are transmitted multiple times by the radio module. The packets are sent with a period of approximately 10 ms. The repeated packets are identical except for the `Pkt-#` field (see [Basic Structure Analysis](#basic-structure-analysis)). The `Pkt-#` field starts with an individual initial value in the first packet, which is decremented with each repetition.
+All packets are transmitted multiple times by the radio module. The packets are sent with a period of approximately 10 ms. The repeated packets are identical except for the `Pkt-#` field (see [Base Packet Structure](#base-packet-structure)). The `Pkt-#` field starts with an individual initial value in the first packet, which is decremented with each repetition.
 
 The number of repetitions, the exact period for packet repetitions, as well as the initial value and decrementation slightly differ depending on the packet type:
 
 | Packet Type | Repetitions<br>$N$ | Period Time<br>$T$ | Initial *Pkt-#*<br>$PC_{Start}$ | *Pkt-#* Decrement<br>$\Delta=\frac{PC_{Start}}{N - 1}$ |
 |:------------|------------:|-------:|----------------:|:---------:|
 | [Alarm Line Commissioning](#alarm-line-commissioning) | 309 x | ~10.06 ms | 6.348 (CC 18) | ~20,6 |
-| [Alarming (Start/Stop)](#alarming-start-stop) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
-| [Line Test (Start/Stop)](#line-test-start-stop) | 370 x | ~8,40 ms | 6.348 (CC 18) | ~17,2 |
+| [Alarming (Start/Stop)](#alarming-startstop) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
+| [Line Test (Start/Stop)](#line-test-startstop) | 370 x | ~8,40 ms | 6.348 (CC 18) | ~17,2 |
 | [Discovery Request](#discovery-request) | 26 x | ~8,19 ms | 427 (AB 01) | ~17,1 |
 | [Discovery Response](#discovery-response) | 24 x| ~9,02 ms | 427 (AB 01) | ~18,6 |
 
@@ -355,6 +355,6 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 </div>
 
-[^1]: See [Packet Limitations](#packet-limitations) section for details on the 64-byte total packet size limit that constrains the maximum payload to 59 bytes in practice.
+[^1]: See [Packet Fragmentation](#packet-fragmentation) section for details on the 64-byte total packet size limit that constrains the maximum payload to 59 bytes in practice.
 [^2]: Genius Gateway uses FF FF FF FE (4294967294) as serial number when it sends packets. See [Alarm Lines Management](../features/alarm-lines-management.md) for more information.
  

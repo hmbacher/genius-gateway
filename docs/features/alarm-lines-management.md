@@ -54,7 +54,7 @@ When you first access the Alarm Lines Management page with no alarm lines config
 You can proceed to [add a new alarm line](#adding-a-new-alarm-line) by either:
 
 1. **Manual Registration**: Explicitly add alarm line IDs you've configured in your smoke detectors (recommended for planned installations)
-2. **Automatic Discovery**: Enable automatic alarm line registration in [Gateway Settings](gateway-settings.md#automatically-register-new-alarm-lines), then trigger any smoke detector—the gateway will automatically register the alarm line when it receives the packet
+2. **Automatic Discovery**: Enable automatic alarm line registration in [Gateway Settings](gateway-settings.md#add-alarm-line-id-of-received-line-test-packets-automatically), then trigger any smoke detector—the gateway will automatically register the alarm line when it receives the packet
 
 ## Adding a New Alarm Line
 
@@ -63,7 +63,7 @@ You can proceed to [add a new alarm line](#adding-a-new-alarm-line) by either:
 !!! danger "For Advanced Users Only"
     Manual alarm line registration is only recommended for experienced and knowledgeable users and should only be performed for testing and development purposes. The alarm line ID must be known or determined beforehand.
 
-    When using Genius Gateway to integrate an existing Genius smoke detector network into a home automation system, packet-based [automatic discovery of existing alarm lines](../setup/configuring-gateway.md#adding-alarm-lines) should always be preferred.
+    When using Genius Gateway to integrate an existing Genius smoke detector network into a home automation system, packet-based [automatic discovery of existing alarm lines](../setup/configure-gateway.md#adding-alarm-lines) should always be preferred.
 
 To manually register a new alarm line:
 

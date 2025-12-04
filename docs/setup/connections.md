@@ -145,7 +145,7 @@ Topic prefix used for all detector device publications.
 Below the topic input field, the derived configuration and state topics are displayed.
 
 !!! abstract "Global Alarm State Topic"
-    More details to this [Home Assistant Auto-Discovery](h../api/mqtt-topics.md#home-assistant-auto-discovery) related MQTT Topics, like their specific payload format, can be found in the [MQTT API](../api/mqtt-topics.md).
+    More details to this [Home Assistant Auto-Discovery](../api/mqtt-topics.md#home-assistant-auto-discovery) related MQTT Topics, like their specific payload format, can be found in the [MQTT API](../api/mqtt-topics.md).
 
 **Applying Changes**
 

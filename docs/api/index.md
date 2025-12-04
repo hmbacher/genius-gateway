@@ -36,7 +36,7 @@ The Genius Gateway provides multiple APIs for integration and automation:
 
 ## Complete API Documentation
 
-- **[REST Endpoints](rest-api.md)** - Complete REST API reference
+- **REST Endpoints** - Complete REST API reference (coming soon)
 - **[WebSocket Events](websocket-api.md)** - Real-time event documentation  
 - **[MQTT Topics](mqtt-topics.md)** - MQTT integration guide
 

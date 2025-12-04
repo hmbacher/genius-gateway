@@ -105,10 +105,10 @@ homeassistant/binary_sensor/genius-{smoke_detector_sn}/config
 
 **:material-publish: Publishing Behavior**
 
-- Published when smoke detector is first [created](../features/device-management.md#create) or [imported](../features/device-management.md#import)
+- Published when smoke detector is first [created](../features/device-management.md#adding-a-new-detector) or [imported](../features/device-management.md#importing-configuration)
 - Re-published when MQTT connection is established
-- Re-published when [MQTT settings change](../features/settings.md#mqtt-configuration)
-- Published only if [device publishing](../features/settings.md#mqtt-configuration) is enabled
+- Re-published when [MQTT settings change](../setup/connections.md#mqtt)
+- Published only if [device publishing](../setup/connections.md#device-publishing) is enabled
 
 **:material-home-assistant: Home Assistant Integration**
 
@@ -156,8 +156,8 @@ Published when device *is* alarming:
 
 - Published when device alarm state changes
 - Re-published when MQTT connection is established
-- Re-published when [device configuration changes](../features/device-management.md#change) (location, etc.)
-- Published only if [device publishing](../features/settings.md#mqtt-configuration) is enabled
+- Re-published when [device configuration changes](../features/device-management.md#editing-a-detector) (location, etc.)
+- Published only if [device publishing](../setup/connections.md#device-publishing) is enabled
 
 **:material-home-assistant: Home Assistant Integration**
 
@@ -209,7 +209,7 @@ Published when two smoke detectors are alarming (example):
 
 - Published whenever any device alarm state changes
 - Re-published when MQTT connection is established
-- Published only if [simple alarm publishing](../features/settings.md#mqtt-configuration) is enabled
+- Published only if [simple alarm publishing](../setup/connections.md#simple-alarm-publishing) is enabled
 
 **:material-home-automation: Integration**
 
