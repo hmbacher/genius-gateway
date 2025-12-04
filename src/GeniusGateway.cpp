@@ -132,7 +132,7 @@ void GeniusGateway::begin()
 
     /* Perform a full publish (all devices and states), if MQTT client connects. */
     _mqttClient->onConnect([this](bool /*sessionPresent*/)
-                           { this->_mqttPublishDevices(false, true); });
+                           { this->_mqttPublishDevices(false); });
 
     /* Configure update handler for when the smoke detector devices change.
      * Only updates the MQTT state if the change did not originate from a
@@ -230,7 +230,7 @@ void GeniusGateway::_emitAlarmState()
     _eventSocket->emitEvent(GATEWAY_EVENT_ALARM, root);
 }
 
-void GeniusGateway::_mqttPublishDevices(bool onlyState, bool forceAll)
+void GeniusGateway::_mqttPublishDevices(bool onlyState)
 {
     if (!_mqttClient->connected())
     {

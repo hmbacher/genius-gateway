@@ -150,7 +150,7 @@
 					feature: true
 				},
 				{
-					title: 'CC1101',
+					title: 'CC1101 Status',
 					icon: CPU,
 					href: '/system/cc1101',
 					feature: page.data.features.cc1101_controller && $user.admin

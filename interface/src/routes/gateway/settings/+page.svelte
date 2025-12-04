@@ -1,8 +1,5 @@
 <script lang="ts">
-	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
-	import { slide } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
@@ -10,7 +7,6 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import IconSettings from '~icons/tabler/adjustments';
 	import IconAlarm from '~icons/tabler/alert-hexagon';
-	import IconDetector from '~icons/tabler/alarm-smoke';
 	import IconAlarmLine from '~icons/tabler/topology-ring-2';
 	import IconSave from '~icons/tabler/device-floppy';
 

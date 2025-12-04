@@ -144,7 +144,7 @@ private:
   esp_err_t _handleEndBlocking(PsychicRequest *request);
 
   /// Publish device states to MQTT
-  void _mqttPublishDevices(bool onlyState = false, bool forceAll = false);
+  void _mqttPublishDevices(bool onlyState = false);
 
   /// Main packet reception loop
   void _rx_packets();

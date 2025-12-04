@@ -346,7 +346,7 @@
 			{:then nothing}
 				<div class="relative w-full overflow-visible">
 					<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
-						<div class="tooltip tooltip-left" data-tip="Add smoke detector">
+						<div class="tooltip tooltip-left" data-tip="Add alarm line">
 							<button
 								class="btn btn-primary text-primary-content btn-md"
 								onclick={handleNewAlarmLine}
@@ -356,14 +356,14 @@
 						</div>
 						<div
 							class="tooltip tooltip-left"
-							data-tip="Load smoke detector configuration from file"
+							data-tip="Load alarm lines from file"
 						>
 							<label for="upload" class="btn btn-primary text-primary-content btn-md">
 								<Load class="h-6 w-6" />
 							</label>
 							<input bind:files bind:this={fileInput} id="upload" type="file" class="hidden" />
 						</div>
-						<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
+						<div class="tooltip tooltip-left" data-tip="Save alarm lines to file">
 							<button
 								class="btn btn-primary text-primary-content btn-md"
 								onclick={() => downloadObjectAsJson(alarmLines, 'genius-alarm-lines')}
