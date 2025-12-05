@@ -2,30 +2,41 @@
 
 The Genius Gateway project uses different licenses for different components to ensure open sharing for personal and educational purposes while prohibiting commercial use.
 
+## License Overview
+
+| Component | License | Applies To |
+|-----------|---------|------------|
+| **Hardware Design** | CC BY-NC-SA 4.0 | PCB designs, schematics, CAD files, mechanical drawings |
+| **Software** | AGPL-3.0 + Commons Clause | ESP32 firmware, protocol implementation, backend services, web interface |
+| **Documentation** | CC BY-NC-SA 4.0 | All documentation, guides, images, traces, downloadable content |
+| **Third-Party Components** | Various (LGPL, MIT, etc.) | ESP32 SvelteKit, Arduino libraries, PsychicHttp, other dependencies |
+
+**⚠️ Commercial Use Prohibited** - All Genius Gateway components (hardware, software, documentation) prohibit commercial use without explicit permission.
+
 ---
 
 ## Hardware Design
 
 **Applies to:** PCB designs, schematics, CAD files, mechanical drawings
 
-**Files:** `cae/*`, hardware-related documentation in `docs/hardware/*`
+**Files:** `docs/assets/downloads/cae/*`, `docs/assets/downloads/cad/*`
 
 **License:** Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
 
 **License URL:** https://creativecommons.org/licenses/by-nc-sa/4.0/
 
 You are free to:
+
 - **Share**: Copy and redistribute the material in any medium or format for non-commercial purposes
 - **Adapt**: Remix, transform, and build upon the material for non-commercial purposes
 
 Under the following terms:
+
 - **Attribution**: You must give appropriate credit and indicate if changes were made
 - **NonCommercial**: You may not use the material for commercial purposes
 - **ShareAlike**: If you remix or transform the material, you must distribute under the same license
 
 This license allows private and educational use while prohibiting commercial use without permission.
-
-**Attribution:** "Genius Gateway Hardware Design by hmbacher (https://github.com/hmbacher/genius-gateway) is licensed under CC BY-NC-SA 4.0"
 
 ---
 
@@ -33,7 +44,7 @@ This license allows private and educational use while prohibiting commercial use
 
 **Applies to:** ESP32 firmware, protocol implementation, reverse engineering code, backend services, web interface
 
-**Files:** `src/*`, `lib/*`, `interface/*`, `data/www/*`, firmware build scripts
+**Files:** `src/*`
 
 **License:** GNU Affero General Public License v3.0 with Commons Clause (AGPL-3.0 + Commons Clause)
 
@@ -42,12 +53,17 @@ This license allows private and educational use while prohibiting commercial use
 Copyright (C) 2024-2025 Genius Gateway Project
 
 You are free to:
+
 - **Use**: Run the software for personal and educational purposes
 - **Study**: Access and study the source code
 - **Modify**: Create modified versions for personal and educational use
 - **Share**: Distribute the original or modified versions for non-commercial purposes
 
 Under the following terms:
+
+- **Source Code**: Modified versions must be made available under the same license
+- **NonCommercial**: You may not sell, rent, lease, or otherwise use the software for commercial purposes
+- **Attribution**: You must give appropriate credit
 - **Source Code**: Modified versions must be made available under the same license
 - **NonCommercial**: You may not sell, rent, lease, or otherwise use the software for commercial purposes
 - **Attribution**: You must give appropriate credit
