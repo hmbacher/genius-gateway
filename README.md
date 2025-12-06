@@ -34,7 +34,9 @@ This project uses multiple licenses for different components:
 | **Documentation** | [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) | All documentation, guides, images |
 | **Third-Party** | Various (LGPL, MIT) | ESP32 SvelteKit, Arduino libraries |
 
-**⚠️ Commercial use is prohibited** without explicit permission. All components are licensed for personal and educational purposes only.
+> **⚠️ COMMERCIAL USE IS PROHIBITED**
+>
+> Commercial use is prohibited without explicit permission. All components are licensed for personal and educational purposes only.
 
 For complete license details, see:
 - [LICENSE](LICENSE) file in this repository

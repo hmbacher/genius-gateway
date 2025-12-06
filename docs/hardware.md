@@ -25,7 +25,7 @@ All components are available online from leading electronics retailers at low pr
 
 To achieve a robust setup, and since manufacturing PCBs is now possible at very low cost, it was a logical decision to design a custom PCB and integrate it into a suitable enclosure.
 
-<<< IMAGE of the final assembly! >>>
+![Assembled Genius Gateway](assets/images/hardware/gateway/gg-assembled.jpg)
 
 Schematics and PCB layout were created using the free [EasyEDA Editor :material-open-in-new:](https://pro.easyeda.com/editor).  
 PCB manufacturing and assembly were performed by [JLCPCB :material-open-in-new:](https://jlcpcb.com/).
@@ -95,7 +95,7 @@ PCB design-related files are available in various formats as part of the Design 
 
 ## Design Files
 
-
+Visit the project in [OSHWLab :material-open-in-new:](https://oshwlab.com/hmbacher/geniusgateway) or download design files directly:
 
 | File | Format | Comment |
 |------|--------|---------|
@@ -105,4 +105,8 @@ PCB design-related files are available in various formats as part of the Design 
 
 ## CAD
 
-...
+| File | Size | Format | Comment |
+|------|------|--------|---------|
+| [:material-download: gg-3d-pcb-v1.1.step](assets/downloads/cad/gg-3d-pcb-v1.1.step) | 19.2 MB | STEP (AP214) | PCB |
+| [:material-download: gg.f3d](assets/downloads/cad/gg.f3d) | 10.7 MB | AUTODESK Fusion | Genius Gateway<br>(no external antennas) |
+
