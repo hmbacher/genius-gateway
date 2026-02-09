@@ -21,6 +21,18 @@ In Genius smoke detector systems, an **alarm line** is a communication channel i
 
 Each alarm line in your system must be registered in the gateway to enable proper monitoring and control.
 
+### MQTT Integration
+
+When [Home Assistant Integration](../setup/connections.md#device-publishing) is enabled, each alarm line is automatically published to MQTT with:
+
+- **Button Controls**: Start/Stop line tests and fire alarms remotely via Home Assistant or any MQTT client
+- **:material-state-machine: State Sensor**: Monitor current transmission status in real-time
+
+The Home Assistant integration provides comparable functionality to the Web Interface for starting/stopping line tests or fire alarms, [as described below](#alarm-line-actions).
+
+!!! abstract "Technical Details"
+    See [MQTT API - Alarm Lines](../api/mqtt-topics.md#alarm-lines) for complete topic structure, payload formats, and integration examples.
+
 ## Alarm Lines List Overview
 
 The alarm lines table displays all registered alarm lines with the following columns:

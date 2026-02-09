@@ -37,30 +37,31 @@
 #define GATEWAY_MQTT_SETTINGS_FILE "/config/mqtt-settings.json" ///< Configuration file path
 #define GATEWAY_MQTT_SETTINGS_PATH "/rest/mqtt-settings"        ///< REST API service endpoint path
 
-#define GATEWAY_HA_MQTT_TOPIC_PREFIX "homeassistant/binary_sensor/genius-" ///< Default Home Assistant MQTT topic prefix
-#define GATEWAY_ALARM_MQTT_TOPIC "smarthome/genius-gateway/alarm"          ///< Default alarm MQTT topic
+#define GATEWAY_HA_MQTT_DISCOVERY_PREFIX "homeassistant/" ///< Default Home Assistant MQTT discovery prefix
+#define GATEWAY_HA_MQTT_DEVICE_PATH "binary_sensor/genius-" ///< Device path component for smoke detectors
+#define GATEWAY_ALARM_MQTT_TOPIC "smarthome/genius-gateway/alarm" ///< Default alarm MQTT topic
 
 /// Gateway MQTT settings data model class
 class GatewayMqttSettings
 {
 public:
     GatewayMqttSettings()
-        : haMQTTEnabled(false),
-          haMQTTTopicPrefix(GATEWAY_HA_MQTT_TOPIC_PREFIX),
+        : HAIntegrationEnabled(false),
+          HAMQTTDiscoveryPrefix(GATEWAY_HA_MQTT_DISCOVERY_PREFIX),
           alarmEnabled(false),
           alarmTopic(GATEWAY_ALARM_MQTT_TOPIC)
     {
     }
 
-    boolean haMQTTEnabled;    ///< Enable Home Assistant compatible MQTT publishing
-    String haMQTTTopicPrefix; ///< Home Assistant MQTT topic prefix
-    boolean alarmEnabled;     ///< Enable alarm publishing over MQTT
-    String alarmTopic;        ///< MQTT topic for alarm state
+    boolean HAIntegrationEnabled; ///< Enable Home Assistant compatible MQTT publishing
+    String HAMQTTDiscoveryPrefix; ///< Home Assistant MQTT discovery prefix
+    boolean alarmEnabled;        ///< Enable alarm publishing over MQTT
+    String alarmTopic;           ///< MQTT topic for alarm state
 
     static void read(GatewayMqttSettings &settings, JsonObject &root)
     {
-        root["haMQTTEnabled"] = settings.haMQTTEnabled;
-        root["haMQTTTopicPrefix"] = settings.haMQTTTopicPrefix;
+        root["HAIntegrationEnabled"] = settings.HAIntegrationEnabled;
+        root["HAMQTTDiscoveryPrefix"] = settings.HAMQTTDiscoveryPrefix;
         root["alarmEnabled"] = settings.alarmEnabled;
         root["alarmTopic"] = settings.alarmTopic;
 
@@ -71,24 +72,24 @@ public:
     {
         bool changed = false;
 
-        // haMQTTEnabled
-        if (root["haMQTTEnabled"].is<bool>())
+        // HAIntegrationEnabled
+        if (root["HAIntegrationEnabled"].is<bool>())
         {
-            bool newSetting = root["haMQTTEnabled"];
-            if (settings.haMQTTEnabled != newSetting)
+            bool newSetting = root["HAIntegrationEnabled"];
+            if (settings.HAIntegrationEnabled != newSetting)
             {
-                settings.haMQTTEnabled = newSetting;
+                settings.HAIntegrationEnabled = newSetting;
                 changed = true;
             }
         }
 
-        // haMQTTTopicPrefix
-        if (root["haMQTTTopicPrefix"].is<String>())
+        // HAMQTTDiscoveryPrefix
+        if (root["HAMQTTDiscoveryPrefix"].is<String>())
         {
-            String newSetting = root["haMQTTTopicPrefix"];
-            if (settings.haMQTTTopicPrefix != newSetting)
+            String newSetting = root["HAMQTTDiscoveryPrefix"];
+            if (settings.HAMQTTDiscoveryPrefix != newSetting)
             {
-                settings.haMQTTTopicPrefix = newSetting;
+                settings.HAMQTTDiscoveryPrefix = newSetting;
                 changed = true;
             }
         }

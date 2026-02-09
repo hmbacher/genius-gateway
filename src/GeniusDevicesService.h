@@ -1,5 +1,5 @@
 /**
- * @file GatewayDevicesService.h
+ * @file GeniusDevicesService.h
  * @brief Gateway devices service for managing genius smoke detector devices
  * 
  * @copyright Copyright (c) 2024-2025 Genius Gateway Project
@@ -27,8 +27,8 @@
  * See https://github.com/hmbacher/genius-gateway/blob/main/LICENSE for details.
  */
 
-#ifndef GatewayDevicesService_h
-#define GatewayDevicesService_h
+#ifndef GeniusDevicesService_h
+#define GeniusDevicesService_h
 
 #include <EventSocket.h>
 #include <FSPersistence.h>
@@ -38,6 +38,8 @@
 #include <PsychicHttp.h>
 #include <ESP32SvelteKit.h>
 #include <Utils.hpp>
+#include <GatewayMqttSettingsService.h>
+#include <PsychicMqttClient.h>
 
 #define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"  ///< Configuration file path for device data
 #define GATEWAY_DEVICES_SERVICE_PATH "/rest/gateway-devices"  ///< REST API service endpoint path
@@ -49,23 +51,6 @@
 
 #define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"  ///< Event for device discovery
 #define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"  ///< Default location for new devices
-
-/// Lightweight structure for MQTT publishing - contains only the minimal properties needed
-struct DeviceMqttData
-{
-    uint32_t smokeDetectorSN;         ///< Smoke detector serial number
-    String location;                  ///< Device location string
-    bool isAlarming;                  ///< Current alarm state
-    time_t smokeDetectorProdDate;     ///< Smoke detector production date
-    uint32_t radioModuleSN;           ///< Radio module serial number
-    time_t radioModuleProdDate;       ///< Radio module production date
-
-    DeviceMqttData(uint32_t sn, const String &loc, bool alarming, 
-                   time_t sdProdDate, uint32_t rmSN, time_t rmProdDate)
-        : smokeDetectorSN(sn), location(loc), isAlarming(alarming),
-          smokeDetectorProdDate(sdProdDate), radioModuleSN(rmSN), 
-          radioModuleProdDate(rmProdDate) {}
-};
 
 typedef enum genius_alarm_ending
 {
@@ -214,10 +199,12 @@ public:
 };
 
 /// Service for managing gateway devices and smoke detector communication
-class GatewayDevicesService : public StatefulService<GeniusDevices>
+class GeniusDevicesService : public StatefulService<GeniusDevices>
 {
 public:
-    GatewayDevicesService(ESP32SvelteKit *sveltekit);
+    static constexpr const char *TAG = "GeniusDevicesService"; ///< Logging tag
+
+    GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, GatewayMqttSettingsService *mqttSettingsService);
 
     /// Initialize the gateway devices service
     void begin();
@@ -244,23 +231,101 @@ public:
     /// Check if a smoke detector is known/registered
     bool isSmokeDetectorKnown(uint32_t detectorSN);
 
-    /// Get minimal device data optimized for MQTT publishing
-    std::vector<DeviceMqttData> getDevicesMqttData();
+    /**
+     * @brief Publish HA discovery config and state for all devices
+     * 
+     * Publishes both configuration and state messages for devices.
+     * Only marks devices as published if both operations succeed.
+     * 
+     * @param onlyUnpublished If true, only publishes devices that haven't been published yet
+     */
+    void mqttPublishAllDevices(bool onlyUnpublished = true);
 
-    /// Mark device as published to MQTT
-    void setPublished(uint32_t smokeDetectorSN);
+    /**
+     * @brief Publish only state for all devices
+     * 
+     * Lightweight function for updating only device states (e.g., alarm ON/OFF).
+     * Used for frequent updates when only state changes, not configuration.
+     * 
+     * @param onlyUnpublished If true, only publishes devices that haven't been published yet
+     */
+    void mqttPublishAllDevicesState(bool onlyUnpublished = true);
+
+    /**
+     * @brief Publish HA discovery config for a single device (by reference)
+     * 
+     * Efficient variant that works directly with device reference - no data copying.
+     * Used by batch operations and after device lookup. Also publishes device attributes.
+     * 
+     * @param device Reference to the device to publish
+     * @param useTransaction If true, wraps access in transaction. Set false if caller holds lock.
+     * @param markPublished If true, marks device.published=true on success
+     * @return ESP_OK on success, error code otherwise
+     */
+    esp_err_t mqttPublishDeviceConfig(GeniusDevice &device, bool useTransaction = true, bool markPublished = true);
+
+    /**
+     * @brief Publish state for a single device (by serial number)
+     * 
+     * Looks up device by serial number and publishes its state.
+     * Uses O(N) search - prefer reference variant for batch operations.
+     * 
+     * @param smokeDetectorSN Smoke detector serial number
+     * @param useTransaction If true, wraps access in transaction. Set false if caller holds lock.
+     * @param markPublished If true, marks device.published=true on success
+     * @return ESP_OK on success, ESP_ERR_NOT_FOUND if device not found, error code otherwise
+     */
+    esp_err_t mqttPublishDeviceState(uint32_t smokeDetectorSN, bool useTransaction = true, bool markPublished = true);
+
+    /**
+     * @brief Publish state for a single device (by reference)
+     * 
+     * Efficient variant that works directly with device reference - no data copying.
+     * Preferred method for batch operations and after device lookup.
+     * 
+     * @param device Reference to the device to publish
+     * @param useTransaction If true, wraps access in transaction. Set false if caller holds lock.
+     * @param markPublished If true, marks device.published=true on success
+     * @return ESP_OK on success, error code otherwise
+     */
+    esp_err_t mqttPublishDeviceState(GeniusDevice &device, bool useTransaction = true, bool markPublished = true);
 
 private:
+    // ========== Member Variables ==========
+    // Endpoints and persistence
     HttpEndpoint<GeniusDevices> _httpEndpoint;   ///< REST API endpoint handler
     FSPersistence<GeniusDevices> _fsPersistence; ///< File system persistence handler
-    bool _isAlarming;                            ///< Current global alarming state
-    uint32_t _numAlarming;                       ///< Number of devices currently alarming
+    
+    // Alarm state tracking
+    bool _isAlarming;      ///< Current global alarming state
+    uint32_t _numAlarming; ///< Number of devices currently alarming
 
+    // MQTT
+    PsychicMqttClient *_mqttClient;                   ///< MQTT client instance (not owned)
+    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service for accessing configuration
+    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of MQTT settings (updated on settings change)
+
+    // ========== State Management ==========
     /// Update internal alarming state counters
     void _updateAlarmingState();
 
+    // ========== ID Generation ==========
     /// Generate a unique device ID for new devices
     uint32_t _generateUniqueDeviceId() const;
+
+    // ========== MQTT Publishing Helpers ==========
+    /// Publish device config topic for Home Assistant discovery (binary_sensor with device class "smoke")
+    esp_err_t _publishDeviceConfig(const GeniusDevice &device);
+
+    /// Publish device attributes topic (production date, FM Basis X details as entity attributes)
+    esp_err_t _publishDeviceAttributes(const GeniusDevice &device);
+
+    /// Publish device state topic (alarm ON/OFF status)
+    esp_err_t _publishDeviceState(const GeniusDevice &device);
+
+    // ========== Settings Management ==========
+    /// Update cached MQTT settings from GatewayMqttSettingsService for faster access
+    void _updateMqttSettingsCache();
 };
 
-#endif // GatewayDevicesService_h
+#endif // GeniusDevicesService_h

@@ -32,7 +32,7 @@
 #include <ESP32SvelteKit.h>
 #include <WSLogger.h>
 #include <VisualizerSettingsService.h>
-#include <GatewayDevicesService.h>
+#include <GeniusDevicesService.h>
 #include <AlarmLinesService.h>
 #include <GatewaySettingsService.h>
 #include <GatewayMqttSettingsService.h>
@@ -125,10 +125,10 @@ private:
   EventSocket *_eventSocket;                              ///< WebSocket event manager
   PsychicMqttClient *_mqttClient;                         ///< MQTT client instance
   FeaturesService *_featureService;                       ///< Feature flags service
-  GatewayDevicesService _gatewayDevices;                  ///< Gateway devices service
+  GatewayMqttSettingsService _gatewayMqttSettingsService; ///< MQTT settings service
+  GeniusDevicesService _geniusDevices;                  ///< Genius devices service
   AlarmLinesService _alarmLines;                          ///< Alarm lines service
   GatewaySettingsService _gatewaySettings;                ///< Gateway settings service
-  GatewayMqttSettingsService _gatewayMqttSettingsService; ///< MQTT settings service
   WSLogger _wsLogger;                                     ///< WebSocket logger service
   VisualizerSettingsService _visualizerSettingsService;   ///< Visualizer settings service
   CC1101Controller _cc1101Controller;                     ///< CC1101 radio controller
@@ -142,9 +142,6 @@ private:
 
   /// Handle REST request to end alarm blocking
   esp_err_t _handleEndBlocking(PsychicRequest *request);
-
-  /// Publish device states to MQTT
-  void _mqttPublishDevices(bool onlyState = false);
 
   /// Main packet reception loop
   void _rx_packets();

@@ -19,7 +19,7 @@ export enum Cc1101Mode {
   Tx,
 }
 
-// From GatewayDevicesService.h
+// From GeniusDevicesService.h
 export enum GeniusAlarmEnding {
   /** /< Alarm is currently active */
   AlarmActive = -1,
@@ -29,7 +29,7 @@ export enum GeniusAlarmEnding {
   ByManual,
 }
 
-// From GatewayDevicesService.h
+// From GeniusDevicesService.h
 export enum GeniusSmokeDetector {
   /** /< Unknown smoke detector type */
   Unknown = -1,
@@ -37,7 +37,7 @@ export enum GeniusSmokeDetector {
   GeniusPlusX = 0,
 }
 
-// From GatewayDevicesService.h
+// From GeniusDevicesService.h
 export enum GeniusRadioModule {
   /** /< Unknown radio module type */
   Unknown = -1,
@@ -45,7 +45,7 @@ export enum GeniusRadioModule {
   FmBasisX = 0,
 }
 
-// From GatewayDevicesService.h
+// From GeniusDevicesService.h
 export enum GeniusDeviceRegistration {
   /** /< Device is built-in */
   BuiltIn = 0,

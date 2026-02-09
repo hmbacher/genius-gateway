@@ -1,29 +1,29 @@
 /**
  * @file AlarmLinesService.h
  * @brief Alarm Lines service for managing genius alarm line communication
- * 
+ *
  * @copyright Copyright (c) 2024-2025 Genius Gateway Project
  * @license AGPL-3.0 with Commons Clause
- * 
+ *
  * This file is part of Genius Gateway.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version, with the Commons Clause restriction.
- * 
+ *
  * "Commons Clause" License Condition v1.0
  * The Software is provided to you by the Licensor under the License,
  * as defined below, subject to the following condition:
  * Without limiting other conditions in the License, the grant of rights
  * under the License will not include, and the License does not grant to you,
  * the right to Sell the Software.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * See https://github.com/hmbacher/genius-gateway/blob/main/LICENSE for details.
  */
 
@@ -41,6 +41,8 @@
 #include <cc1101.h>
 #include <nvs_flash.h>
 #include <nvs.h>
+#include <GatewayMqttSettingsService.h>
+#include <PsychicMqttClient.h>
 
 #define ALARMLINES_FILE "/config/alarm-lines.json"            ///< Configuration file path
 #define ALARMLINES_SERVICE_PATH "/rest/alarm-lines"           ///< HTTP REST API service endpoint
@@ -69,20 +71,24 @@
 #define ALARMLINES_LINETEST_FIRST_PCKTCNT 0x18CC ///< First packet count value for line test sequence
 #define ALARMLINES_LINETEST_LAST_PCKTCNT 0x0002  ///< Last packet count value for line test sequence
 
-#define ALARMLINES_LINETEST_PCKTCNT_STEP (float)(ALARMLINES_LINETEST_FIRST_PCKTCNT - ALARMLINES_LINETEST_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_LINETEST - 1)  ///< Packet count step size calculation for line test
+#define ALARMLINES_LINETEST_PCKTCNT_STEP (float)(ALARMLINES_LINETEST_FIRST_PCKTCNT - ALARMLINES_LINETEST_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_LINETEST - 1) ///< Packet count step size calculation for line test
 
-#define ALARMLINES_TX_PERIOD_FIREALARM_US 9855  ///< Transmission period for fire alarm packets in microseconds (9.855 ms)
-#define ALARMLINES_TX_NUM_REPEAT_FIREALARM 315  ///< Number of fire alarm packet repetitions
-#define ALARMLINES_FIREALARM_FIRST_PCKTCNT 0x18CC  ///< First packet count value for fire alarm sequence
-#define ALARMLINES_FIREALARM_LAST_PCKTCNT 0x000A  ///< Last packet count value for fire alarm sequence
-#define ALARMLINES_FIREALARM_PCKTCNT_STEP (float)(ALARMLINES_FIREALARM_FIRST_PCKTCNT - ALARMLINES_FIREALARM_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_FIREALARM - 1)  ///< Packet count step size calculation for fire alarm
+#define ALARMLINES_TX_PERIOD_FIREALARM_US 9855                                                                                                                              ///< Transmission period for fire alarm packets in microseconds (9.855 ms)
+#define ALARMLINES_TX_NUM_REPEAT_FIREALARM 315                                                                                                                              ///< Number of fire alarm packet repetitions
+#define ALARMLINES_FIREALARM_FIRST_PCKTCNT 0x18CC                                                                                                                           ///< First packet count value for fire alarm sequence
+#define ALARMLINES_FIREALARM_LAST_PCKTCNT 0x000A                                                                                                                            ///< Last packet count value for fire alarm sequence
+#define ALARMLINES_FIREALARM_PCKTCNT_STEP (float)(ALARMLINES_FIREALARM_FIRST_PCKTCNT - ALARMLINES_FIREALARM_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_FIREALARM - 1) ///< Packet count step size calculation for fire alarm
 
-#define ALARMLINES_EVENT_NEW_LINE "new-alarm-line"  ///< WebSocket event for new alarm line discovery
-#define ALARMLINES_EVENT_ACTION_FINISHED "alarm-line-action-finished"  ///< WebSocket event for action completion notification
+#define ALARMLINES_EVENT_NEW_LINE "new-alarm-line"                    ///< WebSocket event for new alarm line discovery
+#define ALARMLINES_EVENT_ACTION_FINISHED "alarm-line-action-finished" ///< WebSocket event for action completion notification
 
-#define ALARMLINES_NVS_NAMESPACE "gg-alarmlines"  ///< NVS namespace for alarm lines data storage
-#define ALARMLINES_NVS_SEQ_KEY "pkt_seq_num"  ///< NVS key for packet sequence number storage
-#define ALARMLINES_NVS_SEQ_DEFAULT 0  ///< Default packet sequence number value
+#define ALARMLINES_NVS_NAMESPACE "gg-alarmlines" ///< NVS namespace for alarm lines data storage
+#define ALARMLINES_NVS_SEQ_KEY "pkt_seq_num"     ///< NVS key for packet sequence number storage
+#define ALARMLINES_NVS_SEQ_DEFAULT 0             ///< Default packet sequence number value
+
+#define ALARMLINES_MQTT_TOPIC_PREFIX "genius-alarmline/"                                    ///< MQTT topic prefix for all alarm line related topics (discovery and commands will be under this prefix)
+#define ALARMLINES_MQTT_TOPIC_LINE_TEST ALARMLINES_MQTT_TOPIC_PREFIX "+/linetest/command"   ///< MQTT topic for line test commands (use + for line ID wildcard)
+#define ALARMLINES_MQTT_TOPIC_FIRE_ALARM ALARMLINES_MQTT_TOPIC_PREFIX "+/firealarm/command" ///< MQTT topic for fire alarm commands (use + for line ID wildcard)
 
 /// Enumeration for alarm line acquisition methods
 typedef enum alarm_line_acquisition
@@ -176,13 +182,23 @@ public:
 private:
 };
 
+/// Button configuration for alarm line MQTT discovery
+struct AlarmLineButtonConfig {
+    const char* idSuffix;           ///< Button ID suffix for discovery topic
+    const char* name;               ///< Human-readable button name
+    const char* uniqueIdSuffix;     ///< Unique ID suffix for Home Assistant
+    const char* action;             ///< Action payload ("start" or "stop")
+    const char* icon;               ///< Material Design icon identifier
+    const char* commandTopicSuffix; ///< Command topic suffix
+};
+
 /// Service class for managing alarm lines and RF transmission
 class AlarmLinesService : public StatefulService<AlarmLines>
 {
 public:
     static constexpr const char *TAG = "AlarmLinesService"; ///< Logging tag
 
-    AlarmLinesService(ESP32SvelteKit *sveltekit, CC1101Controller *cc1101Ctrl);
+    AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, CC1101Controller *cc1101Ctrl, GatewayMqttSettingsService *mqttSettingsService);
 
     /// Initialize the alarm lines service
     void begin();
@@ -199,11 +215,23 @@ public:
     /// Load persisted packet sequence number from NVS
     esp_err_t loadPcktSeqNum();
 
+    /**
+     * @brief Register MQTT handlers and subscriptions for alarm line control
+     * 
+     * Main entry point for MQTT integration. Subscribes to command topics,
+     * handles prefix changes, and publishes discovery config for all alarm lines.
+     * Safe to call multiple times (e.g., on reconnect or settings change).
+     */
+    void mqttRegisterTopicsAndPublishAlarmLines();
+
 private:
+    // ========== Static Constants ==========
     static const uint8_t _packet_base_linetest[];  ///< Base packet template for line test transmissions
     static const uint8_t _packet_base_firealarm[]; ///< Base packet template for fire alarm transmissions
     uint8_t _packet_sequence_number;               ///< Current packet sequence number (persisted in NVS)
 
+    // ========== Member Variables ==========
+    // Framework and service instances
     ESP32SvelteKit *_sveltekit;               ///< Framework instance
     PsychicHttpServer *_server;               ///< HTTP server instance
     SecurityManager *_securityManager;        ///< Security management
@@ -213,14 +241,17 @@ private:
     FSPersistence<AlarmLines> _fsPersistence; ///< File system persistence
     CC1101Controller *_cc1101Ctrl;            ///< RF controller instance
 
+    // Task and synchronization
     TaskHandle_t _txTaskHandle;      ///< Transmission task handle
     SemaphoreHandle_t _txSemaphore;  ///< Transmission synchronization
     esp_timer_handle_t _timerHandle; ///< High precision timer handle
 
+    // Transmission state
     volatile bool _isTransmitting;              ///< Current transmission status
     volatile uint32_t _transmissionTimeElapsed; ///< Elapsed transmission time
     volatile uint32_t _lastTXLoop;              ///< Last transmission loop timestamp
 
+    // Transmission configuration
     uint32_t _txRepeat;                       ///< Number of transmission repetitions
     uint8_t _txBuffer[CC1101_MAX_PACKET_LEN]; ///< Transmission buffer
     size_t _txDataLength;                     ///< Current transmission data length
@@ -228,6 +259,17 @@ private:
     float _currentPacketCnt;                  ///< Current packet count value
     uint32_t _txPeriodUs;                     ///< Transmission period in microseconds
 
+    // MQTT
+    PsychicMqttClient *_mqttClient;                   ///< MQTT client instance (not owned)
+    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service for accessing configuration
+    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of MQTT settings (updated on settings change)
+    String _lastMqttPrefix;                           ///< Last registered MQTT prefix for topic cleanup
+
+    // Last action context
+    uint32_t _lastActionLineId; ///< ID of the last triggered alarm line action
+    String _lastActionType;     ///< Type of the last triggered action
+
+    // ========== Core Loops and Timing ==========
     /// Main monitoring loop for alarm line discovery
     void _monitorLoop();
 
@@ -249,18 +291,60 @@ private:
         static_cast<AlarmLinesService *>(_this)->_onTimer();
     }
 
+    // ========== Alarm Line Management ==========
     /// Check if alarm line with given ID already exists
     bool _alarmLineExists(uint32_t id);
 
     /// Remove alarm line from the system
     esp_err_t _removeAlarmLine(uint32_t id);
 
+    // ========== Action Handling ==========
     /// Process HTTP action requests for alarm line operations
     esp_err_t _performAction(PsychicRequest *request, JsonVariant &json);
 
+    /// Trigger an action programmatically (used by MQTT command handler)
+    esp_err_t _triggerAction(uint32_t lineIdHostOrder, const String &action);
+
+    // ========== Event Emission ==========
     /// Emit WebSocket event for new alarm line discovery
     void _emitNewAlarmLineEvent(uint32_t id);
 
     /// Emit WebSocket event for action completion
     void _emitActionFinishedEvent(bool timedOut = false);
+
+    // ========== MQTT Publishing ==========
+    /// Publish HA discovery config and state for all alarm lines (internal helper)
+    void _mqttPublishAllAlarmLines();
+
+    /// Publish HA discovery config for a single alarm line (buttons + sensors)
+    esp_err_t _mqttPublishAlarmLineConfig(const genius_alarm_line_t &line, bool useTransaction = true);
+
+    /// Unpublish (remove) a single alarm line from Home Assistant by sending empty config messages
+    void _mqttUnpublishAlarmLine(uint32_t lineId);
+
+    /// Publish transmission state for a specific alarm line (e.g., "Nothing", "Line Test", "Fire Alarm")
+    esp_err_t _publishAlarmLineTransmissionState(uint32_t lineId, const String &state = "Nothing");
+
+    /// Publish completion state for the last triggered action (resets to "Nothing")
+    void _publishLastActionState(bool timedOut = false);
+
+    // ========== MQTT Publishing Helpers ==========
+    /// Publish all 4 button entities for an alarm line (line test start/stop, fire alarm start/stop)
+    esp_err_t _publishAlarmLineButtons(const genius_alarm_line_t &line);
+
+    /// Publish a single button entity using generic configuration
+    esp_err_t _publishButton(const genius_alarm_line_t &line, const AlarmLineButtonConfig &config);
+
+    /// Publish the transmission state sensor entity for an alarm line
+    esp_err_t _publishTransmissionSensor(const genius_alarm_line_t &line);
+
+    /// Add availability condition and device info to a HA discovery config document
+    void _addAvailabilityAndDevice(JsonDocument &doc, const genius_alarm_line_t &line);
+
+    /// Add device info (identifiers, name, manufacturer, model) to a HA discovery config document
+    void _addDeviceInfo(JsonDocument &doc, const genius_alarm_line_t &line);
+
+    // ========== Settings Management ==========
+    /// Update cached MQTT settings from GatewayMqttSettingsService for faster access
+    void _updateMqttSettingsCache();
 };
