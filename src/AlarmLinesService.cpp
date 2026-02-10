@@ -34,6 +34,8 @@
 #include <PsychicMqttClient.h>
 #include <GatewayMqttSettingsService.h>
 #include <PsychicMqttClient.h>
+#include <WiFi.h>
+#include <IPUtils.h>
 
 /// Base packet template for alarm line test operations
 const uint8_t AlarmLinesService::_packet_base_linetest[] = {
@@ -699,9 +701,9 @@ void AlarmLinesService::mqttRegisterTopicsAndPublishAlarmLines()
 // ============================================================================
 
 /**
- * @brief Publishes MQTT discovery config and state for all alarm lines
+ * @brief Publishes all alarm lines to MQTT/Home Assistant
  * 
- * Iterates over all alarm lines and publishes both configuration and state
+ * Iterates over all alarm lines and publishes their config and state
  * messages to Home Assistant MQTT Discovery. Uses a single transaction for
  * the entire operation for efficiency.
  * 
@@ -950,6 +952,7 @@ esp_err_t AlarmLinesService::_publishTransmissionSensor(const genius_alarm_line_
     statecfg["state_topic"] = "~/transmission/state";
     statecfg["value_template"] = "{{value_json.state}}";
     statecfg["icon"] = "mdi:radio-tower";
+    statecfg["entity_category"] = "diagnostic";
 
     _addDeviceInfo(statecfg, line);
 
@@ -1019,6 +1022,7 @@ void AlarmLinesService::_addAvailabilityAndDevice(JsonDocument &doc, const geniu
  * @brief Helper to add device info to config document
  * 
  * Adds Home Assistant device information to a discovery configuration document.
+ * Includes configuration URL if a valid IP address is available.
  * 
  * @param doc JsonDocument to modify
  * @param line Const reference to the alarm line
@@ -1029,8 +1033,16 @@ void AlarmLinesService::_addDeviceInfo(JsonDocument &doc, const genius_alarm_lin
     JsonObject device = doc["device"].to<JsonObject>();
     device["identifiers"] = "genius-alarmline-" + idStr;
     device["name"] = "Alarm Line '" + line.name + "'";
-    device["manufacturer"] = "Hekatron Vertriebs GmbH";
+    device["manufacturer"] = "Genius Gateway";
     device["model"] = "Genius Plus X Alarm Line";
+    device["via_device"] = "genius-gateway-" + WiFi.macAddress();
+    
+    // Get the current IP address and only add configuration_url if we have a valid IP
+    IPAddress localIP = WiFi.localIP();
+    if (IPUtils::isSet(localIP))
+    {
+        device["configuration_url"] = "http://" + localIP.toString() + "/gateway/alarm-lines";
+    }
 }
 
 // ============================================================================
@@ -1067,7 +1079,7 @@ esp_err_t AlarmLinesService::_removeAlarmLine(uint32_t id)
 
     ESP_LOGI(TAG, "Removed alarm line with id %lu", id);
 
-    // Unpublish from MQTT if connected
+    // Unpublish Home Assistant MQTT entities for this alarm line
     if (_mqttClient != nullptr && _mqttSettingsService != nullptr)
     {
         if (_cachedMqttSettings.HAIntegrationEnabled && !_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())

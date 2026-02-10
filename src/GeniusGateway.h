@@ -36,6 +36,7 @@
 #include <AlarmLinesService.h>
 #include <GatewaySettingsService.h>
 #include <GatewayMqttSettingsService.h>
+#include <GatewayDeviceMqttService.h>
 #include <CC1101Controller.h>
 #include <cc1101.h>
 #include <AlarmBlocker.h>
@@ -126,9 +127,10 @@ private:
   PsychicMqttClient *_mqttClient;                         ///< MQTT client instance
   FeaturesService *_featureService;                       ///< Feature flags service
   GatewayMqttSettingsService _gatewayMqttSettingsService; ///< MQTT settings service
+  GatewaySettingsService _gatewaySettings;                ///< Gateway settings service
+  GatewayDeviceMqttService _gatewayDeviceMqttService;     ///< Gateway device MQTT service
   GeniusDevicesService _geniusDevices;                  ///< Genius devices service
   AlarmLinesService _alarmLines;                          ///< Alarm lines service
-  GatewaySettingsService _gatewaySettings;                ///< Gateway settings service
   WSLogger _wsLogger;                                     ///< WebSocket logger service
   VisualizerSettingsService _visualizerSettingsService;   ///< Visualizer settings service
   CC1101Controller _cc1101Controller;                     ///< CC1101 radio controller

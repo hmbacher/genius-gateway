@@ -181,6 +181,7 @@ public:
     static constexpr const char *TAG = "GeniusDevices";
 
     std::vector<GeniusDevice> devices;
+    std::vector<uint32_t> deletedDeviceSNs; ///< Temporary storage for deleted device SNs (populated during update)
 
     static void read(GeniusDevices &geniusDevices, JsonObject &root)
     {
@@ -232,9 +233,10 @@ public:
     bool isSmokeDetectorKnown(uint32_t detectorSN);
 
     /**
-     * @brief Publish HA discovery config and state for all devices
+     * @brief Synchronizes MQTT state with current device list
      * 
-     * Publishes both configuration and state messages for devices.
+     * First unpublishes any deleted devices (if pending), then publishes
+     * configuration and state messages for current devices.
      * Only marks devices as published if both operations succeed.
      * 
      * @param onlyUnpublished If true, only publishes devices that haven't been published yet
@@ -322,6 +324,9 @@ private:
 
     /// Publish device state topic (alarm ON/OFF status)
     esp_err_t _publishDeviceState(const GeniusDevice &device);
+
+    /// Unpublish (remove) a single device from Home Assistant by sending empty config message
+    void _mqttUnpublishDevice(uint32_t smokeDetectorSN);
 
     // ========== Settings Management ==========
     /// Update cached MQTT settings from GatewayMqttSettingsService for faster access

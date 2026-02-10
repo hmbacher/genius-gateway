@@ -52,9 +52,10 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
                                                           _securityManager(sveltekit->getSecurityManager()),
                                                           _mqttClient(sveltekit->getMqttClient()),
                                                           _gatewayMqttSettingsService(sveltekit),
+                                                          _gatewaySettings(sveltekit),
+                                                          _gatewayDeviceMqttService(_mqttClient, &_gatewayMqttSettingsService, &_gatewaySettings, sveltekit->getDownloadFirmwareService(), sveltekit->getSocket()),
                                                           _geniusDevices(sveltekit, _mqttClient, &_gatewayMqttSettingsService),
                                                           _alarmLines(sveltekit, _mqttClient, &this->_cc1101Controller, &_gatewayMqttSettingsService),
-                                                          _gatewaySettings(sveltekit),
                                                           _wsLogger(sveltekit),
                                                           _visualizerSettingsService(sveltekit),
                                                           _cc1101Controller(sveltekit),
@@ -108,14 +109,16 @@ void GeniusGateway::begin()
         ESP_LOGE(TAG, "RX task creation failed.");
     }
 
+    /* Initialize Gateway MQTT Settings Service first - other services depend on its settings */
+    _gatewayMqttSettingsService.begin();
+    /* Initialize Gateway Device MQTT Service */
+    _gatewayDeviceMqttService.begin();
     /* Initialize Gateway Devices Service */
     _geniusDevices.begin();
     /* Initialize Alarm Lines Service */
     _alarmLines.begin();
     /* Initialize Gateway Settings Service */
     _gatewaySettings.begin();
-    /* Initialize Gateway MQTT Settings Service */
-    _gatewayMqttSettingsService.begin();
     /* Initialize WS Logger */
     _wsLogger.begin();
     /* Initialize Packet Vizualizer Settings */
@@ -133,6 +136,8 @@ void GeniusGateway::begin()
     /* Perform a full publish (all devices and states), if MQTT client connects. */
     _mqttClient->onConnect([this](bool /*sessionPresent*/)
                            {
+                               // Publish gateway device first (parent device must exist before children reference it)
+                               this->_gatewayDeviceMqttService.publishAll();
                                // Publish all devices (config and state)
                                this->_geniusDevices.mqttPublishAllDevices();
                                // Register alarm line MQTT topics and subscriptions

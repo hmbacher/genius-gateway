@@ -587,7 +587,25 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
         }
     }
 
-    // Check if devices have been added or removed
+    // Check if devices have been removed and track their SNs for unpublishing
+    if (geniusDevices.devices.size() != newDevicesVector.size())
+    {
+        hasChanges = true;
+
+        // Find deleted devices (in old list but not in processed IDs)
+        geniusDevices.deletedDeviceSNs.clear();
+        for (const auto &oldDevice : geniusDevices.devices)
+        {
+            if (std::find(processedDeviceIds.begin(), processedDeviceIds.end(), oldDevice.id) == processedDeviceIds.end())
+            {
+                // Device was deleted - store SN for unpublishing
+                geniusDevices.deletedDeviceSNs.push_back(oldDevice.smokeDetector.sn);
+                ESP_LOGI(GeniusDevices::TAG, "Device with SN %lu marked for deletion.", oldDevice.smokeDetector.sn);
+            }
+        }
+    }
+
+    // Check if devices have been added
     if (!hasChanges)
         hasChanges = geniusDevices.devices.size() != newDevicesVector.size();
 
@@ -619,9 +637,12 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
 /**
  * @brief Publishes all devices (Config + State) to MQTT/Home Assistant
  *
- * Iterates over all devices and publishes both configuration and state.
+ * First processes any pending deleted devices (unpublishing them), then
+ * iterates over all current devices and publishes both configuration and state.
  * Only marks devices as published if both operations succeed (atomic semantics).
  * Uses a single transaction for the entire operation for efficiency.
+ *
+ * This function synchronizes MQTT state with the current device list.
  *
  * @param onlyUnpublished If true, only publishes devices that haven't been published yet
  */
@@ -640,6 +661,22 @@ void GeniusDevicesService::mqttPublishAllDevices(bool onlyUnpublished)
     }
 
     beginTransaction();
+    
+    // First, unpublish any deleted devices
+    if (!_state.deletedDeviceSNs.empty())
+    {
+        ESP_LOGI(GeniusDevices::TAG, "Processing %d deleted device(s) for MQTT unpublishing.", _state.deletedDeviceSNs.size());
+        
+        for (uint32_t sn : _state.deletedDeviceSNs)
+        {
+            _mqttUnpublishDevice(sn);
+        }
+        
+        // Clear the list after processing
+        _state.deletedDeviceSNs.clear();
+    }
+    
+    // Then publish current devices
     for (GeniusDevice &device : _state.devices)
     {
         if (!onlyUnpublished || !device.published)
@@ -868,6 +905,13 @@ esp_err_t GeniusDevicesService::_publishDeviceConfig(const GeniusDevice &device)
     dev_jsonObj["name"] = "Rauchmelder";
     dev_jsonObj["serial_number"] = device.smokeDetector.sn;
     dev_jsonObj["suggested_area"] = device.location;
+    dev_jsonObj["via_device"] = "genius-gateway-" + WiFi.macAddress();
+    
+    // Add configuration URL if we have a valid IP (IP was already checked above for entity_picture)
+    if (IPUtils::isSet(localIP))
+    {
+        dev_jsonObj["configuration_url"] = "http://" + localIP.toString() + "/gateway/smoke-detectors";
+    }
 
     // Add attributes topic for entity attributes
     config_jsonDoc["json_attributes_topic"] = "~/attributes";
@@ -950,6 +994,34 @@ esp_err_t GeniusDevicesService::_publishDeviceState(const GeniusDevice &device)
     serializeJson(state_jsonDoc, payload);
 
     return _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str()) != -1 ? ESP_OK : ESP_FAIL;
+}
+
+/**
+ * @brief Unpublishes (removes) a device from Home Assistant MQTT
+ * 
+ * Sends an empty retained message to the discovery config topic,
+ * which signals Home Assistant to remove the entity. This is called when
+ * a device is deleted from the system.
+ * 
+ * No transaction management - caller is responsible.
+ * 
+ * @param smokeDetectorSN Smoke detector serial number to unpublish
+ */
+void GeniusDevicesService::_mqttUnpublishDevice(uint32_t smokeDetectorSN)
+{
+    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
+        return;
+
+    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+        return;
+
+    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
+    String configTopic = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + smokeDetectorSN + "/config";
+
+    // Send empty retained payload to remove the entity from Home Assistant
+    _mqttClient->publish(configTopic.c_str(), 0, true, "");
+
+    ESP_LOGI(GeniusDevices::TAG, "Unpublished MQTT entity for device with SN %lu.", smokeDetectorSN);
 }
 
 // ============================================================================

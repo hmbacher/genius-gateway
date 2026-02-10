@@ -182,6 +182,11 @@ public:
         return &_restartService;
     }
 
+    DownloadFirmwareService *getDownloadFirmwareService()
+    {
+        return &_downloadFirmwareService;
+    }
+
     HealthCheckService *getHealthCheckService()
     {
         return &_healthCheckService;
