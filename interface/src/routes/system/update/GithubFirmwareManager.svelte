@@ -2,6 +2,7 @@
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import { modals } from 'svelte-modals';
+	import type { ModalComponent } from 'svelte-modals';
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -13,9 +14,11 @@
 	import Prerelease from '~icons/tabler/test-pipe';
 	import Error from '~icons/tabler/circle-x';
 	import { compareVersions } from 'compare-versions';
-	import GithubUpdateDialog from '$lib/components/GithubUpdateDialog.svelte';
+	import FirmwareUpdateDialog from '$lib/components/FirmwareUpdateDialog.svelte';
+	import { assets } from '$app/paths';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
 	import Check from '~icons/tabler/check';
+	import { telemetry } from '$lib/stores/telemetry';
 
 	async function getGithubAPI() {
 		try {
@@ -65,8 +68,7 @@
 			}
 		}
 		if (url === '') {
-			// if no asset was found, use the first one
-			modals.open(InfoDialog, {
+			modals.open(InfoDialog as unknown as ModalComponent<any>, {
 				title: 'No matching firmware found',
 				message:
 					'No matching firmware was found for the current device. Upload the firmware manually or build from sources.',
@@ -75,8 +77,7 @@
 			});
 			return;
 		}
-
-		modals.open(ConfirmDialog, {
+		modals.open(ConfirmDialog as unknown as ModalComponent<any>, {
 			title: 'Confirm flashing new firmware to the device',
 			message: 'Are you sure you want to overwrite the existing firmware with a new one?',
 			labels: {
@@ -84,9 +85,11 @@
 				confirm: { label: 'Update', icon: CloudDown }
 			},
 			onConfirm: () => {
+				// Reset OTA status before starting new download
+				telemetry.setOTAStatus({ status: 'none', progress: 0, error: '' });
 				postGithubDownload(url);
-				modals.open(GithubUpdateDialog, {
-					onConfirm: () => modals.closeAlls()
+				modals.open(FirmwareUpdateDialog as unknown as ModalComponent<any>, {
+					title: 'Downloading Firmware'
 				});
 			}
 		});
@@ -95,14 +98,20 @@
 
 <SettingsCard collapsible={false}>
 	{#snippet icon()}
-		<Github  class="lex-shrink-0 mr-2 h-6 w-6 self-end rounded-full" />
+		<Github class="lex-shrink-0 mr-2 h-6 w-6 self-end rounded-full" />
 	{/snippet}
 	{#snippet title()}
-		<span >Github Firmware Manager</span>
+		<span>Github Firmware Manager</span>
 	{/snippet}
 	{#await getGithubAPI()}
 		<Spinner />
 	{:then githubReleases}
+		<div class="alert alert-info">
+			<div>
+				<span class="font-bold">Current Firmware Version:</span>
+				v{page.data.features.firmware_version}
+			</div>
+		</div>
 		<div class="relative w-full overflow-visible">
 			<div class="overflow-x-auto" transition:slide|local={{ duration: 300, easing: cubicOut }}>
 				<table class="table w-full table-auto">
@@ -110,7 +119,7 @@
 						<tr class="font-bold">
 							<th align="left">Release</th>
 							<th align="center" class="hidden sm:block">Release Date</th>
-							<th align="center">Experimental</th>
+							<th align="center">Exp.</th>
 							<th align="center">Install</th>
 						</tr>
 					</thead>

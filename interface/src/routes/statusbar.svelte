@@ -11,6 +11,8 @@
 	import RssiIndicator from '$lib/components/RSSIIndicator.svelte';
 	import BatteryIndicator from '$lib/components/BatteryIndicator.svelte';
 	import UpdateIndicator from '$lib/components/UpdateIndicator.svelte';
+	import PlugConnected from '~icons/tabler/plug-connected';
+	import PlugConnectedX from '~icons/tabler/plug-connected-x';
 	import AlarmStatus from '$lib/components/AlarmStatus.svelte';
 	import AlarmBlockingTimer from '$lib/components/AlarmBlockingTimer.svelte';
 
@@ -57,6 +59,13 @@
 		<AlarmStatus />
 	</div>
 	<div class="flex flex-none">
+		{#if page.data.features.ethernet}
+			{#if $telemetry.ethernet.connected}
+				<PlugConnected class="inline-block h-7 w-7" />
+			{:else}
+				<PlugConnectedX class="inline-block h-7 w-7" />
+			{/if}
+		{/if}
 		{#if $telemetry.rssi.disconnected}
 			<WiFiOff class="h-7 w-7" />
 		{:else}

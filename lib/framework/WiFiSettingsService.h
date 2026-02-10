@@ -46,9 +46,9 @@
 #define WIFI_SETTINGS_FILE "/config/wifiSettings.json"
 #define WIFI_SETTINGS_SERVICE_PATH "/rest/wifiSettings"
 
-#define WIFI_RECONNECTION_DELAY 1000 * 30
+#define WIFI_RECONNECTION_DELAY 1000 * 5
 #define RSSI_EVENT_DELAY 500
-#define DELAYED_RECONNECT_MS 5000
+#define DELAYED_RECONNECT_MS 1000
 
 #define EVENT_RSSI "rssi"
 #define EVENT_RECONNECT "reconnect"
@@ -114,7 +114,7 @@ public:
         ESP_LOGV(SVK_TAG, "WiFi Settings read");
     }
 
-    static StateUpdateResult update(JsonObject &root, WiFiSettings &settings)
+    static StateUpdateResult update(JsonObject &root, WiFiSettings &settings, const String &originId)
     {
         settings.hostname = root["hostname"] | SettingValue::format(FACTORY_WIFI_HOSTNAME);
         settings.staConnectionMode = root["connection_mode"] | 1;

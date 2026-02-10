@@ -24,6 +24,7 @@
 	import NTP from '~icons/tabler/clock-check';
 	import Metrics from '~icons/tabler/report-analytics';
 	import Bug from '~icons/tabler/bug';
+	import PlugConnected from '~icons/tabler/plug-connected';
 	import { page } from '$app/state';
 	import { user } from '$lib/stores/user';
 
@@ -31,7 +32,7 @@
 
 	const github = { href: 'https://github.com/' + page.data.github, active: true };
 
-	const discord = { href: '.', active: false };
+	const discord = { href: 'https://discord.gg/MTn9mVUG5n', active: true };
 
 	type menuItem = {
 		title: string;
@@ -131,6 +132,12 @@
 					feature: true
 				}
 			]
+		},
+		{
+			title: 'Ethernet',
+			icon: PlugConnected,
+			href: '/ethernet',
+			feature: page.data.features.ethernet
 		},
 		{
 			title: 'Users',

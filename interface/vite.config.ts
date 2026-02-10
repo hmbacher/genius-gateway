@@ -35,6 +35,18 @@ const config: UserConfig = {
 				ws: true
 			}
 		}
+	},
+	build: {
+		minify: 'terser',
+		sourcemap: false,
+		rollupOptions: {
+			output: {
+				manualChunks(id) {
+					if (id.includes('node_modules')) return 'vendor';
+				}
+			}
+		},
+		cssCodeSplit: true
 	}
 };
 
