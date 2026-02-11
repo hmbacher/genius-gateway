@@ -70,7 +70,7 @@ public:
         ESP_LOGV(GatewaySettings::TAG, "Gateway settings read.");
     }
 
-    static StateUpdateResult update(JsonObject &root, GatewaySettings &gwSettings)
+    static StateUpdateResult update(JsonObject &root, GatewaySettings &gwSettings, const String &originId)
     {
         bool updated = false;
         bool newBoolValue;

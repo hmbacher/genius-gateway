@@ -68,7 +68,7 @@ public:
         ESP_LOGV(GatewayMqttSettings::TAG, "Gateway MQTT settings read.");
     }
 
-    static StateUpdateResult update(JsonObject &root, GatewayMqttSettings &settings)
+    static StateUpdateResult update(JsonObject &root, GatewayMqttSettings &settings, const String &originId)
     {
         bool changed = false;
 
