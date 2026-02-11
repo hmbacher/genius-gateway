@@ -20,7 +20,6 @@
 	import type { RSSI } from '$lib/types/models';
 	import type { Battery } from '$lib/types/models';
 	import type { OTAStatus } from '$lib/types/models';
-	import type { Ethernet } from '$lib/types/models';
 	import type { DownloadOTA } from '$lib/types/models';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { jsonDateReviver } from '$lib/utils/misc';
@@ -68,7 +67,6 @@
 		if (page.data.features.analytics) socket.on('analytics', handleAnalytics);
 		if (page.data.features.battery) socket.on('battery', handleBattery);
 		if (page.data.features.download_firmware) socket.on('otastatus', handleOTA);
-		if (page.data.features.ethernet) socket.on('ethernet', handleEthernet);
 		// Genius Gateway: Listen for alarm state changes
 		socket.on<AlarmState>('alarm', handleAlarm);
 	};
@@ -81,7 +79,6 @@
 		socket.off('notification', handleNotification);
 		socket.off('battery', handleBattery);
 		socket.off('otastatus', handleOTA);
-		socket.off('ethernet', handleEthernet);
 		// Genius Gateway: Stop listening for alarm state changes
 		socket.off('alarm', handleAlarm);
 	};
@@ -144,10 +141,6 @@
 
 	const handleOTA = (data: OTAStatus) => {
 		telemetry.setOTAStatus(data);
-	};
-
-	const handleEthernet = (data: Ethernet) => {
-		telemetry.setEthernet(data);
 	};
 
 	/* Fetches the Genius devices from the backend and updates the geniusDevices store.

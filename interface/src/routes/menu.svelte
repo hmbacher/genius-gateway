@@ -134,12 +134,6 @@
 			]
 		},
 		{
-			title: 'Ethernet',
-			icon: PlugConnected,
-			href: '/ethernet',
-			feature: page.data.features.ethernet
-		},
-		{
 			title: 'Users',
 			icon: Users,
 			href: '/user',

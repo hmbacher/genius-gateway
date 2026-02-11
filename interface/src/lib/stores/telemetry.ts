@@ -2,7 +2,6 @@ import { writable } from 'svelte/store';
 import type { RSSI } from '../types/models';
 import type { Battery } from '../types/models';
 import type { OTAStatus } from '../types/models';
-import type { Ethernet } from '../types/models';
 
 let telemetry_data = {
 	rssi: {
@@ -20,9 +19,6 @@ let telemetry_data = {
 		bytes_written: 0,
 		total_bytes: 0,
 		error: ''
-	},
-	ethernet: {
-		connected: false
 	}
 };
 
@@ -60,12 +56,6 @@ function createTelemetry() {
 					total_bytes: data.total_bytes ?? 0,
 					error: data.error 
 				}
-			}));
-		},
-		setEthernet: (data: Ethernet) => {
-			update((telemetry_data) => ({
-				...telemetry_data,
-				ethernet: { connected: data.connected }
 			}));
 		}
 	};
