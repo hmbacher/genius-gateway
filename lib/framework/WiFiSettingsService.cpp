@@ -38,6 +38,10 @@ void WiFiSettingsService::initWiFi()
     // Disable WiFi config persistance and auto reconnect
     WiFi.persistent(false);
     WiFi.setAutoReconnect(false);
+    
+    // Disable WiFi power save to prevent packet loss
+    WiFi.setSleep(false);
+    ESP_LOGI(SVK_TAG, "WiFi power save mode disabled");
 
     WiFi.onEvent(
         std::bind(&WiFiSettingsService::onStationModeDisconnected, this, std::placeholders::_1, std::placeholders::_2),
