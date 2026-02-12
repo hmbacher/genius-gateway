@@ -329,7 +329,7 @@ bool GeniusDevicesService::isSmokeDetectorKnown(uint32_t detectorSN)
     return found;
 }
 
-StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusDevices)
+StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusDevices, const String &originId)
 {
     bool hasChanges = false;
 
@@ -885,7 +885,7 @@ esp_err_t GeniusDevicesService::_publishDeviceConfig(const GeniusDevice &device)
     JsonDocument config_jsonDoc;
     config_jsonDoc["~"] = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + device.smokeDetector.sn;
     config_jsonDoc["name"] = "Genius Plus X";
-    config_jsonDoc["unique_id"] = device.smokeDetector.sn;
+    config_jsonDoc["unique_id"] = String(device.smokeDetector.sn);
     config_jsonDoc["device_class"] = "smoke";
     config_jsonDoc["state_topic"] = "~/state";
     config_jsonDoc["schema"] = "json";
@@ -899,13 +899,13 @@ esp_err_t GeniusDevicesService::_publishDeviceConfig(const GeniusDevice &device)
     }
 
     JsonObject dev_jsonObj = config_jsonDoc["device"].to<JsonObject>();
-    dev_jsonObj["identifiers"] = device.smokeDetector.sn;
+    dev_jsonObj["identifiers"][0] = String(device.smokeDetector.sn);
     dev_jsonObj["manufacturer"] = "Hekatron Vertriebs GmbH";
     dev_jsonObj["model"] = "Genius Plus X";
     dev_jsonObj["name"] = "Rauchmelder";
-    dev_jsonObj["serial_number"] = device.smokeDetector.sn;
+    dev_jsonObj["serial_number"] = String(device.smokeDetector.sn);
     dev_jsonObj["suggested_area"] = device.location;
-    dev_jsonObj["via_device"] = "genius-gateway-" + WiFi.macAddress();
+    dev_jsonObj["via_device"] = GatewayDeviceMqttService::getGatewayIdentifier();
     
     // Add configuration URL if we have a valid IP (IP was already checked above for entity_picture)
     if (IPUtils::isSet(localIP))

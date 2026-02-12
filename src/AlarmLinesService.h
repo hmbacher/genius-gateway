@@ -43,6 +43,8 @@
 #include <nvs.h>
 #include <GatewayMqttSettingsService.h>
 #include <PsychicMqttClient.h>
+#include <SettingValue.h>
+#include <GatewayDeviceMqttService.h>
 
 #define ALARMLINES_FILE "/config/alarm-lines.json"            ///< Configuration file path
 #define ALARMLINES_SERVICE_PATH "/rest/alarm-lines"           ///< HTTP REST API service endpoint
@@ -133,7 +135,7 @@ public:
     }
 
     /// Update alarm lines from JSON object
-    static StateUpdateResult update(JsonObject &root, AlarmLines &alarmLines)
+    static StateUpdateResult update(JsonObject &root, AlarmLines &alarmLines, const String &originId)
     {
         if (root["lines"].is<JsonArray>())
         {

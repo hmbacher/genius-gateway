@@ -48,7 +48,491 @@ Published automatically by broker when device disconnects (LWT message):
 
 The gateway supports [Home Assistant's MQTT Discovery protocol :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } for automatic device integration.
 
-### Genius Devices (Smoke Detectors)
+### Gateway Device
+
+The Genius Gateway itself is published as a Home Assistant device with diagnostic sensors, remote control buttons, and configuration switches.
+
+**Requirements:**
+
+- [Home Assistant Integration must be enabled](../setup/connections.md#device-publishing)
+- MQTT broker must be connected
+
+#### Overview
+
+The gateway device publishes:
+
+- **1 Status Sensor** - Registers the gateway device in Home Assistant
+- **2 Diagnostic Sensors** - Free heap memory (%) and core temperature (°C)
+- **1 Restart Button** - Remote gateway restart capability
+- **4 Configuration Switches** - Remote control of gateway settings
+
+**Topic Structure:**
+```
+{discovery_prefix}genius-gateway/{gateway_device_id}
+```
+
+!!! tip "Gateway Device ID Format"
+    The `gateway_device_id` follows the format `genius-gateway-{device-mac}`, where `device-mac` is the device's MAC address with lowercase hex digits and without any delimiters.  
+    E.g.: `1A:2B:3C:4D:5E:6F` :material-arrow-right: `genius-gateway-1a2b3c4d5e6f`
+
+---
+
+#### Device Status Sensor
+
+**:material-message-outline: Topic**
+```
+{discovery_prefix}sensor/{gateway_device_id}/status/config
+```
+
+**Example:** `homeassistant/sensor/genius-gateway-1a2b3c4d5e6f/status/config`
+
+**:material-information-outline: Description:** Device registration sensor that makes the gateway visible in Home Assistant
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** true
+
+**:material-code-json: Payload**
+```json
+{
+  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "name": "Status",
+  "unique_id": "genius-gateway-1a2b3c4d5e6f_status",
+  "state_topic": "~/status/state",
+  "value_template": "{{value_json.state}}",
+  "icon": "mdi:heart-pulse",
+  "entity_category": "diagnostic",
+  "device": {
+    "identifiers": ["genius-gateway-1a2b3c4d5e6f"],
+    "name": "Genius Gateway",
+    "manufacturer": "Genius Gateway Project",
+    "model": "Genius Gateway",
+    "sw_version": "1.1.0",
+    "configuration_url": "http://192.168.1.100"
+  }
+}
+```
+
+**:material-format-list-bulleted: Payload Fields**
+
+- `~` - Topic prefix (base path for relative references)
+- `name` - Entity name shown in Home Assistant
+- `unique_id` - Unique identifier for this sensor
+- `state_topic` - Relative path to state topic
+- `value_template` - Jinja2 template to extract state from JSON
+- `icon` - Material Design icon identifier
+- `entity_category` - Category (`diagnostic` for system status)
+- `device` - Device information object
+  - `identifiers` - Device identifier (array with gateway device ID)
+  - `name` - Device name shown in Home Assistant
+  - `manufacturer` - Project name
+  - `model` - Device model
+  - `sw_version` - Current firmware version
+  - `configuration_url` - Web interface URL (only included if gateway has valid IP)
+
+**State Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/status/state`
+
+**:material-code-json: State Payload**
+```json
+{
+  "state": "online"
+}
+```
+
+**:material-publish: Publishing Behavior**
+
+- Published when MQTT connection is established
+- Re-published when MQTT settings change
+- State published immediately after config
+- Published only if [Home Assistant Integration is enabled](../setup/connections.md#device-publishing)
+
+**:material-home-assistant: Home Assistant Integration**
+
+- Automatically creates gateway device with all associated entities
+- Provides device information panel with manufacturer, model, and firmware version
+- Links to gateway web interface via configuration URL
+
+---
+
+#### Diagnostic Sensors
+
+The gateway publishes two diagnostic sensors that share a common state topic for efficient updates.
+
+##### Free Heap Sensor
+
+**:material-message-outline: Config Topic**
+```
+{discovery_prefix}sensor/{gateway_device_id}/free_heap/config
+```
+
+**Example:** `homeassistant/sensor/genius-gateway-1a2b3c4d5e6f/free_heap/config`
+
+**:material-information-outline: Description:** Monitors available heap memory as percentage of total heap
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** true
+
+**:material-code-json: Config Payload**
+```json
+{
+  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "name": "Free Heap",
+  "unique_id": "genius-gateway-1a2b3c4d5e6f_free_heap",
+  "state_topic": "~/diagnostics/state",
+  "value_template": "{{value_json.free_heap_percent|round(1)}}",
+  "unit_of_measurement": "%",
+  "state_class": "measurement",
+  "icon": "mdi:memory",
+  "entity_category": "diagnostic",
+  "device": {
+    "identifiers": ["genius-gateway-1a2b3c4d5e6f"]
+  }
+}
+```
+
+##### Core Temperature Sensor
+
+**:material-message-outline: Config Topic**
+```
+{discovery_prefix}sensor/{gateway_device_id}/core_temp/config
+```
+
+**Example:** `homeassistant/sensor/genius-gateway-1a2b3c4d5e6f/core_temp/config`
+
+**:material-information-outline: Description:** Monitors ESP32 internal core temperature
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** true
+
+**:material-code-json: Config Payload**
+```json
+{
+  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "name": "Core Temperature",
+  "unique_id": "genius-gateway-1a2b3c4d5e6f_core_temp",
+  "state_topic": "~/diagnostics/state",
+  "value_template": "{{value_json.core_temp|round(1)}}",
+  "unit_of_measurement": "°C",
+  "device_class": "temperature",
+  "state_class": "measurement",
+  "icon": "mdi:thermometer",
+  "entity_category": "diagnostic",
+  "device": {
+    "identifiers": ["genius-gateway-1a2b3c4d5e6f"]
+  }
+}
+```
+
+##### Diagnostic State Topic
+
+**:material-message-outline: Topic**
+```
+{discovery_prefix}genius-gateway/{gateway_device_id}/diagnostics/state
+```
+
+**Example:** `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/diagnostics/state`
+
+**:material-information-outline: Description:** Combined state topic for both diagnostic sensors
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** false
+
+**:material-code-json: Payload**
+```json
+{
+  "free_heap_percent": 73.5,
+  "core_temp": 42.3
+}
+```
+
+**:material-format-list-bulleted: Payload Fields**
+
+- `free_heap_percent` - Available heap memory as percentage of total heap (float, 0-100)
+- `core_temp` - ESP32 internal core temperature in degrees Celsius (float)
+
+**:material-publish: Publishing Behavior**
+
+- Published immediately after config messages (initial state)
+- Published every 60 seconds via timer
+- Re-published when MQTT connection is established
+- Published only if [Home Assistant Integration is enabled](../setup/connections.md#device-publishing)
+
+**:material-home-assistant: Home Assistant Integration**
+
+- Automatically creates sensor entities with proper units and device classes
+- Enables historical data tracking and graphing
+- Can trigger automations based on memory or temperature thresholds
+- Useful for monitoring gateway health and detecting potential issues
+
+---
+
+#### Restart Button
+
+**:material-message-outline: Config Topic**
+```
+{discovery_prefix}button/{gateway_device_id}/restart/config
+```
+
+**Example:** `homeassistant/button/genius-gateway-1a2b3c4d5e6f/restart/config`
+
+**:material-information-outline: Description:** Button entity for remotely restarting the gateway
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** true
+
+**:material-code-json: Config Payload**
+```json
+{
+  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "name": "Restart",
+  "unique_id": "genius-gateway-1a2b3c4d5e6f_restart",
+  "command_topic": "~/restart/command",
+  "payload_press": "PRESS",
+  "icon": "mdi:restart",
+  "entity_category": "config",
+  "device": {
+    "identifiers": ["genius-gateway-1a2b3c4d5e6f"]
+  }
+}
+```
+
+**:material-format-list-bulleted: Key Fields**
+
+- `command_topic` - Topic where button press commands are published
+- `payload_press` - Payload sent when button is pressed (`"PRESS"`)
+- `icon` - Restart icon for visual identification
+- `entity_category` - Category (`config` for configuration entities)
+
+**Command Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/restart/command`
+
+**:material-code-json: Command Payload**
+```
+"PRESS"
+```
+
+**:material-publish: Publishing Behavior**
+
+- Config published when MQTT connection is established
+- Config re-published when MQTT settings change
+- Gateway subscribes to command topic automatically
+- Trigger immediate gateway restart on command reception
+
+**:material-home-assistant: Home Assistant Integration**
+
+- Automatically creates button entity
+- Press button to restart gateway remotely
+- Useful for maintenance and troubleshooting without physical access
+- Can be used in automations (e.g., scheduled restarts)
+
+---
+
+#### Configuration Switches
+
+Four switches provide remote control of gateway configuration settings that affect device discovery and alert processing.
+
+**:material-message-outline: Config Topic Pattern**
+```
+{discovery_prefix}switch/{gateway_device_id}/{switch_suffix}/config
+```
+
+**Switch Types:**
+
+| Suffix | Display Name | Setting Controlled |
+|--------|--------------|-------------------|
+| `alert_unknown` | Alert on Unknown Detectors | Process alerts from unregistered smoke detectors |
+| `line_commissioning` | Add Line from Commissioning | Auto-add alarm lines from commissioning packets |
+| `line_alarm` | Add Line from Alarm | Auto-add alarm lines from alarm packets |
+| `line_test` | Add Line from Line Test | Auto-add alarm lines from line test packets |
+
+**:material-code-json: Config Payload Example (Alert on Unknown Detectors)**
+```json
+{
+  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "name": "Alert on Unknown Detectors",
+  "unique_id": "genius-gateway-1a2b3c4d5e6f_alert_unknown",
+  "state_topic": "~/alert_unknown/state",
+  "command_topic": "~/alert_unknown/set",
+  "payload_on": "ON",
+  "payload_off": "OFF",
+  "state_on": "ON",
+  "state_off": "OFF",
+  "icon": "mdi:toggle-switch-off-outline",
+  "entity_category": "config",
+  "device": {
+    "identifiers": ["genius-gateway-1a2b3c4d5e6f"]
+  }
+}
+```
+
+**:material-format-list-bulleted: Key Fields**
+
+- `state_topic` - Topic publishing current switch state
+- `command_topic` - Topic accepting switch commands
+- `payload_on` / `payload_off` - Payloads for ON/OFF commands
+- `state_on` / `state_off` - State values indicating ON/OFF
+- `entity_category` - Category (`config` for configuration entities)
+
+**State Topics:**
+```
+{discovery_prefix}genius-gateway/{gateway_device_id}/{switch_suffix}/state
+```
+
+**Command Topics:**
+```
+{discovery_prefix}genius-gateway/{gateway_device_id}/{switch_suffix}/set
+```
+
+**:material-code-json: State/Command Payloads**
+
+Turn setting ON:
+```
+"ON"
+```
+
+Turn setting OFF:
+```
+"OFF"
+```
+
+**:material-publish: Publishing Behavior**
+
+- Config published when MQTT connection is established
+- Config re-published when MQTT settings change
+- State published immediately after config (initial state)
+- State published when setting changes (via web interface or MQTT)
+- Gateway subscribes to all command topics automatically
+
+**:material-home-assistant: Home Assistant Integration**
+
+- Automatically creates switch entities grouped under gateway device
+- Toggle switches to modify gateway settings remotely
+- State synchronization between Home Assistant and gateway web interface
+- Can be used in automations for dynamic behavior control
+- Useful for temporarily enabling/disabling features without accessing web UI
+
+!!! info "Setting Synchronization"
+    Changes made via Home Assistant switches are immediately reflected in the gateway web interface and vice versa. All settings are synchronized bidirectionally.
+
+---
+
+#### Firmware Update Entity
+
+The gateway publishes an update entity that integrates with Home Assistant's update functionality to manage firmware updates.
+
+**:material-message-outline: Config Topic**
+```
+{discovery_prefix}update/{gateway_device_id}/firmware/config
+```
+
+**Example:** `homeassistant/update/genius-gateway-1a2b3c4d5e6f/firmware/config`
+
+**:material-information-outline: Description:** Update entity for firmware management with automatic version checking
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** true
+
+**:material-code-json: Config Payload**
+```json
+{
+  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "name": "Firmware Update",
+  "unique_id": "genius-gateway-1a2b3c4d5e6f_firmware_update",
+  "state_topic": "~/update/state",
+  "command_topic": "~/update/install",
+  "payload_install": "INSTALL",
+  "title": "Genius Gateway Firmware",
+  "device_class": "firmware",
+  "entity_category": "config",
+  "icon": "mdi:cloud-download",
+  "device": {
+    "identifiers": ["genius-gateway-1a2b3c4d5e6f"]
+  }
+}
+```
+
+**:material-format-list-bulleted: Key Fields**
+
+- `state_topic` - Topic publishing firmware version information
+- `command_topic` - Topic accepting update installation commands
+- `payload_install` - Payload to trigger update installation (`"INSTALL"`)
+- `device_class` - Device class (`firmware` for firmware updates)
+- `title` - Update entity title
+- `entity_category` - Category (`config` for configuration entities)
+
+**State Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/update/state`
+
+**:material-code-json: State Payload**
+
+When no update is available:
+```json
+{
+  "installed_version": "1.1.0",
+  "latest_version": "1.1.0",
+  "title": "Genius Gateway Firmware 1.1.0",
+  "release_url": "https://github.com/hmbacher/genius-gateway/releases/latest"
+}
+```
+
+When update is available:
+```json
+{
+  "installed_version": "1.1.0",
+  "latest_version": "1.2.0",
+  "title": "Genius Gateway Firmware 1.2.0",
+  "release_url": "https://github.com/hmbacher/genius-gateway/releases/latest"
+}
+```
+
+**:material-format-list-bulleted: State Fields**
+
+- `installed_version` - Currently installed firmware version
+- `latest_version` - Latest available firmware version from GitHub releases
+- `title` - Human-readable update title
+- `release_url` - URL to GitHub releases page
+
+**Command Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/update/install`
+
+**:material-code-json: Command Payload**
+```
+"INSTALL"
+```
+
+**:material-publish: Publishing Behavior**
+
+- Config published when MQTT connection is established
+- Config re-published when MQTT settings change
+- State published after GitHub version check (periodic and on-demand)
+- State updated when new firmware version is detected
+- Gateway subscribes to command topic automatically
+
+**:material-cog: Update Process**
+
+1. Gateway periodically checks GitHub for new releases
+2. When update is available, state reflects new version
+3. User can trigger installation via Home Assistant or web interface
+4. Gateway downloads firmware from GitHub releases
+5. Firmware is validated and installed
+6. Gateway automatically restarts with new version
+
+**:material-home-assistant: Home Assistant Integration**
+
+- Automatically creates update entity with current and available versions
+- Shows "Update Available" badge when new firmware is released
+- Links to GitHub releases page for release notes
+- Click "Install" in Home Assistant to trigger OTA update
+- Progress tracking via web interface and event notifications
+
+!!! warning "Internet Connection Required"
+    Firmware updates require an active internet connection to download from GitHub. The gateway must be able to reach `github.com` and `objects.githubusercontent.com`.
+
+---
+
+### Smoke Detectors
 
 The following topics are used for smoke detector integration with Home Assistant.
 

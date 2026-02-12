@@ -1031,11 +1031,11 @@ void AlarmLinesService::_addDeviceInfo(JsonDocument &doc, const genius_alarm_lin
 {
     String idStr = String(line.id);
     JsonObject device = doc["device"].to<JsonObject>();
-    device["identifiers"] = "genius-alarmline-" + idStr;
+    device["identifiers"][0] = "genius-alarmline-" + idStr;
     device["name"] = "Alarm Line '" + line.name + "'";
-    device["manufacturer"] = "Genius Gateway";
+    device["manufacturer"] = "Genius Gateway Project";
     device["model"] = "Genius Plus X Alarm Line";
-    device["via_device"] = "genius-gateway-" + WiFi.macAddress();
+    device["via_device"] = GatewayDeviceMqttService::getGatewayIdentifier();
     
     // Get the current IP address and only add configuration_url if we have a valid IP
     IPAddress localIP = WiFi.localIP();

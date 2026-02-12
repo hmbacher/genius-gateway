@@ -163,6 +163,7 @@ void ESP32SvelteKit::begin()
 
 #if FT_ENABLED(FT_DOWNLOAD_FIRMWARE)
     _downloadFirmwareService.begin();
+    _githubReleaseEndpoint.begin();
 #endif
 
 #if FT_ENABLED(FT_NTP)

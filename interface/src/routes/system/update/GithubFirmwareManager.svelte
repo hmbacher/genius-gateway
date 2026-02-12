@@ -8,6 +8,7 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
+	import { notifications } from '$lib/components/toasts/notifications';
 	import Github from '~icons/tabler/brand-github';
 	import CloudDown from '~icons/tabler/cloud-download';
 	import Cancel from '~icons/tabler/x';
@@ -20,24 +21,47 @@
 	import Check from '~icons/tabler/check';
 	import { telemetry } from '$lib/stores/telemetry';
 
+	let errorMessage: string = $state('');
+
 	async function getGithubAPI() {
+		errorMessage = '';
 		try {
-			const githubResponse = await fetch(
-				'https://api.github.com/repos/' + page.data.github + '/releases',
-				{
-					method: 'GET',
-					headers: {
-						accept: 'application/vnd.github+json',
-						'X-GitHub-Api-Version': '2022-11-28'
-					}
+			// Use backend endpoint instead of direct GitHub API call
+			const githubResponse = await fetch('/rest/githubRelease?all=true', {
+				method: 'GET',
+				headers: {
+					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
 				}
-			);
+			});
+			
+			if (!githubResponse.ok) {
+				errorMessage = `Backend returned HTTP ${githubResponse.status}`;
+				throw new Error(errorMessage);
+			}
+			
 			const results = await githubResponse.json();
+			
+			// Check if it's an error response
+			if (results.success === false) {
+				errorMessage = results.error || 'Backend could not reach GitHub API';
+				throw new Error(errorMessage);
+			}
+			
+			// Check if we got an array
+			if (!Array.isArray(results) || results.length === 0) {
+				errorMessage = 'No releases found in repository';
+				throw new Error(errorMessage);
+			}
+			
 			return results;
 		} catch (error) {
-			console.warn(error);
+			const msg = error instanceof Error ? error.message : 'Unknown error';
+			if (!errorMessage) errorMessage = msg;
+			console.error('GitHub releases fetch error:', error);
+			notifications.error(`Failed to fetch releases: ${errorMessage}`, 6000);
+			throw new Error(errorMessage);
 		}
-		return;
 	}
 
 	async function postGithubDownload(url: string) {
@@ -171,7 +195,12 @@
 	{:catch error}
 		<div class="alert alert-error shadow-lg">
 			<Error class="h-6 w-6 shrink-0" />
-			<span>Please connect to a network with internet access to perform a firmware update.</span>
+			<div class="flex flex-col">
+				<span class="font-bold">Unable to fetch firmware releases</span>
+				<span class="text-sm">
+					{errorMessage || 'Backend cannot reach GitHub. Check internet connection and firewall settings.'}
+				</span>
+			</div>
 		</div>
 	{/await}
 </SettingsCard>

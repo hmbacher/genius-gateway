@@ -27,6 +27,8 @@
 #include <BatteryService.h>
 #include <FactoryResetService.h>
 #include <DownloadFirmwareService.h>
+#include <GitHubReleaseService.h>
+#include <GitHubReleaseEndpoint.h>
 #include <EventSocket.h>
 #include <MqttSettingsService.h>
 #include <MqttStatus.h>
@@ -61,6 +63,14 @@
 
 #ifndef APP_NAME
 #define APP_NAME "ESP32 SvelteKit Demo"
+#endif
+
+#ifndef GITHUB_REPO_OWNER
+#define GITHUB_REPO_OWNER "theelims"
+#endif
+
+#ifndef GITHUB_REPO_NAME
+#define GITHUB_REPO_NAME "ESP32-sveltekit"
 #endif
 
 #ifndef ESP32SVELTEKIT_RUNNING_CORE
@@ -234,6 +244,7 @@ private:
 #endif
 #if FT_ENABLED(FT_DOWNLOAD_FIRMWARE)
     DownloadFirmwareService _downloadFirmwareService;
+    GitHubReleaseEndpoint _githubReleaseEndpoint;
 #endif
 #if FT_ENABLED(FT_MQTT)
     MqttSettingsService _mqttSettingsService;

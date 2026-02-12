@@ -126,7 +126,11 @@ MQTT topic where alarm state is published when *any* smoke detector triggers an 
 
 **Enable Home Assistant Integration**
 
-Toggle to enable/disable publishing individual detector configurations and states (and alarm line controls if configured) with [Home Assistant MQTT Discovery :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } support.
+Toggle to enable/disable publishing with [Home Assistant MQTT Discovery :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } support for:
+
+- Gateway device with diagnostic sensors and remote controls
+- Individual detector configurations and states
+- Alarm line controls (if configured)
 
 **Home Assistant MQTT Discovery Prefix**
 
@@ -149,7 +153,7 @@ Home Assistant MQTT Discovery prefix. All device discovery messages will use thi
 Below the prefix input field, example discovery topics are displayed for smoke detectors and alarm lines (if configured).
 
 !!! abstract "MQTT Topics Reference"
-    More details about [Home Assistant Auto-Discovery](../api/mqtt-topics.md#home-assistant-auto-discovery) related MQTT Topics, including payload formats for [smoke detectors](../api/mqtt-topics.md#genius-devices-smoke-detectors) and [alarm lines](../api/mqtt-topics.md#alarm-lines), can be found in the [MQTT API](../api/mqtt-topics.md).
+    More details about [Home Assistant Auto-Discovery](../api/mqtt-topics.md#home-assistant-auto-discovery) related MQTT Topics, including payload formats for [smoke detectors](../api/mqtt-topics.md#smoke-detectors) and [alarm lines](../api/mqtt-topics.md#alarm-lines), can be found in the [MQTT API](../api/mqtt-topics.md).
 
 **Applying Changes**
 

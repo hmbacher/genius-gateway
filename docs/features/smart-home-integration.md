@@ -24,6 +24,8 @@ Genius Gateway offers two levels of smart home integration via MQTT, allowing yo
 | **Alarm Lines** | :material-close: | **:material-check:**<br>Individual Devices |
 | **Line Test Triggering** | :material-close: | **:material-check:**<br>Remote Control |
 | **Fire Alarm Triggering** | :material-close: | **:material-check:**<br>Remote Control |
+| **Gateway Monitoring** | :material-close: | **:material-check:**<br>Device Status & Diagnostics |
+| **Remote Gateway Control** | :material-close: | **:material-check:**<br>Restart & Settings |
 
 ## Simple Alarm Publishing
 
@@ -69,9 +71,10 @@ To enable simple alarm publishing:
 
 ### Home Assistant's MQTT Discovery
 
-The Home Assistant integration leverages [MQTT Discovery :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) to automatically register Genius Gateway components as individual devices and entities in Home Assistant. This integration supports two types of devices:
+The Home Assistant integration leverages [MQTT Discovery :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) to automatically register Genius Gateway components as individual devices and entities in Home Assistant. This integration supports three types of devices:
 
-- **[Genius Devices (Smoke Detectors)](#genius-devices-smoke-detectors)** - Individual smoke detector monitoring with binary sensors
+- **[Gateway Device](#gateway-device)** - Gateway monitoring and remote control with diagnostic sensors, buttons, and switches
+- **[Smoke Detectors](#smoke-detectors)** - Individual smoke detector monitoring with binary sensors
 - **[Alarm Lines](#alarm-lines)** - Remote control and status monitoring with buttons and sensors
 
 Home Assistant's MQTT Discovery allows devices to automatically register themselves by publishing configuration messages to specific topics. When Genius Gateway publishes discovery messages, Home Assistant automatically creates entities without any manual configuration.
@@ -94,7 +97,146 @@ mqtt:
   discovery_prefix: homeassistant  # Must match Genius Gateway prefix
 ```
 
-## Genius Devices (Smoke Detectors)
+## Gateway Device
+
+### Overview
+
+The Genius Gateway itself is automatically published to Home Assistant as a device when Home Assistant Integration is enabled. This provides comprehensive monitoring and remote control capabilities for the gateway itself.
+
+The gateway device registers with:
+
+- **Device Information** - Manufacturer, model, firmware version, and web interface link
+- **2 Diagnostic Sensors** - Real-time system health monitoring
+- **1 Restart Button** - Remote restart capability
+- **4 Configuration Switches** - Remote settings control
+- **1 Update Entity** - Firmware update management with automatic version checking
+
+This integration enables proactive monitoring, remote maintenance, and dynamic configuration without requiring physical access to the gateway.
+
+### Entities Overview
+
+| Entity Type | Name | Purpose | Update Interval | Category |
+|-------------|------|---------|-----------------|----------|
+| **Sensor** | Status | Device registration in Home Assistant | On connect | diagnostic |
+| **Sensor** | Free Heap | Memory usage monitoring (percentage) | Every 60 seconds | diagnostic |
+| **Sensor** | Core Temperature | Internal temperature monitoring (°C) | Every 60 seconds | diagnostic |
+| **Button** | Restart | Trigger gateway restart remotely | On demand | config |
+| **Switch** | Alert on Unknown Detectors | Enable/disable processing of unknown detectors | On change | config |
+| **Switch** | Add Line from Commissioning | Auto-add lines from commissioning packets | On change | config |
+| **Switch** | Add Line from Alarm | Auto-add lines from alarm packets | On change | config |
+| **Switch** | Add Line from Line Test | Auto-add lines from line test packets | On change | config |
+| **Update** | Firmware Update | Automatic version checking and OTA updates | Every 6 hours | config |
+
+### Monitoring Capabilities
+
+#### System Health Monitoring
+
+**Free Heap Memory**
+  
+- Displays available heap memory as percentage of total heap
+- Updated every 60 seconds
+- Useful for detecting memory leaks or resource exhaustion
+- Can trigger alerts when memory drops below threshold
+
+**Core Temperature**
+
+- Monitors ESP32 internal temperature sensor
+- Updated every 60 seconds
+- Helps identify thermal issues or inadequate cooling
+- Can trigger alerts when temperature exceeds safe operating range
+
+#### Device Status
+
+The gateway automatically reports its online/offline status to Home Assistant:
+
+- **Online** - Gateway connected to MQTT broker and operating normally
+- **Offline** - Gateway disconnected (shown via MQTT Last Will and Testament)
+
+### Remote Control Capabilities
+
+#### Restart Button
+
+Remote restart functionality eliminates the need for physical access to the gateway:
+
+- **Use Case:** Apply configuration changes that require restart
+- **Use Case:** Recover from transient issues without site visit
+- **Use Case:** Scheduled maintenance/restart via automation
+
+#### Configuration Switches
+
+Four switches provide remote control of key gateway settings. For detailed explanations of each setting, see [Gateway Settings](gateway-settings.md):
+
+- **[Alert on Unknown Detectors](gateway-settings.md#process-alerts-from-unknown-smoke-detectors)** - Control processing of alerts from unregistered smoke detectors
+- **[Add Line from Commissioning](gateway-settings.md#add-alarm-line-from-commissioning)** - Auto-discover alarm lines during detector commissioning
+- **[Add Line from Alarm](gateway-settings.md#add-alarm-line-from-alarm)** - Auto-discover alarm lines during alarm events
+- **[Add Line from Line Test](gateway-settings.md#add-alarm-line-from-line-test)** - Auto-discover alarm lines during line tests
+
+!!! info "Bidirectional Synchronization"
+    All switch states are synchronized bidirectionally between Home Assistant and the gateway web interface. Changes made in either location are immediately reflected in the other.
+
+#### Firmware Updates
+
+The gateway includes automatic firmware update capability with Home Assistant integration:
+
+- **Automatic Version Checking** - Gateway checks for new releases
+- **Update Notification** - Home Assistant shows "Update Available" badge when new version is released
+- **Release Notes** - Direct link to GitHub releases for changelog details
+- **One-Click Installation** - Install updates directly from Home Assistant
+- **Progress Tracking** - Monitor installation progress via Home Assistant
+- **Automatic Restart** - Gateway restarts automatically after successful installation
+
+!!! warning "Requirements"
+    Firmware updates require an active internet connection. The gateway must be able to reach `github.com` and `objects.githubusercontent.com`.
+
+### Home Assistant Visual Integration
+
+The gateway device appears alongside smoke detectors and alarm lines in Home Assistant's device registry.
+
+![Genius Gateway Device](../assets/images/doc/ha/ha-genius-gateway-device.png)
+*The central Genius Gateway device with configuration options and system values, along with linked smoke detectors and alarm lines*
+
+### Automation Examples
+
+#### Low Memory Alert
+
+Monitor heap memory and send notification when critically low:
+
+```yaml
+automation:
+  - alias: "Gateway Low Memory Warning"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.genius_gateway_free_heap
+        below: 30
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Gateway Memory Low"
+          message: "Genius Gateway free heap: {{ states('sensor.genius_gateway_free_heap') }}%"
+```
+
+#### High Temperature Alert
+
+Monitor core temperature and trigger alert if overheating:
+
+```yaml
+automation:
+  - alias: "Gateway High Temperature Warning"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.genius_gateway_core_temperature
+        above: 60
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Gateway Overheating"
+          message: "Genius Gateway temperature: {{ states('sensor.genius_gateway_core_temperature') }}°C"
+```
+
+!!! abstract "Technical Details"
+    See [MQTT API - Gateway Device](../api/mqtt-topics.md#gateway-device) for complete topic structure, payload formats, and detailed configuration examples.
+
+## Smoke Detectors
 
 ### Overview
 
@@ -125,7 +267,7 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 *Complete device information with manufacturer details, model identification, and assigned area for automation purposes*
 
 !!! abstract "Technical Details"
-    See [MQTT API - Genius Devices](../api/mqtt-topics.md#genius-devices-smoke-detectors) for complete topic structure, payload formats, and configuration examples.
+    See [MQTT API - Smoke Detectors](../api/mqtt-topics.md#smoke-detectors) for complete topic structure, payload formats, and configuration examples.
 
 ## Alarm Lines
 
