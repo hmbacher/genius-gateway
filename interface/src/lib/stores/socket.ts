@@ -95,7 +95,7 @@ function createWebSocket() {
 
 	function resetUnresponsiveCheck() {
 		clearTimeout(unresponsiveTimeoutId);
-		unresponsiveTimeoutId = setTimeout(() => disconnect('unresponsive'), 2000);
+		unresponsiveTimeoutId = setTimeout(() => disconnect('unresponsive'), 10000);
 	}
 
 	function send(msg: unknown) {
