@@ -34,6 +34,7 @@ ESP32SvelteKit::ESP32SvelteKit(PsychicHttpServer *server, unsigned int numberEnd
 #endif
 #if FT_ENABLED(FT_DOWNLOAD_FIRMWARE)
                                                                                           _downloadFirmwareService(server, &_securitySettingsService, &_socket),
+                                                                                          _githubReleaseEndpoint(server, &_securitySettingsService),
 #endif
 #if FT_ENABLED(FT_MQTT)
                                                                                           _mqttSettingsService(server, &ESPFS, &_securitySettingsService),

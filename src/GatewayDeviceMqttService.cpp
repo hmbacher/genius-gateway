@@ -460,19 +460,19 @@ void GatewayDeviceMqttService::_publishSettingSwitches()
     String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
     String baseTopic = discoveryPrefix + "genius-gateway/" + _gatewayDeviceId;
     
-    // Define switch configurations: {unique_suffix, display_name, icon, setting_key}
+    // Define switch configurations using shared JSON state topic
     struct SwitchConfig {
         const char* suffix;
         const char* name;
         const char* icon;
-        bool state;
+        const char* jsonKey;
     };
     
     SwitchConfig switches[] = {
-        {"alert_unknown", "Alert on Unknown Detectors", "mdi:toggle-switch-off-outline", _cachedGatewaySettings.alertOnUnknownDetectors},
-        {"line_commissioning", "Add Line from Commissioning", "mdi:toggle-switch-off-outline", _cachedGatewaySettings.addALarmLineFromCommissioningPacket},
-        {"line_alarm", "Add Line from Alarm", "mdi:toggle-switch-off-outline", _cachedGatewaySettings.addAlarmLineFromAlarmPacket},
-        {"line_test", "Add Line from Line Test", "mdi:toggle-switch-off-outline", _cachedGatewaySettings.addAlarmLineFromLineTestPacket}
+        {"alert_unknown", "Alert on Unknown Detectors", "mdi:toggle-switch-off-outline", "alert_unknown"},
+        {"line_commissioning", "Add Line from Commissioning", "mdi:toggle-switch-off-outline", "line_commissioning"},
+        {"line_alarm", "Add Line from Alarm", "mdi:toggle-switch-off-outline", "line_alarm"},
+        {"line_test", "Add Line from Line Test", "mdi:toggle-switch-off-outline", "line_test"}
     };
     
     for (const auto& sw : switches)
@@ -483,8 +483,9 @@ void GatewayDeviceMqttService::_publishSettingSwitches()
         config["~"] = baseTopic;
         config["name"] = sw.name;
         config["unique_id"] = _gatewayDeviceId + "_" + sw.suffix;
-        config["state_topic"] = "~/" + String(sw.suffix) + "/state";
-        config["command_topic"] = "~/" + String(sw.suffix) + "/set";
+        config["state_topic"] = "~/gateway/state";
+        config["value_template"] = "{{ value_json." + String(sw.jsonKey) + " }}";
+        config["command_topic"] = "~/gateway/switch/" + String(sw.suffix) + "/set";
         config["payload_on"] = "ON";
         config["payload_off"] = "OFF";
         config["state_on"] = "ON";
@@ -500,17 +501,15 @@ void GatewayDeviceMqttService::_publishSettingSwitches()
         if (_mqttClient->publish(configTopic.c_str(), 0, true, payload.c_str()) != -1)
         {
             ESP_LOGV(TAG, "Published switch config: %s", sw.name);
-            
-            // Publish initial state
-            String stateTopic = baseTopic + "/" + sw.suffix + "/state";
-            String statePayload = sw.state ? "ON" : "OFF";
-            _mqttClient->publish(stateTopic.c_str(), 0, true, statePayload.c_str());
         }
         else
         {
             ESP_LOGE(TAG, "Failed to publish switch config: %s", sw.name);
         }
     }
+    
+    // Publish initial combined state
+    _publishSettingSwitchStates();
 }
 
 void GatewayDeviceMqttService::_publishSettingSwitchStates()
@@ -524,25 +523,24 @@ void GatewayDeviceMqttService::_publishSettingSwitchStates()
     String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
     String baseTopic = discoveryPrefix + "genius-gateway/" + _gatewayDeviceId;
     
-    // Publish states for all switches
-    struct SwitchState {
-        const char* suffix;
-        bool state;
-    };
+    // Create single JSON state message with all switch states
+    JsonDocument stateDoc;
+    stateDoc["alert_unknown"] = _cachedGatewaySettings.alertOnUnknownDetectors ? "ON" : "OFF";
+    stateDoc["line_commissioning"] = _cachedGatewaySettings.addALarmLineFromCommissioningPacket ? "ON" : "OFF";
+    stateDoc["line_alarm"] = _cachedGatewaySettings.addAlarmLineFromAlarmPacket ? "ON" : "OFF";
+    stateDoc["line_test"] = _cachedGatewaySettings.addAlarmLineFromLineTestPacket ? "ON" : "OFF";
     
-    SwitchState switches[] = {
-        {"alert_unknown", _cachedGatewaySettings.alertOnUnknownDetectors},
-        {"line_commissioning", _cachedGatewaySettings.addALarmLineFromCommissioningPacket},
-        {"line_alarm", _cachedGatewaySettings.addAlarmLineFromAlarmPacket},
-        {"line_test", _cachedGatewaySettings.addAlarmLineFromLineTestPacket}
-    };
+    String statePayload;
+    serializeJson(stateDoc, statePayload);
     
-    for (const auto& sw : switches)
+    String stateTopic = baseTopic + "/gateway/state";
+    if (_mqttClient->publish(stateTopic.c_str(), 0, true, statePayload.c_str()) != -1)
     {
-        String stateTopic = baseTopic + "/" + sw.suffix + "/state";
-        String statePayload = sw.state ? "ON" : "OFF";
-        _mqttClient->publish(stateTopic.c_str(), 0, true, statePayload.c_str());
-        ESP_LOGV(TAG, "Published switch state: %s = %s", sw.suffix, statePayload.c_str());
+        ESP_LOGV(TAG, "Published combined switch states: %s", statePayload.c_str());
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to publish switch states");
     }
 }
 
@@ -650,7 +648,7 @@ void GatewayDeviceMqttService::_subscribeToCommands()
     
     for (const auto& sw : switches)
     {
-        String cmdTopic = baseTopic + "/" + sw.suffix + "/set";
+        String cmdTopic = baseTopic + "/gateway/switch/" + sw.suffix + "/set";
         _mqttClient->onTopic(cmdTopic.c_str(), 0, 
             [this, settingName = String(sw.name)](char *topic, char *payload, int retain, int qos, bool dup)
             {
@@ -693,28 +691,46 @@ void GatewayDeviceMqttService::_onSettingSwitchCommand(const char *settingName, 
     ESP_LOGI(TAG, "Received switch command for '%s': %s", settingName, newValue ? "ON" : "OFF");
     
     // Update gateway settings via StatefulService
+    // This will automatically trigger all update handlers including EventEndpoint for WebSocket sync
     _gatewaySettingsService->update([settingName, newValue](GatewaySettings &settings)
                                     {
                                         String settingNameStr = String(settingName);
+                                        bool changed = false;
                                         
                                         if (settingNameStr == "alert_on_unknown_detectors")
                                         {
-                                            settings.alertOnUnknownDetectors = newValue;
+                                            if (settings.alertOnUnknownDetectors != newValue)
+                                            {
+                                                settings.alertOnUnknownDetectors = newValue;
+                                                changed = true;
+                                            }
                                         }
                                         else if (settingNameStr == "add_alarm_line_from_commissioning_packet")
                                         {
-                                            settings.addALarmLineFromCommissioningPacket = newValue;
+                                            if (settings.addALarmLineFromCommissioningPacket != newValue)
+                                            {
+                                                settings.addALarmLineFromCommissioningPacket = newValue;
+                                                changed = true;
+                                            }
                                         }
                                         else if (settingNameStr == "add_alarm_line_from_alarm_packet")
                                         {
-                                            settings.addAlarmLineFromAlarmPacket = newValue;
+                                            if (settings.addAlarmLineFromAlarmPacket != newValue)
+                                            {
+                                                settings.addAlarmLineFromAlarmPacket = newValue;
+                                                changed = true;
+                                            }
                                         }
                                         else if (settingNameStr == "add_alarm_line_from_line_test_packet")
                                         {
-                                            settings.addAlarmLineFromLineTestPacket = newValue;
+                                            if (settings.addAlarmLineFromLineTestPacket != newValue)
+                                            {
+                                                settings.addAlarmLineFromLineTestPacket = newValue;
+                                                changed = true;
+                                            }
                                         }
                                         
-                                        return StateUpdateResult::CHANGED;
+                                        return changed ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
                                     }, 
                                     "mqtt");
 }

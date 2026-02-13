@@ -20,7 +20,6 @@
 	import type { RSSI } from '$lib/types/models';
 	import type { Battery } from '$lib/types/models';
 	import type { OTAStatus } from '$lib/types/models';
-	import type { DownloadOTA } from '$lib/types/models';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { jsonDateReviver } from '$lib/utils/misc';
 	import type { GeniusDevices, AlarmState } from '$lib/types/models';

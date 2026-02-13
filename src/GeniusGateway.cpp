@@ -111,14 +111,14 @@ void GeniusGateway::begin()
 
     /* Initialize Gateway MQTT Settings Service first - other services depend on its settings */
     _gatewayMqttSettingsService.begin();
+    /* Initialize Gateway Settings Service - must be before Gateway Device MQTT Service */
+    _gatewaySettings.begin();
     /* Initialize Gateway Device MQTT Service */
     _gatewayDeviceMqttService.begin();
     /* Initialize Gateway Devices Service */
     _geniusDevices.begin();
     /* Initialize Alarm Lines Service */
     _alarmLines.begin();
-    /* Initialize Gateway Settings Service */
-    _gatewaySettings.begin();
     /* Initialize WS Logger */
     _wsLogger.begin();
     /* Initialize Packet Vizualizer Settings */

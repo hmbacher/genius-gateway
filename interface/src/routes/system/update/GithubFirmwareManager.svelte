@@ -13,18 +13,20 @@
 	import CloudDown from '~icons/tabler/cloud-download';
 	import Cancel from '~icons/tabler/x';
 	import Prerelease from '~icons/tabler/test-pipe';
-	import Error from '~icons/tabler/circle-x';
+	import ErrorIcon from '~icons/tabler/circle-x';
 	import { compareVersions } from 'compare-versions';
 	import FirmwareUpdateDialog from '$lib/components/FirmwareUpdateDialog.svelte';
-	import { assets } from '$app/paths';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
 	import Check from '~icons/tabler/check';
 	import { telemetry } from '$lib/stores/telemetry';
 
 	let errorMessage: string = $state('');
 
+	// Store promise outside of $state to prevent re-render loops
+	const githubPromise = getGithubAPI();
+
 	async function getGithubAPI() {
-		errorMessage = '';
+		let localError = '';
 		try {
 			// Use backend endpoint instead of direct GitHub API call
 			const githubResponse = await fetch('/rest/githubRelease?all=true', {
@@ -36,31 +38,32 @@
 			});
 			
 			if (!githubResponse.ok) {
-				errorMessage = `Backend returned HTTP ${githubResponse.status}`;
-				throw new Error(errorMessage);
+				localError = `Backend returned HTTP ${githubResponse.status}`;
+				throw new Error(localError);
 			}
 			
 			const results = await githubResponse.json();
 			
 			// Check if it's an error response
 			if (results.success === false) {
-				errorMessage = results.error || 'Backend could not reach GitHub API';
-				throw new Error(errorMessage);
+				localError = results.error || 'Backend could not reach GitHub API';
+				throw new Error(localError);
 			}
 			
 			// Check if we got an array
 			if (!Array.isArray(results) || results.length === 0) {
-				errorMessage = 'No releases found in repository';
-				throw new Error(errorMessage);
+				localError = 'No releases found in repository';
+				throw new Error(localError);
 			}
 			
 			return results;
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : 'Unknown error';
-			if (!errorMessage) errorMessage = msg;
+			if (!localError) localError = msg;
+			errorMessage = localError;
 			console.error('GitHub releases fetch error:', error);
-			notifications.error(`Failed to fetch releases: ${errorMessage}`, 6000);
-			throw new Error(errorMessage);
+			notifications.error(`Failed to fetch releases: ${localError}`, 6000);
+			throw error;
 		}
 	}
 
@@ -127,7 +130,7 @@
 	{#snippet title()}
 		<span>Github Firmware Manager</span>
 	{/snippet}
-	{#await getGithubAPI()}
+	{#await githubPromise}
 		<Spinner />
 	{:then githubReleases}
 		<div class="alert alert-info">
@@ -194,7 +197,7 @@
 		</div>
 	{:catch error}
 		<div class="alert alert-error shadow-lg">
-			<Error class="h-6 w-6 shrink-0" />
+			<ErrorIcon class="h-6 w-6 shrink-0" />
 			<div class="flex flex-col">
 				<span class="font-bold">Unable to fetch firmware releases</span>
 				<span class="text-sm">

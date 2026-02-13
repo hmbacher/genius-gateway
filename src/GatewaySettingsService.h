@@ -32,6 +32,7 @@
 
 #include <FSPersistence.h>
 #include <HttpEndpoint.h>
+#include <EventEndpoint.h>
 #include <JsonUtils.h>
 #include <SecurityManager.h>
 #include <PsychicHttp.h>
@@ -40,6 +41,7 @@
 
 #define GATEWAY_SETTINGS_FILE "/config/gateway-settings.json"  ///< Configuration file path
 #define GATEWAY_SETTINGS_SERVICE_PATH "/rest/gateway-settings" ///< REST API service endpoint path
+#define GATEWAY_SETTINGS_EVENT "gateway-settings" ///< WebSocket event name for settings synchronization
 
 #define GATEWAY_SETTINGS_STR_ALERT_ON_UNKNOWN_DETECTORS "alert_on_unknown_detectors"                             ///< JSON key for unknown detector alerts
 #define GATEWAY_SETTINGS_STR_ADD_ALARM_LINE_FROM_COMMISSIONING_PACKET "add_alarm_line_from_commissioning_packet" ///< JSON key for commissioning packet line addition
@@ -167,6 +169,7 @@ public:
 
 private:
     HttpEndpoint<GatewaySettings> _httpEndpoint;   ///< REST API endpoint handler
+    EventEndpoint<GatewaySettings> _eventEndpoint; ///< WebSocket event endpoint for real-time synchronization
     FSPersistence<GatewaySettings> _fsPersistence; ///< File system persistence handler
 };
 

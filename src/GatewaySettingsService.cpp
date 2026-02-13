@@ -36,6 +36,11 @@ GatewaySettingsService::GatewaySettingsService(ESP32SvelteKit *sveltekit) : _htt
                                                                                           GATEWAY_SETTINGS_SERVICE_PATH,
                                                                                           sveltekit->getSecurityManager(),
                                                                                           AuthenticationPredicates::IS_ADMIN),
+                                                                            _eventEndpoint(GatewaySettings::read,
+                                                                                          GatewaySettings::update,
+                                                                                          this,
+                                                                                          sveltekit->getSocket(),
+                                                                                          GATEWAY_SETTINGS_EVENT),
                                                                             _fsPersistence(GatewaySettings::read,
                                                                                            GatewaySettings::update,
                                                                                            this,
@@ -47,5 +52,6 @@ GatewaySettingsService::GatewaySettingsService(ESP32SvelteKit *sveltekit) : _htt
 void GatewaySettingsService::begin()
 {
     _httpEndpoint.begin();
+    _eventEndpoint.begin();
     _fsPersistence.readFromFS();
 }

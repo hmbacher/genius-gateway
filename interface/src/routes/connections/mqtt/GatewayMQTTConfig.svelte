@@ -33,11 +33,26 @@
 		// MQTT topics must not be empty, must not contain wildcards (+ or #), and must not contain null character
 		if (!topic || typeof topic !== 'string') return false;
 		if (topic.length < 1 || topic.length > 128) return false;
+		
+		// Only allow alphanumeric characters, hyphens, underscores, dots, and forward slashes
+		const validCharPattern = /^[a-zA-Z0-9\-_.\/]+$/;
+		if (!validCharPattern.test(topic)) return false;
+		
+		// Wildcards and null characters are not allowed
 		if (topic.includes('+') || topic.includes('#') || topic.includes('\u0000')) return false;
+		
 		// Topics must not start or end with a slash, but can contain slashes
 		if (topic.startsWith('/') || topic.endsWith('/')) return false;
+		
 		// No empty topic levels (i.e., no double slashes)
 		if (topic.includes('//')) return false;
+		
+		// Each topic level must not be empty and must not contain only whitespace
+		const levels = topic.split('/');
+		for (const level of levels) {
+			if (level.length === 0 || level.trim().length === 0) return false;
+		}
+		
 		return true;
 	}
 
@@ -45,11 +60,32 @@
 		// Discovery prefix validation: allows trailing slash, rejects leading slash
 		if (!prefix || typeof prefix !== 'string') return false;
 		if (prefix.length < 1 || prefix.length > 64) return false;
-		if (prefix.includes('+') || prefix.includes('#') || prefix.includes('\u0000')) return false;
+		
 		// Must not start with slash
 		if (prefix.startsWith('/')) return false;
+		
 		// No empty topic levels (i.e., no double slashes)
 		if (prefix.includes('//')) return false;
+		
+		// Only allow alphanumeric characters, hyphens, underscores, dots, and forward slashes
+		// This regex ensures only valid MQTT topic characters are used
+		const validCharPattern = /^[a-zA-Z0-9\-_.\/]+$/;
+		if (!validCharPattern.test(prefix)) return false;
+		
+		// Wildcards and null characters are not allowed
+		if (prefix.includes('+') || prefix.includes('#') || prefix.includes('\u0000')) return false;
+		
+		// Remove trailing slash for additional validation
+		const prefixWithoutTrailingSlash = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+		
+		// Each topic level must not be empty and must not contain only whitespace
+		if (prefixWithoutTrailingSlash) {
+			const levels = prefixWithoutTrailingSlash.split('/');
+			for (const level of levels) {
+				if (level.length === 0 || level.trim().length === 0) return false;
+			}
+		}
+		
 		return true;
 	}
 
@@ -85,13 +121,20 @@
 
 	async function postGatewayMQTTSettings() {
 		try {
+			// Ensure discovery prefix has trailing slash as it's a path prefix
+			const settingsToSend = { ...mqttSettings };
+			if (settingsToSend.HAIntegrationEnabled && settingsToSend.HAMQTTDiscoveryPrefix && 
+			    !settingsToSend.HAMQTTDiscoveryPrefix.endsWith('/')) {
+				settingsToSend.HAMQTTDiscoveryPrefix += '/';
+			}
+			
 			const response = await fetch('/rest/mqtt-settings', {
 				method: 'POST',
 				headers: {
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(mqttSettings)
+				body: JSON.stringify(settingsToSend)
 			});
 			if (response.status == 200) {
 				notifications.success('MQTT settings updated.', 3000);
@@ -152,7 +195,7 @@
 					<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<label class="label" for="alarmTopic">
 							<span class="label-text-alt text-error text-xs text-wrap"
-								>MQTT topics must have valid syntax and 1 - {maxTopicPathLength} characters.</span
+								>Topic must be 1-{maxTopicPathLength} characters (a-z, A-Z, 0-9, -, _, ., /). No leading/trailing slashes.</span
 							>
 						</label>
 					</div>
@@ -209,7 +252,7 @@
 					<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<label class="label" for="haPath">
 							<span class="label-text-alt text-error text-xs text-wrap"
-								>MQTT topics must have valid syntax and 1 - {maxTopicPathLength} characters.</span
+								>Discovery prefix must be 1-{maxTopicPathLength} characters (a-z, A-Z, 0-9, -, _, ., /).</span
 							>
 						</label>
 					</div>

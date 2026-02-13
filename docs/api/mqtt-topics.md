@@ -354,8 +354,9 @@ Four switches provide remote control of gateway configuration settings that affe
   "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
   "name": "Alert on Unknown Detectors",
   "unique_id": "genius-gateway-1a2b3c4d5e6f_alert_unknown",
-  "state_topic": "~/alert_unknown/state",
-  "command_topic": "~/alert_unknown/set",
+  "state_topic": "~/gateway/state",
+  "value_template": "{{ value_json.alert_unknown }}",
+  "command_topic": "~/gateway/switch/alert_unknown/set",
   "payload_on": "ON",
   "payload_off": "OFF",
   "state_on": "ON",
@@ -370,23 +371,40 @@ Four switches provide remote control of gateway configuration settings that affe
 
 **:material-format-list-bulleted: Key Fields**
 
-- `state_topic` - Topic publishing current switch state
-- `command_topic` - Topic accepting switch commands
+- `state_topic` - Shared JSON topic publishing all switch states
+- `value_template` - Template to extract specific switch state from JSON
+- `command_topic` - Individual topic accepting switch commands
 - `payload_on` / `payload_off` - Payloads for ON/OFF commands
 - `state_on` / `state_off` - State values indicating ON/OFF
 - `entity_category` - Category (`config` for configuration entities)
 
-**State Topics:**
+**Central State Topic:**
 ```
-{discovery_prefix}genius-gateway/{gateway_device_id}/{switch_suffix}/state
-```
-
-**Command Topics:**
-```
-{discovery_prefix}genius-gateway/{gateway_device_id}/{switch_suffix}/set
+{discovery_prefix}genius-gateway/{gateway_device_id}/gateway/state
 ```
 
-**:material-code-json: State/Command Payloads**
+**:material-code-json: State Payload (JSON with all switches)**
+```json
+{
+  "alert_unknown": "ON",
+  "line_commissioning": "OFF",
+  "line_alarm": "OFF",
+  "line_test": "ON"
+}
+```
+
+**Individual Command Topics:**
+```
+{discovery_prefix}genius-gateway/{gateway_device_id}/gateway/switch/{switch_suffix}/set
+```
+
+**Examples:**
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/alert_unknown/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/line_commissioning/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/line_alarm/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/line_test/set`
+
+**:material-code-json: Command Payloads**
 
 Turn setting ON:
 ```
@@ -402,9 +420,9 @@ Turn setting OFF:
 
 - Config published when MQTT connection is established
 - Config re-published when MQTT settings change
-- State published immediately after config (initial state)
-- State published when setting changes (via web interface or MQTT)
-- Gateway subscribes to all command topics automatically
+- **Combined JSON state published immediately after configs (initial state)**
+- **Single JSON state published when any setting changes** (via web interface or MQTT)
+- Gateway subscribes to all individual command topics automatically
 
 **:material-home-assistant: Home Assistant Integration**
 
@@ -413,9 +431,13 @@ Turn setting OFF:
 - State synchronization between Home Assistant and gateway web interface
 - Can be used in automations for dynamic behavior control
 - Useful for temporarily enabling/disabling features without accessing web UI
+- **Efficient state updates** - All switches updated with a single MQTT message
 
 !!! info "Setting Synchronization"
     Changes made via Home Assistant switches are immediately reflected in the gateway web interface and vice versa. All settings are synchronized bidirectionally.
+
+!!! tip "Efficient State Updates"
+    All four configuration switches share a single JSON state topic. When any setting changes (even just one), all states are published in a single MQTT message, reducing network traffic and ensuring atomic updates.
 
 ---
 
