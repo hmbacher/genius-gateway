@@ -93,7 +93,9 @@ void setup()
     // Increase stack size to handle larger headers
     server.config.stack_size = 8192;  // Default is 4096
     // Allow more simultaneous connections  
-    server.config.max_open_sockets = 8;  // Default is 7
+    server.config.max_open_sockets = 13;  // Default is 7, increased for SPA parallel loading
+    // Enable LRU purge to automatically close idle connections when needed
+    server.config.lru_purge_enable = true;  // Critical for handling multiple parallel requests
     // Increase max header length
     server.config.max_req_hdr_len = 2048; // Default is 1024
     // Increase max URI length

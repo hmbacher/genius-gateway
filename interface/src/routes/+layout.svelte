@@ -153,9 +153,13 @@
 				}
 			});
 
-			geniusDevices.devices = (
-				JSON.parse(await response.text(), jsonDateReviver) as GeniusDevices
-			).devices;
+			if (response.status === 200) {
+				geniusDevices.devices = (
+					JSON.parse(await response.text(), jsonDateReviver) as GeniusDevices
+				).devices;
+			} else {
+				console.error('Failed to fetch Genius smoke detectors. Status:', response.status);
+			}
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -170,6 +174,14 @@
 		await getGeniusDevices();
 	};
 
+	/* Handles successful sign-in by initializing the socket connection
+	 * and loading the Genius devices from the backend.
+	 */
+	const handleSignIn = async () => {
+		initSocket();
+		await getGeniusDevices();
+	};
+
 	let menuOpen = $state(false);
 </script>
 
@@ -178,7 +190,7 @@
 </svelte:head>
 
 {#if page.data.features.security && $user.bearer_token === ''}
-	<Login signIn={initSocket} />
+	<Login signIn={handleSignIn} />
 {:else}
 	<div class="drawer lg:drawer-open">
 		<input id="main-menu" type="checkbox" class="drawer-toggle" bind:checked={menuOpen} />
