@@ -9,7 +9,9 @@
 	import Cancel from '~icons/tabler/x';
 	import CloudDown from '~icons/tabler/cloud-download';
 	import CloudOff from '~icons/tabler/cloud-off';
+	import Loader from '~icons/tabler/loader-2';
 	import FirmwareUpdateDialog from '$lib/components/FirmwareUpdateDialog.svelte';
+	import { firmware } from '$lib/stores/firmware';
 	import { onMount } from 'svelte';
 
 	interface Props {
@@ -21,10 +23,12 @@
 	let firmwareVersion: string = $state('');
 	let firmwareDownloadLink: string;
 	let githubError: boolean = $state(false);
+	let loading: boolean = $state(true);
 
 	async function getGithubAPI() {
 		// Use backend endpoint instead of direct GitHub API call
 		const githubUrl = `/rest/githubRelease`;
+		loading = true;
 		try {
 			const response = await fetch(githubUrl, {
 				method: 'GET',
@@ -56,6 +60,9 @@
 			update = false;
 			firmwareVersion = '';
 
+			// Populate shared firmware store for other components
+			firmware.setFromGithubRelease(results);
+
 			if (results.update_available) {
 				update = true;
 				firmwareVersion = results.tag_name;
@@ -67,6 +74,8 @@
 			notifications.error(`Cannot reach backend: ${errorMsg}`, 5000);
 			console.error('Update check error:', error);
 			githubError = true;
+		} finally {
+			loading = false;
 		}
 	}
 
@@ -115,9 +124,14 @@
 	}
 </script>
 
-{#if update}
+{#if loading}
+	<div class="tooltip tooltip-left" data-tip="Checking for updates...">
+		<Loader class="h-7 w-7 animate-spin opacity-50" />
+	</div>
+{:else if update}
 	<button
-		class="btn btn-square btn-ghost h-9 w-9"
+		class="btn btn-square btn-ghost h-9 w-9 tooltip tooltip-left"
+		data-tip="Update to version {firmwareVersion}"
 		onclick={() => confirmGithubUpdate(firmwareDownloadLink)}
 	>
 		<span

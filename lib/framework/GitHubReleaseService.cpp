@@ -98,6 +98,7 @@ GitHubReleaseInfo GitHubReleaseService::queryLatestRelease(
     }
     
     result.version = tagName;
+    result.name = doc["name"] | "";
     
     // Find download URL for the binary (look for .bin file in assets)
     JsonArray assets = doc["assets"];

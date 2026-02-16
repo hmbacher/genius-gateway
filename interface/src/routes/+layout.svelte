@@ -182,14 +182,16 @@
 {#if page.data.features.security && $user.bearer_token === ''}
 	<Login signIn={initSocket} />
 {:else}
-	<div class="drawer lg:drawer-open">
+	<div class="drawer h-screen overflow-hidden lg:drawer-open">
 		<input id="main-menu" type="checkbox" class="drawer-toggle" bind:checked={menuOpen} />
-		<div class="drawer-content flex flex-col">
+		<div class="drawer-content flex h-full flex-col">
 			<!-- Status bar content here -->
 			<Statusbar />
 
 			<!-- Main page content here -->
-			{@render children?.()}
+			<main class="flex-1 overflow-y-auto">
+				{@render children?.()}
+			</main>
 		</div>
 		<!-- Side Navigation -->
 		<div class="drawer-side z-30 shadow-lg">

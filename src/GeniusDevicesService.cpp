@@ -905,7 +905,7 @@ esp_err_t GeniusDevicesService::_publishDeviceConfig(const GeniusDevice &device)
     dev_jsonObj["name"] = "Rauchmelder";
     dev_jsonObj["serial_number"] = String(device.smokeDetector.sn);
     dev_jsonObj["suggested_area"] = device.location;
-    dev_jsonObj["via_device"] = GatewayDeviceMqttService::getGatewayIdentifier();
+    dev_jsonObj["via_device"] = "genius-gateway-" + SettingValue::getUniqueId();
     
     // Add configuration URL if we have a valid IP (IP was already checked above for entity_picture)
     if (IPUtils::isSet(localIP))

@@ -51,9 +51,10 @@ static void nofifyReceivedPacket() // !!! This function is called from ISR !!!
 GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->getServer()),
                                                           _securityManager(sveltekit->getSecurityManager()),
                                                           _mqttClient(sveltekit->getMqttClient()),
+                                                          _sveltekit(sveltekit),
                                                           _gatewayMqttSettingsService(sveltekit),
                                                           _gatewaySettings(sveltekit),
-                                                          _gatewayDeviceMqttService(_mqttClient, &_gatewayMqttSettingsService, &_gatewaySettings, sveltekit->getDownloadFirmwareService(), sveltekit->getSocket()),
+                                                          _gatewayDeviceMqttService(sveltekit->getHAService(), &_gatewayMqttSettingsService, &_gatewaySettings),
                                                           _geniusDevices(sveltekit, _mqttClient, &_gatewayMqttSettingsService),
                                                           _alarmLines(sveltekit, _mqttClient, &this->_cc1101Controller, &_gatewayMqttSettingsService),
                                                           _wsLogger(sveltekit),
@@ -109,6 +110,14 @@ void GeniusGateway::begin()
         ESP_LOGE(TAG, "RX task creation failed.");
     }
 
+    /* Configure HAService with app-specific device identity */
+    {
+        HAService *haService = _sveltekit->getHAService();
+        haService->setDeviceName("Genius Gateway");
+        haService->setManufacturer("Genius Gateway Project");
+        haService->setModel("Genius Gateway");
+    }
+
     /* Initialize Gateway MQTT Settings Service first - other services depend on its settings */
     _gatewayMqttSettingsService.begin();
     /* Initialize Gateway Settings Service - must be before Gateway Device MQTT Service */
@@ -136,8 +145,9 @@ void GeniusGateway::begin()
     /* Perform a full publish (all devices and states), if MQTT client connects. */
     _mqttClient->onConnect([this](bool /*sessionPresent*/)
                            {
-                               // Publish gateway device first (parent device must exist before children reference it)
-                               this->_gatewayDeviceMqttService.publishAll();
+                               // Publish all HA entities via HAService (triggers all registered callbacks
+                               // including GatewayDeviceMqttService, HADiagnosticService, HAUpdateService)
+                               this->_sveltekit->getHAService()->publishAll();
                                // Publish all devices (config and state)
                                this->_geniusDevices.mqttPublishAllDevices();
                                // Register alarm line MQTT topics and subscriptions

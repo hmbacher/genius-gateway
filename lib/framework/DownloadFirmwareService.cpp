@@ -12,6 +12,8 @@
  **/
 
 #include <DownloadFirmwareService.h>
+#include <WebSocketOTACallback.h>
+#include <RestartService.h>
 
 extern const uint8_t rootca_crt_bundle_start[] asm("_binary_src_certs_x509_crt_bundle_bin_start");
 extern const uint8_t rootca_crt_bundle_end[] asm("_binary_src_certs_x509_crt_bundle_bin_end");
@@ -55,20 +57,27 @@ const char *githubCACertificate = "-----BEGIN CERTIFICATE-----\n"
                                   "00u/I5sUKUErmgQfky3xxzlIPK1aEn8=\n"
                                   "-----END CERTIFICATE-----\n";
 
-static EventSocket *_socket = nullptr;
+// Static callback pointer for httpUpdate callbacks (set per-task)
+static OTAUpdateCallback *_otaCallback = nullptr;
 static int previousProgress = 0;
-static String *otaURL = nullptr;
-JsonDocument doc;
+
+// Parameter structure for updateTask
+struct OTATaskParams
+{
+    String url;
+    OTAUpdateCallback* callback;
+    
+    OTATaskParams(const String& u, OTAUpdateCallback* cb)
+        : url(u), callback(cb) {}
+};
 
 void update_started()
 {
-    String output;
-    doc["status"] = "preparing";
-    doc["progress"] = 0;
-    doc["bytes_written"] = 0;
-    doc["total_bytes"] = 0;
-    JsonObject jsonObject = doc.as<JsonObject>();
-    _socket->emitEvent(EVENT_OTA_UPDATE, jsonObject);
+    if (_otaCallback != nullptr)
+    {
+        _otaCallback->onUpdateStart();
+    }
+
     ESP_LOGI(SVK_TAG, "HTTP Update started");
 #ifdef SERIAL_INFO
     Serial.println("HTTP Update started");
@@ -77,28 +86,26 @@ void update_started()
 
 void update_progress(int currentBytes, int totalBytes)
 {
-    doc["status"] = "progress";
     int progress = ((currentBytes * 100) / totalBytes);
     if (progress > previousProgress)
     {
-        doc["progress"] = progress;
-        doc["bytes_written"] = currentBytes;
-        doc["total_bytes"] = totalBytes;
-        JsonObject jsonObject = doc.as<JsonObject>();
-        _socket->emitEvent(EVENT_OTA_UPDATE, jsonObject);
-        ESP_LOGV(SVK_TAG, "HTTP update process at %d of %d bytes... (%d %%)", currentBytes, totalBytes, progress);
+        if (_otaCallback != nullptr)
+        {
+            _otaCallback->onUpdateProgress(currentBytes, totalBytes);
+        }
+
+        ESP_LOGI(SVK_TAG, "HTTP update process at %d of %d bytes... (%d %%)", currentBytes, totalBytes, progress);
     }
     previousProgress = progress;
 }
 
 void update_finished()
 {
-    String output;
-    doc["status"] = "finished";
-    doc["progress"] = 100;
-    // Keep the last known bytes_written and total_bytes from progress
-    JsonObject jsonObject = doc.as<JsonObject>();
-    _socket->emitEvent(EVENT_OTA_UPDATE, jsonObject);
+    if (_otaCallback != nullptr)
+    {
+        _otaCallback->onUpdateFinish();
+    }
+
     ESP_LOGI(SVK_TAG, "HTTP Update successful - Restarting");
 #ifdef SERIAL_INFO
     Serial.println("HTTP Update successful - Restarting");
@@ -109,15 +116,28 @@ void update_finished()
 
 void updateTask(void *param)
 {
-    String url = *((String *)param);
-    delete (String *)param; // Clean up the allocated memory
+    OTATaskParams *params = (OTATaskParams *)param;
+    String url = params->url;
+    OTAUpdateCallback* callbackPtr = params->callback; // Store for cleanup
+    
+    // Set global callback pointer for update callbacks
+    _otaCallback = callbackPtr;
+    
+    delete params; // Clean up allocated memory
+    
+    // Reset progress tracking
+    previousProgress = 0;
 
     WiFiClientSecure client;
 
 #ifndef DOWNLOAD_OTA_SKIP_CERT_VERIFY
+    // Use certificate bundle for verification
+    size_t bundle_size = rootca_crt_bundle_end - rootca_crt_bundle_start;
+    ESP_LOGI(SVK_TAG, "CA Bundle: start=%p, end=%p, size=%zu bytes", 
+             rootca_crt_bundle_start, rootca_crt_bundle_end, bundle_size);
 
 #if ESP_ARDUINO_VERSION_MAJOR == 3
-    client.setCACertBundle(rootca_crt_bundle_start, rootca_crt_bundle_end - rootca_crt_bundle_start);
+    client.setCACertBundle(rootca_crt_bundle_start, bundle_size);
 #else
     client.setCACertBundle(rootca_crt_bundle_start);
 #endif
@@ -130,54 +150,71 @@ void updateTask(void *param)
     client.setTimeout(12000);
 
     httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-    httpUpdate.rebootOnUpdate(true);
+    httpUpdate.rebootOnUpdate(false); // Always manual reboot via RestartService
 
-    String output;
     httpUpdate.onStart(update_started);
     httpUpdate.onProgress(update_progress);
     httpUpdate.onEnd(update_finished);
 
     t_httpUpdate_return ret = httpUpdate.update(client, url.c_str());
-    JsonObject jsonObject;
 
     // Reduce task priority to allow other tasks to run
     vTaskPrioritySet(NULL, tskIDLE_PRIORITY + 1);
 
-    bool _emitEvent = false;
+    bool shouldEmitEvent = false;
+    String errorMessage;
 
     switch (ret)
     {
     case HTTP_UPDATE_FAILED:
+        errorMessage = httpUpdate.getLastErrorString();
+        shouldEmitEvent = true;
 
-        doc["status"] = "error";
-        doc["error"] = httpUpdate.getLastErrorString().c_str();
-        _emitEvent = true;
-
-        ESP_LOGE(SVK_TAG, "HTTP Update failed with error (%d): %s", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+        ESP_LOGE(SVK_TAG, "HTTP Update failed with error (%d): %s", httpUpdate.getLastError(), errorMessage.c_str());
 #ifdef SERIAL_INFO
-        Serial.printf("HTTP Update failed with error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+        Serial.printf("HTTP Update failed with error (%d): %s\n", httpUpdate.getLastError(), errorMessage.c_str());
 #endif
         break;
+        
     case HTTP_UPDATE_NO_UPDATES:
-
-        doc["status"] = "error";
-        doc["error"] = "Update failed, has same firmware version";
-        _emitEvent = true;
+        errorMessage = "Update failed, has same firmware version";
+        shouldEmitEvent = true;
 
         ESP_LOGE(SVK_TAG, "HTTP Update failed, has same firmware version");
 #ifdef SERIAL_INFO
         Serial.println("HTTP Update failed, has same firmware version");
 #endif
         break;
+        
+    case HTTP_UPDATE_OK:
+        ESP_LOGI(SVK_TAG, "HTTP Update successful");
+        
+        // restartNow() performs a graceful httpd_stop() with SO_LINGER,
+        // ensuring all pending WebSocket/HTTP frames are fully delivered
+        // before WiFi is disconnected and the device reboots.
+        RestartService::restartNow();
+        break;
     }
 
-    if (_emitEvent)
+    // Report errors via callback
+    if (shouldEmitEvent)
     {
-        jsonObject = doc.as<JsonObject>();
-        _socket->emitEvent(EVENT_OTA_UPDATE, jsonObject);
+        if (_otaCallback != nullptr)
+        {
+            _otaCallback->onUpdateError(errorMessage);
+        }
     }
 
-    // delay to allow the event to be sent out
+    // Clear callback pointer
+    _otaCallback = nullptr;
+
+    // Clean up callback if allocated on heap
+    if (callbackPtr != nullptr)
+    {
+        delete callbackPtr;
+    }
+
+    // Delay to allow events to be sent out
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
     vTaskDelete(NULL);
@@ -191,10 +228,33 @@ DownloadFirmwareService::DownloadFirmwareService(PsychicHttpServer *server,
 {
 }
 
+bool DownloadFirmwareService::startOTAUpdate(const String& url, OTAUpdateCallback* callback)
+{
+    ESP_LOGI(SVK_TAG, "Starting OTA from: %s", url.c_str());
+    
+    // Allocate memory for parameters on the heap
+    OTATaskParams *params = new OTATaskParams(url, callback);
+    
+    if (xTaskCreatePinnedToCore(
+            &updateTask,                // Function that should be called
+            "OTA_Update",               // Name of the task (for debugging)
+            OTA_TASK_STACK_SIZE,        // Stack size (bytes)
+            params,                     // Pass parameters
+            (configMAX_PRIORITIES - 1), // Pretty high task priority
+            NULL,                       // Task handle
+            1                           // Have it on application core
+            ) != pdPASS)
+    {
+        delete params; // Clean up if task creation fails
+        ESP_LOGE(SVK_TAG, "Couldn't create OTA update task");
+        return false;
+    }
+    
+    return true;
+}
+
 void DownloadFirmwareService::begin()
 {
-    ::_socket = _socket;
-
     if (!_socket->isEventValid(EVENT_OTA_UPDATE))
     {
         _socket->registerEvent(EVENT_OTA_UPDATE);
@@ -217,39 +277,27 @@ esp_err_t DownloadFirmwareService::downloadUpdate(PsychicRequest *request, JsonV
     }
 
     String downloadURL = json["download_url"];
-    ESP_LOGI(SVK_TAG, "Starting OTA from: %s", downloadURL.c_str());
-#ifdef SERIAL_INFO
-    Serial.println("Starting OTA from: " + downloadURL);
-#endif
 
-    doc["status"] = "preparing";
-    doc["progress"] = 0;
-    doc["bytes_written"] = 0;
-    doc["total_bytes"] = 0;
-    doc["error"] = "";
-
-    JsonObject jsonObject = doc.as<JsonObject>();
-    _socket->emitEvent(EVENT_OTA_UPDATE, jsonObject);
-
-    // Allocate memory for the URL on the heap
-    String *urlPtr = new String(downloadURL);
-
-    if (xTaskCreatePinnedToCore(
-            &updateTask,                // Function that should be called
-            "Update",                   // Name of the task (for debugging)
-            OTA_TASK_STACK_SIZE,        // Stack size (bytes)
-            urlPtr,                     // Pass reference to this class instance
-            (configMAX_PRIORITIES - 1), // Pretty high task priority
-            NULL,                       // Task handle
-            1                           // Have it on application core
-            ) != pdPASS)
+    // Send immediate feedback to Web UI before task starts
     {
-        delete urlPtr; // Clean up if task creation fails
-        ESP_LOGE(SVK_TAG, "Couldn't create download OTA task");
-#ifdef SERIAL_INFO
-        Serial.println("Couldn't create download OTA task");
-#endif
+        JsonDocument doc;
+        doc["status"] = "preparing";
+        doc["progress"] = 0;
+        doc["bytes_written"] = 0;
+        doc["total_bytes"] = 0;
+        doc["error"] = "";
+        JsonObject jsonObject = doc.as<JsonObject>();
+        _socket->emitEvent(EVENT_OTA_UPDATE, jsonObject);
+    }
+
+    // Create WebSocket callback for progress reporting
+    // httpUpdate always returns control to us for graceful restart via
+    // RestartService (WiFi disconnect + MDNS cleanup) instead of raw ESP.restart()
+    if (!startOTAUpdate(downloadURL, new WebSocketOTACallback(_socket)))
+    {
+        ESP_LOGE(SVK_TAG, "Failed to start OTA update");
         return request->reply(500);
     }
+    
     return request->reply(200);
 }

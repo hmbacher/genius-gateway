@@ -10,6 +10,7 @@
  *
  *   Copyright (C) 2018 - 2023 rjwats
  *   Copyright (C) 2023 - 2025 theelims
+ *   Copyright (C) 2025 hmbacher
  *
  *   All Rights Reserved. This software may be modified and distributed under
  *   the terms of the LGPL v3 license. See the LICENSE file for details.
@@ -30,18 +31,21 @@ public:
 
     void begin();
 
-    static void restartNow()
-    {
-        delay(250);
-        MDNS.end();
-        delay(100);
-        WiFi.disconnect(true);
-        delay(200);
-        ESP.restart();
-    }
+    /**
+     * @brief Gracefully shuts down the HTTP server and restarts the ESP.
+     *
+     * Performs a controlled shutdown sequence:
+     * 1. Stops the HTTP server (httpd_stop), which closes all sessions.
+     *    With SO_LINGER enabled, each close() blocks until the TCP send
+     *    buffer is flushed or the linger timeout (2s) expires.
+     * 2. Stops mDNS.
+     * 3. Disconnects WiFi and turns off the radio.
+     * 4. Restarts the ESP.
+     */
+    static void restartNow();
 
 private:
-    PsychicHttpServer *_server;
+    static PsychicHttpServer *_server;
     SecurityManager *_securityManager;
     esp_err_t restart(PsychicRequest *request);
 };

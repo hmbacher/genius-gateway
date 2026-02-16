@@ -1035,7 +1035,7 @@ void AlarmLinesService::_addDeviceInfo(JsonDocument &doc, const genius_alarm_lin
     device["name"] = "Alarm Line '" + line.name + "'";
     device["manufacturer"] = "Genius Gateway Project";
     device["model"] = "Genius Plus X Alarm Line";
-    device["via_device"] = GatewayDeviceMqttService::getGatewayIdentifier();
+    device["via_device"] = "genius-gateway-" + SettingValue::getUniqueId();
     
     // Get the current IP address and only add configuration_url if we have a valid IP
     IPAddress localIP = WiFi.localIP();

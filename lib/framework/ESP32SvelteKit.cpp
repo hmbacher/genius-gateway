@@ -36,6 +36,11 @@ ESP32SvelteKit::ESP32SvelteKit(PsychicHttpServer *server, unsigned int numberEnd
                                                                                           _downloadFirmwareService(server, &_securitySettingsService, &_socket),
                                                                                           _githubReleaseEndpoint(server, &_securitySettingsService),
 #endif
+#if FT_ENABLED(FT_HOME_ASSISTANT)
+                                                                                          _haService(_mqttSettingsService.getMqttClient()),
+                                                                                          _haUpdateService(&_haService, &_downloadFirmwareService, &_socket),
+                                                                                          _haDiagnosticService(&_haService),
+#endif
 #if FT_ENABLED(FT_MQTT)
                                                                                           _mqttSettingsService(server, &ESPFS, &_securitySettingsService),
                                                                                           _mqttStatus(server, &_mqttSettingsService, &_securitySettingsService),
@@ -175,6 +180,11 @@ void ESP32SvelteKit::begin()
 #if FT_ENABLED(FT_MQTT)
     _mqttSettingsService.begin();
     _mqttStatus.begin();
+#endif
+
+#if FT_ENABLED(FT_HOME_ASSISTANT)
+    _haUpdateService.begin();
+    _haDiagnosticService.begin();
 #endif
 
 #if FT_ENABLED(FT_SECURITY)

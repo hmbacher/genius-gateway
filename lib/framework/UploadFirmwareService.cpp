@@ -47,7 +47,7 @@ void UploadFirmwareService::begin()
     Update.onProgress([this](size_t progress, size_t total) {
         if (_socket && total > 0) {
             int percentComplete = (progress * 100) / total;
-            if (percentComplete > _previousProgress || progress == total) {
+            if (percentComplete > _previousProgress) {
                 JsonDocument doc;
                 doc["status"] = "progress";
                 doc["progress"] = percentComplete;
@@ -57,7 +57,7 @@ void UploadFirmwareService::begin()
                 JsonObject jsonObject = doc.as<JsonObject>();
                 _socket->emitEvent(EVENT_OTA_UPDATE, jsonObject);
                 
-                ESP_LOGV(SVK_TAG, "Firmware upload process at %d of %d bytes... (%d %%)", progress, total, percentComplete);
+                ESP_LOGI(SVK_TAG, "Firmware upload process at %d of %d bytes... (%d %%)", progress, total, percentComplete);
                 
                 _previousProgress = percentComplete;
             }
@@ -125,6 +125,9 @@ esp_err_t UploadFirmwareService::handleUpload(PsychicRequest *request,
 
     if (index == 0) // Are we at the start of a new upload?
     {
+        // Reset progress tracker for new upload
+        _previousProgress = 0;
+        
         // check details of the file, to see if its a valid bin or md5 file
         std::string fname(filename.c_str());
         auto position = fname.find_last_of(".");
@@ -278,7 +281,7 @@ esp_err_t UploadFirmwareService::uploadComplete(PsychicRequest *request)
     // if no error, send the success response
     if (_fileType == ft_firmware)
     {
-        // Emit finished event
+        // Emit finished event (100%)
         if (_socket)
         {
             JsonDocument doc;
@@ -286,17 +289,17 @@ esp_err_t UploadFirmwareService::uploadComplete(PsychicRequest *request)
             doc["progress"] = 100;
             JsonObject jsonObject = doc.as<JsonObject>();
             _socket->emitEvent(EVENT_OTA_UPDATE, jsonObject);
-            vTaskDelay(100 / portTICK_PERIOD_MS); // Give time for event to be sent
         }
         
-        ESP_LOGI(SVK_TAG, "Firmware upload successful - Restarting");
+        ESP_LOGI(SVK_TAG, "Firmware upload successful (100 %%) - Restarting");
 #ifdef SERIAL_INFO
         Serial.println("Firmware upload successful - Restarting");
 #endif
         
-        // Reset progress tracker for next upload
-        _previousProgress = 0;
-        
+        // Send HTTP 200 response, then perform graceful restart.
+        // restartNow() calls httpd_stop() with SO_LINGER enabled,
+        // which blocks until all TCP data (including this reply and
+        // the WebSocket "finished" event above) is ACK'd by the client.
         request->reply(200);
         RestartService::restartNow();
         return ESP_OK;
@@ -311,9 +314,6 @@ esp_err_t UploadFirmwareService::uploadComplete(PsychicRequest *request)
         {
             errorMsg = "Unknown update error";
         }
-        
-        // Reset progress tracker
-        _previousProgress = 0;
         
         ESP_LOGE(SVK_TAG, "Update error: %s", errorMsg.c_str());
 #ifdef SERIAL_INFO

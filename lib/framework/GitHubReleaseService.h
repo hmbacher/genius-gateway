@@ -25,6 +25,7 @@
 struct GitHubReleaseInfo
 {
     String version;     ///< Release version (without 'v' prefix)
+    String name;        ///< Release name from GitHub
     String downloadUrl; ///< URL to download the .bin file
     bool valid;         ///< Whether the release info is valid
     

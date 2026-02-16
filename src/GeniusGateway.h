@@ -125,6 +125,7 @@ private:
   SecurityManager *_securityManager;                      ///< Security manager instance
   EventSocket *_eventSocket;                              ///< WebSocket event manager
   PsychicMqttClient *_mqttClient;                         ///< MQTT client instance
+  ESP32SvelteKit *_sveltekit;                             ///< Framework instance (for HAService access)
   FeaturesService *_featureService;                       ///< Feature flags service
   GatewayMqttSettingsService _gatewayMqttSettingsService; ///< MQTT settings service
   GatewaySettingsService _gatewaySettings;                ///< Gateway settings service

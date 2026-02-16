@@ -49,6 +49,12 @@
 #include <PsychicHttp.h>
 #include <vector>
 
+#if FT_ENABLED(FT_HOME_ASSISTANT)
+#include <HomeAssistant/HAService.h>
+#include <HomeAssistant/HAUpdateService.h>
+#include <HomeAssistant/HADiagnosticService.h>
+#endif
+
 #ifdef EMBED_WWW
 #include <WWWData.h>
 #endif
@@ -197,6 +203,23 @@ public:
         return &_downloadFirmwareService;
     }
 
+#if FT_ENABLED(FT_HOME_ASSISTANT)
+    HAService *getHAService()
+    {
+        return &_haService;
+    }
+
+    HAUpdateService *getHAUpdateService()
+    {
+        return &_haUpdateService;
+    }
+
+    HADiagnosticService *getHADiagnosticService()
+    {
+        return &_haDiagnosticService;
+    }
+#endif
+
     HealthCheckService *getHealthCheckService()
     {
         return &_healthCheckService;
@@ -245,6 +268,11 @@ private:
 #if FT_ENABLED(FT_DOWNLOAD_FIRMWARE)
     DownloadFirmwareService _downloadFirmwareService;
     GitHubReleaseEndpoint _githubReleaseEndpoint;
+#endif
+#if FT_ENABLED(FT_HOME_ASSISTANT)
+    HAService _haService;
+    HAUpdateService _haUpdateService;
+    HADiagnosticService _haDiagnosticService;
 #endif
 #if FT_ENABLED(FT_MQTT)
     MqttSettingsService _mqttSettingsService;

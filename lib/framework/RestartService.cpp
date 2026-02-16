@@ -14,9 +14,12 @@
 
 #include <RestartService.h>
 
-RestartService::RestartService(PsychicHttpServer *server, SecurityManager *securityManager) : _server(server),
-                                                                                              _securityManager(securityManager)
+// Static member initialization
+PsychicHttpServer *RestartService::_server = nullptr;
+
+RestartService::RestartService(PsychicHttpServer *server, SecurityManager *securityManager) : _securityManager(securityManager)
 {
+    _server = server;
 }
 
 void RestartService::begin()
@@ -27,6 +30,30 @@ void RestartService::begin()
                                               AuthenticationPredicates::IS_ADMIN));
 
     ESP_LOGV(SVK_TAG, "Registered POST endpoint: %s", RESTART_SERVICE_PATH);
+}
+
+void RestartService::restartNow()
+{
+    // Give any in-flight send() calls a moment to copy data into the TCP buffer
+    delay(100);
+
+    // Gracefully stop the HTTP server.
+    // httpd_stop() → httpd_sess_close_all() → httpd_sess_delete() per session:
+    //   - With SO_LINGER enabled (2s), close() blocks until pcb->unsent and
+    //     pcb->unacked are empty, i.e. the TCP stack has transmitted all data
+    //     AND received ACKs from the client — or the timeout expires.
+    //   - This ensures WebSocket events and HTTP responses are fully delivered.
+    if (_server)
+    {
+        ESP_LOGI("RestartService", "Stopping HTTP server (graceful TCP flush via SO_LINGER)...");
+        _server->stop();
+        ESP_LOGI("RestartService", "HTTP server stopped");
+    }
+
+    MDNS.end();
+    WiFi.disconnect(true);
+    delay(100);
+    ESP.restart();
 }
 
 esp_err_t RestartService::restart(PsychicRequest *request)

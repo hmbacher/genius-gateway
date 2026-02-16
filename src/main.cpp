@@ -98,6 +98,12 @@ void setup()
     server.config.max_req_hdr_len = 2048; // Default is 1024
     // Increase max URI length
     server.config.max_uri_len = 1024; // Default is 512
+    // Enable SO_LINGER so that close() on each session socket blocks
+    // until the TCP send buffer is flushed (or the linger timeout expires).
+    // This ensures HTTP responses and WebSocket frames are fully delivered
+    // before sockets are torn down during httpd_stop() (called by RestartService).
+    server.config.enable_so_linger = true;
+    server.config.linger_timeout = 2;  // seconds
 
     // start ESP32-SvelteKit
     esp32sveltekit.begin();

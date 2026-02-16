@@ -44,7 +44,7 @@
 #include <GatewayMqttSettingsService.h>
 #include <PsychicMqttClient.h>
 #include <SettingValue.h>
-#include <GatewayDeviceMqttService.h>
+
 
 #define ALARMLINES_FILE "/config/alarm-lines.json"            ///< Configuration file path
 #define ALARMLINES_SERVICE_PATH "/rest/alarm-lines"           ///< HTTP REST API service endpoint

@@ -41,7 +41,6 @@
 #include <GatewayMqttSettingsService.h>
 #include <PsychicMqttClient.h>
 #include <SettingValue.h>
-#include <GatewayDeviceMqttService.h>
 
 #define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"  ///< Configuration file path for device data
 #define GATEWAY_DEVICES_SERVICE_PATH "/rest/gateway-devices"  ///< REST API service endpoint path
