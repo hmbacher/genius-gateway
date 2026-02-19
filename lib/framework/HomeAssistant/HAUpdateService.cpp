@@ -109,7 +109,6 @@ void HAUpdateService::_publishUpdateEntity()
     config["payload_install"] = "INSTALL";
     config["title"] = String(APP_NAME) + " Firmware";
     config["device_class"] = "firmware";
-    config["entity_category"] = "config";
     config["icon"] = "mdi:cloud-download";
 
     if (_haService->publishConfig("update", "firmware", config))
@@ -168,7 +167,9 @@ void HAUpdateService::publishOTAProgress(int progress)
 
     String payload;
     serializeJson(state, payload);
-    _haService->publish(stateTopic, payload);
+    
+    bool async = (progress != 100); // At 100%, publish synchronously to ensure message is sent before restart
+    _haService->publish(stateTopic, payload, 0, false, async);
 }
 
 void HAUpdateService::publishOTAError()

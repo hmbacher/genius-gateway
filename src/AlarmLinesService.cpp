@@ -433,6 +433,7 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
     newLine.name = name;
     newLine.created = time(nullptr);
     newLine.acquisition = acquisition;
+    newLine.published = false;
 
     beginTransaction();
     if (toFront)
@@ -494,6 +495,22 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
         ESP_LOGW(TAG, "Previous action is still performed. Wait until it finishes to start another action.");
         return ESP_ERR_INVALID_STATE;
     }
+
+    // Find the alarm line name for logging
+    String lineName = "Unknown";
+    beginTransaction();
+    for (const auto &line : _state.lines)
+    {
+        if (line.id == lineIdHostOrder)
+        {
+            lineName = line.name;
+            break;
+        }
+    }
+    endTransaction();
+
+    ESP_LOGI(TAG, "MQTT Command received: Action='%s' for Alarm Line ID=%lu Name='%s'", 
+             action.c_str(), lineIdHostOrder, lineName.c_str());
 
     uint32_t lineId = htonl(lineIdHostOrder);
 
@@ -574,7 +591,7 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
         }
     }
 
-    ESP_LOGV(TAG, "Action triggered successfully for line ID '%lu'.", lineIdHostOrder);
+    ESP_LOGI(TAG, "Action '%s' triggered successfully for line ID %lu ('%s').", action.c_str(), lineIdHostOrder, lineName.c_str());
     return ESP_OK;
 }
 
@@ -703,24 +720,60 @@ void AlarmLinesService::mqttRegisterTopicsAndPublishAlarmLines()
 /**
  * @brief Publishes all alarm lines to MQTT/Home Assistant
  * 
- * Iterates over all alarm lines and publishes their config and state
- * messages to Home Assistant MQTT Discovery. Uses a single transaction for
- * the entire operation for efficiency.
+ * First processes any pending deleted alarm lines (unpublishing them), then
+ * iterates over all current alarm lines and publishes both configuration and state.
+ * Only marks lines as published if both operations succeed (atomic semantics).
+ * Uses a single transaction for the entire operation for efficiency.
+ * 
+ * This function synchronizes MQTT state with the current alarm line list.
  * 
  * This is an internal helper called by mqttRegisterTopicsAndPublishAlarmLines()
  * and the update handler when alarm lines change.
  * 
  * No transaction management - creates its own transaction internally.
+ * 
+ * @param onlyUnpublished If true, only publishes lines that haven't been published yet
  */
-void AlarmLinesService::_mqttPublishAllAlarmLines()
+void AlarmLinesService::_mqttPublishAllAlarmLines(bool onlyUnpublished)
 {
     beginTransaction();
-    for (const auto &line : _state.lines)
+
+    // First, unpublish any deleted alarm lines
+    if (!_state.deletedLineIds.empty())
     {
-        // Pass useTransaction=false since we're already holding the lock
-        _mqttPublishAlarmLineConfig(line, false);
-        _publishAlarmLineTransmissionState(line.id);
+        ESP_LOGI(TAG, "Processing %d deleted alarm line(s) for MQTT unpublishing.", _state.deletedLineIds.size());
+
+        for (uint32_t id : _state.deletedLineIds)
+        {
+            _mqttUnpublishAlarmLine(id);
+        }
+
+        // Clear the list after processing
+        _state.deletedLineIds.clear();
     }
+
+    // Then publish config and state for current lines
+    for (auto &line : _state.lines)
+    {
+        if (!onlyUnpublished || !line.published)
+        {
+            // IMPORTANT: Publish state BEFORE config!
+            // Buttons reference the transmission state in their availability condition.
+            // HA evaluates availability immediately when receiving config, so the state
+            // message must already exist on the broker (retained) to avoid marking entities as unavailable.
+            esp_err_t resState = _publishAlarmLineTransmissionState(line.id);
+            
+            // Pass useTransaction=false since we're already holding the lock
+            esp_err_t resConfig = _mqttPublishAlarmLineConfig(line, false);
+            
+            // Safe approach: only mark as published if both config and state were successfully published
+            if (resConfig == ESP_OK && resState == ESP_OK)
+            {
+                line.published = true;
+            }
+        }
+    }
+
     endTransaction();
 }
 
@@ -864,7 +917,14 @@ esp_err_t AlarmLinesService::_publishAlarmLineTransmissionState(uint32_t lineId,
     String payload;
     serializeJson(stateDoc, payload);
     
-    return _mqttClient->publish(transmissionTopic.c_str(), 0, true, payload.c_str()) != -1 ? ESP_OK : ESP_FAIL;
+    int result = _mqttClient->publish(transmissionTopic.c_str(), 0, true, payload.c_str());
+    if (result == -1)
+    {
+        ESP_LOGE(TAG, "Failed to publish transmission state for line ID %lu", lineId);
+        return ESP_FAIL;
+    }
+    
+    return ESP_OK;
 }
 
 // ============================================================================
@@ -887,7 +947,7 @@ esp_err_t AlarmLinesService::_publishAlarmLineButtons(const genius_alarm_line_t 
     esp_err_t result = ESP_OK;
     
     // Line Test Start Button
-    result |= _publishButton(line, {
+    esp_err_t res1 = _publishButton(line, {
         .idSuffix = "linetest",
         .name = "Start Line Test",
         .uniqueIdSuffix = "linetest_start",
@@ -895,9 +955,10 @@ esp_err_t AlarmLinesService::_publishAlarmLineButtons(const genius_alarm_line_t 
         .icon = "mdi:map-marker",
         .commandTopicSuffix = "linetest"
     });
+    if (res1 != ESP_OK) result = ESP_FAIL;
     
     // Line Test Stop Button
-    result |= _publishButton(line, {
+    esp_err_t res2 = _publishButton(line, {
         .idSuffix = "linetest-stop",
         .name = "Stop Line Test",
         .uniqueIdSuffix = "linetest_stop",
@@ -905,9 +966,10 @@ esp_err_t AlarmLinesService::_publishAlarmLineButtons(const genius_alarm_line_t 
         .icon = "mdi:map-marker-off",
         .commandTopicSuffix = "linetest"
     });
+    if (res2 != ESP_OK) result = ESP_FAIL;
     
     // Fire Alarm Start Button
-    result |= _publishButton(line, {
+    esp_err_t res3 = _publishButton(line, {
         .idSuffix = "firealarm",
         .name = "Start Fire Alarm",
         .uniqueIdSuffix = "firealarm",
@@ -915,9 +977,10 @@ esp_err_t AlarmLinesService::_publishAlarmLineButtons(const genius_alarm_line_t 
         .icon = "mdi:fire",
         .commandTopicSuffix = "firealarm"
     });
+    if (res3 != ESP_OK) result = ESP_FAIL;
     
     // Fire Alarm Stop Button
-    result |= _publishButton(line, {
+    esp_err_t res4 = _publishButton(line, {
         .idSuffix = "firealarm-stop",
         .name = "Stop Fire Alarm",
         .uniqueIdSuffix = "firealarm_stop",
@@ -925,8 +988,9 @@ esp_err_t AlarmLinesService::_publishAlarmLineButtons(const genius_alarm_line_t 
         .icon = "mdi:fire-off",
         .commandTopicSuffix = "firealarm"
     });
+    if (res4 != ESP_OK) result = ESP_FAIL;
     
-    return result == ESP_OK ? ESP_OK : ESP_FAIL;
+    return result;
 }
 
 /**
@@ -958,7 +1022,16 @@ esp_err_t AlarmLinesService::_publishTransmissionSensor(const genius_alarm_line_
 
     String statePayload;
     serializeJson(statecfg, statePayload);
-    return _mqttClient->publish(stateCfgTopic.c_str(), 0, true, statePayload.c_str()) != -1 ? ESP_OK : ESP_FAIL;
+    
+    int result = _mqttClient->publish(stateCfgTopic.c_str(), 0, true, statePayload.c_str());
+    if (result == -1)
+    {
+        ESP_LOGE(TAG, "Failed to publish transmission sensor for line ID %lu", line.id);
+        return ESP_FAIL;
+    }
+    
+    ESP_LOGV(TAG, "Published transmission sensor for line ID %lu", line.id);
+    return ESP_OK;
 }
 
 /**
@@ -991,7 +1064,16 @@ esp_err_t AlarmLinesService::_publishButton(const genius_alarm_line_t &line, con
     
     String payload;
     serializeJson(cfg, payload);
-    return _mqttClient->publish(cfgTopic.c_str(), 0, true, payload.c_str()) != -1 ? ESP_OK : ESP_FAIL;
+    
+    int result = _mqttClient->publish(cfgTopic.c_str(), 0, true, payload.c_str());
+    if (result == -1)
+    {
+        ESP_LOGE(TAG, "Failed to publish button '%s' for line ID %lu", config.name, line.id);
+        return ESP_FAIL;
+    }
+    
+    ESP_LOGV(TAG, "Published button '%s' for line ID %lu", config.name, line.id);
+    return ESP_OK;
 }
 
 /**

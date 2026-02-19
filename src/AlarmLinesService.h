@@ -109,6 +109,7 @@ typedef struct genius_alarm_line
     String name;                          ///< Human-readable alarm line name
     time_t created;                       ///< Creation timestamp (Unix epoch)
     alarm_line_acquisition_t acquisition; ///< How this line was discovered/added
+    bool published;                       ///< Whether the current line configuration has been published via MQTT (runtime state, not persisted)
 } genius_alarm_line_t;
 
 /// Data model class for managing alarm line collections
@@ -117,6 +118,7 @@ class AlarmLines
 public:
     static constexpr const char *TAG = "AlarmLines"; ///< Logging tag
     std::vector<genius_alarm_line_t> lines;          ///< Vector containing all managed alarm lines
+    std::vector<uint32_t> deletedLineIds;            ///< Temporary storage for deleted line IDs (populated during update)
 
     /// Deserialize alarm lines from JSON object
     static void read(AlarmLines &alarmLines, JsonObject &root)
@@ -129,6 +131,7 @@ public:
             jsonLine["name"] = line.name;
             jsonLine["created"] = Utils::time_t_to_iso8601(line.created);
             jsonLine["acquisition"] = line.acquisition;
+            // Note: 'published' flag is not serialized (runtime state only)
         }
 
         ESP_LOGV(AlarmLines::TAG, "Alarm lines configurations read.");
@@ -139,9 +142,18 @@ public:
     {
         if (root["lines"].is<JsonArray>())
         {
-            alarmLines.lines.clear();
+            // Track current line IDs before clearing
+            std::vector<uint32_t> oldLineIds;
+            oldLineIds.reserve(alarmLines.lines.size());
+            for (const auto &line : alarmLines.lines)
+            {
+                oldLineIds.push_back(line.id);
+            }
 
-            // iterate over devices
+            // Parse new lines from JSON
+            std::vector<uint32_t> newLineIds;
+            std::vector<genius_alarm_line_t> newLines;
+
             int i = 0;
             for (JsonVariant jsonLineArrItem : root["lines"].as<JsonArray>())
             {
@@ -162,18 +174,43 @@ public:
                 }
 
                 genius_alarm_line_t newLine;
-
                 newLine.id = jsonLine["id"].as<uint32_t>();
                 newLine.name = jsonLine["name"].as<String>();
                 newLine.created = Utils::iso8601_to_time_t(jsonLine["created"].as<String>());
                 newLine.acquisition = jsonLine["acquisition"].as<alarm_line_acquisition_t>();
 
-                alarmLines.lines.push_back(newLine);
+                // Check if this line existed before and preserve its published state if unchanged
+                newLine.published = false;
+                for (const auto &oldLine : alarmLines.lines)
+                {
+                    if (oldLine.id == newLine.id && oldLine.name == newLine.name)
+                    {
+                        // Line exists and name hasn't changed - preserve published state
+                        newLine.published = oldLine.published;
+                        break;
+                    }
+                }
+
+                newLines.push_back(newLine);
+                newLineIds.push_back(newLine.id);
 
                 ESP_LOGV(AlarmLines::TAG, "Added alarm line: %s", newLine.name.c_str());
-
-                i++;
             }
+
+            // Detect deleted lines (in old list but not in new list)
+            alarmLines.deletedLineIds.clear();
+            for (uint32_t oldId : oldLineIds)
+            {
+                if (std::find(newLineIds.begin(), newLineIds.end(), oldId) == newLineIds.end())
+                {
+                    // Line was deleted - store ID for unpublishing
+                    alarmLines.deletedLineIds.push_back(oldId);
+                    ESP_LOGI(AlarmLines::TAG, "Alarm line with ID %lu marked for deletion.", oldId);
+                }
+            }
+
+            // Replace with new lines
+            alarmLines.lines = std::move(newLines);
         }
 
         ESP_LOGV(AlarmLines::TAG, "AlarmLines configurations updated.");
@@ -316,7 +353,7 @@ private:
 
     // ========== MQTT Publishing ==========
     /// Publish HA discovery config and state for all alarm lines (internal helper)
-    void _mqttPublishAllAlarmLines();
+    void _mqttPublishAllAlarmLines(bool onlyUnpublished = true);
 
     /// Publish HA discovery config for a single alarm line (buttons + sensors)
     esp_err_t _mqttPublishAlarmLineConfig(const genius_alarm_line_t &line, bool useTransaction = true);

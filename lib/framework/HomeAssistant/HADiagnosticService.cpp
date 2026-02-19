@@ -160,7 +160,7 @@ void HADiagnosticService::_publishRestartButton()
     config["command_topic"] = "~/restart/command";
     config["payload_press"] = "PRESS";
     config["icon"] = "mdi:restart";
-    config["entity_category"] = "config";
+    // No entity_category - button should appear under Controls and in Overview
 
     if (_haService->publishConfig("button", "restart", config))
     {

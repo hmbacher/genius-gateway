@@ -57,7 +57,7 @@ void UploadFirmwareService::begin()
                 JsonObject jsonObject = doc.as<JsonObject>();
                 _socket->emitEvent(EVENT_OTA_UPDATE, jsonObject);
                 
-                ESP_LOGI(SVK_TAG, "Firmware upload process at %d of %d bytes... (%d %%)", progress, total, percentComplete);
+                ESP_LOGV(SVK_TAG, "Firmware upload process at %d of %d bytes... (%d %%)", progress, total, percentComplete);
                 
                 _previousProgress = percentComplete;
             }

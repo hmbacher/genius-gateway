@@ -151,12 +151,12 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
     }
 }
 
-bool HAService::publish(const String &topic, const String &payload, int qos, bool retain)
+bool HAService::publish(const String &topic, const String &payload, int qos, bool retain, bool async)
 {
     if (_mqttClient == nullptr || !_mqttClient->connected())
         return false;
 
-    return _mqttClient->publish(topic.c_str(), qos, retain, payload.c_str()) != -1;
+    return _mqttClient->publish(topic.c_str(), qos, retain, payload.c_str(), payload.length(), async) != -1;
 }
 
 void HAService::subscribe(const String &topic,

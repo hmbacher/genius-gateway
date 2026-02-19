@@ -191,19 +191,18 @@
 	<title>{page.data.title}</title>
 </svelte:head>
 
+
 {#if page.data.features.security && $user.bearer_token === ''}
 	<Login signIn={handleSignIn} />
 {:else}
-	<div class="drawer h-screen overflow-hidden lg:drawer-open">
+	<div class="drawer lg:drawer-open">
 		<input id="main-menu" type="checkbox" class="drawer-toggle" bind:checked={menuOpen} />
-		<div class="drawer-content flex h-full flex-col">
+		<div class="drawer-content flex flex-col">
 			<!-- Status bar content here -->
 			<Statusbar />
 
 			<!-- Main page content here -->
-			<main class="flex-1 overflow-y-auto">
 				{@render children?.()}
-			</main>
 		</div>
 		<!-- Side Navigation -->
 		<div class="drawer-side z-30 shadow-lg">

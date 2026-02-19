@@ -169,9 +169,10 @@ public:
      * @param payload Message payload
      * @param qos QoS level (default 0)
      * @param retain Retain flag (default true)
+     * @param async Asynchronous publish (default true). Set to false for synchronous publish.
      * @return true if publish succeeded
      */
-    bool publish(const String &topic, const String &payload, int qos = 0, bool retain = true);
+    bool publish(const String &topic, const String &payload, int qos = 0, bool retain = true, bool async = true);
 
     /**
      * @brief Subscribe to a MQTT topic with callback

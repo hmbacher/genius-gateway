@@ -106,7 +106,8 @@ The Genius Gateway itself is automatically published to Home Assistant as a devi
 The gateway device registers with:
 
 - **Device Information** - Manufacturer, model, firmware version, and web interface link
-- **2 Diagnostic Sensors** - Real-time system health monitoring
+- **1 Status Sensor** - Online/Offline state
+- **2 Diagnostic Sensors** - Real-time system health monitoring (free heap memory, core temperature)
 - **1 Restart Button** - Remote restart capability
 - **4 Configuration Switches** - Remote settings control
 - **1 Update Entity** - Firmware update management with automatic version checking
@@ -120,12 +121,12 @@ This integration enables proactive monitoring, remote maintenance, and dynamic c
 | **Sensor** | Status | Device registration in Home Assistant | On connect | diagnostic |
 | **Sensor** | Free Heap | Memory usage monitoring (percentage) | Every 60 seconds | diagnostic |
 | **Sensor** | Core Temperature | Internal temperature monitoring (°C) | Every 60 seconds | diagnostic |
-| **Button** | Restart | Trigger gateway restart remotely | On demand | config |
+| **Button** | Restart | Trigger gateway restart remotely | On demand | - |
 | **Switch** | Alert on Unknown Detectors | Enable/disable processing of unknown detectors | On change | config |
 | **Switch** | Add Line from Commissioning | Auto-add lines from commissioning packets | On change | config |
 | **Switch** | Add Line from Alarm | Auto-add lines from alarm packets | On change | config |
 | **Switch** | Add Line from Line Test | Auto-add lines from line test packets | On change | config |
-| **Update** | Firmware Update | Automatic version checking and OTA updates | Every 6 hours | config |
+| **Update** | Firmware Update | Automatic version checking and OTA updates | Every 6 hours | - |
 
 ### Monitoring Capabilities
 
@@ -187,6 +188,12 @@ The gateway includes automatic firmware update capability with Home Assistant in
 
 !!! warning "Requirements"
     Firmware updates require an active internet connection. The gateway must be able to reach `github.com` and `objects.githubusercontent.com`.
+
+![Genius Gateway Update Entity](../assets/images/doc/ha/ha-genius-gateway-device-firmware-notify.png){ width="50%" }  
+*The Genius Gateway's Update Entity signalizing an available firmware update*
+
+![Genius Gateway Firmware Upgrade in progress](../assets/images/doc/ha/ha-genius-gateway-device-firmware-running.png){ width="60%" }  
+*The Home Assistant's built-in update capability, including version numbers, release names and live update progress*
 
 ### Home Assistant Visual Integration
 

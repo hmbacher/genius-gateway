@@ -57,7 +57,11 @@ ESP32SvelteKit::ESP32SvelteKit(PsychicHttpServer *server, unsigned int numberEnd
 #if FT_ENABLED(FT_ANALYTICS)
                                                                                           _analyticsService(&_socket),
 #endif
+#if FT_ENABLED(FT_MQTT)
+                                                                                          _restartService(server, &_securitySettingsService, &_mqttSettingsService),
+#else
                                                                                           _restartService(server, &_securitySettingsService),
+#endif
                                                                                           _factoryResetService(server, &ESPFS, &_securitySettingsService),
                                                                                           _healthCheckService(server, &_securitySettingsService),
 #if FT_ENABLED(FT_COREDUMP)

@@ -34,7 +34,7 @@
 		return 'Waiting for update...';
 	});
 
-	const RELOAD_COUNTDOWN_SECONDS = 10;
+	const RELOAD_COUNTDOWN_SECONDS = 15;
 	
 	let timerId: number | undefined = $state();
 	let countdown: number = $state(RELOAD_COUNTDOWN_SECONDS);

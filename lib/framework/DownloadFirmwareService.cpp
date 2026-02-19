@@ -57,6 +57,9 @@ const char *githubCACertificate = "-----BEGIN CERTIFICATE-----\n"
                                   "00u/I5sUKUErmgQfky3xxzlIPK1aEn8=\n"
                                   "-----END CERTIFICATE-----\n";
 
+// Maximum number of redirects to follow manually
+#define MAX_REDIRECTS 5
+
 // Static callback pointer for httpUpdate callbacks (set per-task)
 static OTAUpdateCallback *_otaCallback = nullptr;
 static int previousProgress = 0;
@@ -94,7 +97,7 @@ void update_progress(int currentBytes, int totalBytes)
             _otaCallback->onUpdateProgress(currentBytes, totalBytes);
         }
 
-        ESP_LOGI(SVK_TAG, "HTTP update process at %d of %d bytes... (%d %%)", currentBytes, totalBytes, progress);
+        ESP_LOGV(SVK_TAG, "HTTP update process at %d of %d bytes... (%d %%)", currentBytes, totalBytes, progress);
     }
     previousProgress = progress;
 }
@@ -106,9 +109,9 @@ void update_finished()
         _otaCallback->onUpdateFinish();
     }
 
-    ESP_LOGI(SVK_TAG, "HTTP Update successful - Restarting");
+    ESP_LOGI(SVK_TAG, "HTTP Update finished");
 #ifdef SERIAL_INFO
-    Serial.println("HTTP Update successful - Restarting");
+    Serial.println("HTTP Update finished");
 #endif
 
     vTaskDelay(250 / portTICK_PERIOD_MS);
@@ -131,13 +134,9 @@ void updateTask(void *param)
     WiFiClientSecure client;
 
 #ifndef DOWNLOAD_OTA_SKIP_CERT_VERIFY
-    // Use certificate bundle for verification
-    size_t bundle_size = rootca_crt_bundle_end - rootca_crt_bundle_start;
-    ESP_LOGI(SVK_TAG, "CA Bundle: start=%p, end=%p, size=%zu bytes", 
-             rootca_crt_bundle_start, rootca_crt_bundle_end, bundle_size);
 
 #if ESP_ARDUINO_VERSION_MAJOR == 3
-    client.setCACertBundle(rootca_crt_bundle_start, bundle_size);
+    client.setCACertBundle(rootca_crt_bundle_start, rootca_crt_bundle_end - rootca_crt_bundle_start);
 #else
     client.setCACertBundle(rootca_crt_bundle_start);
 #endif
@@ -149,7 +148,60 @@ void updateTask(void *param)
 
     client.setTimeout(12000);
 
-    httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+    // ── Workaround for arduino-esp32 bug ──────────────────────────────────
+    // NetworkClientSecure loses bundle_attach_cb when stop() is called
+    // (memset zeroes sslclient_context). HTTPClient::setURL() calls stop()
+    // when following a redirect to a different host, breaking the CA bundle.
+    // Workaround: resolve redirects using a separate insecure client (HEAD
+    // only, no data), then download from the final URL with the CA-verified
+    // client — no cross-host redirect means no stop()+reconnect.
+    // See: https://github.com/espressif/arduino-esp32/issues/12368
+    // ──────────────────────────────────────────────────────────────────────
+#ifndef DOWNLOAD_OTA_SKIP_CERT_VERIFY
+    {
+        // Use a throwaway insecure client just for HEAD-based redirect resolution.
+        // Only HTTP headers are exchanged — no firmware data — so skipping cert
+        // verification here is safe; the actual download uses the CA bundle.
+        WiFiClientSecure resolveClient;
+        resolveClient.setInsecure();
+        resolveClient.setTimeout(12000);
+
+        HTTPClient http;
+        http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+        http.setConnectTimeout(12000);
+        
+        for (int i = 0; i < MAX_REDIRECTS; i++)
+        {
+            const char *headerKeys[] = {"Location"};
+            http.collectHeaders(headerKeys, 1);
+            http.begin(resolveClient, url);
+            
+            int httpCode = http.sendRequest("HEAD");
+            
+            if (httpCode == HTTP_CODE_MOVED_PERMANENTLY || 
+                httpCode == HTTP_CODE_FOUND || 
+                httpCode == HTTP_CODE_TEMPORARY_REDIRECT ||
+                httpCode == 308 /* Permanent Redirect */)
+            {
+                String location = http.header("Location");
+                http.end();
+                if (location.length() > 0)
+                {
+                    ESP_LOGV(SVK_TAG, "Redirect %d: %s", i + 1, location.c_str());
+                    url = location;
+                    continue;
+                }
+            }
+            // Not a redirect (or missing Location) — final URL reached
+            http.end();
+            break;
+        }
+    }
+    ESP_LOGV(SVK_TAG, "Resolved download URL: %s", url.c_str());
+#endif
+
+    // Download from the resolved (final) URL — no redirects expected
+    httpUpdate.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
     httpUpdate.rebootOnUpdate(false); // Always manual reboot via RestartService
 
     httpUpdate.onStart(update_started);
@@ -187,11 +239,8 @@ void updateTask(void *param)
         break;
         
     case HTTP_UPDATE_OK:
-        ESP_LOGI(SVK_TAG, "HTTP Update successful");
-        
-        // restartNow() performs a graceful httpd_stop() with SO_LINGER,
-        // ensuring all pending WebSocket/HTTP frames are fully delivered
-        // before WiFi is disconnected and the device reboots.
+        ESP_LOGI(SVK_TAG, "HTTP Update successful, restart initiated.");
+    
         RestartService::restartNow();
         break;
     }
