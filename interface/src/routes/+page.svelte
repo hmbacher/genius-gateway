@@ -5,6 +5,7 @@
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import AlarmEndingDialog from './AlarmEndingDialog.svelte';
 	import Info from '~icons/tabler/info-circle';
 	import BellOff from '~icons/tabler/bell-off';
@@ -54,7 +55,11 @@
 		<div
 			class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-10 justify-items-center"
 		>
-			{#if geniusDevices.devices.length > 0}
+			{#if !geniusDevices.isLoaded}
+				<div class="col-span-full">
+					<Spinner text="Loading devices..." />
+				</div>
+			{:else if geniusDevices.devices.length > 0}
 				{#if geniusDevices.isAlarming}
 					<div class="col-span-full">
 						<div class="tooltip tooltip-left" data-tip="End all alarms">

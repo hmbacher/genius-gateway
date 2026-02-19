@@ -122,15 +122,23 @@ MQTT topic where alarm state is published when *any* smoke detector triggers an 
 !!! abstract "Global Alarm State Topic"
     More details to this [Global Alarm State Topic](../api/mqtt-topics.md#global-alarm-state-topic), like its specific payload format, can be found in the [MQTT API](../api/mqtt-topics.md).
 
-#### Device Publishing
+#### Home Assistant Integration
 
-**Enable device publishing**
+**Enable Home Assistant Integration**
 
-Toggle to enable/disable publishing individual detector configurations and states with [Home Assistant MQTT Discovery :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } support.
+Toggle to enable/disable publishing with [Home Assistant MQTT Discovery :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } support for:
 
-**MQTT Topics Path Prefix**
+- Gateway device with diagnostic sensors and remote controls
+- Individual detector configurations and states
+- Alarm line controls (if configured)
 
-Topic prefix used for all detector device publications. 
+**Home Assistant MQTT Discovery Prefix**
+
+Home Assistant MQTT Discovery prefix. All device discovery messages will use this prefix followed by the component type (e.g., `binary_sensor`, `button`, `sensor`).
+
+**Example:** Using the default prefix `homeassistant/` creates discovery topics like:
+- `homeassistant/binary_sensor/genius-12345678/config` (smoke detector)
+- `homeassistant/button/genius-alarmline-987654321-linetest/config` (alarm line button)
 
 ??? info "Valid MQTT Topic Syntax"
     - 1-64 characters
@@ -140,12 +148,12 @@ Topic prefix used for all detector device publications.
     - no special characters except `/`, `-`, and `_`
 
 !!! warning "Home Assistant compatibility"
-    The Topic path must also comply with the [Home Assistant MQTT Discovery Messages :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#discovery-messages){ target=_blank } requirements.
+    The prefix must comply with the [Home Assistant MQTT Discovery Protocol :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } requirements.
 
-Below the topic input field, the derived configuration and state topics are displayed.
+Below the prefix input field, example discovery topics are displayed for smoke detectors and alarm lines (if configured).
 
-!!! abstract "Global Alarm State Topic"
-    More details to this [Home Assistant Auto-Discovery](../api/mqtt-topics.md#home-assistant-auto-discovery) related MQTT Topics, like their specific payload format, can be found in the [MQTT API](../api/mqtt-topics.md).
+!!! abstract "MQTT Topics Reference"
+    More details about [Home Assistant Auto-Discovery](../api/mqtt-topics.md#home-assistant-auto-discovery) related MQTT Topics, including payload formats for [smoke detectors](../api/mqtt-topics.md#smoke-detectors) and [alarm lines](../api/mqtt-topics.md#alarm-lines), can be found in the [MQTT API](../api/mqtt-topics.md).
 
 **Applying Changes**
 

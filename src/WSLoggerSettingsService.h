@@ -54,7 +54,7 @@ public:
     }
 
     /// Update settings from JSON with change detection
-    static StateUpdateResult update(JsonObject &root, WSLoggerSettings &settings)
+    static StateUpdateResult update(JsonObject &root, WSLoggerSettings &settings, const String &originId)
     {
         bool hasChanges = false;
 

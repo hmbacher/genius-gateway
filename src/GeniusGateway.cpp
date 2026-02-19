@@ -50,11 +50,13 @@ static void nofifyReceivedPacket() // !!! This function is called from ISR !!!
 
 GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->getServer()),
                                                           _securityManager(sveltekit->getSecurityManager()),
-                                                          _gatewayDevices(sveltekit),
-                                                          _alarmLines(sveltekit, &this->_cc1101Controller),
-                                                          _gatewaySettings(sveltekit),
-                                                          _gatewayMqttSettingsService(sveltekit),
                                                           _mqttClient(sveltekit->getMqttClient()),
+                                                          _sveltekit(sveltekit),
+                                                          _gatewayMqttSettingsService(sveltekit),
+                                                          _gatewaySettings(sveltekit),
+                                                          _gatewayDeviceMqttService(sveltekit->getHAService(), &_gatewayMqttSettingsService, &_gatewaySettings),
+                                                          _geniusDevices(sveltekit, _mqttClient, &_gatewayMqttSettingsService),
+                                                          _alarmLines(sveltekit, _mqttClient, &this->_cc1101Controller, &_gatewayMqttSettingsService),
                                                           _wsLogger(sveltekit),
                                                           _visualizerSettingsService(sveltekit),
                                                           _cc1101Controller(sveltekit),
@@ -108,14 +110,24 @@ void GeniusGateway::begin()
         ESP_LOGE(TAG, "RX task creation failed.");
     }
 
+    /* Configure HAService with app-specific device identity */
+    {
+        HAService *haService = _sveltekit->getHAService();
+        haService->setDeviceName("Genius Gateway");
+        haService->setManufacturer("Genius Gateway Project");
+        haService->setModel("Genius Gateway");
+    }
+
+    /* Initialize Gateway MQTT Settings Service first - other services depend on its settings */
+    _gatewayMqttSettingsService.begin();
+    /* Initialize Gateway Settings Service - must be before Gateway Device MQTT Service */
+    _gatewaySettings.begin();
+    /* Initialize Gateway Device MQTT Service */
+    _gatewayDeviceMqttService.begin();
     /* Initialize Gateway Devices Service */
-    _gatewayDevices.begin();
+    _geniusDevices.begin();
     /* Initialize Alarm Lines Service */
     _alarmLines.begin();
-    /* Initialize Gateway Settings Service */
-    _gatewaySettings.begin();
-    /* Initialize Gateway MQTT Settings Service */
-    _gatewayMqttSettingsService.begin();
     /* Initialize WS Logger */
     _wsLogger.begin();
     /* Initialize Packet Vizualizer Settings */
@@ -132,22 +144,15 @@ void GeniusGateway::begin()
 
     /* Perform a full publish (all devices and states), if MQTT client connects. */
     _mqttClient->onConnect([this](bool /*sessionPresent*/)
-                           { this->_mqttPublishDevices(false); });
-
-    /* Configure update handler for when the smoke detector devices change.
-     * Only updates the MQTT state if the change did not originate from a
-     * device addition over received alarm packets or alarm state change. */
-    _gatewayDevices.addUpdateHandler([&](const String &originId)
-                                     { if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET &&
-                                           originId != ALARM_STATE_CHANGE)
-                                        _mqttPublishDevices(); },
-                                     false);
-
-    /* Configure update handler for when the MQTT settings change:
-     * Perform a full publish (all devices and states), if settings change. */
-    _gatewayMqttSettingsService.addUpdateHandler([&](const String &originId)
-                                                 { _mqttPublishDevices(); },
-                                                 false);
+                           {
+                               // Publish all HA entities via HAService (triggers all registered callbacks
+                               // including GatewayDeviceMqttService, HADiagnosticService, HAUpdateService)
+                               this->_sveltekit->getHAService()->publishAll();
+                               // Publish all devices (config and state)
+                               this->_geniusDevices.mqttPublishAllDevices();
+                               // Register alarm line MQTT topics and subscriptions
+                               this->_alarmLines.mqttRegisterTopicsAndPublishAlarmLines();
+                           });
 
     _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
 
@@ -185,9 +190,9 @@ esp_err_t GeniusGateway::_handleEndAlarming(PsychicRequest *request, JsonVariant
         return request->reply(400, "application/json", "{\"success\": false, \"reason\": \"Maximimum alarm blocking time exceeded.\"}");
     }
 
-    if (_gatewayDevices.resetAllAlarms())
+    if (_geniusDevices.resetAllAlarms())
     {
-        _mqttPublishDevices(true); // Re-Publish all silenced devices' state
+        _geniusDevices.mqttPublishAllDevicesState(); // Re-Publish all silenced devices' state
         _emitAlarmState();
     }
 
@@ -224,142 +229,10 @@ void GeniusGateway::_emitAlarmState()
     /* Prepare event data (payload) */
     JsonDocument doc;
     JsonObject root = doc.to<JsonObject>();
-    root["isAlarming"] = _gatewayDevices.isAlarming();
+    root["isAlarming"] = _geniusDevices.isAlarming();
 
     /* Emit event */
     _eventSocket->emitEvent(GATEWAY_EVENT_ALARM, root);
-}
-
-void GeniusGateway::_mqttPublishDevices(bool onlyState)
-{
-    if (!_mqttClient->connected())
-    {
-        return;
-    }
-
-    GatewayMqttSettings mqttSettings = _gatewayMqttSettingsService.getSettingsCopy(); // Explicit deep copy for thread safety
-
-    // Get optimized MQTT data - only the minimal properties needed for publishing,
-    // thread-safe and performance optimized
-    std::vector<DeviceMqttData> devicesMqttData = _gatewayDevices.getDevicesMqttData();
-    if (devicesMqttData.empty())
-    {
-        ESP_LOGV(TAG, "No pending devices, skipping MQTT publish.");
-        return;
-    }
-
-    /* Publish Home Assistant compatible topics */
-    if (mqttSettings.haMQTTEnabled)
-    {
-        if (mqttSettings.haMQTTTopicPrefix.isEmpty())
-        {
-            ESP_LOGW(TAG, "Home Assistant MQTT topic prefix is empty. Cannot publish config topic.");
-        }
-        else
-        {
-            for (const auto &deviceData : devicesMqttData) // Now thread safe and lightweight
-            {
-                /* Publish config topic for device discovery */
-                if (!onlyState)
-                {
-                    String configTopic = mqttSettings.haMQTTTopicPrefix + deviceData.smokeDetectorSN + "/config";
-
-                    JsonDocument config_jsonDoc;
-                    config_jsonDoc["~"] = mqttSettings.haMQTTTopicPrefix + deviceData.smokeDetectorSN;
-                    config_jsonDoc["name"] = "Genius Plus X";
-                    config_jsonDoc["unique_id"] = deviceData.smokeDetectorSN;
-                    config_jsonDoc["device_class"] = "smoke";
-                    config_jsonDoc["state_topic"] = "~/state";
-                    config_jsonDoc["schema"] = "json";
-                    config_jsonDoc["value_template"] = "{{value_json.state}}";
-                    // Get the current IP address and only add entity_picture if we have a valid IP
-                    IPAddress localIP = WiFi.localIP();
-                    if (IPUtils::isSet(localIP))
-                    {
-                        config_jsonDoc["entity_picture"] = "http://" + localIP.toString() + "/hekatron-genius-plus-x.png";
-                    }
-                    JsonObject dev_jsonObj = config_jsonDoc["device"].to<JsonObject>();
-                    dev_jsonObj["identifiers"] = deviceData.smokeDetectorSN;
-                    dev_jsonObj["manufacturer"] = "Hekatron Vertriebs GmbH";
-                    dev_jsonObj["model"] = "Genius Plus X";
-                    dev_jsonObj["name"] = "Rauchmelder";
-                    dev_jsonObj["serial_number"] = deviceData.smokeDetectorSN;
-                    dev_jsonObj["suggested_area"] = deviceData.location;
-                    
-                    // Add attributes topic for entity attributes
-                    config_jsonDoc["json_attributes_topic"] = "~/attributes";
-
-                    String config_payload;
-                    serializeJson(config_jsonDoc, config_payload);
-                    _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str());
-                }
-
-                /* Publish attributes topic with additional device metadata */
-                if (!onlyState)
-                {
-                    String attrTopic = mqttSettings.haMQTTTopicPrefix + deviceData.smokeDetectorSN + "/attributes";
-                    JsonDocument attr_jsonDoc;
-                    
-                    // Add production date in dd.mm.yy format
-                    if (deviceData.smokeDetectorProdDate > 0) {
-                        struct tm *tm = gmtime(&deviceData.smokeDetectorProdDate);
-                        char dateBuf[9];
-                        strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y", tm);
-                        attr_jsonDoc["Production Date"] = String(dateBuf);
-                    }
-                    
-                    // Add radio module information as flat attributes for better rendering
-                    if (deviceData.radioModuleSN > 0) {
-                        attr_jsonDoc["FM Basis X - Serial"] = String(deviceData.radioModuleSN);
-                        
-                        if (deviceData.radioModuleProdDate > 0) {
-                            struct tm *tm = gmtime(&deviceData.radioModuleProdDate);
-                            char dateBuf[9];
-                            strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y", tm);
-                            attr_jsonDoc["FM Basis X - Production Date"] = String(dateBuf);
-                        }
-                    }
-                    
-                    String attr_payload;
-                    serializeJson(attr_jsonDoc, attr_payload);
-                    _mqttClient->publish(attrTopic.c_str(), 0, true, attr_payload.c_str());
-                }
-
-                /* Pubish state topic */
-                String stateTopic = mqttSettings.haMQTTTopicPrefix + deviceData.smokeDetectorSN + "/state";
-
-                JsonDocument state_jsonDoc;
-                state_jsonDoc["state"] = deviceData.isAlarming ? "ON" : "OFF";
-
-                String payload;
-                serializeJson(state_jsonDoc, payload);
-                _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str());
-
-                // Set device as published
-                _gatewayDevices.setPublished(deviceData.smokeDetectorSN);
-            }
-        }
-    }
-
-    /* Publish generic alarming topic */
-    if (mqttSettings.alarmEnabled)
-    {
-        if (mqttSettings.alarmTopic.isEmpty())
-        {
-            ESP_LOGW(TAG, "Alarm MQTT topic is empty. Cannot publish alarming state.");
-        }
-        else
-        {
-            JsonDocument alarming_jsonDoc;
-            bool isAlarming = _gatewayDevices.isAlarming();
-            alarming_jsonDoc["isAlarming"] = isAlarming;
-            alarming_jsonDoc["numAlarmingDevices"] = _gatewayDevices.numAlarmingDevices();
-
-            String payload;
-            serializeJson(alarming_jsonDoc, payload);
-            _mqttClient->publish(mqttSettings.alarmTopic.c_str(), 0, true, payload.c_str());
-        }
-    }
 }
 
 esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_t data_length, genius_packet_t *analyzed_packet)
@@ -493,29 +366,34 @@ void GeniusGateway::_rx_packets()
                             {
                                 if (packet_details.type == HPT_ALARM_START)
                                 {
-                                    bool isDetectorKnown = _gatewayDevices.isSmokeDetectorKnown(source_id);
+                                    bool isDetectorKnown = _geniusDevices.isSmokeDetectorKnown(source_id);
 
                                     bool deviceAdded = false;
                                     if (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
                                     {
                                         uint32_t snRM = EXTRACT32(packet.data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
-                                        deviceAdded = _gatewayDevices.AddGeniusDevice(snRM, source_id);
+                                        deviceAdded = _geniusDevices.AddGeniusDevice(snRM, source_id);
                                         isDetectorKnown = true; // Now we know the detector, as it was intentionally added
                                     }
 
                                     /* Set/Reset alarm */
                                     if (isDetectorKnown)
                                     {
-                                        const GeniusDevice *dev = _gatewayDevices.setAlarm(source_id);
+                                        const GeniusDevice *dev = _geniusDevices.setAlarm(source_id);
                                         if (dev)
-                                            _mqttPublishDevices(!deviceAdded);
+                                        {
+                                            if (deviceAdded)
+                                                _geniusDevices.mqttPublishAllDevices(); // New device: publish config + state
+                                            else
+                                                _geniusDevices.mqttPublishDeviceState(source_id); // Known device: publish only this device's state
+                                        }
                                     }
                                 }
                                 else // packet_details.type == HPT_ALARM_SILENCING
                                 {
-                                    const GeniusDevice *dev = _gatewayDevices.resetAlarm(source_id, GAE_BY_SMOKE_DETECTOR);
+                                    const GeniusDevice *dev = _geniusDevices.resetAlarm(source_id, GAE_BY_SMOKE_DETECTOR);
                                     if (dev)
-                                        _mqttPublishDevices(true);
+                                        _geniusDevices.mqttPublishDeviceState(source_id); // Publish only this device's state
                                 }
 
                                 /* Emit alarm state to front end */

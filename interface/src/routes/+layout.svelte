@@ -19,7 +19,7 @@
 	import type { Analytics } from '$lib/types/models';
 	import type { RSSI } from '$lib/types/models';
 	import type { Battery } from '$lib/types/models';
-	import type { DownloadOTA } from '$lib/types/models';
+	import type { OTAStatus } from '$lib/types/models';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { jsonDateReviver } from '$lib/utils/misc';
 	import type { GeniusDevices, AlarmState } from '$lib/types/models';
@@ -65,7 +65,7 @@
 		socket.on('notification', handleNotification);
 		if (page.data.features.analytics) socket.on('analytics', handleAnalytics);
 		if (page.data.features.battery) socket.on('battery', handleBattery);
-		if (page.data.features.download_firmware) socket.on('otastatus', handleOAT);
+		if (page.data.features.download_firmware) socket.on('otastatus', handleOTA);
 		// Genius Gateway: Listen for alarm state changes
 		socket.on<AlarmState>('alarm', handleAlarm);
 	};
@@ -77,7 +77,7 @@
 		socket.off('rssi', handleNetworkStatus);
 		socket.off('notification', handleNotification);
 		socket.off('battery', handleBattery);
-		socket.off('otastatus', handleOAT);
+		socket.off('otastatus', handleOTA);
 		// Genius Gateway: Stop listening for alarm state changes
 		socket.off('alarm', handleAlarm);
 	};
@@ -138,7 +138,9 @@
 		batteryHistory.addData(data);
 	};
 
-	const handleOAT = (data: DownloadOTA) => telemetry.setDownloadOTA(data);
+	const handleOTA = (data: OTAStatus) => {
+		telemetry.setOTAStatus(data);
+	};
 
 	/* Fetches the Genius devices from the backend and updates the geniusDevices store.
 	 * This function is called on page load to populate the devices.
@@ -189,6 +191,7 @@
 	<title>{page.data.title}</title>
 </svelte:head>
 
+
 {#if page.data.features.security && $user.bearer_token === ''}
 	<Login signIn={handleSignIn} />
 {:else}
@@ -199,7 +202,7 @@
 			<Statusbar />
 
 			<!-- Main page content here -->
-			{@render children?.()}
+				{@render children?.()}
 		</div>
 		<!-- Side Navigation -->
 		<div class="drawer-side z-30 shadow-lg">

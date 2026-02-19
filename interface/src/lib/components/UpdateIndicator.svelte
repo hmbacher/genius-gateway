@@ -1,14 +1,17 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { modals } from 'svelte-modals';
+	import type { ModalComponent } from 'svelte-modals';
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Firmware from '~icons/tabler/refresh-alert';
 	import Cancel from '~icons/tabler/x';
 	import CloudDown from '~icons/tabler/cloud-download';
-	import GithubUpdateDialog from '$lib/components/GithubUpdateDialog.svelte';
-	import { compareVersions } from 'compare-versions';
+	import CloudOff from '~icons/tabler/cloud-off';
+	import Loader from '~icons/tabler/loader-2';
+	import FirmwareUpdateDialog from '$lib/components/FirmwareUpdateDialog.svelte';
+	import { firmware } from '$lib/stores/firmware';
 	import { onMount } from 'svelte';
 
 	interface Props {
@@ -19,43 +22,60 @@
 
 	let firmwareVersion: string = $state('');
 	let firmwareDownloadLink: string;
+	let githubError: boolean = $state(false);
+	let loading: boolean = $state(true);
 
 	async function getGithubAPI() {
-		const githubUrl = `https://api.github.com/repos/${page.data.github}/releases/latest`;
+		// Use backend endpoint instead of direct GitHub API call
+		const githubUrl = `/rest/githubRelease`;
+		loading = true;
 		try {
 			const response = await fetch(githubUrl, {
 				method: 'GET',
 				headers: {
-					accept: 'application/vnd.github+json',
-					'X-GitHub-Api-Version': '2022-11-28'
+					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
 				}
 			});
-			if (response.status !== 200) {
-				notifications.error('Failed to fetch latest release from GitHub.', 5000);
-				throw new Error(`Failed to fetch latest release from ${githubUrl}`);
+			
+			if (!response.ok) {
+				notifications.error(`Failed to check for updates: HTTP ${response.status}`, 5000);
+				githubError = true;
+				return;
 			}
+			
 			const results = await response.json();
 
+			// Check if backend successfully queried GitHub
+			if (!results.success) {
+				const errorMsg = results.error || 'Backend could not reach GitHub API';
+				notifications.warning(`Update check failed: ${errorMsg}`, 6000);
+				console.warn('GitHub API error:', errorMsg);
+				githubError = true;
+				return;
+			}
+
+			// Success - clear any previous error state
+			githubError = false;
 			update = false;
 			firmwareVersion = '';
 
-			if (compareVersions(results.tag_name, page.data.features.firmware_version) === 1) {
-				// iterate over assets and find the correct one
-				for (let i = 0; i < results.assets.length; i++) {
-					// check if the asset is of type *.bin
-					if (
-						results.assets[i].name.includes('.bin') &&
-						results.assets[i].name.includes(page.data.features.firmware_built_target)
-					) {
-						update = true;
-						firmwareVersion = results.tag_name;
-						firmwareDownloadLink = results.assets[i].browser_download_url;
-						notifications.info('Firmware update available.', 5000);
-					}
-				}
+			// Populate shared firmware store for other components
+			firmware.setFromGithubRelease(results);
+
+			if (results.update_available) {
+				update = true;
+				firmwareVersion = results.tag_name;
+				firmwareDownloadLink = results.download_url;
+				notifications.info('Firmware update available.', 5000);
 			}
 		} catch (error) {
-			console.warn(error);
+			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+			notifications.error(`Cannot reach backend: ${errorMsg}`, 5000);
+			console.error('Update check error:', error);
+			githubError = true;
+		} finally {
+			loading = false;
 		}
 	}
 
@@ -87,7 +107,7 @@
 	});
 
 	function confirmGithubUpdate(url: string) {
-		modals.open(ConfirmDialog, {
+		modals.open(ConfirmDialog as unknown as ModalComponent<any>, {
 			title: 'Confirm flashing new firmware to the device',
 			message: 'Are you sure you want to overwrite the existing firmware with a new one?',
 			labels: {
@@ -96,23 +116,35 @@
 			},
 			onConfirm: () => {
 				postGithubDownload(url);
-				modals.open(GithubUpdateDialog, {
-					onConfirm: () => modals.closeAll()
+				modals.open(FirmwareUpdateDialog, {
+					title: 'Downloading Firmware'
 				});
 			}
 		});
 	}
 </script>
 
-{#if update}
+{#if loading}
+	<div class="tooltip tooltip-left" data-tip="Checking for updates...">
+		<Loader class="h-7 w-7 animate-spin opacity-50" />
+	</div>
+{:else if update}
 	<button
-		class="btn btn-square btn-ghost h-9 w-9"
+		class="btn btn-square btn-ghost h-9 w-9 tooltip tooltip-left"
+		data-tip="Update to version {firmwareVersion}"
 		onclick={() => confirmGithubUpdate(firmwareDownloadLink)}
 	>
 		<span
 			class="indicator-item indicator-top indicator-center badge badge-info badge-xs top-2 scale-75 lg:top-1"
-			>{firmwareVersion}</span
-		>
+		>{firmwareVersion}</span>
 		<Firmware class="h-7 w-7" />
+	</button>
+{:else if githubError}
+	<button
+		class="btn btn-square btn-ghost h-9 w-9 tooltip tooltip-left"
+		data-tip="Cannot reach GitHub - check your internet connection"
+		onclick={() => getGithubAPI()}
+	>
+		<CloudOff class="text-warning h-7 w-7" />
 	</button>
 {/if}

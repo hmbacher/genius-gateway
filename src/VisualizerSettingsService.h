@@ -61,7 +61,7 @@ public:
     }
 
     /// Update settings from JSON
-    static StateUpdateResult update(JsonObject &root, VisualizerSettings &vizSettings)
+    static StateUpdateResult update(JsonObject &root, VisualizerSettings &vizSettings, const String &originId)
     {
         vizSettings.showDetails = root[PACKET_VISUALIZER_SETTINGS_STR_SHOW_DETAILS] | PACKET_VISUALIZER_SETTINGS_DEFAULT_SHOW_DETAILS;
         vizSettings.showMetadata = root[PACKET_VISUALIZER_SETTINGS_STR_SHOW_METADATA] | PACKET_VISUALIZER_SETTINGS_DEFAULT_SHOW_METADATA;

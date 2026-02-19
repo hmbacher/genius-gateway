@@ -127,10 +127,6 @@ void FeaturesService::createJSON(JsonObject &root)
     root["event_use_json"] = false;
 #endif
 
-    root["firmware_version"] = APP_VERSION;
-    root["firmware_name"] = APP_NAME;
-    root["firmware_built_target"] = BUILD_TARGET;
-
     // Iterate over user features
     for (auto &element : userFeatures)
     {

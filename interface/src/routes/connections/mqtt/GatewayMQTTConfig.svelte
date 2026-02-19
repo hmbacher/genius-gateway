@@ -6,13 +6,12 @@
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import IconSmarthome from '~icons/tabler/smart-home';
-	import IconHomeAssistant from '~icons/custom-icons/home-assistant';
 	import Info from '~icons/tabler/info-circle';
 	import Collapsible from '$lib/components/Collapsible.svelte';
 
 	type GatewayMQTTSettings = {
-		haMQTTEnabled: boolean;
-		haMQTTTopicPrefix: string;
+		HAIntegrationEnabled: boolean;
+		HAMQTTDiscoveryPrefix: string;
 		alarmEnabled: boolean;
 		alarmTopic: string;
 	};
@@ -20,8 +19,8 @@
 	const maxTopicPathLength = 64;
 
 	const defaultSettings: GatewayMQTTSettings = {
-		haMQTTEnabled: false,
-		haMQTTTopicPrefix: 'homeassistant/binary_sensor/genius-',
+		HAIntegrationEnabled: false,
+		HAMQTTDiscoveryPrefix: 'homeassistant/',
 		alarmEnabled: false,
 		alarmTopic: 'smarthome/genius-gateway/alarm'
 	};
@@ -34,11 +33,59 @@
 		// MQTT topics must not be empty, must not contain wildcards (+ or #), and must not contain null character
 		if (!topic || typeof topic !== 'string') return false;
 		if (topic.length < 1 || topic.length > 128) return false;
+		
+		// Only allow alphanumeric characters, hyphens, underscores, dots, and forward slashes
+		const validCharPattern = /^[a-zA-Z0-9\-_.\/]+$/;
+		if (!validCharPattern.test(topic)) return false;
+		
+		// Wildcards and null characters are not allowed
 		if (topic.includes('+') || topic.includes('#') || topic.includes('\u0000')) return false;
+		
 		// Topics must not start or end with a slash, but can contain slashes
 		if (topic.startsWith('/') || topic.endsWith('/')) return false;
+		
 		// No empty topic levels (i.e., no double slashes)
 		if (topic.includes('//')) return false;
+		
+		// Each topic level must not be empty and must not contain only whitespace
+		const levels = topic.split('/');
+		for (const level of levels) {
+			if (level.length === 0 || level.trim().length === 0) return false;
+		}
+		
+		return true;
+	}
+
+	function isValidMQTTDiscoveryPrefix(prefix: string): boolean {
+		// Discovery prefix validation: allows trailing slash, rejects leading slash
+		if (!prefix || typeof prefix !== 'string') return false;
+		if (prefix.length < 1 || prefix.length > 64) return false;
+		
+		// Must not start with slash
+		if (prefix.startsWith('/')) return false;
+		
+		// No empty topic levels (i.e., no double slashes)
+		if (prefix.includes('//')) return false;
+		
+		// Only allow alphanumeric characters, hyphens, underscores, dots, and forward slashes
+		// This regex ensures only valid MQTT topic characters are used
+		const validCharPattern = /^[a-zA-Z0-9\-_.\/]+$/;
+		if (!validCharPattern.test(prefix)) return false;
+		
+		// Wildcards and null characters are not allowed
+		if (prefix.includes('+') || prefix.includes('#') || prefix.includes('\u0000')) return false;
+		
+		// Remove trailing slash for additional validation
+		const prefixWithoutTrailingSlash = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+		
+		// Each topic level must not be empty and must not contain only whitespace
+		if (prefixWithoutTrailingSlash) {
+			const levels = prefixWithoutTrailingSlash.split('/');
+			for (const level of levels) {
+				if (level.length === 0 || level.trim().length === 0) return false;
+			}
+		}
+		
 		return true;
 	}
 
@@ -66,21 +113,28 @@
 	});
 
 	let formErrors = $state({
-		haMQTTTopicPrefix: false,
+		HAMQTTDiscoveryPrefix: false,
 		alarmTopic: false
 	});
 
-	let hasError = $derived(formErrors.haMQTTTopicPrefix || formErrors.alarmTopic);
+	let hasError = $derived(formErrors.HAMQTTDiscoveryPrefix || formErrors.alarmTopic);
 
 	async function postGatewayMQTTSettings() {
 		try {
+			// Ensure discovery prefix has trailing slash as it's a path prefix
+			const settingsToSend = { ...mqttSettings };
+			if (settingsToSend.HAIntegrationEnabled && settingsToSend.HAMQTTDiscoveryPrefix && 
+			    !settingsToSend.HAMQTTDiscoveryPrefix.endsWith('/')) {
+				settingsToSend.HAMQTTDiscoveryPrefix += '/';
+			}
+			
 			const response = await fetch('/rest/mqtt-settings', {
 				method: 'POST',
 				headers: {
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(mqttSettings)
+				body: JSON.stringify(settingsToSend)
 			});
 			if (response.status == 200) {
 				notifications.success('MQTT settings updated.', 3000);
@@ -141,7 +195,7 @@
 					<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<label class="label" for="alarmTopic">
 							<span class="label-text-alt text-error text-xs text-wrap"
-								>MQTT topics must have valid syntax and 1 - {maxTopicPathLength} characters.</span
+								>Topic must be 1-{maxTopicPathLength} characters (a-z, A-Z, 0-9, -, _, ., /). No leading/trailing slashes.</span
 							>
 						</label>
 					</div>
@@ -166,73 +220,41 @@
 				<input
 					type="checkbox"
 					class="toggle toggle-primary"
-					bind:checked={mqttSettings.haMQTTEnabled}
+					bind:checked={mqttSettings.HAIntegrationEnabled}
 				/>
-				<span class="ml-1">Enable device publishing</span>
+				<span class="ml-1">Enable Home Assistant Integration</span>
 			</label>
 		</div>
-		{#if mqttSettings.haMQTTEnabled}
+		{#if mqttSettings.HAIntegrationEnabled}
 			<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 				<label class="label" for="haPath">
-					<span class="label-text text-md">MQTT Topics Path Prefix</span>
+					<span class="label-text text-md">Home Assistant MQTT Discovery Prefix</span>
 				</label>
 				<input
 					type="text"
-					placeholder={`E.g. ${defaultSettings.haMQTTTopicPrefix}`}
-					class="input input-bordered w-full invalid:border-error invalid:border-2 {formErrors.haMQTTTopicPrefix
+					placeholder={`E.g. ${defaultSettings.HAMQTTDiscoveryPrefix}`}
+					class="input input-bordered w-full invalid:border-error invalid:border-2 {formErrors.HAMQTTDiscoveryPrefix
 						? 'border-error border-2'
 						: ''}"
-					bind:value={mqttSettings.haMQTTTopicPrefix}
+					bind:value={mqttSettings.HAMQTTDiscoveryPrefix}
 					id="haPath"
 					min="1"
 					max={maxTopicPathLength}
 					required
-					disabled={!mqttSettings.haMQTTEnabled}
+					disabled={!mqttSettings.HAIntegrationEnabled}
 					oninput={(event: Event) => {
-						formErrors.haMQTTTopicPrefix =
+						formErrors.HAMQTTDiscoveryPrefix =
 							!(event.target as HTMLInputElement).validity.valid ||
-							!isValidMQTTTopicPath(mqttSettings.haMQTTTopicPrefix);
+							!isValidMQTTDiscoveryPrefix(mqttSettings.HAMQTTDiscoveryPrefix);
 					}}
 				/>
-				{#if formErrors.haMQTTTopicPrefix}
+				{#if formErrors.HAMQTTDiscoveryPrefix}
 					<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<label class="label" for="haPath">
 							<span class="label-text-alt text-error text-xs text-wrap"
-								>MQTT topics must have valid syntax and 1 - {maxTopicPathLength} characters.</span
+								>Discovery prefix must be 1-{maxTopicPathLength} characters (a-z, A-Z, 0-9, -, _, ., /).</span
 							>
 						</label>
-					</div>
-				{/if}
-				{#if !formErrors.haMQTTTopicPrefix && mqttSettings.haMQTTEnabled}
-					<div
-						class="alert bg-base-300 mt-1 mb-2"
-						transition:slide|local={{ duration: 300, easing: cubicOut }}
-					>
-						<IconHomeAssistant class="h-6 w-6 shrink-0" />
-						<div>
-							<div>
-								Every smoke detector device will publish the following <a class="link link-primary" href="https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery">Home Assistant</a> compatible
-								topics:
-							</div>
-							<div class="text-xs">
-								<ul class="list-disc pl-4">
-									<li>
-										<code
-											>{mqttSettings.haMQTTTopicPrefix}<span class="text-secondary"
-												>&lt;Detector-Serialnumber&gt;</span
-											>/config</code
-										>
-									</li>
-									<li>
-										<code
-											>{mqttSettings.haMQTTTopicPrefix}<span class="text-secondary"
-												>&lt;Detector-Serialnumber&gt;</span
-											>/state</code
-										>
-									</li>
-								</ul>
-							</div>
-						</div>
 					</div>
 				{/if}
 			</div>

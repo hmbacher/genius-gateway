@@ -30,10 +30,16 @@ ESP32SvelteKit::ESP32SvelteKit(PsychicHttpServer *server, unsigned int numberEnd
                                                                                           _ntpStatus(server, &_securitySettingsService),
 #endif
 #if FT_ENABLED(FT_UPLOAD_FIRMWARE)
-                                                                                          _uploadFirmwareService(server, &_securitySettingsService),
+                                                                                          _uploadFirmwareService(server, &_securitySettingsService, &_socket),
 #endif
 #if FT_ENABLED(FT_DOWNLOAD_FIRMWARE)
                                                                                           _downloadFirmwareService(server, &_securitySettingsService, &_socket),
+                                                                                          _githubReleaseEndpoint(server, &_securitySettingsService),
+#endif
+#if FT_ENABLED(FT_HOME_ASSISTANT)
+                                                                                          _haService(_mqttSettingsService.getMqttClient()),
+                                                                                          _haUpdateService(&_haService, &_downloadFirmwareService, &_socket),
+                                                                                          _haDiagnosticService(&_haService),
 #endif
 #if FT_ENABLED(FT_MQTT)
                                                                                           _mqttSettingsService(server, &ESPFS, &_securitySettingsService),
@@ -51,7 +57,11 @@ ESP32SvelteKit::ESP32SvelteKit(PsychicHttpServer *server, unsigned int numberEnd
 #if FT_ENABLED(FT_ANALYTICS)
                                                                                           _analyticsService(&_socket),
 #endif
+#if FT_ENABLED(FT_MQTT)
+                                                                                          _restartService(server, &_securitySettingsService, &_mqttSettingsService),
+#else
                                                                                           _restartService(server, &_securitySettingsService),
+#endif
                                                                                           _factoryResetService(server, &ESPFS, &_securitySettingsService),
                                                                                           _healthCheckService(server, &_securitySettingsService),
 #if FT_ENABLED(FT_COREDUMP)
@@ -163,6 +173,7 @@ void ESP32SvelteKit::begin()
 
 #if FT_ENABLED(FT_DOWNLOAD_FIRMWARE)
     _downloadFirmwareService.begin();
+    _githubReleaseEndpoint.begin();
 #endif
 
 #if FT_ENABLED(FT_NTP)
@@ -173,6 +184,11 @@ void ESP32SvelteKit::begin()
 #if FT_ENABLED(FT_MQTT)
     _mqttSettingsService.begin();
     _mqttStatus.begin();
+#endif
+
+#if FT_ENABLED(FT_HOME_ASSISTANT)
+    _haUpdateService.begin();
+    _haDiagnosticService.begin();
 #endif
 
 #if FT_ENABLED(FT_SECURITY)

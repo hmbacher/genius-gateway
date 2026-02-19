@@ -67,4 +67,17 @@
 #define FT_COREDUMP 0
 #endif
 
+// Home Assistant MQTT Discovery integration, off by default
+// Requires FT_MQTT=1 and FT_DOWNLOAD_FIRMWARE=1
+#ifndef FT_HOME_ASSISTANT
+#define FT_HOME_ASSISTANT 0
+#endif
+
+// Compile-time check: FT_HOME_ASSISTANT requires FT_MQTT and FT_DOWNLOAD_FIRMWARE
+#if FT_ENABLED(FT_HOME_ASSISTANT)
+#if !FT_ENABLED(FT_MQTT) || !FT_ENABLED(FT_DOWNLOAD_FIRMWARE)
+#error "FT_HOME_ASSISTANT requires FT_MQTT=1 and FT_DOWNLOAD_FIRMWARE=1"
+#endif
+#endif
+
 #endif

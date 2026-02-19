@@ -195,8 +195,8 @@ Authorization: Bearer <token>
 **GET Response / POST Request:**
 ```json
 {
-  "haMQTTEnabled": true,
-  "haMQTTTopicPrefix": "homeassistant/binary_sensor/genius-",
+  "HAIntegrationEnabled": true,
+  "HAMQTTDiscoveryPrefix": "homeassistant/",
   "alarmEnabled": true,
   "alarmTopic": "smarthome/genius-gateway/alarm"
 }
@@ -204,8 +204,8 @@ Authorization: Bearer <token>
 
 **Settings:**
 
-- `haMQTTEnabled` - Enable Home Assistant MQTT auto-discovery
-- `haMQTTTopicPrefix` - Topic prefix for HA device publishing
+- `HAIntegrationEnabled` - Enable Home Assistant MQTT auto-discovery
+- `HAMQTTDiscoveryPrefix` - Home Assistant MQTT discovery prefix
 - `alarmEnabled` - Enable alarm state publishing
 - `alarmTopic` - MQTT topic for global alarm state
 

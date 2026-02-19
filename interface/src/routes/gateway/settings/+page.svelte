@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
+	import { socket } from '$lib/stores/socket';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -70,6 +72,23 @@
 		}
 		return;
 	}
+
+	// WebSocket synchronization for real-time updates from backend (e.g., MQTT changes)
+	onMount(() => {
+		const unsubscribe = socket.on<GatewaySettings>('gateway-settings', (data) => {
+			if (data) {
+				// Only update if settings are not currently being edited locally
+				if (!isSettingsDirty) {
+					gatewaySettings = data;
+					strSettings = JSON.stringify(data);
+				}
+			}
+		});
+
+		return () => {
+			unsubscribe();
+		};
+	});
 </script>
 
 {#if $user.admin}

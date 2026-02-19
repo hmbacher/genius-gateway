@@ -106,7 +106,7 @@ public:
         root["message_interval_ms"] = settings.messageIntervalMs;
     }
 
-    static StateUpdateResult update(JsonObject &root, MqttSettings &settings)
+    static StateUpdateResult update(JsonObject &root, MqttSettings &settings, const String &originId)
     {
         settings.enabled = root["enabled"] | FACTORY_MQTT_ENABLED;
         settings.uri = root["uri"] | FACTORY_MQTT_URI;
@@ -136,6 +136,7 @@ public:
     String getStatusTopic();
     PsychicMqttClient *getMqttClient();
     void disconnect();
+    void shutdown();
 
 protected:
     void onConfigUpdated();
@@ -157,6 +158,7 @@ private:
 
     // variable to help manage connection
     bool _reconfigureMqtt;
+    bool _shuttingDown = false;
     String _lastError;
 
     // the MQTT client instance
