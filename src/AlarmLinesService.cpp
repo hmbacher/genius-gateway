@@ -497,7 +497,7 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
     }
 
     // Find the alarm line name for logging
-    String lineName = "Unknown";
+    String lineName;
     beginTransaction();
     for (const auto &line : _state.lines)
     {
@@ -509,8 +509,15 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
     }
     endTransaction();
 
-    ESP_LOGI(TAG, "MQTT Command received: Action='%s' for Alarm Line ID=%lu Name='%s'", 
-             action.c_str(), lineIdHostOrder, lineName.c_str());
+    ESP_LOGI(TAG, "MQTT Command received: Action='%s' for Alarm Line ID=%lu", action.c_str(), lineIdHostOrder);
+
+    if (lineName.isEmpty())
+    {
+        ESP_LOGW(TAG, "Alarm Line ID=%lu not registered in Genius Gateway, ignoring.", lineIdHostOrder);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    ESP_LOGI(TAG, "Alarm Line ID=%lu matched: '%s'", lineIdHostOrder, lineName.c_str());
 
     uint32_t lineId = htonl(lineIdHostOrder);
 
@@ -652,7 +659,7 @@ void AlarmLinesService::mqttRegisterTopicsAndPublishAlarmLines()
                            if (slash < 0)
                                return;
                            String idStr = remainder.substring(0, slash);
-                           uint32_t id = (uint32_t)atol(idStr.c_str());
+                           uint32_t id = (uint32_t)strtoul(idStr.c_str(), nullptr, 10);
 
                            // Parse payload as JSON and map to action
                            String pl = payload ? String(payload) : String();
@@ -686,7 +693,7 @@ void AlarmLinesService::mqttRegisterTopicsAndPublishAlarmLines()
                            if (slash < 0)
                                return;
                            String idStr = remainder.substring(0, slash);
-                           uint32_t id = (uint32_t)atol(idStr.c_str());
+                           uint32_t id = (uint32_t)strtoul(idStr.c_str(), nullptr, 10);
 
                            String pl = payload ? String(payload) : String();
                            String action = "fire-alarm-start";
@@ -917,7 +924,7 @@ esp_err_t AlarmLinesService::_publishAlarmLineTransmissionState(uint32_t lineId,
     String payload;
     serializeJson(stateDoc, payload);
     
-    int result = _mqttClient->publish(transmissionTopic.c_str(), 0, true, payload.c_str());
+    int result = _mqttClient->publish(transmissionTopic.c_str(), 0, true, payload.c_str(), 0, false);
     if (result == -1)
     {
         ESP_LOGE(TAG, "Failed to publish transmission state for line ID %lu", lineId);
@@ -1023,7 +1030,7 @@ esp_err_t AlarmLinesService::_publishTransmissionSensor(const genius_alarm_line_
     String statePayload;
     serializeJson(statecfg, statePayload);
     
-    int result = _mqttClient->publish(stateCfgTopic.c_str(), 0, true, statePayload.c_str());
+    int result = _mqttClient->publish(stateCfgTopic.c_str(), 0, true, statePayload.c_str(), 0, false);
     if (result == -1)
     {
         ESP_LOGE(TAG, "Failed to publish transmission sensor for line ID %lu", line.id);
@@ -1065,7 +1072,7 @@ esp_err_t AlarmLinesService::_publishButton(const genius_alarm_line_t &line, con
     String payload;
     serializeJson(cfg, payload);
     
-    int result = _mqttClient->publish(cfgTopic.c_str(), 0, true, payload.c_str());
+    int result = _mqttClient->publish(cfgTopic.c_str(), 0, true, payload.c_str(), 0, false);
     if (result == -1)
     {
         ESP_LOGE(TAG, "Failed to publish button '%s' for line ID %lu", config.name, line.id);

@@ -919,7 +919,13 @@ esp_err_t GeniusDevicesService::_publishDeviceConfig(const GeniusDevice &device)
     String config_payload;
     serializeJson(config_jsonDoc, config_payload);
 
-    return _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str()) != -1 ? ESP_OK : ESP_FAIL;
+    int res = _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str(), 0, false);
+    if (res == -1)
+    {
+        ESP_LOGE(GeniusDevices::TAG, "Failed to publish config for device SN %lu", device.smokeDetector.sn);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
 }
 
 /**
@@ -967,7 +973,13 @@ esp_err_t GeniusDevicesService::_publishDeviceAttributes(const GeniusDevice &dev
     String attr_payload;
     serializeJson(attr_jsonDoc, attr_payload);
 
-    return _mqttClient->publish(attrTopic.c_str(), 0, true, attr_payload.c_str()) != -1 ? ESP_OK : ESP_FAIL;
+    int res = _mqttClient->publish(attrTopic.c_str(), 0, true, attr_payload.c_str(), 0, false);
+    if (res == -1)
+    {
+        ESP_LOGW(GeniusDevices::TAG, "Failed to publish attributes for device SN %lu", device.smokeDetector.sn);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
 }
 
 /**
@@ -993,7 +1005,13 @@ esp_err_t GeniusDevicesService::_publishDeviceState(const GeniusDevice &device)
     String payload;
     serializeJson(state_jsonDoc, payload);
 
-    return _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str()) != -1 ? ESP_OK : ESP_FAIL;
+    int res = _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str(), 0, false);
+    if (res == -1)
+    {
+        ESP_LOGE(GeniusDevices::TAG, "Failed to publish state for device SN %lu", device.smokeDetector.sn);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
 }
 
 /**

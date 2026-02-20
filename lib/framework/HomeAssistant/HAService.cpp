@@ -137,7 +137,7 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
     String payload;
     serializeJson(config, payload);
 
-    int result = _mqttClient->publish(configTopic.c_str(), 0, true, payload.c_str());
+    int result = _mqttClient->publish(configTopic.c_str(), 0, true, payload.c_str(), 0, false);
 
     if (result != -1)
     {

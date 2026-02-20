@@ -140,6 +140,8 @@ private:
   uint32_t _lastPacketHash; ///< Hash of last received packet for duplicate detection
   bool _hasLastPacketHash;  ///< Flag indicating if last packet hash is valid
 
+  TaskHandle_t _mqttPublishTaskHandle = nullptr; ///< Handle for persistent HA publish task
+
   /// Handle REST request to end alarming for devices
   esp_err_t _handleEndAlarming(PsychicRequest *request, JsonVariant &json);
 
@@ -151,6 +153,12 @@ private:
 
   /// Static wrapper for packet reception task
   static void _rx_packetsImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_rx_packets(); }
+
+  /// HA discovery publish loop (persistent task, woken by onConnect notification)
+  void _mqttPublishTask();
+
+  /// Static wrapper for HA publish task
+  static void _mqttPublishTaskImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_mqttPublishTask(); }
 
   /// Analyze received packet data and extract packet information
   esp_err_t _genius_analyze_packet_data(uint8_t *packet_data, size_t data_length, genius_packet_t *analyzed_packet);

@@ -142,17 +142,25 @@ void GeniusGateway::begin()
     _featureService->addFeature("cc1101_controller", false);
 #endif
 
-    /* Perform a full publish (all devices and states), if MQTT client connects. */
+    /* Perform a full publish (all devices and states), if MQTT client connects.
+     * The actual work runs in a persistent task (_mqttPublishTask) that blocks on
+     * a task notification. onConnect simply wakes it — the MQTT event task is
+     * freed immediately, which is required for synchronous (async=false) publishes
+     * to work without deadlocking. */
     _mqttClient->onConnect([this](bool /*sessionPresent*/)
                            {
-                               // Publish all HA entities via HAService (triggers all registered callbacks
-                               // including GatewayDeviceMqttService, HADiagnosticService, HAUpdateService)
-                               this->_sveltekit->getHAService()->publishAll();
-                               // Publish all devices (config and state)
-                               this->_geniusDevices.mqttPublishAllDevices();
-                               // Register alarm line MQTT topics and subscriptions
-                               this->_alarmLines.mqttRegisterTopicsAndPublishAlarmLines();
+                               xTaskNotifyGive(_mqttPublishTaskHandle);
                            });
+
+    /* Start the persistent HA publish task */
+    xTaskCreatePinnedToCore(
+        _mqttPublishTaskImpl,
+        "mqtt-ha-publish",
+        6144,
+        this,
+        5,
+        &_mqttPublishTaskHandle,
+        ESP32SVELTEKIT_RUNNING_CORE);
 
     _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
 
@@ -295,6 +303,22 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
     }
 
     return ESP_OK;
+}
+
+void GeniusGateway::_mqttPublishTask()
+{
+    ESP_LOGI(TAG, "HA publish task started, waiting for MQTT connect notifications.");
+    while (1)
+    {
+        // Block indefinitely until onConnect sends a notification
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        ESP_LOGI(TAG, "MQTT connected - publishing all HA entities and devices.");
+        _sveltekit->getHAService()->publishAll();
+        _geniusDevices.mqttPublishAllDevices();
+        _alarmLines.mqttRegisterTopicsAndPublishAlarmLines();
+        ESP_LOGI(TAG, "HA publish complete.");
+    }
 }
 
 void GeniusGateway::_rx_packets()
