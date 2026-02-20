@@ -1,3 +1,9 @@
+# v1.2.1
+## Bugfixes
+- Fixed missing MQTT Discovery publishes (due to async-enqueued messages filling the outbox faster than it could drain)
+- Fixed MQTT command topic parsing for Alarm Line IDs > 2147483647
+
+
 # v1.2.0
 ## Features
 - Home Assistant Integration for Alarm Lines
