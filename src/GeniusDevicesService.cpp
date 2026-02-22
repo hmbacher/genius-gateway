@@ -76,13 +76,22 @@ void GeniusDevicesService::begin()
                                } },
                            false);
 
+    /* Publish simple alarm topic on alarm state changes */
+    this->addUpdateHandler([&](const String &originId)
+                           {
+                               if (originId == ALARM_STATE_CHANGE)
+                                   mqttPublishSimpleAlarmState();
+                           },
+                           false);
+
     /* Update cache and republish MQTT when MQTT settings change */
     if (_mqttSettingsService != nullptr)
     {
         _mqttSettingsService->addUpdateHandler([this](const String &originId)
                                                {
                                                    this->_updateMqttSettingsCache();
-                                                   this->mqttPublishAllDevices(); },
+                                                   this->mqttPublishAllDevices(false); // Full republish: prefix or enabled state may have changed
+                                                   this->mqttPublishSimpleAlarmState(); },
                                                false);
     }
 }
@@ -661,21 +670,21 @@ void GeniusDevicesService::mqttPublishAllDevices(bool onlyUnpublished)
     }
 
     beginTransaction();
-    
+
     // First, unpublish any deleted devices
     if (!_state.deletedDeviceSNs.empty())
     {
         ESP_LOGI(GeniusDevices::TAG, "Processing %d deleted device(s) for MQTT unpublishing.", _state.deletedDeviceSNs.size());
-        
+
         for (uint32_t sn : _state.deletedDeviceSNs)
         {
             _mqttUnpublishDevice(sn);
         }
-        
+
         // Clear the list after processing
         _state.deletedDeviceSNs.clear();
     }
-    
+
     // Then publish current devices
     for (GeniusDevice &device : _state.devices)
     {
@@ -1040,6 +1049,47 @@ void GeniusDevicesService::_mqttUnpublishDevice(uint32_t smokeDetectorSN)
     _mqttClient->publish(configTopic.c_str(), 0, true, "");
 
     ESP_LOGI(GeniusDevices::TAG, "Unpublished MQTT entity for device with SN %lu.", smokeDetectorSN);
+}
+
+/**
+ * @brief Publishes global alarm state to the simple alarm MQTT topic
+ *
+ * Publishes {"isAlarming": ..., "numAlarmingDevices": ...} to the configured
+ * alarm topic with retain=true. Independent of Home Assistant integration -
+ * works with any MQTT-capable smart home system.
+ *
+ * Called on every ALARM_STATE_CHANGE and explicitly on MQTT connect
+ * from GeniusGateway::_mqttPublishTask(). The retained message ensures
+ * subscribers always receive the current state, and overwrites any stale
+ * retained message from before a restart.
+ *
+ * No transaction management - reads atomic cached state values (_isAlarming, _numAlarming).
+ */
+void GeniusDevicesService::mqttPublishSimpleAlarmState()
+{
+    if (_mqttClient == nullptr || !_mqttClient->connected())
+        return;
+
+    if (!_cachedMqttSettings.alarmEnabled)
+        return;
+
+    if (_cachedMqttSettings.alarmTopic.isEmpty())
+    {
+        ESP_LOGE(GeniusDevices::TAG, "Alarm MQTT topic is empty. Cannot publish alarm state.");
+        return;
+    }
+
+    JsonDocument doc;
+    doc["isAlarming"] = _isAlarming;
+    doc["numAlarmingDevices"] = _numAlarming;
+
+    String payload;
+    serializeJson(doc, payload);
+
+    if (_mqttClient->publish(_cachedMqttSettings.alarmTopic.c_str(), 0, true, payload.c_str()) == -1)
+    {
+        ESP_LOGE(GeniusDevices::TAG, "Failed to publish simple alarm state.");
+    }
 }
 
 // ============================================================================

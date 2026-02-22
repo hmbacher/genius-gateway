@@ -1,10 +1,13 @@
-# v1.2.1
+# v1.1.2
+## Bugfixes
+- Fixed [Simple Alarm Publishing](https://hmbacher.github.io/genius-gateway/features/smart-home-integration/#simple-alarm-publishing) via [Alarm Topic](https://hmbacher.github.io/genius-gateway/api/mqtt-topics/#global-alarm-state-topic) ([Issue #7](https://github.com/hmbacher/genius-gateway/issues/7))
+
+# v1.1.1
 ## Bugfixes
 - Fixed missing MQTT Discovery publishes (due to async-enqueued messages filling the outbox faster than it could drain)
 - Fixed MQTT command topic parsing for Alarm Line IDs > 2147483647
 
-
-# v1.2.0
+# v1.1.0
 ## Features
 - Home Assistant Integration for Alarm Lines
   - One device for each configured Alarm Line
@@ -22,10 +25,10 @@
 - Firmware Download from GitHub  
   Available releases can be downloaded and flashed via Web Interface (System/Firmware update)
 
-# v1.1.0
+# v1.0.1
 ## Bugfixes
-- Fixed reconnect loop (#5)
-- Fixed missing smoke detectors reading on initial login (#6)
+- Fixed reconnect loop ([Issue #5](https://github.com/hmbacher/genius-gateway/issues/5))
+- Fixed missing smoke detectors reading on initial login ([Issue #6](https://github.com/hmbacher/genius-gateway/issues/6))
 
 # v1.0.0
 Initial release

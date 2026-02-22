@@ -912,8 +912,17 @@ Published when two smoke detectors are alarming (example):
 
 **:material-publish: Publishing Behavior**
 
-- Published whenever any device alarm state changes
-- Re-published when MQTT connection is established
+- Published when an alarm starts on any smoke detector
+- Published when an alarm ends on any smoke detector (silenced by detector or manually via the API)
+- Published when all alarms are reset at once (via the end alarms API)
+- Published when MQTT connection is established or re-established — overwrites any stale retained message left from before a restart
+
+!!! info "Alarm state after restart"
+    Genius Gateway does not persist the active alarm state across restarts. After a restart, `isAlarming` is always `false` and `numAlarmingDevices` is always `0`, regardless of the state before the restart. The retained message on the broker is updated immediately on MQTT connect.
+
+!!! note "Independent of Home Assistant integration"
+    Simple alarm publishing works independently of the [Home Assistant integration](../features/smart-home-integration.md#home-assistant-mqtt-discovery). It is controlled solely by the **Enable simple alarm publishing** toggle and does not require `HAIntegrationEnabled`.
+
 - Published only if [simple alarm publishing](../setup/connections.md#simple-alarm-publishing) is enabled
 
 **:material-home-automation: Integration**

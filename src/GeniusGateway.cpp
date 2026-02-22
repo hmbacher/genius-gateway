@@ -315,7 +315,8 @@ void GeniusGateway::_mqttPublishTask()
 
         ESP_LOGI(TAG, "MQTT connected - publishing all HA entities and devices.");
         _sveltekit->getHAService()->publishAll();
-        _geniusDevices.mqttPublishAllDevices();
+        _geniusDevices.mqttPublishAllDevices(false); // Full republish on connect: broker state unknown after reconnect
+        _geniusDevices.mqttPublishSimpleAlarmState();
         _alarmLines.mqttRegisterTopicsAndPublishAlarmLines();
         ESP_LOGI(TAG, "HA publish complete.");
     }

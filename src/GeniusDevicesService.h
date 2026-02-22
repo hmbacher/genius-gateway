@@ -244,6 +244,9 @@ public:
      */
     void mqttPublishAllDevices(bool onlyUnpublished = true);
 
+    /// Publish global alarm state to the simple alarm topic (independent of HA integration)
+    void mqttPublishSimpleAlarmState();
+
     /**
      * @brief Publish only state for all devices
      * 
