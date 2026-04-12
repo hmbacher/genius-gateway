@@ -11,7 +11,7 @@ export const load = (async ({ fetch }) => {
 		features: item,
 		title: 'Overview',
 		github: 'hmbacher/genius-gateway',
-		copyright: '2025 hmbacher',
+		copyright: '2026 hmbacher',
 		appName: 'Genius Gateway'
 	};
 }) satisfies LayoutLoad;

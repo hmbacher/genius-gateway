@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { modals } from 'svelte-modals';
 	import type { ModalComponent } from 'svelte-modals';
-	import { slide } from 'svelte/transition';
+	import { slide, fade } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -21,44 +21,44 @@
 	import Check from '~icons/tabler/check';
 	import { telemetry } from '$lib/stores/telemetry';
 	import { firmware } from '$lib/stores/firmware';
+	import ExternalLink from '~icons/tabler/external-link';
 
 	let errorMessage: string = $state('');
+	let hideIncompatible: boolean = $state(true);
+	let buildTarget: string = $state('');
 
-	// Store promise outside of $state to prevent re-render loops
 	const githubPromise = getGithubAPI();
 
 	async function getGithubAPI() {
 		let localError = '';
 		try {
-			// Use backend endpoint instead of direct GitHub API call
-			const githubResponse = await fetch('/rest/githubRelease?all=true', {
+			const githubResponse = await fetch('/rest/github-release?all=true', {
 				method: 'GET',
 				headers: {
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				}
 			});
-			
+
 			if (!githubResponse.ok) {
 				localError = `Backend returned HTTP ${githubResponse.status}`;
 				throw new Error(localError);
 			}
-			
+
 			const results = await githubResponse.json();
-			
-			// Check if it's an error response
+
 			if (results.success === false) {
 				localError = results.error || 'Backend could not reach GitHub API';
 				throw new Error(localError);
 			}
-			
-			// Expect raw array of releases
-			if (!Array.isArray(results) || results.length === 0) {
+
+			if (!Array.isArray(results.releases) || results.releases.length === 0) {
 				localError = 'No releases found in repository';
 				throw new Error(localError);
 			}
-			
-			return results;
+
+			buildTarget = results.build_target ?? '';
+			return results.releases;
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : 'Unknown error';
 			if (!localError) localError = msg;
@@ -67,26 +67,6 @@
 			notifications.error(`Failed to fetch releases: ${localError}`, 6000);
 			throw error;
 		}
-	}
-
-	// Helper function to find matching asset for current device
-	function findMatchingAsset(assets: any[]): string | null {
-		// TEMPORARY: Disable asset filtering for testing - accept any .bin file
-		// const target = $firmware.builtTarget;
-		for (const asset of assets) {
-			// if (asset.name.includes('.bin') && asset.name.includes(target)) {
-			if (asset.name.includes('.bin')) {
-				return asset.browser_download_url;
-			}
-		}
-		return null;
-	}
-
-	// Helper function to check if release has compatible firmware
-	function hasMatchingAsset(assets: any[]): boolean {
-		// TEMPORARY: Disable asset filtering for testing - show all releases
-		// return findMatchingAsset(assets) !== null;
-		return true;
 	}
 
 	async function postGithubDownload(url: string) {
@@ -104,11 +84,7 @@
 		}
 	}
 
-	function confirmGithubUpdate(assets: any[]) {
-		const url = findMatchingAsset(assets);
-		
-		// This should never happen since we filter releases before rendering,
-		// but keep as defensive check
+	function confirmGithubUpdate(url: string, isCompatible: boolean = true) {
 		if (!url) {
 			modals.open(InfoDialog as unknown as ModalComponent<any>, {
 				title: 'No matching firmware found',
@@ -119,16 +95,19 @@
 			});
 			return;
 		}
-		
+
 		modals.open(ConfirmDialog as unknown as ModalComponent<any>, {
-			title: 'Confirm flashing new firmware to the device',
-			message: 'Are you sure you want to overwrite the existing firmware with a new one?',
+			title: isCompatible ? 'Confirm flashing new firmware to the device' : 'Incompatible build target',
+			message: (isCompatible
+				? 'Are you sure you want to overwrite the existing firmware with a new one?'
+				: 'This firmware was built for a different hardware target. Flashing an incompatible firmware may brick your device.'),
 			labels: {
 				cancel: { label: 'Abort', icon: Cancel },
-				confirm: { label: 'Update', icon: CloudDown }
+				confirm: { label: isCompatible ? 'Update' : 'Update anyway', icon: CloudDown }
 			},
+			confirmClass: isCompatible ? 'btn-warning' : 'btn-error',
 			onConfirm: () => {
-				// Reset OTA status before starting new download
+				modals.close();
 				telemetry.setOTAStatus({ status: 'none', progress: 0, error: '' });
 				postGithubDownload(url);
 				modals.open(FirmwareUpdateDialog as unknown as ModalComponent<any>, {
@@ -149,97 +128,111 @@
 	{#await githubPromise}
 		<Spinner />
 	{:then githubReleases}
-		{@const compatibleReleases = githubReleases.filter((r) => hasMatchingAsset(r.assets))}
-		
-		{#if $firmware.currentVersion}
-			<div role="alert" class="alert alert-info" transition:slide|local={{ duration: 300, easing: cubicOut }}>
-				<Info class="h-6 w-6 shrink-0" />
-				<div>
-					<span class="font-bold">Current Firmware Version:</span>
-					v{$firmware.currentVersion}
+			{@const hasIncompatible = buildTarget
+				? githubReleases.some((r: any) => r.assets.some((a: any) => !a.name.includes(buildTarget)))
+				: false}
+			{#if $firmware.currentVersion}
+				<div role="alert" class="alert alert-info" transition:slide|local={{ duration: 300, easing: cubicOut }}>
+					<Info class="h-6 w-6 shrink-0" />
+					<div>
+						<span class="font-bold">Current Firmware Version:</span>
+						v{$firmware.currentVersion}
+					</div>
 				</div>
+			{/if}
+
+			{#if hasIncompatible}
+			<div class="form-control">
+				<label class="label cursor-pointer justify-start gap-4">
+					<input
+						type="checkbox"
+						class="toggle toggle-primary"
+						checked={hideIncompatible}
+						onchange={(e) => (hideIncompatible = (e.target as HTMLInputElement).checked)}
+					/>
+					<span class="label-text">Hide incompatible build targets</span>
+				</label>
 			</div>
-		{/if}
-		
-		{#if compatibleReleases.length > 0}
-			<div class="relative w-full overflow-visible">
-				<div class="overflow-x-auto" transition:slide|local={{ duration: 300, easing: cubicOut }}>
-					<table class="table w-full table-auto">
-						<thead>
-							<tr class="font-bold">
-								<th align="left">Release</th>
-								<th align="center" class="hidden sm:block">Release Date</th>
-								<th align="center">Install</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each compatibleReleases as release}
-								<tr
-									class={$firmware.currentVersion && compareVersions($firmware.currentVersion, release.tag_name) === 0
+			{/if}
+
+			{#if githubReleases.length > 0}
+					<div class="relative w-full overflow-visible">
+					<div class="w-full">
+						<div class="grid grid-cols-[1fr_auto_64px] border-b border-base-300 px-2 pb-2 text-sm font-bold">
+							<div>Release</div>
+							<div class="hidden w-36 text-center sm:block">Release Date</div>
+							<div class="text-center">Install</div>
+						</div>
+						{#each githubReleases as release}
+					{@const filteredAssets = hideIncompatible && buildTarget
+						? release.assets.filter((a: any) => a.name.includes(buildTarget))
+						: release.assets}
+					{#each filteredAssets as asset (asset.name)}
+						{@const isCompatible = !buildTarget || asset.name.includes(buildTarget)}
+								<div
+									transition:slide={{ duration: 200, easing: cubicOut }}
+									class="grid grid-cols-[1fr_auto_64px] items-center overflow-hidden border-b border-base-300 px-2 py-2 {$firmware.currentVersion && compareVersions($firmware.currentVersion, release.tag_name) === 0
 										? 'bg-primary text-primary-content'
-										: 'bg-base-100'}
+										: 'bg-base-100'}"
 								>
-									<td align="left">
+									<div>
 										<div class="flex items-center gap-2">
 											<a
 												href={release.html_url}
-												class="link link-hover font-semibold"
+												class="link link-hover font-semibold inline-flex items-center gap-1"
 												target="_blank"
-												rel="noopener noreferrer">{release.name}</a
+												rel="noopener noreferrer">{release.name}<ExternalLink class="h-3.5 w-3.5 opacity-60" /></a
 											>
 											{#if release.prerelease}
-												<span class="badge badge-warning">
-													Pre-release
-												</span>
+												<span class="badge badge-warning">Pre-release</span>
 											{/if}
 										</div>
-									</td>
-									<td align="center" class="hidden min-h-full align-middle sm:block">
-										<div class="my-2">
-											{new Intl.DateTimeFormat('en-GB', {
-												dateStyle: 'medium'
-											}).format(new Date(release.published_at))}
-										</div>
-									</td>
-									<td align="center">
-										{#if $firmware.currentVersion && compareVersions($firmware.currentVersion, release.tag_name) != 0}
-											<button
-												class="btn btn-primary btn-soft btn-circle btn-sm"
-												onclick={() => {
-													confirmGithubUpdate(release.assets);
-												}}
+										{#if !hideIncompatible && buildTarget}
+											<div class="mt-1 flex items-center gap-1 text-xs {isCompatible ? 'opacity-60' : 'text-error font-medium'}">
+												{#if !isCompatible}<WarningIcon class="h-3.5 w-3.5 shrink-0" />{/if}
+												{asset.name.split('_')[1] ?? asset.name}
+											</div>
+										{/if}
+									</div>
+									<div class="hidden w-36 text-center sm:block">
+										{new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(release.published_at))}
+									</div>
+									<div class="flex justify-center">
+									{#if !$firmware.currentVersion || compareVersions($firmware.currentVersion, release.tag_name) != 0}
+										<button
+											out:fade={{ duration: 150 }}
+												class="btn {isCompatible ? 'btn-primary' : 'btn-error'} btn-soft btn-circle btn-sm"
+												onclick={() => confirmGithubUpdate(asset.browser_download_url, isCompatible)}
 											>
 												<CloudDown class="h-6 w-6" />
 											</button>
 										{/if}
-									</td>
-								</tr>
+									</div>
+								</div>
 							{/each}
-						</tbody>
-					</table>
+						{/each}
+					</div>
 				</div>
-			</div>
-		{:else}
-			<div role="alert" class="alert alert-warning shadow-lg">
-				<WarningIcon class="h-6 w-6 shrink-0" />
+			{:else}
+				<div role="alert" class="alert alert-warning shadow-lg">
+					<WarningIcon class="h-6 w-6 shrink-0" />
+					<div class="flex flex-col">
+						<span class="font-bold">No firmware releases found</span>
+						<span class="text-sm">
+							No releases found in the repository. Upload firmware manually or build from sources.
+						</span>
+					</div>
+				</div>
+			{/if}
+		{:catch}
+			<div class="alert alert-error shadow-lg">
+				<ErrorIcon class="h-6 w-6 shrink-0" />
 				<div class="flex flex-col">
-					<span class="font-bold">No compatible firmware found</span>
+					<span class="font-bold">Unable to fetch firmware releases</span>
 					<span class="text-sm">
-						No releases with firmware for <strong>{$firmware.builtTarget}</strong> found. 
-						Upload firmware manually or build from sources.
+						{errorMessage || 'Backend cannot reach GitHub. Check internet connection and firewall settings.'}
 					</span>
 				</div>
 			</div>
-		{/if}
-	{:catch error}
-		<div class="alert alert-error shadow-lg">
-			<ErrorIcon class="h-6 w-6 shrink-0" />
-			<div class="flex flex-col">
-				<span class="font-bold">Unable to fetch firmware releases</span>
-				<span class="text-sm">
-					{errorMessage || 'Backend cannot reach GitHub. Check internet connection and firewall settings.'}
-				</span>
-			</div>
-		</div>
-	{/await}
+		{/await}
 </SettingsCard>

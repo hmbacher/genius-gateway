@@ -13,6 +13,7 @@
 		message: string;
 		onConfirm: any;
 		labels?: any;
+		confirmClass?: string;
 	}
 
 	let {
@@ -23,7 +24,8 @@
 		labels = {
 			cancel: { label: 'Cancel', icon: Cancel },
 			confirm: { label: 'OK', icon: Check }
-		}
+		},
+		confirmClass = 'btn-warning'
 	}: Props = $props();
 </script>
 
@@ -50,7 +52,7 @@
 					}}><labels.cancel.icon class="h-5 w-5" /><span>{labels?.cancel.label}</span></button
 				>
 				<button
-					class="btn btn-warning text-warning-content inline-flex items-center"
+					class="btn {confirmClass} inline-flex items-center"
 					onclick={onConfirm}
 					><SvelteComponent class="h-5 w-5" /><span>{labels?.confirm.label}</span></button
 				>

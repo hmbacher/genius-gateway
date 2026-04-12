@@ -21,7 +21,7 @@ function createFirmwareStore() {
 		subscribe,
 		setFromGithubRelease: (data: {
 			current_version?: string;
-			built_target?: string;
+			build_target?: string;
 			tag_name?: string;
 			download_url?: string;
 			update_available?: boolean;
@@ -29,7 +29,7 @@ function createFirmwareStore() {
 			update((state) => ({
 				...state,
 				currentVersion: data.current_version ?? state.currentVersion,
-				builtTarget: data.built_target ?? state.builtTarget,
+				builtTarget: data.build_target ?? state.builtTarget,
 				latestVersion: data.tag_name ?? state.latestVersion,
 				downloadUrl: data.download_url ?? state.downloadUrl,
 				updateAvailable: data.update_available ?? state.updateAvailable

@@ -354,6 +354,7 @@ Authorization: Bearer <token>
 | `/rest/generateToken` | GET | 🛡️ | Generate JWT secret |
 | `/rest/uploadFirmware` | POST | 🛡️ | Upload firmware binary |
 | `/rest/downloadUpdate` | POST | 🛡️ | Download firmware update |
+| `/rest/github-release` | GET | 🔒 | Get GitHub firmware releases |
 
 ---
 
@@ -598,7 +599,8 @@ Authorization: Bearer <token>
   "free_sketch_space": 2500000,
   "flash_chip_size": 4194304,
   "sdk_version": "v4.4.6",
-  "core_version": "2.0.14"
+  "core_version": "2.0.14",
+  "build_target": "seeed-xiao-esp32s3"
 }
 ```
 
@@ -793,5 +795,81 @@ or 401 Unauthorized if invalid
 ```json
 {
   "success": true
+}
+```
+
+---
+
+#### `/rest/github-release`
+- **Method:** GET
+- **Auth:** 🔒 User
+- **Description:** Query GitHub for published firmware releases. Behaviour depends on the `all` query parameter.
+
+---
+
+##### Without `?all=true` — latest release check
+
+Returns metadata about the single latest GitHub release and whether it is newer than the currently running firmware. Used by the update indicator.
+
+**Request:** `GET /rest/github-release`
+
+**Response (success):**
+```json
+{
+  "success": true,
+  "tag_name": "1.2.0",
+  "version": "1.2.0",
+  "download_url": "https://github.com/.../Genius-Gateway_seeed-xiao-esp32s3_1-2-0.bin",
+  "current_version": "1.1.1",
+  "build_target": "seeed-xiao-esp32s3",
+  "update_available": true
+}
+```
+
+**Response (failure):**
+```json
+{
+  "success": false,
+  "error": "Failed to query GitHub API",
+  "current_version": "1.1.1",
+  "build_target": "seeed-xiao-esp32s3"
+}
+```
+
+---
+
+##### With `?all=true` — full release list
+
+Returns all releases, each filtered to only their `.bin` assets. The response is wrapped in an envelope that also carries the device's build target so the frontend can perform client-side compatibility filtering without a separate round-trip.
+
+**Request:** `GET /rest/github-release?all=true`
+
+**Response (success):**
+```json
+{
+  "build_target": "seeed-xiao-esp32s3",
+  "releases": [
+    {
+      "tag_name": "1.2.0",
+      "name": "Genius Gateway 1.2.0",
+      "html_url": "https://github.com/owner/repo/releases/tag/1.2.0",
+      "published_at": "2025-06-01T12:00:00Z",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "Genius-Gateway_seeed-xiao-esp32s3_1-2-0.bin",
+          "browser_download_url": "https://github.com/.../Genius-Gateway_seeed-xiao-esp32s3_1-2-0.bin"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Response (failure):**
+```json
+{
+  "success": false,
+  "error": "Failed to query GitHub API for all releases"
 }
 ```

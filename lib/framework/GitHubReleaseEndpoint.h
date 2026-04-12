@@ -8,7 +8,7 @@
  *   https://github.com/theelims/ESP32-sveltekit
  *
  *   Copyright (C) 2025 theelims
- *   Copyright (C) 2025 hmbacher
+ *   Copyright (C) 2026 hmbacher
  *
  *   All Rights Reserved. This software may be modified and distributed under
  *   the terms of the LGPL v3 license. See the LICENSE file for details.
@@ -20,7 +20,7 @@
 #include <GitHubReleaseService.h>
 #include <ArduinoJson.h>
 
-#define GITHUB_RELEASE_PATH "/rest/githubRelease"
+#define GITHUB_RELEASE_PATH "/rest/github-release"
 
 /**
  * @brief REST endpoint for querying GitHub releases
@@ -38,7 +38,8 @@ public:
      * @param server HTTP server instance
      * @param securityManager Security manager for authentication
      */
-    GitHubReleaseEndpoint(PsychicHttpServer *server, SecurityManager *securityManager);
+    GitHubReleaseEndpoint(PsychicHttpServer *server,
+                          SecurityManager *securityManager);
 
     /**
      * @brief Initialize the endpoint

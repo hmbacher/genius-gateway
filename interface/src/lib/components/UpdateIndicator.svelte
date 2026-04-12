@@ -27,7 +27,7 @@
 
 	async function getGithubAPI() {
 		// Use backend endpoint instead of direct GitHub API call
-		const githubUrl = `/rest/githubRelease`;
+		const githubUrl = `/rest/github-release`;
 		loading = true;
 		try {
 			const response = await fetch(githubUrl, {

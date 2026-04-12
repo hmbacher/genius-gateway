@@ -300,7 +300,7 @@
 					<div>
 						<div class="font-bold">Firmware Version</div>
 						<div class="text-sm opacity-75">
-							{systemInformation.firmware_version}
+							{systemInformation.firmware_version} @ {systemInformation.build_target}
 						</div>
 					</div>
 				</div>

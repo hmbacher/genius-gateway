@@ -161,7 +161,32 @@ The Firmware Update page provides two methods for updating the gateway firmware:
 !!! info "Administrator Access Required"
     Firmware update features are only accessible to users with administrator privileges.
 
-### Upload Firmware
+### :tabler-brand-github: GitHub Firmware Manager
+
+The GitHub Firmware Manager lists all firmware releases published to the project's GitHub repository and lets you install any of them with one click.
+
+#### Release List
+
+Each release row shows the version tag and a list of available firmware assets. When the device's current version is known, the row matching the installed version is highlighted — indicating that version is already running.
+
+#### Build Target Filtering
+
+The device reports its build target (e.g. `seeed-xiao-esp32s3`) as part of the API response. Assets whose filename contains the build target are marked as **compatible**; any others are **incompatible**.
+
+By default only compatible assets are shown. If a release contains incompatible assets a toggle labelled **Hide incompatible build targets** appears above the list. It is checked by default, hiding incompatible assets; unchecking it reveals them.
+
+!!! info "No toggle shown"
+    If all assets across all releases are compatible with the device, the toggle is not displayed at all.
+
+#### Installing a Release
+
+1. Find the release you want and click the install button next to the desired `.bin` asset.
+2. A confirmation dialog appears listing the target URL.
+    - For a **compatible** asset the dialog uses the standard warning style.
+    - For an **incompatible** asset the dialog uses a red/error style and warns that the firmware was not built for this hardware variant.
+3. Click **Update** (or **Update anyway** for incompatible assets) to start the download. The device fetches the binary from GitHub, writes it to flash, and restarts automatically.
+
+### :tabler-file-upload: Upload Firmware
 
 The Upload Firmware section allows manual installation of firmware files from your local computer.
 

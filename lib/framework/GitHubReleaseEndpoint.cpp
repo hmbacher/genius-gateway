@@ -6,7 +6,7 @@
  *   https://github.com/theelims/ESP32-sveltekit
  *
  *   Copyright (C) 2025 theelims
- *   Copyright (C) 2025 hmbacher
+ *   Copyright (C) 2026 hmbacher
  *
  *   All Rights Reserved. This software may be modified and distributed under
  *   the terms of the LGPL v3 license. See the LICENSE file for details.
@@ -56,11 +56,66 @@ esp_err_t GitHubReleaseEndpoint::handleGitHubRelease(PsychicRequest *request)
         if (success)
         {
             ESP_LOGI(SVK_TAG, "GitHub all releases query successful");
-            
-            // Return raw JSON array from GitHub
+
+            JsonDocument rawDoc;
+            DeserializationError parseError = deserializeJson(rawDoc, jsonResponse);
+            if (parseError)
+            {
+                ESP_LOGE(SVK_TAG, "Failed to parse GitHub releases JSON: %s", parseError.c_str());
+                JsonDocument errDoc;
+                errDoc["success"] = false;
+                errDoc["error"] = "Failed to parse GitHub API response";
+                PsychicJsonResponse errResponse = PsychicJsonResponse(request, false);
+                errResponse.getRoot().set(errDoc.as<JsonObjectConst>());
+                return errResponse.send();
+            }
+
+            // Strip each release down to only .bin assets — filtering by build target
+            // is done client-side in the frontend.
+            JsonDocument filteredDoc;
+            JsonArray filteredReleases = filteredDoc.to<JsonArray>();
+
+            for (JsonVariant release : rawDoc.as<JsonArray>())
+            {
+                JsonArray filteredAssets;
+                bool hasAnyBin = false;
+
+                for (JsonVariant asset : release["assets"].as<JsonArray>())
+                {
+                    String assetName = asset["name"] | "";
+                    if (assetName.endsWith(".bin"))
+                    {
+                        if (!hasAnyBin)
+                        {
+                            JsonObject filteredRelease = filteredReleases.add<JsonObject>();
+                            filteredRelease["tag_name"]     = release["tag_name"];
+                            filteredRelease["name"]         = release["name"];
+                            filteredRelease["html_url"]     = release["html_url"];
+                            filteredRelease["published_at"] = release["published_at"];
+                            filteredRelease["prerelease"]   = release["prerelease"];
+                            filteredAssets = filteredRelease["assets"].to<JsonArray>();
+                            hasAnyBin = true;
+                        }
+                        JsonObject fa = filteredAssets.add<JsonObject>();
+                        fa["name"]                 = assetName;
+                        fa["browser_download_url"] = asset["browser_download_url"] | "";
+                    }
+                }
+            }
+
+            ESP_LOGI(SVK_TAG, "Returning %d releases with .bin assets", (int)filteredReleases.size());
+
+            // Wrap in envelope so frontend gets build_target in the same request
+            JsonDocument envelope;
+            envelope["build_target"] = BUILD_TARGET;
+            envelope["releases"]     = filteredDoc.as<JsonArrayConst>();
+
+            String filteredJson;
+            serializeJson(envelope, filteredJson);
+
             PsychicResponse response(request);
             response.setContentType("application/json");
-            response.setContent(jsonResponse.c_str());
+            response.setContent(filteredJson.c_str());
             return response.send();
         }
         else
@@ -100,7 +155,7 @@ esp_err_t GitHubReleaseEndpoint::handleGitHubRelease(PsychicRequest *request)
             doc["version"] = releaseInfo.version;
             doc["download_url"] = releaseInfo.downloadUrl;
             doc["current_version"] = String(APP_VERSION);
-            doc["built_target"] = String(BUILD_TARGET);
+            doc["build_target"] = String(BUILD_TARGET);
         
             // Check if update is available
             doc["update_available"] = GitHubReleaseService::isNewerVersion(
@@ -116,7 +171,7 @@ esp_err_t GitHubReleaseEndpoint::handleGitHubRelease(PsychicRequest *request)
             doc["success"] = false;
             doc["error"] = "Failed to query GitHub API";
             doc["current_version"] = String(APP_VERSION);
-            doc["built_target"] = String(BUILD_TARGET);
+            doc["build_target"] = String(BUILD_TARGET);
         
             ESP_LOGW(SVK_TAG, "GitHub query failed");
         }

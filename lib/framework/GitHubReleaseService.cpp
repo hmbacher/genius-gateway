@@ -6,7 +6,7 @@
  *   https://github.com/theelims/ESP32-sveltekit
  *
  *   Copyright (C) 2025 theelims
- *   Copyright (C) 2025 hmbacher
+ *   Copyright (C) 2026 hmbacher
  *
  *   All Rights Reserved. This software may be modified and distributed under
  *   the terms of the LGPL v3 license. See the LICENSE file for details.
@@ -100,22 +100,27 @@ GitHubReleaseInfo GitHubReleaseService::queryLatestRelease(
     result.version = tagName;
     result.name = doc["name"] | "";
     
-    // Find download URL for the binary (look for .bin file in assets)
+    // Find download URL for the binary (look for .bin file in assets matching BUILD_TARGET).
+    // This path is used by the HA update service and always applies the target filter.
     JsonArray assets = doc["assets"];
     
     for (JsonVariant asset : assets)
     {
         String assetName = asset["name"] | "";
-        if (assetName.endsWith(".bin"))
+        if (!assetName.endsWith(".bin"))
+            continue;
+        if (assetName.indexOf(BUILD_TARGET) == -1)
         {
-            result.downloadUrl = asset["browser_download_url"] | "";
-            break;
+            ESP_LOGV(TAG, "Skipping asset '%s' (does not match BUILD_TARGET '%s')", assetName.c_str(), BUILD_TARGET);
+            continue;
         }
+        result.downloadUrl = asset["browser_download_url"] | "";
+        break;
     }
     
     if (result.downloadUrl.isEmpty())
     {
-        ESP_LOGW(TAG, "No .bin download URL found in GitHub release");
+        ESP_LOGW(TAG, "No .bin download URL found for BUILD_TARGET '%s' in GitHub release", BUILD_TARGET);
     }
     
     result.valid = true;
