@@ -1,0 +1,4 @@
+- Reaktion bei Fehlern beim Readout (kaputter Melder)
+    Wenn Fehler erkannt wurden, soll ein Hinweis gezeigt werden! in welchem Schritt?
+- RWM-Listen-Spalten anpassen
+- Tests für die ganzen Duplikaterkennungsvarianten bei Readout

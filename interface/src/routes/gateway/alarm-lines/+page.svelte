@@ -8,7 +8,8 @@
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { AlarmLines, AlarmLine } from '$lib/types/models';
-	import { AlarmLineAcquisition } from '$lib/types/enums';
+	import { AlarmLineAcquisition, GeniusDeviceRegistration } from '$lib/types/enums';
+	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { onMount, onDestroy } from 'svelte';
 	import { socket } from '$lib/stores/socket';
@@ -30,6 +31,7 @@
 	import FlameOff from '~icons/tabler/flame-off';
 	import Manual from '~icons/tabler/forms';
 	import Automatic from '~icons/tabler/access-point';
+	import Microphone from '~icons/tabler/microphone';
 	import SpinnerSmall from '$lib/components/SpinnerSmall.svelte';
 
 	const BROADCAST_ID = 0xffffffff; // 4294967295
@@ -392,7 +394,7 @@
 									<tr class="font-bold">
 										<th align="left">ID</th>
 										<th align="left">Name</th>
-										<th align="left">Registered</th>
+										<th align="left">Smoke Detectors</th>
 										<th align="center">Acquisition</th>
 										<th align="right" class="pr-8">Manage</th>
 									</tr>
@@ -411,17 +413,22 @@
 													class="{line.id === BROADCAST_ID ? 'text-base-content/50' : ''} "
 													>{line.name}</td
 												>
-												<td align="left"
-													>{line.id != BROADCAST_ID
-														? line.created.toLocaleString('de-DE', {
-																day: '2-digit',
-																month: '2-digit',
-																year: 'numeric',
-																hour: '2-digit',
-																minute: '2-digit',
-																second: '2-digit'
-															})
-														: ''}
+											<td align="left" class="text-sm">
+												{#if !geniusDevices.isLoaded}
+													<div class="flex justify-center">
+														<SpinnerSmall />
+													</div>
+												{:else}
+													{@const locations = geniusDevices.devices
+														.filter(
+															(d) =>
+																d.registration === GeniusDeviceRegistration.Acoustic &&
+																d.radioModule.lineId === line.id
+														)
+														.map((d) => d.location)
+														.join(', ')}
+													<span class={locations ? '' : 'flex justify-center'}>{locations || '-'}</span>
+												{/if}
 												</td>
 												<td align="center">
 													{#if line.id != BROADCAST_ID}
@@ -436,15 +443,22 @@
 															>
 																<Automatic class="h-6 w-6" />
 															</div>
+														{:else if line.acquisition === AlarmLineAcquisition.Acoustic}
+															<div
+																class="tooltip tooltip-top"
+																data-tip="Alarm line discovered via acoustic device readout"
+															>
+																<Microphone class="h-6 w-6" />
+															</div>
 														{/if}
 													{/if}
 												</td>
 
 												<td align="right">
-													<span class="my-auto inline-flex flex-row space-x-2">
+													<span class="my-auto inline-flex flex-row">
 														<div class="tooltip tooltip-left" data-tip="Edit alarm line">
 															<button
-																class="btn btn-ghost btn-circle btn-xs"
+																class="btn btn-ghost btn-circle btn-sm"
 																onclick={() => handleEdit(index)}
 																disabled={line.id === BROADCAST_ID}
 															>
@@ -453,7 +467,7 @@
 														</div>
 														<div class="tooltip tooltip-left" data-tip="Delete alarm line">
 															<button
-																class="btn btn-ghost btn-circle btn-xs"
+																class="btn btn-ghost btn-circle btn-sm"
 																onclick={() => confirmDelete(index)}
 																disabled={line.id === BROADCAST_ID}
 															>
@@ -463,7 +477,7 @@
 														{#if !activeActions.lineTestStart[index]}
 															<div class="tooltip tooltip-left" data-tip="Start line test">
 																<button
-																	class="btn btn-ghost btn-circle btn-xs"
+																	class="btn btn-ghost btn-circle btn-sm"
 																	onclick={() => handleLineTestStart(index)}
 																	disabled={isActionActive}
 																>
@@ -476,7 +490,7 @@
 														{#if !activeActions.lineTestStop[index]}
 														<div class="tooltip tooltip-left" data-tip="Stop line test">
 															<button
-																class="btn btn-ghost btn-circle btn-xs"
+																class="btn btn-ghost btn-circle btn-sm"
 																onclick={() => handleLineTestStop(index)}
 																disabled={isActionActive}
 															>
@@ -492,7 +506,7 @@
 															data-tip="Trigger fire alarm"
 														>
 															<button
-																class="btn btn-ghost btn-circle btn-xs"
+																class="btn btn-ghost btn-circle btn-sm"
 																onclick={() => handleFireAlarmStart(index)}
 																disabled={isActionActive}
 															>
@@ -505,7 +519,7 @@
 														{#if !activeActions.fireAlarmStop[index]}
 														<div class="tooltip tooltip-left" data-tip="Stop fire alarm">
 															<button
-																class="btn btn-ghost btn-circle btn-xs"
+																class="btn btn-ghost btn-circle btn-sm"
 																onclick={() => handleFireAlarmStop(index)}
 																disabled={isActionActive}
 															>

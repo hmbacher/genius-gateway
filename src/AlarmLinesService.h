@@ -99,6 +99,7 @@ typedef enum alarm_line_acquisition
     ALA_BUILT_IN = 0,  ///< Built-in alarm line (e.g. broadcast line)
     ALA_GENIUS_PACKET, ///< Discovered via received genius packet
     ALA_MANUAL,        ///< Manually added via web interface
+    ALA_ACOUSTIC,      ///< Discovered via acoustic device readout
     ALA_MAX            ///< Boundary check maximum value
 } alarm_line_acquisition_t;
 

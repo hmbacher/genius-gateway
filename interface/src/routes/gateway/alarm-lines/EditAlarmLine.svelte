@@ -31,10 +31,10 @@
 			acquisition: AlarmLineAcquisition.Manual // Default to manually added
 		}
 	}: Props = $props();
-	
+
 	// Make passed object reactive in EditAlarmLine modal
 	// https://github.com/sveltejs/svelte/issues/12320
-	let alarmLine = $state(_alarmLine);	
+	let alarmLine = $state(_alarmLine);
 
 	let _orgID = $state.snapshot(alarmLine.id); // Store the original ID to check for duplicates
 
@@ -100,6 +100,7 @@
 							min={minID}
 							max={maxID}
 							required
+							disabled={alarmLine.acquisition === AlarmLineAcquisition.Acoustic || alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket}
 							class="input input-bordered invalid:border-error w-full invalid:border-2 {formErrors
 								.id.range || formErrors.id.exists
 								? 'border-error border-2'
@@ -112,7 +113,15 @@
 							}}
 							use:focus
 						/>
-						{#if formErrors.id.range}
+						{#if alarmLine.acquisition === AlarmLineAcquisition.Acoustic || alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket}
+							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+								<label for="AlarmLineID" class="label">
+									<span class="text-wrap pl-1">
+										IDs of alarm lines discovered via {alarmLine.acquisition === AlarmLineAcquisition.Acoustic ? 'acoustic readout' : 'Genius radio packet'} cannot be changed.
+									</span>
+								</label>
+							</div>
+						{:else if formErrors.id.range}
 							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 								<label for="AlarmLineID" class="label">
 									<span class="text-error text-wrap">

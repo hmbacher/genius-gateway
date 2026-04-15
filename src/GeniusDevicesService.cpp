@@ -58,6 +58,11 @@ void GeniusDevicesService::begin()
 {
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
+    // FSPersistence::readFromFS uses updateWithoutPropagation, so update handlers
+    // (incl. writeToFS) are never triggered on load. Force a write-back here so
+    // any migration changes (e.g. v0→v1 enum remapping + version field) are
+    // persisted immediately and don't re-run on the next restart.
+    _fsPersistence.writeToFS();
 
     // Initialize cached MQTT settings
     _updateMqttSettingsCache();
@@ -106,10 +111,13 @@ bool GeniusDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
     beginTransaction();
 
     // Create a new GeniusDevice with unknown models and production dates
-    GeniusDevice newDevice = GeniusDevice(
-        GeniusComponent<GeniusSmokeDetector>(static_cast<GeniusSmokeDetector>(GSD_UNKNOWN), snSmokeDetector, 0),
-        GeniusComponent<GeniusRadioModule>(static_cast<GeniusRadioModule>(GRM_UNKNOWN), snRadioModule, 0),
-        GENIUS_DEVICE_DEFAULT_LOCATION);
+    GeniusSmokeDetectorInfo sd = {};
+    sd.model = static_cast<GeniusSmokeDetector>(GSD_UNKNOWN);
+    sd.sn = snSmokeDetector;
+    GeniusRadioModuleInfo rm = {};
+    rm.model = static_cast<GeniusRadioModule>(GRM_UNKNOWN);
+    rm.sn = snRadioModule;
+    GeniusDevice newDevice = GeniusDevice(sd, rm, GENIUS_DEVICE_DEFAULT_LOCATION);
 
     // Generate unique ID with collision detection
     newDevice.id = _generateUniqueDeviceId();
@@ -342,6 +350,31 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
 {
     bool hasChanges = false;
 
+    // Migration: v0 had GSD_GENIUS_PLUS_X=0 and GRM_FM_BASIS_X=0 (now 3 and 4 respectively).
+    // Only migrate when loading from the config file (FSPersistence uses the file path as originId).
+    // Frontend PUT requests always carry version=1 after the first migration, but we guard
+    // against crafted requests by checking the origin.
+    int configVersion = root["version"].is<int>() ? root["version"].as<int>() : 0;
+    if (configVersion < 1 && originId == GATEWAY_DEVICES_FILE)
+    {
+        ESP_LOGI(GeniusDevices::TAG, "Migrating device config from v%d to v%d.", configVersion, GATEWAY_DEVICES_CONFIG_VERSION);
+        if (root["devices"].is<JsonArray>())
+        {
+            for (JsonVariant dev : root["devices"].as<JsonArray>())
+            {
+                // GSD_GENIUS_PLUS_X: old 0 → new 3
+                if (dev["smokeDetector"]["model"].is<int>() && dev["smokeDetector"]["model"].as<int>() == 0)
+                    dev["smokeDetector"]["model"] = 3;
+                // GRM_FM_BASIS_X: old 0 → new 4
+                if (dev["radioModule"]["model"].is<int>() && dev["radioModule"]["model"].as<int>() == 0)
+                    dev["radioModule"]["model"] = 4;
+                // Remove obsolete radioModule.productionDate field
+                dev["radioModule"].remove("productionDate");
+            }
+        }
+        hasChanges = true; // force save with new version
+    }
+
     if (!root["devices"].is<JsonArray>())
     {
         ESP_LOGV(GeniusDevices::TAG, "No devices array in JSON, no changes made.");
@@ -379,20 +412,20 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
         {
             // New device - add it (use ID from JSON)
             GeniusDevice newDevice = GeniusDevice(
-                GeniusComponent<GeniusSmokeDetector>(
-                    static_cast<GeniusSmokeDetector>(smokeDetectorJson["model"].as<int>()),
-                    smokeDetectorJson["sn"].as<uint32_t>(),
-                    Utils::iso8601_to_time_t(smokeDetectorJson["productionDate"].as<String>())),
-                GeniusComponent<GeniusRadioModule>(
-                    static_cast<GeniusRadioModule>(radioModuleJson["model"].as<int>()),
-                    radioModuleJson["sn"].as<uint32_t>(),
-                    Utils::iso8601_to_time_t(radioModuleJson["productionDate"].as<String>())),
+                GeniusSmokeDetectorInfo::fromJson(smokeDetectorJson),
+                GeniusRadioModuleInfo::fromJson(radioModuleJson),
                 jsonDeviceArrItem["location"].as<String>(),
                 deviceId); // Use the ID from JSON
 
             // Set optional properties with defaults
             newDevice.isAlarming = jsonDeviceArrItem["isAlarming"].is<bool>() ? jsonDeviceArrItem["isAlarming"].as<bool>() : false;
             newDevice.registration = jsonDeviceArrItem["registration"].is<int>() ? static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>()) : GDR_MANUAL;
+
+            // Readout metadata
+            newDevice.readoutTime = jsonDeviceArrItem["readoutTime"].is<String>()
+                ? Utils::iso8601_to_time_t(jsonDeviceArrItem["readoutTime"].as<String>()) : 0;
+            newDevice.readoutProtocolVersion = jsonDeviceArrItem["readoutProtocolVersion"].is<int>()
+                ? jsonDeviceArrItem["readoutProtocolVersion"].as<uint8_t>() : 0;
 
             // Process alarms
             if (jsonDeviceArrItem["alarms"].is<JsonArray>())
@@ -427,79 +460,58 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
             GeniusDevice updatedDevice = *existingDevice;
             bool deviceChanged = false;
 
-            // Update smoke detector component...
-            // ...model
-            GeniusSmokeDetector newSmokeDetectorModel = static_cast<GeniusSmokeDetector>(smokeDetectorJson["model"].as<int>());
-            if (updatedDevice.smokeDetector.model != newSmokeDetectorModel)
-            {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old model: %d, New model: %d",
-                         updatedDevice.location.c_str(),
-                         static_cast<int>(updatedDevice.smokeDetector.model),
-                         static_cast<int>(newSmokeDetectorModel));
+            // Update acoustic readout data
+            GeniusSmokeDetectorInfo newSD = GeniusSmokeDetectorInfo::fromJson(smokeDetectorJson);
+            GeniusRadioModuleInfo newRM = GeniusRadioModuleInfo::fromJson(radioModuleJson);
+            time_t newReadoutTime = jsonDeviceArrItem["readoutTime"].is<String>()
+                ? Utils::iso8601_to_time_t(jsonDeviceArrItem["readoutTime"].as<String>()) : 0;
+            uint8_t newReadoutProtocolVersion = jsonDeviceArrItem["readoutProtocolVersion"].is<int>()
+                ? jsonDeviceArrItem["readoutProtocolVersion"].as<uint8_t>() : 0;
 
-                updatedDevice.smokeDetector.model = newSmokeDetectorModel;
+            // Compare identity fields (model/sn/productionDate) for smoke detector
+            if (updatedDevice.smokeDetector.model != newSD.model)
+            {
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': SD model %d→%d", updatedDevice.location.c_str(),
+                         static_cast<int>(updatedDevice.smokeDetector.model), static_cast<int>(newSD.model));
+                updatedDevice.smokeDetector.model = newSD.model;
                 deviceChanged = true;
             }
-            // ...serial number
-            uint32_t newSmokeDetectorSN = smokeDetectorJson["sn"].as<uint32_t>();
-            if (updatedDevice.smokeDetector.sn != newSmokeDetectorSN)
+            if (updatedDevice.smokeDetector.sn != newSD.sn)
             {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old SN: %lu, New SN: %lu",
-                         updatedDevice.location.c_str(),
-                         updatedDevice.smokeDetector.sn,
-                         newSmokeDetectorSN);
-
-                updatedDevice.smokeDetector.sn = newSmokeDetectorSN;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': SD SN %lu→%lu", updatedDevice.location.c_str(),
+                         updatedDevice.smokeDetector.sn, newSD.sn);
+                updatedDevice.smokeDetector.sn = newSD.sn;
                 deviceChanged = true;
             }
-            // ...production date
-            time_t newSmokeDetectorProdDate = Utils::iso8601_to_time_t(smokeDetectorJson["productionDate"].as<String>());
-            if (updatedDevice.smokeDetector.productionDate != newSmokeDetectorProdDate)
+            if (updatedDevice.smokeDetector.productionDate != newSD.productionDate)
             {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old production date: %s, New production date: %s",
-                         updatedDevice.location.c_str(),
-                         Utils::time_t_to_iso8601(updatedDevice.smokeDetector.productionDate).c_str(),
-                         Utils::time_t_to_iso8601(newSmokeDetectorProdDate).c_str());
-
-                updatedDevice.smokeDetector.productionDate = newSmokeDetectorProdDate;
+                updatedDevice.smokeDetector.productionDate = newSD.productionDate;
                 deviceChanged = true;
             }
 
-            // Update radio module component...
-            // ...model
-            GeniusRadioModule newRadioModuleModel = static_cast<GeniusRadioModule>(radioModuleJson["model"].as<int>());
-            if (updatedDevice.radioModule.model != newRadioModuleModel)
+            // Compare identity fields for radio module
+            if (updatedDevice.radioModule.model != newRM.model)
             {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old model: %d, New model: %d",
-                         updatedDevice.location.c_str(),
-                         static_cast<int>(updatedDevice.radioModule.model),
-                         static_cast<int>(newRadioModuleModel));
-
-                updatedDevice.radioModule.model = newRadioModuleModel;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': RM model %d→%d", updatedDevice.location.c_str(),
+                         static_cast<int>(updatedDevice.radioModule.model), static_cast<int>(newRM.model));
+                updatedDevice.radioModule.model = newRM.model;
                 deviceChanged = true;
             }
-            // ...serial number
-            uint32_t newRadioModuleSN = radioModuleJson["sn"].as<uint32_t>();
-            if (updatedDevice.radioModule.sn != newRadioModuleSN)
+            if (updatedDevice.radioModule.sn != newRM.sn)
             {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old SN: %lu, New SN: %lu",
-                         updatedDevice.location.c_str(),
-                         updatedDevice.radioModule.sn,
-                         newRadioModuleSN);
-
-                updatedDevice.radioModule.sn = newRadioModuleSN;
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': RM SN %lu→%lu", updatedDevice.location.c_str(),
+                         updatedDevice.radioModule.sn, newRM.sn);
+                updatedDevice.radioModule.sn = newRM.sn;
                 deviceChanged = true;
             }
-            // ...production date
-            time_t newRadioModuleProdDate = Utils::iso8601_to_time_t(radioModuleJson["productionDate"].as<String>());
-            if (updatedDevice.radioModule.productionDate != newRadioModuleProdDate)
+            // Update readout metadata (readout fields merge into the existing structs)
+            if (updatedDevice.readoutTime != newReadoutTime)
             {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old production date: %s, New production date: %s",
-                         updatedDevice.location.c_str(),
-                         Utils::time_t_to_iso8601(updatedDevice.radioModule.productionDate).c_str(),
-                         Utils::time_t_to_iso8601(newRadioModuleProdDate).c_str());
-
-                updatedDevice.radioModule.productionDate = newRadioModuleProdDate;
+                updatedDevice.readoutTime = newReadoutTime;
+                updatedDevice.readoutProtocolVersion = newReadoutProtocolVersion;
+                // Merge readout status fields from JSON into the device structs
+                updatedDevice.smokeDetector = newSD;
+                updatedDevice.radioModule = newRM;
                 deviceChanged = true;
             }
 
@@ -507,11 +519,8 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
             String newLocation = jsonDeviceArrItem["location"].as<String>();
             if (updatedDevice.location != newLocation)
             {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old location: '%s', New location: '%s'",
-                         updatedDevice.location.c_str(),
-                         updatedDevice.location.c_str(),
-                         newLocation.c_str());
-
+                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': location→'%s'",
+                         updatedDevice.location.c_str(), newLocation.c_str());
                 updatedDevice.location = newLocation;
                 deviceChanged = true;
             }
@@ -520,69 +529,6 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
             // - isAlarming: Controlled by alarm detection system
             // - registration: Set when device is first added/detected
             // - alarms: Managed by alarm start/stop events
-
-            /*
-            // Update isAlarming
-            bool newIsAlarming = jsonDeviceArrItem["isAlarming"].is<bool>() ?
-                jsonDeviceArrItem["isAlarming"].as<bool>() : false;
-            if (updatedDevice.isAlarming != newIsAlarming)
-            {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old isAlarming: %s, New isAlarming: %s",
-                         updatedDevice.location.c_str(),
-                         updatedDevice.isAlarming ? "true" : "false",
-                         newIsAlarming ? "true" : "false");
-
-                updatedDevice.isAlarming = newIsAlarming;
-                deviceChanged = true;
-            }
-
-            // Update registration
-            genius_device_registration_t newRegistration = jsonDeviceArrItem["registration"].is<int>() ?
-                static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>()) : GDR_MANUAL;
-            if (updatedDevice.registration != newRegistration)
-            {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Old registration: %d, New registration: %d",
-                         updatedDevice.location.c_str(),
-                         static_cast<int>(updatedDevice.registration),
-                         static_cast<int>(newRegistration));
-
-                existingDevice->registration = newRegistration;
-                deviceChanged = true;
-            }
-
-            // Update alarms (for simplicity, we replace the entire alarms vector if it has changed)
-            // A more sophisticated approach would compare individual alarms
-            std::vector<genius_device_alarm_t> newAlarms;
-            if (jsonDeviceArrItem["alarms"].is<JsonArray>())
-            {
-                int alarms_count = 0;
-                for (JsonVariant jsonAlarm : jsonDeviceArrItem["alarms"].as<JsonArray>())
-                {
-                    if (alarms_count++ >= GATEWAY_MAX_ALARMS)
-                    {
-                        ESP_LOGE(GeniusDevices::TAG, "Too many alarms for smoke detector device. Maximum allowed is %d.", GATEWAY_MAX_ALARMS);
-                        break;
-                    }
-
-                    newAlarms.push_back(genius_device_alarm_t{
-                        .startTime = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>()),
-                        .endTime = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>()),
-                        .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
-                }
-            }
-
-            // Compare alarms (simple size comparison - could be more sophisticated)
-            if (updatedDevice.alarms.size() != newAlarms.size())
-            {
-                ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': Alarms count changed from %d to %d.",
-                         updatedDevice.location.c_str(),
-                         updatedDevice.alarms.size(),
-                         newAlarms.size());
-
-                updatedDevice.alarms = newAlarms;
-                deviceChanged = true;
-            }
-            */
 
             // Mark for republishing if device changed
             if (deviceChanged)
@@ -969,14 +915,29 @@ esp_err_t GeniusDevicesService::_publishDeviceAttributes(const GeniusDevice &dev
     if (device.radioModule.sn > 0)
     {
         attr_jsonDoc["FM Basis X - Serial"] = String(device.radioModule.sn);
+    }
 
-        if (device.radioModule.productionDate > 0)
+    // Add readout data when available
+    if (device.readoutTime > 0)
+    {
+        if (device.smokeDetector.lastSelftest > 0)
         {
-            struct tm *tm = gmtime(&device.radioModule.productionDate);
-            char dateBuf[9];
-            strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y", tm);
-            attr_jsonDoc["FM Basis X - Production Date"] = String(dateBuf);
+            struct tm *tm = gmtime(&device.smokeDetector.lastSelftest);
+            char dateBuf[17];
+            strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y %H:%M", tm);
+            attr_jsonDoc["Last Self-Test"] = String(dateBuf);
         }
+        if (device.smokeDetector.lastAlarm > 0)
+        {
+            struct tm *tm = gmtime(&device.smokeDetector.lastAlarm);
+            char dateBuf[17];
+            strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y %H:%M", tm);
+            attr_jsonDoc["Last Alarm"] = String(dateBuf);
+        }
+        attr_jsonDoc["Alarms (Total)"] = device.smokeDetector.alarmCountTotal;
+        attr_jsonDoc["Alarms (Last 3 Months)"] = device.smokeDetector.alarmCountLast3Months;
+        if (device.radioModule.radioInterference > 0.0f)
+            attr_jsonDoc["Radio Interference (%)"] = device.radioModule.radioInterference;
     }
 
     String attr_payload;

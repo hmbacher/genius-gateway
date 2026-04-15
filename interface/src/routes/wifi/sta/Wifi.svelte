@@ -8,6 +8,7 @@
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import DraggableList from '$lib/components/DraggableList.svelte';
+	import { dragHandle } from 'svelte-dnd-action';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Collapsible from '$lib/components/Collapsible.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -250,7 +251,11 @@
 	}
 
 	function handleNetworkReorder(reorderedNetworks: KnownNetworkItem[]) {
+		const orderChanged = reorderedNetworks.some(
+			(n, i) => n.ssid !== wifiSettings.wifi_networks[i]?.ssid
+		);
 		wifiSettings.wifi_networks = reorderedNetworks;
+		if (orderChanged) postWiFiSettings();
 	}
 
 	async function getWifiData() {
@@ -494,6 +499,7 @@
 						<DraggableList
 							items={wifiSettings.wifi_networks}
 							onReorder={handleNetworkReorder}
+							useHandleMode={true}
 							class="space-y-2"
 						>
 							{#snippet children({ item: network, index }: { item: any; index: number })}
@@ -501,7 +507,9 @@
 								<div
 									class="rounded-box bg-base-100 grid grid-cols-[auto_auto_minmax(6rem,1fr)_auto] items-center gap-3 p-2"
 								>
-									<Grip class="h-6 w-6 text-base-content/30 cursor-grab" />
+									<div use:dragHandle>
+										<Grip class="h-6 w-6 text-base-content/30 cursor-grab" />
+									</div>
 									<div class="mask mask-hexagon bg-primary h-auto w-10">
 										<Router class="text-primary-content h-auto w-full scale-75" />
 									</div>

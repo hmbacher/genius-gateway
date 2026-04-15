@@ -4,7 +4,7 @@
     import { onMount } from 'svelte'
     import dayjs from 'dayjs'
   
-    let { format = 'YYYY-MM-DD', date = $bindable(new Date()), id } = $props();
+    let { format = 'YYYY-MM-DD', date = $bindable(new Date()), id, disabled = false } = $props();
       
     let internal = $state()
   
@@ -19,5 +19,5 @@
     });
   </script>
   
-  <input type="date" bind:value={internal} class="input input-bordered invalid:border-error w-full invalid:border-2" id={id}/>
+  <input type="date" bind:value={internal} class="input input-bordered invalid:border-error w-full invalid:border-2" id={id} {disabled}/>
   

@@ -122,7 +122,7 @@
 					}}
 					type="button"
 				>
-					<Cancel class="mr-2 h-5 w-5" />
+					<Cancel class="h-5 w-5" />
 					<span>Close</span>
 				</button>
 			</div>

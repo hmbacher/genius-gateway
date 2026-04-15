@@ -103,6 +103,7 @@
 				},
 				60 * 60 * 1000
 			); // once per hour
+			return () => clearInterval(interval);
 		}
 	});
 

@@ -53,6 +53,8 @@
 #define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"  ///< Event for device discovery
 #define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"  ///< Default location for new devices
 
+#define GATEWAY_DEVICES_CONFIG_VERSION 1  ///< Current config file version (for JSON migration support)
+
 typedef enum genius_alarm_ending
 {
     GAE_MIN = -2,              ///< Minimum value (for enum range checks)
@@ -71,44 +73,150 @@ typedef struct genius_device_alarm
 
 typedef enum genius_smoke_detector
 {
-    GSD_UNKNOWN = -1,     ///< Unknown smoke detector type
-    GSD_GENIUS_PLUS_X = 0 ///< Genius Plus X smoke detector model
+    GSD_UNKNOWN = -1,    ///< Unknown smoke detector type
+    GSD_GENIUS_H = 0,    ///< Genius H smoke detector
+    GSD_GENIUS_HX = 1,   ///< Genius Hx smoke detector
+    GSD_GENIUS_PLUS = 2, ///< Genius Plus smoke detector
+    GSD_GENIUS_PLUS_X = 3, ///< Genius Plus X smoke detector
 } GeniusSmokeDetector;
 
 typedef enum genius_radio_module
 {
-    GRM_UNKNOWN = -1,     ///< Unknown radio module type
-    GRM_FM_BASIS_X = 0    ///< FM Basis X radio module model
+    GRM_UNKNOWN = -1,   ///< Unknown radio module type
+    GRM_NONE = 0,       ///< No FM radio module
+    GRM_FM_BASIS = 1,   ///< FM Basis radio module
+    GRM_FM_PRO = 2,     ///< FM Pro radio module
+    GRM_FM_MCP = 3,     ///< FM MCP radio module
+    GRM_FM_BASIS_X = 4, ///< FM Basis X radio module
+    GRM_FM_PRO_X = 5,   ///< FM Pro X radio module
 } GeniusRadioModule;
 
-/// Template class for Genius components
-template <typename T>
-class GeniusComponent
+/// Maps acoustic protocol product type byte directly to GeniusSmokeDetector enum
+/// Acoustic protocol: 0=Genius H, 1=Genius Hx, 2=Genius Plus, 3=Genius Plus X
+static inline GeniusSmokeDetector acousticProdTypeToSmokeDetector(uint8_t prodType)
 {
-public:
-    GeniusComponent(const T &model,
-                    uint32_t sn,
-                    time_t productionDate) : model(model),
-                                             sn(sn),
-                                             productionDate(productionDate)
-    {
-    }
+    if (prodType <= 3) return static_cast<GeniusSmokeDetector>(prodType);
+    return GSD_UNKNOWN;
+}
 
-    void toJson(JsonObject &root)
+/// Maps acoustic protocol radio product byte directly to GeniusRadioModule enum
+/// Acoustic protocol: 0=no FM, 1=FM.Basis, 2=FM.Pro, 3=FM.MCP, 4=FM.Basis X, 5=FM.Pro X
+static inline GeniusRadioModule acousticRadioProdToModule(uint8_t radioProd)
+{
+    if (radioProd <= 5) return static_cast<GeniusRadioModule>(radioProd);
+    return GRM_UNKNOWN;
+}
+
+/// Smoke detector identity and status data
+struct GeniusSmokeDetectorInfo
+{
+    // --- Identity (available from all registration types) ---
+    GeniusSmokeDetector model;  ///< Smoke detector model type
+    uint32_t sn;                ///< Smoke detector serial number
+    time_t productionDate;      ///< Production date (Unix timestamp, 0 if unknown)
+
+    // --- Status (populated from SmartSonic readout, zero-initialized otherwise) ---
+    time_t lastSelftest;           ///< Last successful self-test timestamp (0 if unknown)
+    time_t lastAlarm;              ///< Last alarm timestamp (0 if no alarm)
+    uint8_t deinstallationCount;   ///< Lifetime deinstallation count
+    uint8_t alarmCountTotal;       ///< Lifetime alarm count
+    uint8_t alarmCountLast3Months; ///< Alarm count in last 3 months
+    uint16_t hoursInStorageMode;   ///< Hours spent in storage mode
+    uint16_t warrantyFlags;        ///< Warranty condition flags bitmask
+    bool batteryLowFault;          ///< Battery low fault flag
+    bool deviceFault;              ///< Device fault flag
+    uint8_t driftState;            ///< Drift state (0=Normal ... 7=Defekt)
+    bool dirtForecastNegative;     ///< Negative dirt forecast flag
+
+    void toJson(JsonObject &root) const
     {
-        // Serial number
-        root["sn"] = sn;
-        // Production date (if any set)
-        if (productionDate > 0)
-            root["productionDate"] = Utils::time_t_to_iso8601(productionDate);
-        // Model (if any set)
         if (static_cast<int>(model) != -1)
             root["model"] = static_cast<int>(model);
+        root["sn"] = sn;
+        if (productionDate > 0)
+            root["productionDate"] = Utils::time_t_to_iso8601(productionDate);
+        if (lastSelftest > 0)
+            root["lastSelftest"] = Utils::time_t_to_iso8601(lastSelftest);
+        if (lastAlarm > 0)
+            root["lastAlarm"] = Utils::time_t_to_iso8601(lastAlarm);
+        if (deinstallationCount) root["deinstallationCount"] = deinstallationCount;
+        if (alarmCountTotal)     root["alarmCountTotal"] = alarmCountTotal;
+        if (alarmCountLast3Months) root["alarmCountLast3Months"] = alarmCountLast3Months;
+        if (hoursInStorageMode)  root["hoursInStorageMode"] = hoursInStorageMode;
+        if (warrantyFlags)       root["warrantyFlags"] = warrantyFlags;
+        if (batteryLowFault)     root["batteryLowFault"] = batteryLowFault;
+        if (deviceFault)         root["deviceFault"] = deviceFault;
+        if (driftState)          root["driftState"] = driftState;
+        if (dirtForecastNegative) root["dirtForecastNegative"] = dirtForecastNegative;
     }
 
-    T model;                ///< Component model type
-    uint32_t sn;           ///< Component serial number
-    time_t productionDate; ///< Production date (Unix timestamp)
+    static GeniusSmokeDetectorInfo fromJson(JsonObject root)
+    {
+        GeniusSmokeDetectorInfo d = {};
+        d.model = root["model"].is<int>() ? static_cast<GeniusSmokeDetector>(root["model"].as<int>()) : GSD_UNKNOWN;
+        d.sn = root["sn"].as<uint32_t>();
+        d.productionDate = root["productionDate"].is<String>() ? Utils::iso8601_to_time_t(root["productionDate"].as<String>()) : 0;
+        d.lastSelftest = root["lastSelftest"].is<String>() ? Utils::iso8601_to_time_t(root["lastSelftest"].as<String>()) : 0;
+        d.lastAlarm = root["lastAlarm"].is<String>() ? Utils::iso8601_to_time_t(root["lastAlarm"].as<String>()) : 0;
+        d.deinstallationCount = root["deinstallationCount"].as<uint8_t>();
+        d.alarmCountTotal = root["alarmCountTotal"].as<uint8_t>();
+        d.alarmCountLast3Months = root["alarmCountLast3Months"].as<uint8_t>();
+        d.hoursInStorageMode = root["hoursInStorageMode"].as<uint16_t>();
+        d.warrantyFlags = root["warrantyFlags"].as<uint16_t>();
+        d.batteryLowFault = root["batteryLowFault"].as<bool>();
+        d.deviceFault = root["deviceFault"].as<bool>();
+        d.driftState = root["driftState"].as<uint8_t>();
+        d.dirtForecastNegative = root["dirtForecastNegative"].as<bool>();
+        return d;
+    }
+};
+
+/// Radio module identity and status data
+struct GeniusRadioModuleInfo
+{
+    // --- Identity (available from all registration types) ---
+    GeniusRadioModule model;  ///< Radio module model type
+    uint32_t sn;              ///< Radio module serial number
+
+    // --- Status (populated from SmartSonic readout, zero-initialized otherwise) ---
+    uint32_t lineId;          ///< FM line identifier
+    char lineCharacter;       ///< FM line character ('A'-'J', 0 if unknown)
+    uint8_t lineNumber;       ///< FM line number
+    uint8_t radioStateMask;   ///< Radio state flags bitmask
+    uint8_t radioSwitchMask;  ///< Radio switch flags bitmask
+    float radioInterference;  ///< Radio interference level (0.0-100.0%)
+    bool radioNetworkFault;   ///< Radio network fault flag
+
+    void toJson(JsonObject &root) const
+    {
+        if (static_cast<int>(model) != -1)
+            root["model"] = static_cast<int>(model);
+        root["sn"] = sn;
+        if (lineId)           root["lineId"] = lineId;
+        if (lineCharacter)    root["lineCharacter"] = String(lineCharacter);
+        root["lineNumber"] = lineNumber;
+        if (radioStateMask)   root["radioStateMask"] = radioStateMask;
+        if (radioSwitchMask)  root["radioSwitchMask"] = radioSwitchMask;
+        if (radioInterference > 0.0f) root["radioInterference"] = radioInterference;
+        if (radioNetworkFault) root["radioNetworkFault"] = radioNetworkFault;
+    }
+
+    static GeniusRadioModuleInfo fromJson(JsonObject root)
+    {
+        GeniusRadioModuleInfo d = {};
+        d.model = root["model"].is<int>() ? static_cast<GeniusRadioModule>(root["model"].as<int>()) : GRM_UNKNOWN;
+        d.sn = root["sn"].as<uint32_t>();
+        d.lineId = root["lineId"].as<uint32_t>();
+        String lineCharStr = root["lineCharacter"].is<String>() ? root["lineCharacter"].as<String>() : String();
+        char lc = lineCharStr.length() > 0 ? lineCharStr[0] : 0;
+        d.lineCharacter = (lc >= 'A' && lc <= 'J') ? lc : 0;  ///< Reject out-of-range values (e.g. ArduinoJson "null" artifact)
+        d.lineNumber = root["lineNumber"].as<uint8_t>();
+        d.radioStateMask = root["radioStateMask"].as<uint8_t>();
+        d.radioSwitchMask = root["radioSwitchMask"].as<uint8_t>();
+        d.radioInterference = root["radioInterference"].as<float>();
+        d.radioNetworkFault = root["radioNetworkFault"].as<bool>();
+        return d;
+    }
 };
 
 typedef enum genius_device_registration
@@ -117,6 +225,7 @@ typedef enum genius_device_registration
     GDR_BUILT_IN = 0,  ///< Device is built-in
     GDR_GENIUS_PACKET, ///< Device was added via received genius packet
     GDR_MANUAL,        ///< Device registered manually (via web interface)
+    GDR_ACOUSTIC,      ///< Device identified via acoustic (smartsonic) readout
     GDR_MAX            ///< Boundary check maximum value
 } genius_device_registration_t;
 
@@ -124,55 +233,56 @@ typedef enum genius_device_registration
 class GeniusDevice
 {
 public:
-    GeniusDevice(const GeniusComponent<GeniusSmokeDetector> &smokeDetector,
-                 const GeniusComponent<GeniusRadioModule> &radioModule,
+    GeniusDevice(const GeniusSmokeDetectorInfo &smokeDetector,
+                 const GeniusRadioModuleInfo &radioModule,
                  const String &location,
                  uint32_t id = 0) : smokeDetector(smokeDetector),
                                    radioModule(radioModule),
                                    location(location),
-                                   id(id), // Use provided ID (from JSON) or will be set by service
+                                   id(id),
                                    registration(GDR_MANUAL),
                                    isAlarming(false),
-                                   published(false)
+                                   published(false),
+                                   readoutTime(0),
+                                   readoutProtocolVersion(0)
     {
     }
 
     void toJson(JsonObject &root)
     {
-        // Device ID (for internal tracking, not user-editable)
         root["id"] = this->id;
-        // Smoke detector
-        JsonObject smokeDetector = root["smokeDetector"].to<JsonObject>();
-        this->smokeDetector.toJson(smokeDetector);
-        // Radio module
-        JsonObject radioModule = root["radioModule"].to<JsonObject>();
-        this->radioModule.toJson(radioModule);
-        // Location
+        JsonObject sdJson = root["smokeDetector"].to<JsonObject>();
+        this->smokeDetector.toJson(sdJson);
+        JsonObject rmJson = root["radioModule"].to<JsonObject>();
+        this->radioModule.toJson(rmJson);
         root["location"] = this->location;
-        // Is alarming?
         root["isAlarming"] = this->isAlarming;
-        // Registration
         root["registration"] = this->registration;
-        // Alarms
         JsonArray alarms = root["alarms"].to<JsonArray>();
         for (auto &alarm : this->alarms)
         {
             JsonObject alarm_as_json = alarms.add<JsonObject>();
-
             alarm_as_json["startTime"] = Utils::time_t_to_iso8601(alarm.startTime);
             alarm_as_json["endTime"] = Utils::time_t_to_iso8601(alarm.endTime);
             alarm_as_json["endingReason"] = alarm.endingReason;
         }
+        if (readoutTime > 0)
+        {
+            root["readoutTime"] = Utils::time_t_to_iso8601(readoutTime);
+            root["readoutProtocolVersion"] = readoutProtocolVersion;
+        }
     }
 
-    uint32_t id; // Unique identifier for device (auto-generated, immutable)
-    GeniusComponent<GeniusSmokeDetector> smokeDetector;
-    GeniusComponent<GeniusRadioModule> radioModule;
+    uint32_t id;                          ///< Unique identifier for device (auto-generated, immutable)
+    GeniusSmokeDetectorInfo smokeDetector;
+    GeniusRadioModuleInfo radioModule;
     String location;
     std::vector<genius_device_alarm_t> alarms;
     genius_device_registration_t registration;
     bool isAlarming;
-    bool published; // Whether the current device configuration has been published via MQTT
+    bool published;                       ///< Whether current device config has been published via MQTT
+    time_t readoutTime;                   ///< SmartSonic readout timestamp (0 = no readout performed)
+    uint8_t readoutProtocolVersion;       ///< SmartSonic protocol version (valid when readoutTime > 0)
 };
 
 class GeniusDevices
@@ -186,6 +296,7 @@ public:
 
     static void read(GeniusDevices &geniusDevices, JsonObject &root)
     {
+        root["version"] = GATEWAY_DEVICES_CONFIG_VERSION;
         JsonArray jsonDevices = root["devices"].to<JsonArray>();
         for (auto &device : geniusDevices.devices)
         {

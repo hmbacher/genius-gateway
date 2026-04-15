@@ -4,7 +4,7 @@
 	import { fly } from 'svelte/transition';
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
-	import type { GeniusComponent, GeniusAlarm, GeniusDevice } from '$lib/types/models';
+	import type { GeniusSmokeDetectorInfo, GeniusRadioModuleInfo, GeniusAlarm, GeniusDevice } from '$lib/types/models';
 	import {
 		GeniusDeviceRegistration,
 		GeniusSmokeDetector,
@@ -17,7 +17,9 @@
 	import IconSmokeDetector from '~icons/custom-icons/smoke-detector-m';
 	import IconRadioModule from '~icons/custom-icons/radio-module';
 	import IconMapPin from '~icons/tabler/map-pin';
-	import Warning from '~icons/tabler/alert-triangle';
+	import IconWarning from '~icons/tabler/alert-triangle';
+	import InfoCircle from '~icons/tabler/info-circle';
+	import IconExclamationCircle from '~icons/tabler/exclamation-circle';
 
 	// provided by <Modals />
 
@@ -26,27 +28,29 @@
 		title: string;
 		onSaveGeniusDevice: any;
 		geniusDevice?: any;
+		saveButtonLabel?: string;
 	}
 
 	let {
 		isOpen,
 		title,
 		onSaveGeniusDevice,
+		saveButtonLabel = 'Save',
 		geniusDevice: _geniusDevice = {
 			id: 0,
 			smokeDetector: {
 				model: GeniusSmokeDetector.GeniusPlusX,
 				sn: 0,
 				productionDate: new Date()
-			} as GeniusComponent,
+			} as GeniusSmokeDetectorInfo,
 			radioModule: {
 				model: GeniusRadioModule.FmBasisX,
-				sn: 0,
-				productionDate: new Date()
-			} as GeniusComponent,
+				sn: 0
+			} as GeniusRadioModuleInfo,
 			location: '',
-			registration: GeniusDeviceRegistration.Manual, // Default to manual registration
-			alarms: [] as GeniusAlarm[] // No alarms by default
+			registration: GeniusDeviceRegistration.Manual,
+			isAlarming: false,
+			alarms: [] as GeniusAlarm[]
 		} as GeniusDevice
 	}: Props = $props();
 
@@ -73,17 +77,19 @@
 	}
 
 	let smokeDetectorModels = [
-		{
-			id: 0,
-			text: `Genius Genius Plus X`
-		}
+		{ id: GeniusSmokeDetector.GeniusH,     text: 'Genius H' },
+		{ id: GeniusSmokeDetector.GeniusHx,    text: 'Genius Hx' },
+		{ id: GeniusSmokeDetector.GeniusPlus,  text: 'Genius Plus' },
+		{ id: GeniusSmokeDetector.GeniusPlusX, text: 'Genius Plus X' }
 	];
 
 	let radioModuleModels = [
-		{
-			id: 0,
-			text: `Genius FM Basis X`
-		}
+		{ id: GeniusRadioModule.None,     text: 'None' },
+		{ id: GeniusRadioModule.FmBasis,  text: 'FM.Basis' },
+		{ id: GeniusRadioModule.FmPro,    text: 'FM.Pro' },
+		{ id: GeniusRadioModule.FmMcp,    text: 'FM.MCP' },
+		{ id: GeniusRadioModule.FmBasisX, text: 'FM.Basis X' },
+		{ id: GeniusRadioModule.FmProX,   text: 'FM.Pro X' }
 	];
 
 	let minSN = 1;
@@ -91,6 +97,10 @@
 
 	let minLocationLength = 1;
 	let maxLocationLength = 40;
+
+	const isAutoDetected = geniusDevice.registration === GeniusDeviceRegistration.GeniusPacket || geniusDevice.registration === GeniusDeviceRegistration.Acoustic;
+	const isAcoustic = geniusDevice.registration === GeniusDeviceRegistration.Acoustic;
+	const registrationLabel = isAcoustic ? 'acoustic readout' : 'Genius radio packet';
 
 	// Use this to directly access the form's DOM element
 	let formField: any = $state();
@@ -103,8 +113,7 @@
 		},
 		radioModule: {
 			sn: false,
-			snDuplicate: false,
-			productionDate: false
+			snDuplicate: false
 		},
 		location: false
 	});
@@ -133,23 +142,30 @@
 		}
 
 		// --- Validate Radio Module
-		// Validate if radio module SN is within range
-		if (geniusDevice.radioModule.sn < minSN || geniusDevice.radioModule.sn.length > maxSN) {
-			formErrors.radioModule.sn = true;
-			valid = false;
+		// Only validate radio module SN when a module is selected
+		if (geniusDevice.radioModule.model !== GeniusRadioModule.None) {
+			// Validate if radio module SN is within range
+			if (geniusDevice.radioModule.sn < minSN || geniusDevice.radioModule.sn.length > maxSN) {
+				formErrors.radioModule.sn = true;
+				valid = false;
+			} else {
+				formErrors.radioModule.sn = false;
+			}
+
+			// Check for duplicate radio module serial number
+			const duplicateRadioModuleSN = geniusDevices.devices.some(device => 
+				device.id !== geniusDevice.id && device.radioModule.sn === geniusDevice.radioModule.sn
+			);
+			if (duplicateRadioModuleSN) {
+				formErrors.radioModule.snDuplicate = true;
+				valid = false;
+			} else {
+				formErrors.radioModule.snDuplicate = false;
+			}
 		} else {
 			formErrors.radioModule.sn = false;
-		}
-
-		// Check for duplicate radio module serial number
-		const duplicateRadioModuleSN = geniusDevices.devices.some(device => 
-			device.id !== geniusDevice.id && device.radioModule.sn === geniusDevice.radioModule.sn
-		);
-		if (duplicateRadioModuleSN) {
-			formErrors.radioModule.snDuplicate = true;
-			valid = false;
-		} else {
 			formErrors.radioModule.snDuplicate = false;
+			geniusDevice.radioModule.sn = 0;
 		}
 
 		// --- Validate Production Date
@@ -158,16 +174,6 @@
 		if (geniusDevice.smokeDetector.productionDate) {
 			if (isNaN(geniusDevice.smokeDetector.productionDate)) {
 				formErrors.smokeDetector.productionDate = true;
-				valid = false;
-			}
-		}
-
-		// --- Validate Production Date
-		// Check production date (if applicable)
-		formErrors.radioModule.productionDate = false;
-		if (geniusDevice.radioModule.productionDate) {
-			if (isNaN(geniusDevice.radioModule.productionDate)) {
-				formErrors.radioModule.productionDate = true;
 				valid = false;
 			}
 		}
@@ -208,8 +214,12 @@
 		>
 			<h2 class="text-base-content text-start text-2xl font-bold">{title}</h2>
 			<div class="divider my-2"></div>
-			<form class="fieldset" onsubmit={preventDefault(handleSave)} novalidate bind:this={formField}>
-				<span class="inline-flex items-baseline">
+			<form class="fieldset" onsubmit={preventDefault(handleSave)} novalidate bind:this={formField}>			{#if isAutoDetected}
+				<div class="alert alert-info alert-soft gap-2 mb-2 p-3">
+					<InfoCircle class="h-5 w-5 shrink-0 self-start mt-0.5" />
+					<span class="text-sm">Some fields were detected via {registrationLabel} and cannot be changed.</span>
+				</div>
+			{/if}				<span class="inline-flex items-baseline">
 					<IconSmokeDetector class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
 					<span class="text-xl font-semibold">Smoke Detector</span>
 				</span>
@@ -218,8 +228,9 @@
 					<div class="flex-1">
 						<label class="label" for="smokeDetectorModel">Model</label>
 						<select
-							class="select"
+							class="select select-bordered w-full pl-3"
 							id="smokeDetectorModel"
+							disabled={isAcoustic}
 							bind:value={geniusDevice.smokeDetector.model}
 						>
 							{#each smokeDetectorModels as model}
@@ -228,6 +239,7 @@
 								</option>
 							{/each}
 						</select>
+
 					</div>
 
 					<div class="flex-1">
@@ -236,8 +248,9 @@
 							<DateInput
 								bind:date={geniusDevice.smokeDetector.productionDate}
 								id="smokeDetectorProductionDate"
+								disabled={isAutoDetected}
 							/>
-							{#if formErrors.smokeDetector.productionDate}
+						{#if formErrors.smokeDetector.productionDate && !isAutoDetected}
 								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 									<label for="smokeDetectorProductionDate" class="label">
 										<span class="text-error text-wrap"> Please set a valid date. </span>
@@ -260,11 +273,12 @@
 							type="number"
 							min={minSN}
 							max={maxSN}
+							disabled={isAutoDetected}
 							class="input input-bordered invalid:border-error w-full invalid:border-2"
 							bind:value={geniusDevice.smokeDetector.sn}
 							id="smokeDetectorSN"
 						/>
-						{#if formErrors.smokeDetector.sn}
+					{#if formErrors.smokeDetector.sn && !isAutoDetected}
 							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 								<label for="smokeDetectorSN" class="label">
 									<span class="text-error text-wrap">
@@ -283,15 +297,13 @@
 								</label>
 							</div>
 						{/if}
+						{#if !isAutoDetected}
+							<div class="alert mt-1 gap-2 p-2">
+								<IconExclamationCircle class="h-5 w-5 shrink-0 mt-0.5" />
+								<span class="text-sm">Make sure the serial number is correct.</span>
+							</div>
+						{/if}
 					</div>
-				</div>
-
-				<div class="alert alert-warning shadow-lg mt-1">
-					<Warning class="h-6 w-6 shrink-0" />
-					<span>
-						The serial number is crucial for correctly assigning an alarm signal to the emitting
-						smoke detector.
-					</span>
 				</div>
 
 				<div class="divider my-2"></div>
@@ -305,8 +317,9 @@
 					<div class="flex-1">
 						<label class="label" for="radioModuleModel">Model</label>
 						<select
-							class="select"
+							class="select select-bordered w-full pl-3"
 							id="radioModuleModel"
+							disabled={isAcoustic}
 							bind:value={geniusDevice.radioModule.model}
 						>
 							{#each radioModuleModels as model}
@@ -317,41 +330,19 @@
 						</select>
 					</div>
 
-					<div class="flex-1">
-						<label class="label" for="radioModuleProductionDate">Production Date</label>
-						{#if geniusDevice.radioModule.productionDate}
-							<DateInput
-								bind:date={geniusDevice.radioModule.productionDate}
-								id="radioModuleProductionDate"
-							/>
-							{#if formErrors.radioModule.productionDate}
-								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="radioModuleProductionDate" class="label">
-										<span class="text-error text-wrap"> Please set a valid date. </span>
-									</label>
-								</div>
-							{/if}
-						{:else}
-							<input
-								id="radioModuleProductionDate"
-								class="input input-bordered"
-								value="Unknown"
-								disabled
-							/>
-						{/if}
-					</div>
-
-					<div class="flex-1">
+					{#if geniusDevice.radioModule.model !== GeniusRadioModule.None}
+					<div class="flex-1" transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<label class="label" for="radioModuleSN">Serial Number</label>
 						<input
 							type="number"
 							min={minSN}
 							max={maxSN}
+							disabled={isAutoDetected}
 							class="input input-bordered invalid:border-error w-full invalid:border-2"
 							bind:value={geniusDevice.radioModule.sn}
 							id="radioModuleSN"
 						/>
-						{#if formErrors.radioModule.sn}
+						{#if formErrors.radioModule.sn && !isAutoDetected}
 							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 								<label for="radioModuleSN" class="label">
 									<span class="text-error text-wrap">
@@ -371,6 +362,7 @@
 							</div>
 						{/if}
 					</div>
+					{/if}
 				</div>
 
 				<div class="divider my-2"></div>
@@ -411,15 +403,15 @@
 						}}
 						type="button"
 					>
-						<Cancel class="mr-2 h-5 w-5" />
+						<Cancel class="h-5 w-5" />
 						<span>Cancel</span>
 					</button>
 					<button
 						class="btn btn-primary text-primary-content inline-flex items-center"
 						type="submit"
 					>
-						<Save class="mr-2 h-5 w-5" />
-						<span>Save</span>
+						<Save class="h-5 w-5" />
+						<span>{saveButtonLabel}</span>
 					</button>
 				</div>
 			</form>

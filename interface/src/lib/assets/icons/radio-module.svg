@@ -11,7 +11,7 @@
 <defs id="defs1" />
 <g id="layer1">
 <path
-       style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none"
+       style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none"
        d="M 8.0079389,8.6940024 V 4.8908475 C 8.4395047,4.3733967 8.9416135,3.9619046 9.4715492,3.5922097 h 8.2443868 c 1.646643,1.1717376 2.737728,2.5882538 3.149541,4.3040574 V 11.755077 L 20.031775,13.48041 H 16.474647 V 7.2283962 h -5.743281 v 1.4656062 z"
        id="path1" />
 <g

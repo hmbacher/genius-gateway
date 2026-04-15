@@ -157,23 +157,49 @@ export type GeniusAlarm = {
 	endingReason: number;
 }
 
-export type GeniusComponent = {
+export type GeniusSmokeDetectorInfo = {
 	sn: number;
 	model?: number;
 	productionDate?: Date;
+	lastSelftest?: Date;
+	lastAlarm?: Date;
+	deinstallationCount?: number;
+	alarmCountTotal?: number;
+	alarmCountLast3Months?: number;
+	hoursInStorageMode?: number;
+	warrantyFlags?: number;
+	batteryLowFault?: boolean;
+	deviceFault?: boolean;
+	driftState?: number;
+	dirtForecastNegative?: boolean;
+};
+
+export type GeniusRadioModuleInfo = {
+	sn: number;
+	model?: number;
+	lineId?: number;
+	lineCharacter?: string;
+	lineNumber?: number;
+	radioStateMask?: number;
+	radioSwitchMask?: number;
+	radioInterference?: number;
+	radioNetworkFault?: boolean;
 };
 
 export type GeniusDevice = {
 	id: number;
-	smokeDetector: GeniusComponent;
-	radioModule: GeniusComponent;
+	smokeDetector: GeniusSmokeDetectorInfo;
+	radioModule: GeniusRadioModuleInfo;
 	location: string;
 	registration: number;
 	isAlarming: boolean;
 	alarms: GeniusAlarm[];
+	readoutTime?: Date;
+	readoutProtocolVersion?: number;
 };
 
 export type GeniusDevices = {
+	version?: number;
 	devices: GeniusDevice[];
 };
 
