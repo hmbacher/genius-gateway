@@ -449,9 +449,18 @@ static esp_err_t cc1101_reset(void)
         return ESP_ERR_TIMEOUT;
     }
     
-    /* Send reset strobe command */
-    esp_err_t ret = cc1101_cmd_strobe(CC1101_SRES);
-    
+    /* Send RESET strobe command while keeping CS asserted.
+     * Cannot use cc1101_cmd_strobe() here because CS must stay low
+     * throughout the entire reset sequence per the CC1101 datasheet. */
+    spi_transaction_t t;
+    memset(&t, 0, sizeof(t));
+    t.flags = SPI_TRANS_USE_TXDATA;
+    t.length = 8;
+    t.tx_data[0] = CC1101_SRES;
+
+    esp_err_t ret = spi_device_polling_transmit(_handle, &t);
+
+    /* Wait for MISO to go low indicating reset is complete (CS still asserted) */
     if (ret == ESP_OK && !wait_miso_low()) {
         ret = ESP_ERR_TIMEOUT;
     }
