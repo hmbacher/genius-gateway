@@ -1,3 +1,7 @@
+# v1.2.1
+## Bugfixes
+- Fixed initial CC1101 reset routine, that caused CC1101 initialization to fail in some setups
+
 # v1.2.0
 ## Features
 - **Build-target-aware GitHub Firmware Manager in web interface**
