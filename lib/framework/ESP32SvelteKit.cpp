@@ -38,6 +38,7 @@ ESP32SvelteKit::ESP32SvelteKit(PsychicHttpServer *server, unsigned int numberEnd
 #endif
 #if FT_ENABLED(FT_HOME_ASSISTANT)
                                                                                           _haService(_mqttSettingsService.getMqttClient()),
+                                                                                          _haSettingsService(server, &ESPFS, &_securitySettingsService, &_haService),
                                                                                           _haUpdateService(&_haService, &_downloadFirmwareService, &_socket),
                                                                                           _haDiagnosticService(&_haService),
 #endif
@@ -187,6 +188,11 @@ void ESP32SvelteKit::begin()
 #endif
 
 #if FT_ENABLED(FT_HOME_ASSISTANT)
+    // Order matters: HAService starts the publish task, HASettingsService
+    // applies persisted settings (enabled/prefix/identity) to HAService,
+    // then HAUpdateService/HADiagnosticService register their entities.
+    _haService.begin();
+    _haSettingsService.begin();
     _haUpdateService.begin();
     _haDiagnosticService.begin();
 #endif
