@@ -681,14 +681,21 @@ The following topics enable remote control of alarm line actions (line tests and
 
 #### Overview
 
-Each configured alarm line publishes:
+Each configured alarm line is published as an **HA sub-device** nested under the main Genius Gateway device. Each sub-device contains:
 
 - **4 Button entities** for triggering actions (line test start/stop, fire alarm start/stop)
 - **1 Sensor entity** for transmission state monitoring
 
 **Topic Structure:**
+
+All alarm line topics are nested under the main gateway base topic:
 ```
-{discovery_prefix}genius-alarmline/{line_id}/{entity_type}/{command|state}
+{discovery_prefix}{main_namespace}/{main_device_id}/genius-alarmline-{line_id}/...
+```
+
+For example, with the default prefix and a gateway device ID `genius-gateway-aabbcc`:
+```
+homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/...
 ```
 
 ---
@@ -697,7 +704,7 @@ Each configured alarm line publishes:
 
 **:material-message-outline: Topic Pattern**
 ```
-{discovery_prefix}button/genius-alarmline-{line_id}-{button_type}/config
+{discovery_prefix}button/genius-alarmline-{line_id}/{object_id}/config
 ```
 
 **:material-information-outline: Description:** Configuration messages for Home Assistant button discovery
@@ -706,105 +713,89 @@ Each configured alarm line publishes:
 
 **:material-content-save-outline: Retain:** true
 
-**Button Types:**
+**Button Object IDs:**
 
-- `linetest` - Start Line Test button
-- `linetest-stop` - Stop Line Test button
-- `firealarm` - Start Fire Alarm button
-- `firealarm-stop` - Stop Fire Alarm button
+- `linetest-start` - Start Line Test
+- `linetest-stop` - Stop Line Test
+- `firealarm-start` - Start Fire Alarm
+- `firealarm-stop` - Stop Fire Alarm
 
-**:material-code-json: Example Payload (Line Test Start)**
+**:material-code-json: Example Payload (Start Line Test)**
 ```json
 {
-  "~": "homeassistant/genius-alarmline/123456789",
+  "~": "homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789",
   "name": "Start Line Test",
-  "unique_id": "genius-alarmline_123456789_linetest_start",
-  "command_topic": "homeassistant/genius-alarmline/123456789/linetest/command",
-  "payload_press": "{\"action\":\"start\"}",
+  "unique_id": "genius-alarmline-123456789_linetest-start",
+  "command_topic": "~/linetest-start/set",
   "icon": "mdi:map-marker",
   "availability": [{
-    "topic": "homeassistant/genius-alarmline/123456789/transmission/state",
-    "value_template": "{% if value_json.state == 'Nothing' %}online{% else %}offline{% endif %}"
+    "topic": "homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/state",
+    "value_template": "{% if value == 'Nothing' %}online{% else %}offline{% endif %}"
   }],
   "availability_mode": "all",
   "device": {
-    "identifiers": "genius-alarmline-123456789",
+    "identifiers": ["genius-alarmline-123456789"],
     "name": "Alarm Line 'First Floor'",
-    "manufacturer": "Hekatron Vertriebs GmbH",
-    "model": "Genius Plus X Alarm Line"
+    "manufacturer": "Genius Gateway Project",
+    "model": "Genius Plus X Alarm Line",
+    "via_device": "genius-gateway-aabbcc"
   }
 }
 ```
 
 **:material-format-list-bulleted: Key Fields**
 
-- `~` - Topic prefix (base path for relative references)
+- `~` - Base topic (sub-device path nested under main gateway device)
 - `name` - Button name displayed in Home Assistant
 - `unique_id` - Unique identifier for this button
-- `command_topic` - Topic where button press commands are published
-- `payload_press` - JSON payload sent when button is pressed
+- `command_topic` - Topic where HA sends button press commands
 - `icon` - Material Design icon identifier
-- `availability` - Button is only available when no transmission is active
-- `device` - Groups all alarm line entities under one device
+- `availability` - Button unavailable while a transmission is active
+- `device.via_device` - Links this sub-device to the main gateway device in HA
 
 **:material-publish: Publishing Behavior**
 
 - Published when alarm line is first created
-- Re-published when MQTT connection is established
-- Re-published when MQTT settings change
+- Re-published on MQTT (re)connect via HA sub-device mechanism
 - Published only if [Home Assistant Integration is enabled](../setup/connections.md#device-publishing)
 
 **:material-home-assistant: Home Assistant Integration**
 
-- Automatically creates button entities
-- Buttons are grouped under alarm line device
+- Each alarm line appears as a separate HA sub-device under the gateway
+- All 4 buttons and the sensor are grouped on that device's page
 - Buttons become unavailable during active transmissions
-- Can be used in automations and dashboards
 
 ---
 
 #### Command Topics
 
-**:material-message-outline: Topic Patterns**
+**:material-message-outline: Topic Pattern**
 ```
-{discovery_prefix}genius-alarmline/{line_id}/linetest/command
-{discovery_prefix}genius-alarmline/{line_id}/firealarm/command
+{main_base_topic}/genius-alarmline-{line_id}/{button_object_id}/set
 ```
 
-**:material-information-outline: Description:** Accepts commands to trigger line test or fire alarm actions on the specified alarm line
+**:material-information-outline: Description:** HA sends to these topics when a button is pressed in the UI or via automation
 
 **:material-speedometer: QoS:** 0
 
 **:material-content-save-outline: Retain:** false
 
-**:material-code-json: Payload Format**
+**Button Object IDs → Actions:**
 
-Start action:
-```json
-{"action": "start"}
-```
-
-Stop action:
-```json
-{"action": "stop"}
-```
-
-**:material-format-list-bulleted: Payload Fields**
-
-- `action` - Command to execute
-    - `"start"` - Begin line test or fire alarm transmission
-    - `"stop"` - End line test or fire alarm transmission
+- `linetest-start/set` → Start Line Test RF transmission
+- `linetest-stop/set` → Stop Line Test RF transmission
+- `firealarm-start/set` → Start Fire Alarm RF transmission
+- `firealarm-stop/set` → Stop Fire Alarm RF transmission
 
 **:material-publish: Command Behavior**
 
-- Commands are subscribed with wildcard: `{prefix}genius-alarmline/+/linetest/command`
-- Gateway extracts alarm line ID from topic path
+- Each button has its own dedicated command topic (no wildcard, no JSON payload parsing)
 - Triggers RF transmission immediately if no other transmission is active
-- Rejects commands if previous transmission is still in progress (503 internally)
-- Updates transmission state sensor to reflect activity
+- Ignored if a transmission is currently in progress (buttons shown as unavailable via availability topic)
+- Updates transmission state sensor on start; resets to `"Nothing"` on completion
 
 !!! warning "Transmission Blocking"
-    Only one transmission can be active at a time. Commands received during an active transmission are ignored until the current transmission completes (typically 3-10 seconds).
+    Only one transmission can be active at a time. Buttons are automatically shown as unavailable in HA while a transmission is in progress.
 
 ---
 
@@ -812,57 +803,38 @@ Stop action:
 
 **:material-message-outline: Topic**
 ```
-{discovery_prefix}genius-alarmline/{line_id}/transmission/state
+{main_base_topic}/genius-alarmline-{line_id}/transmission/state
 ```
 
-**Example:** `homeassistant/genius-alarmline/123456789/transmission/state`
+**Example:** `homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/state`
 
-**:material-information-outline: Description:** Current transmission status of the alarm line
+**:material-information-outline: Description:** Current transmission status of the alarm line (plain string, not JSON)
 
 **:material-speedometer: QoS:** 0
 
 **:material-content-save-outline: Retain:** true
 
-**:material-code-json: Payload Examples**
+**:material-code-json: State Values**
 
-Idle state (no active transmission):
-```json
-{"state": "Nothing"}
-```
-
-During line test start transmission:
-```json
-{"state": "Line Test Start"}
-```
-
-During fire alarm stop transmission:
-```json
-{"state": "Fire Alarm Stop"}
-```
-
-**:material-format-list-bulleted: State Values**
-
-- `"Nothing"` - No active transmission, all buttons available
-- `"Line Test Start"` - Line test start transmission in progress
-- `"Line Test Stop"` - Line test stop transmission in progress
-- `"Fire Alarm Start"` - Fire alarm start transmission in progress
-- `"Fire Alarm Stop"` - Fire alarm stop transmission in progress
+- `Nothing` — No active transmission, all buttons available
+- `Line Test Start` — Line test start transmission in progress
+- `Line Test Stop` — Line test stop transmission in progress
+- `Fire Alarm Start` — Fire alarm start transmission in progress
+- `Fire Alarm Stop` — Fire alarm stop transmission in progress
 
 **:material-publish: Publishing Behavior**
 
 - Published when transmission starts (state shows action type)
-- Published when transmission completes (state resets to `"Nothing"`)
-- Published when transmission times out (state resets to `"Nothing"`)
-- Re-published when MQTT connection is established
-- Controls button availability (buttons disabled when state ≠ `"Nothing"`)
+- Published when transmission completes (state resets to `Nothing`)
+- Published when transmission times out (state resets to `Nothing`)
+- Re-published on MQTT (re)connect via HA sub-device mechanism
+- Controls button availability (buttons shown as unavailable when state ≠ `Nothing`)
 
 **:material-home-assistant: Home Assistant Integration**
 
-- Automatically creates sensor entity
-- Used for button availability control via template
-- Displays current transmission activity
+- Appears under the alarm line sub-device as a Diagnostic sensor
+- Used by button availability templates
 - Can trigger automations based on transmission state changes
-- Useful for monitoring scheduled automated line tests
 
 ---
 
