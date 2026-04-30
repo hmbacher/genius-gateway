@@ -42,6 +42,7 @@
 #include <nvs_flash.h>
 #include <nvs.h>
 #include <GatewayMqttSettingsService.h>
+#include <HomeAssistant/HAService.h>
 #include <PsychicMqttClient.h>
 #include <SettingValue.h>
 
@@ -300,8 +301,9 @@ private:
 
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client instance (not owned)
-    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service for accessing configuration
-    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of MQTT settings (updated on settings change)
+    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service for accessing alarm settings
+    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of alarm MQTT settings
+    HAService *_haService;                            ///< HA service for enabled/prefix state
     String _lastMqttPrefix;                           ///< Last registered MQTT prefix for topic cleanup
 
     // Last action context

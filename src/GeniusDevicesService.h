@@ -39,7 +39,10 @@
 #include <ESP32SvelteKit.h>
 #include <Utils.hpp>
 #include <GatewayMqttSettingsService.h>
+#include <HomeAssistant/HAService.h>
 #include <PsychicMqttClient.h>
+
+#define GENIUS_DEVICE_HA_PATH "binary_sensor/genius-" ///< HA discovery path prefix for smoke detectors (legacy, replaced in Phase 5)
 #include <SettingValue.h>
 
 #define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"  ///< Configuration file path for device data
@@ -308,8 +311,9 @@ private:
 
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client instance (not owned)
-    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service for accessing configuration
-    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of MQTT settings (updated on settings change)
+    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service for alarm settings
+    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of alarm MQTT settings
+    HAService *_haService;                            ///< HA service for enabled/prefix state
 
     // ========== State Management ==========
     /// Update internal alarming state counters

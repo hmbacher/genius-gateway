@@ -331,3 +331,11 @@ export type CC1101State = {
 export type WSLoggerSettings = {
 	wsLoggerEnabled: boolean;
 };
+
+export type HASettings = {
+	enabled: boolean;
+	discovery_prefix: string;
+	device_name: string;
+	manufacturer: string;
+	model: string;
+};

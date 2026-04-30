@@ -30,18 +30,14 @@
 #include <GatewayDeviceMqttService.h>
 
 GatewayDeviceMqttService::GatewayDeviceMqttService(HAService *haService,
-                                                   GatewayMqttSettingsService *mqttSettingsService,
                                                    GatewaySettingsService *gatewaySettingsService)
     : _haService(haService),
-      _mqttSettingsService(mqttSettingsService),
       _gatewaySettingsService(gatewaySettingsService)
 {
 }
 
 void GatewayDeviceMqttService::begin()
 {
-    // Initialize cached settings and configure HAService
-    _updateMqttSettingsCache();
     _updateGatewaySettingsCache();
 
     // Register with HAService so our entities are published on MQTT connect
@@ -49,27 +45,12 @@ void GatewayDeviceMqttService::begin()
         this->publishAll();
     });
 
-    // Update cache and reconfigure HAService when MQTT settings change
-    if (_mqttSettingsService != nullptr)
-    {
-        _mqttSettingsService->addUpdateHandler([this](const String &originId)
-                                               {
-                                                   this->_updateMqttSettingsCache();
-                                                   // Republish on settings change if connected
-                                                   if (this->_haService->isReady())
-                                                   {
-                                                       this->_haService->publishAll();
-                                                   } },
-                                               false);
-    }
-
     // Update cache and republish switch states when gateway settings change
     if (_gatewaySettingsService != nullptr)
     {
         _gatewaySettingsService->addUpdateHandler([this](const String &originId)
                                                   {
                                                       this->_updateGatewaySettingsCache();
-                                                      // Only republish switch states, not full config
                                                       if (this->_haService->isReady())
                                                       {
                                                           this->_publishSettingSwitchStates();
@@ -102,22 +83,6 @@ String GatewayDeviceMqttService::getGatewayDeviceId()
 // ============================================================================
 // Private Methods - Settings Cache
 // ============================================================================
-
-void GatewayDeviceMqttService::_updateMqttSettingsCache()
-{
-    if (_mqttSettingsService != nullptr)
-    {
-        _cachedMqttSettings = _mqttSettingsService->getSettingsCopy();
-        
-        // Bridge app-specific settings to framework HAService
-        _haService->setEnabled(_cachedMqttSettings.HAIntegrationEnabled);
-        _haService->setDiscoveryPrefix(_cachedMqttSettings.HAMQTTDiscoveryPrefix);
-        
-        ESP_LOGV(TAG, "Updated cached MQTT settings and HAService config (enabled: %d, prefix: %s)",
-                 _cachedMqttSettings.HAIntegrationEnabled,
-                 _cachedMqttSettings.HAMQTTDiscoveryPrefix.c_str());
-    }
-}
 
 void GatewayDeviceMqttService::_updateGatewaySettingsCache()
 {

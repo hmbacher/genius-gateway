@@ -14,6 +14,7 @@
 	import Client from '~icons/tabler/robot';
 	import type { MQTTSettings, MQTTStatus } from '$lib/types/models';
 	import GatewayMqttConfig from './GatewayMQTTConfig.svelte';
+	import HAConfig from './HAConfig.svelte';
 
 	let mqttSettings: MQTTSettings = $state();
 	let mqttStatus: MQTTStatus = $state();
@@ -342,5 +343,6 @@
 		</Collapsible>
 
 		<GatewayMqttConfig />
+		<HAConfig />
 	{/if}
 </SettingsCard>

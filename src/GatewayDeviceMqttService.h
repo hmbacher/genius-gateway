@@ -29,7 +29,6 @@
 
 #pragma once
 
-#include <GatewayMqttSettingsService.h>
 #include <GatewaySettingsService.h>
 #include <ArduinoJson.h>
 #include <HomeAssistant/HAService.h>
@@ -41,11 +40,11 @@
  * and MQTT publish/subscribe. Framework-level entities (diagnostics, update, restart)
  * are handled by HADiagnosticService and HAUpdateService.
  *
+ * HA integration settings (enabled, discovery prefix, device identity) are managed
+ * by the framework's HASettingsService at /rest/haSettings.
+ *
  * This service manages app-specific entities:
  * - Setting switches (Alert on Unknown Detectors, Add Line from Commissioning/Alarm/Test)
- *
- * It also acts as the bridge between app-specific GatewayMqttSettings (HA enabled flag,
- * discovery prefix) and the framework HAService configuration.
  */
 class GatewayDeviceMqttService
 {
@@ -54,14 +53,12 @@ public:
 
     /**
      * @brief Constructor
-     * 
+     *
      * @param haService Framework HAService for device identity and MQTT helpers
-     * @param mqttSettingsService Gateway MQTT settings (HA enabled, discovery prefix)
      * @param gatewaySettingsService Gateway settings (switch states)
      */
     GatewayDeviceMqttService(HAService *haService,
-                            GatewayMqttSettingsService *mqttSettingsService,
-                            GatewaySettingsService *gatewaySettingsService);
+                             GatewaySettingsService *gatewaySettingsService);
 
     /**
      * @brief Initialize the service
@@ -88,17 +85,10 @@ public:
 private:
     // Services
     HAService *_haService;
-    GatewayMqttSettingsService *_mqttSettingsService;
     GatewaySettingsService *_gatewaySettingsService;
-    
-    // Cached settings
-    GatewayMqttSettings _cachedMqttSettings;
-    GatewaySettings _cachedGatewaySettings;
 
-    /**
-     * @brief Update cached MQTT settings and reconfigure HAService
-     */
-    void _updateMqttSettingsCache();
+    // Cached settings
+    GatewaySettings _cachedGatewaySettings;
 
     /**
      * @brief Update cached gateway settings

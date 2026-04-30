@@ -46,7 +46,8 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
                                                                                                                                                         _isAlarming(false),
                                                                                                                                                         _numAlarming(0),
                                                                                                                                                         _mqttClient(mqttClient),
-                                                                                                                                                        _mqttSettingsService(mqttSettingsService)
+                                                                                                                                                        _mqttSettingsService(mqttSettingsService),
+                                                                                                                                                        _haService(sveltekit->getHAService())
 {
 }
 
@@ -660,10 +661,10 @@ void GeniusDevicesService::mqttPublishAllDevices(bool onlyUnpublished)
     if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
         return;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
+    if (!_haService->isReady())
         return;
 
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (_haService->getDiscoveryPrefix().isEmpty())
     {
         ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish devices.");
         return;
@@ -716,10 +717,10 @@ void GeniusDevicesService::mqttPublishAllDevicesState(bool onlyUnpublished)
     if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
         return;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
+    if (!_haService->isReady())
         return;
 
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (_haService->getDiscoveryPrefix().isEmpty())
     {
         ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish devices.");
         return;
@@ -755,10 +756,10 @@ esp_err_t GeniusDevicesService::mqttPublishDeviceConfig(GeniusDevice &device, bo
     if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
         return ESP_ERR_INVALID_STATE;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
+    if (!_haService->isReady())
         return ESP_ERR_INVALID_STATE;
 
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (_haService->getDiscoveryPrefix().isEmpty())
     {
         ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish device.");
         return ESP_ERR_INVALID_ARG;
@@ -797,10 +798,10 @@ esp_err_t GeniusDevicesService::mqttPublishDeviceState(uint32_t smokeDetectorSN,
     if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
         return ESP_ERR_INVALID_STATE;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
+    if (!_haService->isReady())
         return ESP_ERR_INVALID_STATE;
 
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (_haService->getDiscoveryPrefix().isEmpty())
     {
         ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish device.");
         return ESP_ERR_INVALID_ARG;
@@ -845,10 +846,10 @@ esp_err_t GeniusDevicesService::mqttPublishDeviceState(GeniusDevice &device, boo
     if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
         return ESP_ERR_INVALID_STATE;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
+    if (!_haService->isReady())
         return ESP_ERR_INVALID_STATE;
 
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (_haService->getDiscoveryPrefix().isEmpty())
     {
         ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish device.");
         return ESP_ERR_INVALID_ARG;
@@ -888,11 +889,11 @@ esp_err_t GeniusDevicesService::_publishDeviceConfig(const GeniusDevice &device)
     if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
         return ESP_ERR_INVALID_ARG;
 
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String configTopic = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + device.smokeDetector.sn + "/config";
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
+    String configTopic = discoveryPrefix + GENIUS_DEVICE_HA_PATH + device.smokeDetector.sn + "/config";
 
     JsonDocument config_jsonDoc;
-    config_jsonDoc["~"] = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + device.smokeDetector.sn;
+    config_jsonDoc["~"] = discoveryPrefix + GENIUS_DEVICE_HA_PATH + device.smokeDetector.sn;
     config_jsonDoc["name"] = "Genius Plus X";
     config_jsonDoc["unique_id"] = String(device.smokeDetector.sn);
     config_jsonDoc["device_class"] = "smoke";
@@ -952,8 +953,8 @@ esp_err_t GeniusDevicesService::_publishDeviceAttributes(const GeniusDevice &dev
     if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
         return ESP_ERR_INVALID_ARG;
 
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String attrTopic = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + device.smokeDetector.sn + "/attributes";
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
+    String attrTopic = discoveryPrefix + GENIUS_DEVICE_HA_PATH + device.smokeDetector.sn + "/attributes";
     JsonDocument attr_jsonDoc;
 
     // Add production date in dd.mm.yy format
@@ -1005,8 +1006,8 @@ esp_err_t GeniusDevicesService::_publishDeviceState(const GeniusDevice &device)
     if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
         return ESP_ERR_INVALID_ARG;
 
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String stateTopic = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + device.smokeDetector.sn + "/state";
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
+    String stateTopic = discoveryPrefix + GENIUS_DEVICE_HA_PATH + device.smokeDetector.sn + "/state";
 
     JsonDocument state_jsonDoc;
     state_jsonDoc["state"] = device.isAlarming ? "ON" : "OFF";
@@ -1039,11 +1040,11 @@ void GeniusDevicesService::_mqttUnpublishDevice(uint32_t smokeDetectorSN)
     if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
         return;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (!_haService->isReady() || _haService->getDiscoveryPrefix().isEmpty())
         return;
 
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String configTopic = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + smokeDetectorSN + "/config";
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
+    String configTopic = discoveryPrefix + GENIUS_DEVICE_HA_PATH + smokeDetectorSN + "/config";
 
     // Send empty retained payload to remove the entity from Home Assistant
     _mqttClient->publish(configTopic.c_str(), 0, true, "");
@@ -1107,8 +1108,8 @@ void GeniusDevicesService::_updateMqttSettingsCache()
     if (_mqttSettingsService != nullptr)
     {
         _cachedMqttSettings = _mqttSettingsService->getSettingsCopy();
-        ESP_LOGV(GeniusDevices::TAG, "Updated cached MQTT settings (enabled: %d, prefix: %s)",
-                 _cachedMqttSettings.HAIntegrationEnabled,
-                 _cachedMqttSettings.HAMQTTDiscoveryPrefix.c_str());
+        ESP_LOGV(GeniusDevices::TAG, "Updated cached alarm MQTT settings (alarmEnabled: %d, topic: %s)",
+                 _cachedMqttSettings.alarmEnabled,
+                 _cachedMqttSettings.alarmTopic.c_str());
     }
 }
