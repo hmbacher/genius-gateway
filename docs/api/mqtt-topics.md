@@ -356,11 +356,7 @@ Four switches provide remote control of gateway configuration settings that affe
   "unique_id": "genius-gateway-1a2b3c4d5e6f_alert_unknown",
   "state_topic": "~/gateway/state",
   "value_template": "{{ value_json.alert_unknown }}",
-  "command_topic": "~/gateway/switch/alert_unknown/set",
-  "payload_on": "ON",
-  "payload_off": "OFF",
-  "state_on": "ON",
-  "state_off": "OFF",
+  "command_topic": "~/gateway/alert_unknown/set",
   "icon": "mdi:toggle-switch-off-outline",
   "entity_category": "config",
   "device": {
@@ -373,10 +369,8 @@ Four switches provide remote control of gateway configuration settings that affe
 
 - `state_topic` - Shared JSON topic publishing all switch states
 - `value_template` - Template to extract specific switch state from JSON
-- `command_topic` - Individual topic accepting switch commands
-- `payload_on` / `payload_off` - Payloads for ON/OFF commands
-- `state_on` / `state_off` - State values indicating ON/OFF
-- `entity_category` - Category (`config` for configuration entities)
+- `command_topic` - Individual topic accepting `ON` / `OFF` commands
+- `entity_category` - `config` for configuration entities
 
 **Central State Topic:**
 ```
@@ -395,14 +389,14 @@ Four switches provide remote control of gateway configuration settings that affe
 
 **Individual Command Topics:**
 ```
-{discovery_prefix}genius-gateway/{gateway_device_id}/gateway/switch/{switch_suffix}/set
+{discovery_prefix}genius-gateway/{gateway_device_id}/gateway/{objectId}/set
 ```
 
 **Examples:**
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/alert_unknown/set`
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/line_commissioning/set`
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/line_alarm/set`
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/line_test/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/alert_unknown/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/line_commissioning/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/line_alarm/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/line_test/set`
 
 **:material-code-json: Command Payloads**
 
