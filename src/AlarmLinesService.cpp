@@ -122,6 +122,7 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClien
                                                                                                                                                  _txRepeat(0),
                                                                                                                                                  _mqttClient(mqttClient),
                                                                                                                                                  _mqttSettingsService(mqttSettingsService),
+                                                                                                                                                 _haService(sveltekit->getHAService()),
                                                                                                                                                  _lastActionLineId(0),
                                                                                                                                                  _lastActionType(String()),
                                                                                                                                                  _txDataLength(0),
@@ -447,7 +448,7 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
     // Publish to MQTT if connected
     if (_mqttClient != nullptr && _mqttSettingsService != nullptr)
     {
-        if (_cachedMqttSettings.HAIntegrationEnabled && !_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+        if (_haService->isReady() && !_haService->getDiscoveryPrefix().isEmpty())
         {
             // Trigger update handler which will handle full republish
         }
@@ -579,7 +580,7 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
     // Publish running state over MQTT if available
     if (_mqttClient != nullptr && _mqttSettingsService != nullptr)
     {
-        if (_cachedMqttSettings.HAIntegrationEnabled && !_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+        if (_haService->isReady() && !_haService->getDiscoveryPrefix().isEmpty())
         {
             // Map action to human-readable transmission state value
             String state;
@@ -629,11 +630,11 @@ void AlarmLinesService::mqttRegisterTopicsAndPublishAlarmLines()
     if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
         return;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (!_haService->isReady() || _haService->getDiscoveryPrefix().isEmpty())
         return;
 
     // Get discovery prefix for topic subscriptions
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
 
     // Unsubscribe from old topics if prefix has changed
     if (!_lastMqttPrefix.isEmpty() && _lastMqttPrefix != discoveryPrefix)
@@ -800,10 +801,10 @@ esp_err_t AlarmLinesService::_mqttPublishAlarmLineConfig(const genius_alarm_line
     if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
         return ESP_ERR_INVALID_STATE;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
+    if (!_haService->isReady())
         return ESP_ERR_INVALID_STATE;
 
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (_haService->getDiscoveryPrefix().isEmpty())
     {
         ESP_LOGW(TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish alarm line topics.");
         return ESP_ERR_INVALID_ARG;
@@ -845,11 +846,11 @@ void AlarmLinesService::_mqttUnpublishAlarmLine(uint32_t lineId)
     if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
         return;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (!_haService->isReady() || _haService->getDiscoveryPrefix().isEmpty())
         return;
 
     String idStr = String(lineId);
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
 
     // Unpublish all 5 entities by sending empty retained payloads
     String cfgTopics[] = {
@@ -889,7 +890,7 @@ void AlarmLinesService::_publishLastActionState(bool timedOut)
     if (_lastActionLineId == 0 || _lastActionType.length() == 0)
         return;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (!_haService->isReady() || _haService->getDiscoveryPrefix().isEmpty())
         return;
 
     // Reset transmission status to Nothing
@@ -913,10 +914,10 @@ esp_err_t AlarmLinesService::_publishAlarmLineTransmissionState(uint32_t lineId,
     if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
         return ESP_ERR_INVALID_STATE;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+    if (!_haService->isReady() || _haService->getDiscoveryPrefix().isEmpty())
         return ESP_ERR_INVALID_STATE;
 
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
     String transmissionTopic = discoveryPrefix + "genius-alarmline/" + String(lineId) + "/transmission/state";
 
     JsonDocument stateDoc;
@@ -1011,7 +1012,7 @@ esp_err_t AlarmLinesService::_publishAlarmLineButtons(const genius_alarm_line_t 
  */
 esp_err_t AlarmLinesService::_publishTransmissionSensor(const genius_alarm_line_t &line)
 {
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
     String idStr = String(line.id);
     String baseTopic = discoveryPrefix + "genius-alarmline/" + idStr;
 
@@ -1054,7 +1055,7 @@ esp_err_t AlarmLinesService::_publishTransmissionSensor(const genius_alarm_line_
  */
 esp_err_t AlarmLinesService::_publishButton(const genius_alarm_line_t &line, const AlarmLineButtonConfig &config)
 {
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
     String idStr = String(line.id);
     String baseTopic = discoveryPrefix + "genius-alarmline/" + idStr;
     
@@ -1094,7 +1095,7 @@ esp_err_t AlarmLinesService::_publishButton(const genius_alarm_line_t &line, con
  */
 void AlarmLinesService::_addAvailabilityAndDevice(JsonDocument &doc, const genius_alarm_line_t &line)
 {
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
+    String discoveryPrefix = _haService->getDiscoveryPrefix();
     String idStr = String(line.id);
     String baseTopic = discoveryPrefix + "genius-alarmline/" + idStr;
 
@@ -1171,7 +1172,7 @@ esp_err_t AlarmLinesService::_removeAlarmLine(uint32_t id)
     // Unpublish Home Assistant MQTT entities for this alarm line
     if (_mqttClient != nullptr && _mqttSettingsService != nullptr)
     {
-        if (_cachedMqttSettings.HAIntegrationEnabled && !_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
+        if (_haService->isReady() && !_haService->getDiscoveryPrefix().isEmpty())
         {
             _mqttUnpublishAlarmLine(id);
         }
@@ -1308,8 +1309,8 @@ void AlarmLinesService::_updateMqttSettingsCache()
     if (_mqttSettingsService != nullptr)
     {
         _cachedMqttSettings = _mqttSettingsService->getSettingsCopy();
-        ESP_LOGV(TAG, "Updated cached MQTT settings (enabled: %d, prefix: %s)", 
-                 _cachedMqttSettings.HAIntegrationEnabled, 
-                 _cachedMqttSettings.HAMQTTDiscoveryPrefix.c_str());
+        ESP_LOGV(TAG, "Updated cached alarm MQTT settings (alarmEnabled: %d, topic: %s)",
+                 _cachedMqttSettings.alarmEnabled,
+                 _cachedMqttSettings.alarmTopic.c_str());
     }
 }

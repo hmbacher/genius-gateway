@@ -54,7 +54,7 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
                                                           _sveltekit(sveltekit),
                                                           _gatewayMqttSettingsService(sveltekit),
                                                           _gatewaySettings(sveltekit),
-                                                          _gatewayDeviceMqttService(sveltekit->getHAService(), &_gatewayMqttSettingsService, &_gatewaySettings),
+                                                          _gatewayDeviceMqttService(sveltekit->getHAService(), &_gatewaySettings),
                                                           _geniusDevices(sveltekit, _mqttClient, &_gatewayMqttSettingsService),
                                                           _alarmLines(sveltekit, _mqttClient, &this->_cc1101Controller, &_gatewayMqttSettingsService),
                                                           _wsLogger(sveltekit),
@@ -108,14 +108,6 @@ void GeniusGateway::begin()
     else
     {
         ESP_LOGE(TAG, "RX task creation failed.");
-    }
-
-    /* Configure HAService with app-specific device identity */
-    {
-        HAService *haService = _sveltekit->getHAService();
-        haService->setDeviceName("Genius Gateway");
-        haService->setManufacturer("Genius Gateway Project");
-        haService->setModel("Genius Gateway");
     }
 
     /* Initialize Gateway MQTT Settings Service first - other services depend on its settings */
@@ -313,8 +305,7 @@ void GeniusGateway::_mqttPublishTask()
         // Block indefinitely until onConnect sends a notification
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        ESP_LOGI(TAG, "MQTT connected - publishing all HA entities and devices.");
-        _sveltekit->getHAService()->publishAll();
+        ESP_LOGI(TAG, "MQTT connected - publishing all app-specific devices and alarm lines.");
         _geniusDevices.mqttPublishAllDevices(false); // Full republish on connect: broker state unknown after reconnect
         _geniusDevices.mqttPublishSimpleAlarmState();
         _alarmLines.mqttRegisterTopicsAndPublishAlarmLines();

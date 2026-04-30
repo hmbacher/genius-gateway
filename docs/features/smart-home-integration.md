@@ -84,7 +84,7 @@ Home Assistant's MQTT Discovery allows devices to automatically register themsel
 To enable Home Assistant MQTT Discovery integration in Genius Gateway:
 
 1. **[Configure MQTT broker connection](../setup/connections.md#mqtt)** - Set up connection (must be same broker as Home Assistant)
-2. **[Enable Home Assistant Integration](../setup/connections.md#device-publishing)** - Enable MQTT Discovery and adjust the topic prefix if your Home Assistant uses a non-default discovery prefix
+2. **[Enable Home Assistant Integration](../setup/connections.md#home-assistant-integration)** - Enable MQTT Discovery; optionally adjust the discovery prefix and device identity (device name, manufacturer, model)
 3. **[Add devices to Genius Gateway](../setup/configure-gateway.md)** - Register smoke detectors and/or alarm lines
 
 Ensure MQTT Discovery is enabled in your Home Assistant configuration:
