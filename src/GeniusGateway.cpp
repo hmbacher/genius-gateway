@@ -305,10 +305,9 @@ void GeniusGateway::_mqttPublishTask()
         // Block indefinitely until onConnect sends a notification
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        ESP_LOGI(TAG, "MQTT connected - publishing all app-specific devices and alarm lines.");
+        ESP_LOGI(TAG, "MQTT connected - publishing all app-specific devices.");
         _geniusDevices.mqttPublishAllDevices(false); // Full republish on connect: broker state unknown after reconnect
         _geniusDevices.mqttPublishSimpleAlarmState();
-        _alarmLines.mqttRegisterTopicsAndPublishAlarmLines();
         ESP_LOGI(TAG, "HA publish complete.");
     }
 }
