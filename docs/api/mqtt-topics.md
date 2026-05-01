@@ -273,10 +273,13 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 
 **:material-message-outline: Config Topic**
 ```
-{discovery_prefix}button/{gateway_device_id}/restart/config
+{discovery_prefix}button/{topicNamespace}/{gateway_device_id}/restart/config
 ```
 
-**Example:** `homeassistant/button/genius-gateway-1a2b3c4d5e6f/restart/config`
+**Example:** `homeassistant/button/genius-gateway/genius-gateway-1a2b3c4d5e6f/restart/config`
+
+!!! tip "`topicNamespace` format"
+    `topicNamespace` is the slugified device name, e.g. `genius-gateway`. Together with the device ID, the config topic node becomes `genius-gateway/genius-gateway-1a2b3c4d5e6f`. This scoping ensures entities from different gateway instances never collide on a shared MQTT broker.
 
 **:material-information-outline: Description:** Button entity for remotely restarting the gateway
 
@@ -293,7 +296,6 @@ The gateway publishes two diagnostic sensors that share a common state topic for
   "command_topic": "~/restart/command",
   "payload_press": "PRESS",
   "icon": "mdi:restart",
-  "entity_category": "config",
   "device": {
     "identifiers": ["genius-gateway-1a2b3c4d5e6f"]
   }
@@ -305,7 +307,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 - `command_topic` - Topic where button press commands are published
 - `payload_press` - Payload sent when button is pressed (`"PRESS"`)
 - `icon` - Restart icon for visual identification
-- `entity_category` - Category (`config` for configuration entities)
+- No `entity_category` — Restart appears under **Controls** on the HA device page
 
 **Command Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/restart/command`
 
@@ -581,10 +583,10 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-12345678/...
 
 **:material-message-outline: Topic Pattern**
 ```
-{discovery_prefix}binary_sensor/genius-{smoke_detector_sn}/smoke/config
+{discovery_prefix}binary_sensor/{topicNamespace}/{gateway_device_id}/genius-{smoke_detector_sn}/smoke/config
 ```
 
-**Example:** `homeassistant/binary_sensor/genius-12345678/smoke/config`
+**Example:** `homeassistant/binary_sensor/genius-gateway/genius-gateway-aabbcc/genius-12345678/smoke/config`
 
 **:material-information-outline: Description:** Configuration message for Home Assistant binary sensor discovery
 
@@ -745,7 +747,7 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/..
 
 **:material-message-outline: Topic Pattern**
 ```
-{discovery_prefix}button/genius-alarmline-{line_id}/{object_id}/config
+{discovery_prefix}button/{topicNamespace}/{gateway_device_id}/genius-alarmline-{line_id}/{object_id}/config
 ```
 
 **:material-information-outline: Description:** Configuration messages for Home Assistant button discovery
@@ -842,7 +844,14 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/..
 
 #### Transmission State Sensor
 
-**:material-message-outline: Topic**
+**:material-message-outline: Config Topic**
+```
+{discovery_prefix}sensor/{topicNamespace}/{gateway_device_id}/genius-alarmline-{line_id}/transmission/config
+```
+
+**Example:** `homeassistant/sensor/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/config`
+
+**:material-message-outline: State Topic**
 ```
 {main_base_topic}/genius-alarmline-{line_id}/transmission/state
 ```
