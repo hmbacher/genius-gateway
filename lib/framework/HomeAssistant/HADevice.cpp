@@ -67,9 +67,12 @@ void HADevice::unpublishAll()
             continue;
 
         // Send empty retained payload → HA removes the device.
-        // Topic: {prefix}{component}/{deviceId}/{objectId}/config
+        // Topic: {prefix}{component}/{topicNamespace}/{id}/{objectId}/config
+        String configNodeId = _identity.topicNamespace.isEmpty()
+            ? _identity.id
+            : (_identity.topicNamespace + "/" + _identity.id);
         String configTopic = _haService->getDiscoveryPrefix() + entity->component() +
-                             "/" + _identity.id + "/" + entity->objectId() + "/config";
+                             "/" + configNodeId + "/" + entity->objectId() + "/config";
         _haService->publish(configTopic, String(), 0, true, false);
     }
 }
@@ -103,8 +106,11 @@ bool HADevice::publishConfig(const String &component,
         }
     }
 
+    String configNodeId = _identity.topicNamespace.isEmpty()
+        ? _identity.id
+        : (_identity.topicNamespace + "/" + _identity.id);
     String configTopic = _haService->getDiscoveryPrefix() + component +
-                         "/" + _identity.id + "/" + objectId + "/config";
+                         "/" + configNodeId + "/" + objectId + "/config";
 
     String payload;
     serializeJson(config, payload);

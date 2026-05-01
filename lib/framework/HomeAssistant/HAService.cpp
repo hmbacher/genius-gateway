@@ -366,7 +366,7 @@ void HAService::_syncMainDeviceIdentity()
 
 void HAService::_generateDeviceId()
 {
-    _deviceId = _slugify(_deviceName) + "-" + SettingValue::getUniqueId();
+    _deviceId = _slugify(String(APP_NAME)) + "-" + SettingValue::getUniqueId();
 }
 
 String HAService::_slugify(const String &name)
