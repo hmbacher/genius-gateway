@@ -342,7 +342,7 @@
 			</form>
 		</Collapsible>
 
-		<GatewayMqttConfig />
 		<HAConfig />
+		<GatewayMqttConfig />
 	{/if}
 </SettingsCard>
