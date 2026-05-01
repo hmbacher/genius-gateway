@@ -57,7 +57,7 @@ HADiagnosticService::HADiagnosticService(HAService *haService)
                          [](JsonObject &c)
                          { c["payload_press"] = "PRESS"; }));
         restart->setName("Restart").setIcon("mdi:restart");
-        _haService->mainDevice().registerDiagnostic(std::move(restart));
+        _haService->mainDevice().registerControl(std::move(restart));
     }
 }
 
