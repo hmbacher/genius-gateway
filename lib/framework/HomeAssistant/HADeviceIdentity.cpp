@@ -32,6 +32,9 @@ void HADeviceIdentity::writeDeviceBlock(JsonDocument &doc) const
     if (!hwVersion.isEmpty())
         device["hw_version"] = hwVersion;
 
+    if (!serialNumber.isEmpty())
+        device["serial_number"] = serialNumber;
+
     if (!configurationUrl.isEmpty())
         device["configuration_url"] = configurationUrl;
 
