@@ -52,9 +52,18 @@ void HASettingsService::_applyToHAService()
     // Empty device_name falls back to APP_NAME (compile-time firmware name)
     String name = _state.deviceName.isEmpty() ? String(APP_NAME) : _state.deviceName;
 
+    String model = _state.model;
+#ifdef HW_VERSION
+    {
+        const String hwVer(HW_VERSION);
+        if (!hwVer.isEmpty())
+            model += " " + hwVer;
+    }
+#endif
+
     _haService->setDeviceName(name);
     _haService->setManufacturer(_state.manufacturer);
-    _haService->setModel(_state.model);
+    _haService->setModel(model);
     _haService->setDiscoveryPrefix(_state.discoveryPrefix);
     _haService->setEnabled(_state.enabled);
 
