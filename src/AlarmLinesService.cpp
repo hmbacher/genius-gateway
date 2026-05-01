@@ -122,14 +122,14 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClien
                                                                                                                                                  _txRepeat(0),
                                                                                                                                                  _mqttClient(mqttClient),
                                                                                                                                                  _mqttSettingsService(mqttSettingsService),
+                                                                                                                                                 _haService(sveltekit->getHAService()),
                                                                                                                                                  _lastActionLineId(0),
                                                                                                                                                  _lastActionType(String()),
                                                                                                                                                  _txDataLength(0),
                                                                                                                                                  _packetCntStep(0.0f),
                                                                                                                                                  _currentPacketCnt(0.0f),
                                                                                                                                                  _txPeriodUs(0),
-                                                                                                                                                 _packet_sequence_number(ALARMLINES_NVS_SEQ_DEFAULT),
-                                                                                                                                                 _lastMqttPrefix(String())
+                                                                                                                                                 _packet_sequence_number(ALARMLINES_NVS_SEQ_DEFAULT)
 {
 }
 
@@ -212,23 +212,25 @@ void AlarmLinesService::begin()
     // Initialize cached MQTT settings
     _updateMqttSettingsCache();
 
-    /* Republish MQTT when alarm lines change */
+    /* Sync sub-devices and republish MQTT when alarm lines change */
     this->addUpdateHandler([this](const String &originId)
                           {
-                              _mqttPublishAllAlarmLines();
+                              _syncAlarmLineSubDevices();
                           },
                           false);
 
-    /* Update cache and republish MQTT when MQTT settings change */
+    /* Update cache when alarm MQTT settings change */
     if (_mqttSettingsService != nullptr)
     {
         _mqttSettingsService->addUpdateHandler([this](const String &originId)
                                                {
                                                    this->_updateMqttSettingsCache();
-                                                   this->mqttRegisterTopicsAndPublishAlarmLines();
                                                },
                                                false);
     }
+
+    // Register sub-devices for all lines already loaded from FS
+    _syncAlarmLineSubDevices();
 }
 
 // ============================================================================
@@ -444,15 +446,6 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
 
     ESP_LOGI(TAG, "Added alarm line '%s' with id %lu", newLine.name.c_str(), newLine.id);
 
-    // Publish to MQTT if connected
-    if (_mqttClient != nullptr && _mqttSettingsService != nullptr)
-    {
-        if (_cachedMqttSettings.HAIntegrationEnabled && !_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-        {
-            // Trigger update handler which will handle full republish
-        }
-    }
-
     callUpdateHandlers(ALARMLINES_ORIGIN_ID);
 
     if (acquisition == ALA_GENIUS_PACKET) // Alarm line has been added from a genius packet
@@ -576,562 +569,173 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
         return ESP_FAIL;
     }
 
-    // Publish running state over MQTT if available
-    if (_mqttClient != nullptr && _mqttSettingsService != nullptr)
-    {
-        if (_cachedMqttSettings.HAIntegrationEnabled && !_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-        {
-            // Map action to human-readable transmission state value
-            String state;
-            if (action == "line-test-start")
-                state = "Line Test Start";
-            else if (action == "line-test-stop")
-                state = "Line Test Stop";
-            else if (action == "fire-alarm-start")
-                state = "Fire Alarm Start";
-            else if (action == "fire-alarm-stop")
-                state = "Fire Alarm Stop";
-            else
-                state = action;
+    // Publish running transmission state
+    String state;
+    if (action == "line-test-start")
+        state = "Line Test Start";
+    else if (action == "line-test-stop")
+        state = "Line Test Stop";
+    else if (action == "fire-alarm-start")
+        state = "Fire Alarm Start";
+    else if (action == "fire-alarm-stop")
+        state = "Fire Alarm Stop";
+    else
+        state = action;
 
-            _publishAlarmLineTransmissionState(lineIdHostOrder, state);
-        }
-    }
+    _publishAlarmLineTransmissionState(lineIdHostOrder, state);
 
     ESP_LOGI(TAG, "Action '%s' triggered successfully for line ID %lu ('%s').", action.c_str(), lineIdHostOrder, lineName.c_str());
     return ESP_OK;
 }
 
 // ============================================================================
-// Public Methods - MQTT
+// Private Methods - HA Sub-device Management
 // ============================================================================
 
-/**
- * @brief Registers MQTT command topics and publishes discovery config for all alarm lines
- * 
- * This is the main entry point for MQTT integration. It:
- * 1. Subscribes to MQTT command topics for line test and fire alarm actions
- * 2. Handles topic prefix changes by unsubscribing from old topics
- * 3. Publishes Home Assistant discovery configuration for all alarm lines
- * 4. Publishes initial state for all alarm lines
- * 
- * Must be called after MQTT connection is established. Safe to call multiple times
- * (e.g., on reconnect or settings change) - will handle cleanup of old subscriptions.
- * 
- * Command topics use wildcards to handle multiple alarm lines:
- * - homeassistant/genius-alarmline/+/linetest/command
- * - homeassistant/genius-alarmline/+/firealarm/command
- * 
- * Payloads are JSON: {"action": "start"} or {"action": "stop"}
- */
-void AlarmLinesService::mqttRegisterTopicsAndPublishAlarmLines()
+void AlarmLinesService::_addAlarmLineSubDevice(uint32_t lineId, const String &lineName)
 {
-    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
-        return;
+    if (_haDevices.count(lineId))
+        return; // already registered
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-        return;
+    String deviceId = "genius-alarmline-" + String(lineId);
 
-    // Get discovery prefix for topic subscriptions
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
+    HADeviceIdentity identity;
+    identity.id = deviceId;
+    identity.name = "Alarm Line '" + lineName + "'";
+    identity.manufacturer = "Genius Gateway Project";
+    identity.model = "Genius Plus X Alarm Line";
+    IPAddress localIP = WiFi.localIP();
+    if (IPUtils::isSet(localIP))
+        identity.configurationUrl = "http://" + localIP.toString() + "/gateway/alarm-lines";
 
-    // Unsubscribe from old topics if prefix has changed
-    if (!_lastMqttPrefix.isEmpty() && _lastMqttPrefix != discoveryPrefix)
+    auto dev = std::make_unique<HADevice>(_haService, std::move(identity));
+
+    // Register transmission state sensor first so it publishes before buttons.
+    // HA evaluates button availability immediately when it receives button config,
+    // so the retained sensor state must already be on the broker.
+    if (!_txStates.count(lineId))
+        _txStates[lineId] = "Nothing";
+
+    auto sensor = std::make_unique<HASensor>(_haService, "transmission",
+        [this, lineId]()
+        {
+            auto it = _txStates.find(lineId);
+            return it != _txStates.end() ? it->second : String("Nothing");
+        },
+        [](JsonObject &c) { c["icon"] = "mdi:radio-tower"; });
+    sensor->setName("Current Transmission");
+    HASensor *rawSensor = dev->registerDiagnostic(std::move(sensor));
+
+    // Register 4 buttons: line-test start/stop, fire-alarm start/stop
+    struct BtnDef
     {
-        String oldLinetestTopic = _lastMqttPrefix + ALARMLINES_MQTT_TOPIC_LINE_TEST;
-        String oldFirealarmTopic = _lastMqttPrefix + ALARMLINES_MQTT_TOPIC_FIRE_ALARM;
-        _mqttClient->unsubscribe(oldLinetestTopic.c_str());
-        _mqttClient->unsubscribe(oldFirealarmTopic.c_str());
-        ESP_LOGI(TAG, "Unsubscribed from old MQTT command topics with prefix: %s", _lastMqttPrefix.c_str());
+        const char *id;
+        const char *name;
+        const char *icon;
+        const char *action;
+    };
+    static const BtnDef btns[] = {
+        {"linetest-start",  "Start Line Test",  "mdi:map-marker",     "line-test-start"},
+        {"linetest-stop",   "Stop Line Test",   "mdi:map-marker-off", "line-test-stop"},
+        {"firealarm-start", "Start Fire Alarm", "mdi:fire",           "fire-alarm-start"},
+        {"firealarm-stop",  "Stop Fire Alarm",  "mdi:fire-off",       "fire-alarm-stop"},
+    };
+
+    for (const auto &b : btns)
+    {
+        String action(b.action); // capture by value
+        auto btn = std::make_unique<HAButton>(_haService, b.id,
+            [this, lineId, action]() { _triggerAction(lineId, action); });
+        btn->setName(b.name).setIcon(b.icon);
+
+        // Buttons are shown as unavailable while a transmission is active.
+        // The availability topic is the sensor state topic on this sub-device.
+        auto *rawBtn = dev->registerControl(std::move(btn));
+        rawBtn->setExtraConfig([this, deviceId](JsonObject &c)
+        {
+            String txTopic = _haService->getBaseTopic() + "/" + deviceId + "/transmission/state";
+            JsonObject availObj = c["availability"].to<JsonArray>().add<JsonObject>();
+            availObj["topic"] = txTopic;
+            availObj["value_template"] = "{% if value == 'Nothing' %}online{% else %}offline{% endif %}";
+            c["availability_mode"] = "all";
+        });
     }
 
-    // Subscribe to command topics (wildcard) for Line Test actions
-    String linetestCmdTopic = discoveryPrefix + ALARMLINES_MQTT_TOPIC_LINE_TEST;
-    _mqttClient->onTopic(linetestCmdTopic.c_str(), 0, [this](char *topic, char *payload, int retain, int qos, bool dup)
-                        {
-                           String t = String(topic);
-                           // Extract id from topic: .../genius-alarmline/<id>/linetest/command
-                           int idx = t.indexOf(ALARMLINES_MQTT_TOPIC_PREFIX);
-                           if (idx < 0)
-                               return;
-                           String remainder = t.substring(idx + strlen(ALARMLINES_MQTT_TOPIC_PREFIX));
-                           int slash = remainder.indexOf('/');
-                           if (slash < 0)
-                               return;
-                           String idStr = remainder.substring(0, slash);
-                           uint32_t id = (uint32_t)strtoul(idStr.c_str(), nullptr, 10);
+    HADevice *rawDev = _haService->addSubDevice(std::move(dev));
+    _haDevices[lineId] = {rawDev, rawSensor};
 
-                           // Parse payload as JSON and map to action
-                           String pl = payload ? String(payload) : String();
-                           String action = "line-test-start"; // default
-                           if (pl.length() > 0)
-                           {
-                               JsonDocument doc;
-                               DeserializationError err = deserializeJson(doc, pl);
-                               if (!err && doc["action"].is<String>())
-                               {
-                                   String a = doc["action"].as<String>();
-                                   if (a == "start")
-                                       action = "line-test-start";
-                                   else if (a == "stop")
-                                       action = "line-test-stop";
-                               }
-                           }
-
-                           _triggerAction(id, action); });
-
-    // Subscribe to command topics (wildcard) for Fire Alarm actions
-    String firealarmCmdTopic = discoveryPrefix + ALARMLINES_MQTT_TOPIC_FIRE_ALARM;
-    _mqttClient->onTopic(firealarmCmdTopic.c_str(), 0, [this](char *topic, char *payload, int retain, int qos, bool dup)
-                        {
-                           String t = String(topic);
-                           int idx = t.indexOf(ALARMLINES_MQTT_TOPIC_PREFIX);
-                           if (idx < 0)
-                               return;
-                           String remainder = t.substring(idx + strlen(ALARMLINES_MQTT_TOPIC_PREFIX));
-                           int slash = remainder.indexOf('/');
-                           if (slash < 0)
-                               return;
-                           String idStr = remainder.substring(0, slash);
-                           uint32_t id = (uint32_t)strtoul(idStr.c_str(), nullptr, 10);
-
-                           String pl = payload ? String(payload) : String();
-                           String action = "fire-alarm-start";
-                           if (pl.length() > 0)
-                           {
-                                JsonDocument doc;
-                               DeserializationError err = deserializeJson(doc, pl);
-                               if (!err && doc["action"].is<String>())
-                               {
-                                   String a = doc["action"].as<String>();
-                                   if (a == "start")
-                                       action = "fire-alarm-start";
-                                   else if (a == "stop")
-                                       action = "fire-alarm-stop";
-                               }
-                           }
-
-                           _triggerAction(id, action); });
-
-    // Store current prefix for future cleanup
-    _lastMqttPrefix = discoveryPrefix;
-
-    // Publish discovery and state for all lines
-    _mqttPublishAllAlarmLines();
+    ESP_LOGI(TAG, "Registered HA sub-device for alarm line ID %lu ('%s')", lineId, lineName.c_str());
 }
 
-// ============================================================================
-// Private Methods - MQTT Publishing
-// ============================================================================
+void AlarmLinesService::_removeAlarmLineSubDevice(uint32_t lineId)
+{
+    _txStates.erase(lineId);
+    _haDevices.erase(lineId);
 
-/**
- * @brief Publishes all alarm lines to MQTT/Home Assistant
- * 
- * First processes any pending deleted alarm lines (unpublishing them), then
- * iterates over all current alarm lines and publishes both configuration and state.
- * Only marks lines as published if both operations succeed (atomic semantics).
- * Uses a single transaction for the entire operation for efficiency.
- * 
- * This function synchronizes MQTT state with the current alarm line list.
- * 
- * This is an internal helper called by mqttRegisterTopicsAndPublishAlarmLines()
- * and the update handler when alarm lines change.
- * 
- * No transaction management - creates its own transaction internally.
- * 
- * @param onlyUnpublished If true, only publishes lines that haven't been published yet
- */
-void AlarmLinesService::_mqttPublishAllAlarmLines(bool onlyUnpublished)
+    String deviceId = "genius-alarmline-" + String(lineId);
+    _haService->removeSubDevice(deviceId);
+
+    ESP_LOGI(TAG, "Removed HA sub-device for alarm line ID %lu", lineId);
+}
+
+void AlarmLinesService::_syncAlarmLineSubDevices()
 {
     beginTransaction();
 
-    // First, unpublish any deleted alarm lines
-    if (!_state.deletedLineIds.empty())
-    {
-        ESP_LOGI(TAG, "Processing %d deleted alarm line(s) for MQTT unpublishing.", _state.deletedLineIds.size());
+    // Remove sub-devices for lines deleted via HTTP (populated by AlarmLines::update)
+    for (uint32_t id : _state.deletedLineIds)
+        _removeAlarmLineSubDevice(id);
+    _state.deletedLineIds.clear();
 
-        for (uint32_t id : _state.deletedLineIds)
-        {
-            _mqttUnpublishAlarmLine(id);
-        }
-
-        // Clear the list after processing
-        _state.deletedLineIds.clear();
-    }
-
-    // Then publish config and state for current lines
+    // Add or refresh sub-devices for current lines
     for (auto &line : _state.lines)
     {
-        if (!onlyUnpublished || !line.published)
+        if (!_haDevices.count(line.id))
         {
-            // IMPORTANT: Publish state BEFORE config!
-            // Buttons reference the transmission state in their availability condition.
-            // HA evaluates availability immediately when receiving config, so the state
-            // message must already exist on the broker (retained) to avoid marking entities as unavailable.
-            esp_err_t resState = _publishAlarmLineTransmissionState(line.id);
-            
-            // Pass useTransaction=false since we're already holding the lock
-            esp_err_t resConfig = _mqttPublishAlarmLineConfig(line, false);
-            
-            // Safe approach: only mark as published if both config and state were successfully published
-            if (resConfig == ESP_OK && resState == ESP_OK)
-            {
-                line.published = true;
-            }
+            // New line — add sub-device
+            _addAlarmLineSubDevice(line.id, line.name);
+            line.published = true;
+        }
+        else if (!line.published)
+        {
+            // Line renamed or otherwise needs refresh — replace sub-device
+            _removeAlarmLineSubDevice(line.id);
+            _addAlarmLineSubDevice(line.id, line.name);
+            line.published = true;
         }
     }
 
     endTransaction();
 }
 
-/**
- * @brief Publishes MQTT discovery configuration for a single alarm line
- * 
- * Creates and publishes Home Assistant MQTT discovery messages for all entities
- * associated with an alarm line (buttons, sensors). This only needs to be called
- * once or when the configuration changes.
- * 
- * @param line Reference to the alarm line
- * @param useTransaction If true, wraps access in transaction. Set false if caller holds lock.
- * @return ESP_OK on success, ESP_ERR_INVALID_STATE if MQTT not ready, ESP_ERR_INVALID_ARG for missing parameters, ESP_FAIL on publish error
- */
-esp_err_t AlarmLinesService::_mqttPublishAlarmLineConfig(const genius_alarm_line_t &line, bool useTransaction)
+// ============================================================================
+// Private Methods - MQTT State Publishing
+// ============================================================================
+
+esp_err_t AlarmLinesService::_publishAlarmLineTransmissionState(uint32_t lineId, const String &state)
 {
-    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
+    _txStates[lineId] = state; // Update cached state (used by sensor ValueReader)
+
+    auto it = _haDevices.find(lineId);
+    if (it == _haDevices.end() || it->second.txSensor == nullptr)
+        return ESP_ERR_NOT_FOUND;
+
+    if (!_haService->isReady())
         return ESP_ERR_INVALID_STATE;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
-        return ESP_ERR_INVALID_STATE;
-
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-    {
-        ESP_LOGW(TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish alarm line topics.");
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (useTransaction)
-        beginTransaction();
-
-    // Alle Publishing-Funktionen in saubere Module aufgeteilt
-    esp_err_t result = ESP_OK;
-    result |= _publishAlarmLineButtons(line);   // Alle 4 Buttons
-    result |= _publishTransmissionSensor(line); // Transmission State Sensor
-
-    if (useTransaction)
-        endTransaction();
-
-    ESP_LOGV(TAG, "Published MQTT discovery config for alarm line ID %lu.", line.id);
-    return result == ESP_OK ? ESP_OK : ESP_FAIL;
+    it->second.txSensor->publishState();
+    return ESP_OK;
 }
 
-/**
- * @brief Unpublishes (removes) an alarm line from Home Assistant MQTT
- * 
- * Sends empty retained messages to all discovery config topics for the alarm line,
- * which signals Home Assistant to remove the entities. This is called when an alarm
- * line is deleted from the system.
- * 
- * Unpublishes all 5 entities:
- * - 2 Line Test buttons (start/stop)
- * - 2 Fire Alarm buttons (start/stop)  
- * - 1 Transmission state sensor
- * 
- * No transaction management - caller is responsible.
- * 
- * @param lineId Alarm line ID to unpublish
- */
-void AlarmLinesService::_mqttUnpublishAlarmLine(uint32_t lineId)
-{
-    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
-        return;
-
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-        return;
-
-    String idStr = String(lineId);
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-
-    // Unpublish all 5 entities by sending empty retained payloads
-    String cfgTopics[] = {
-        discoveryPrefix + "button/genius-alarmline-" + idStr + "-linetest/config",
-        discoveryPrefix + "button/genius-alarmline-" + idStr + "-linetest-stop/config",
-        discoveryPrefix + "sensor/genius-alarmline-" + idStr + "-transmission/config",
-        discoveryPrefix + "button/genius-alarmline-" + idStr + "-firealarm/config",
-        discoveryPrefix + "button/genius-alarmline-" + idStr + "-firealarm-stop/config"};
-
-    for (const auto &topic : cfgTopics)
-    {
-        _mqttClient->publish(topic.c_str(), 0, true, "");
-    }
-
-    ESP_LOGI(TAG, "Unpublished MQTT entities for alarm line ID %lu.", lineId);
-}
-
-/**
- * @brief Publishes the completion state for the last triggered action
- * 
- * Called when an action (line test or fire alarm) completes or times out.
- * Resets the transmission state sensor to "Nothing" to indicate the alarm line
- * is idle and buttons are available again.
- * 
- * This is an internal helper called by _emitActionFinishedEvent().
- * Uses the cached _lastActionLineId and _lastActionType context.
- * 
- * No transaction management - caller is responsible.
- * 
- * @param timedOut True if the action timed out, false if completed normally
- */
 void AlarmLinesService::_publishLastActionState(bool timedOut)
 {
-    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
-        return;
-
     if (_lastActionLineId == 0 || _lastActionType.length() == 0)
         return;
 
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-        return;
-
-    // Reset transmission status to Nothing
     _publishAlarmLineTransmissionState(_lastActionLineId, "Nothing");
 
-    ESP_LOGV(TAG, "Published completion state (Nothing) for line ID '%lu', action '%s', timedOut=%d", _lastActionLineId, _lastActionType.c_str(), timedOut);
-}
-
-/**
- * @brief Internal function for publishing transmission state for a specific alarm line
- * 
- * Sends the current transmission state to the MQTT state topic.
- * No transaction management - caller is responsible.
- * 
- * @param lineId Alarm line ID
- * @param state State string (defaults to "Nothing"). Can be "Line Test", "Fire Alarm", etc.
- * @return ESP_OK on successful publish, ESP_ERR_INVALID_STATE if MQTT not ready, ESP_FAIL on publish error
- */
-esp_err_t AlarmLinesService::_publishAlarmLineTransmissionState(uint32_t lineId, const String &state)
-{
-    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
-        return ESP_ERR_INVALID_STATE;
-
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-        return ESP_ERR_INVALID_STATE;
-
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String transmissionTopic = discoveryPrefix + "genius-alarmline/" + String(lineId) + "/transmission/state";
-
-    JsonDocument stateDoc;
-    stateDoc["state"] = state;
-    String payload;
-    serializeJson(stateDoc, payload);
-    
-    int result = _mqttClient->publish(transmissionTopic.c_str(), 0, true, payload.c_str(), 0, false);
-    if (result == -1)
-    {
-        ESP_LOGE(TAG, "Failed to publish transmission state for line ID %lu", lineId);
-        return ESP_FAIL;
-    }
-    
-    return ESP_OK;
-}
-
-// ============================================================================
-// Private Methods - MQTT Publishing Helpers
-// ============================================================================
-
-/**
- * @brief Internal function for publishing all button configurations
- * 
- * Creates and publishes all 4 button entities for an alarm line:
- * - Start/Stop Line Test
- * - Start/Stop Fire Alarm
- * No transaction management - caller is responsible.
- * 
- * @param line Const reference to the alarm line
- * @return ESP_OK if all buttons published successfully, ESP_FAIL otherwise
- */
-esp_err_t AlarmLinesService::_publishAlarmLineButtons(const genius_alarm_line_t &line)
-{
-    esp_err_t result = ESP_OK;
-    
-    // Line Test Start Button
-    esp_err_t res1 = _publishButton(line, {
-        .idSuffix = "linetest",
-        .name = "Start Line Test",
-        .uniqueIdSuffix = "linetest_start",
-        .action = "start",
-        .icon = "mdi:map-marker",
-        .commandTopicSuffix = "linetest"
-    });
-    if (res1 != ESP_OK) result = ESP_FAIL;
-    
-    // Line Test Stop Button
-    esp_err_t res2 = _publishButton(line, {
-        .idSuffix = "linetest-stop",
-        .name = "Stop Line Test",
-        .uniqueIdSuffix = "linetest_stop",
-        .action = "stop",
-        .icon = "mdi:map-marker-off",
-        .commandTopicSuffix = "linetest"
-    });
-    if (res2 != ESP_OK) result = ESP_FAIL;
-    
-    // Fire Alarm Start Button
-    esp_err_t res3 = _publishButton(line, {
-        .idSuffix = "firealarm",
-        .name = "Start Fire Alarm",
-        .uniqueIdSuffix = "firealarm",
-        .action = "start",
-        .icon = "mdi:fire",
-        .commandTopicSuffix = "firealarm"
-    });
-    if (res3 != ESP_OK) result = ESP_FAIL;
-    
-    // Fire Alarm Stop Button
-    esp_err_t res4 = _publishButton(line, {
-        .idSuffix = "firealarm-stop",
-        .name = "Stop Fire Alarm",
-        .uniqueIdSuffix = "firealarm_stop",
-        .action = "stop",
-        .icon = "mdi:fire-off",
-        .commandTopicSuffix = "firealarm"
-    });
-    if (res4 != ESP_OK) result = ESP_FAIL;
-    
-    return result;
-}
-
-/**
- * @brief Internal function for publishing transmission sensor configuration
- * 
- * Creates and publishes the transmission status sensor for an alarm line.
- * No transaction management - caller is responsible.
- * 
- * @param line Const reference to the alarm line
- * @return ESP_OK on successful publish, ESP_FAIL on error
- */
-esp_err_t AlarmLinesService::_publishTransmissionSensor(const genius_alarm_line_t &line)
-{
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String idStr = String(line.id);
-    String baseTopic = discoveryPrefix + "genius-alarmline/" + idStr;
-
-    String stateCfgTopic = discoveryPrefix + "sensor/genius-alarmline-" + idStr + "-transmission/config";
-    JsonDocument statecfg;
-    statecfg["~"] = baseTopic;
-    statecfg["name"] = "Current Transmission";
-    statecfg["unique_id"] = "genius-alarmline_" + idStr + "_transmission";
-    statecfg["state_topic"] = "~/transmission/state";
-    statecfg["value_template"] = "{{value_json.state}}";
-    statecfg["icon"] = "mdi:radio-tower";
-    statecfg["entity_category"] = "diagnostic";
-
-    _addDeviceInfo(statecfg, line);
-
-    String statePayload;
-    serializeJson(statecfg, statePayload);
-    
-    int result = _mqttClient->publish(stateCfgTopic.c_str(), 0, true, statePayload.c_str(), 0, false);
-    if (result == -1)
-    {
-        ESP_LOGE(TAG, "Failed to publish transmission sensor for line ID %lu", line.id);
-        return ESP_FAIL;
-    }
-    
-    ESP_LOGV(TAG, "Published transmission sensor for line ID %lu", line.id);
-    return ESP_OK;
-}
-
-/**
- * @brief Internal function for publishing a single button entity
- * 
- * Generic helper that creates and publishes Home Assistant button discovery messages.
- * Adds availability and device info automatically.
- * No transaction management - caller is responsible.
- * 
- * @param line Const reference to the alarm line
- * @param config Button configuration (name, icon, action, etc.)
- * @return ESP_OK on successful publish, ESP_FAIL on error
- */
-esp_err_t AlarmLinesService::_publishButton(const genius_alarm_line_t &line, const AlarmLineButtonConfig &config)
-{
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String idStr = String(line.id);
-    String baseTopic = discoveryPrefix + "genius-alarmline/" + idStr;
-    
-    String cfgTopic = discoveryPrefix + "button/genius-alarmline-" + idStr + "-" + config.idSuffix + "/config";
-    JsonDocument cfg;
-    cfg["~"] = baseTopic + "/" + config.commandTopicSuffix;
-    cfg["name"] = config.name;
-    cfg["unique_id"] = "genius-alarmline_" + idStr + "_" + config.uniqueIdSuffix;
-    cfg["command_topic"] = baseTopic + "/" + config.commandTopicSuffix + "/command";
-    cfg["payload_press"] = "{\"action\":\"" + String(config.action) + "\"}";
-    cfg["icon"] = config.icon;
-    
-    _addAvailabilityAndDevice(cfg, line);
-    
-    String payload;
-    serializeJson(cfg, payload);
-    
-    int result = _mqttClient->publish(cfgTopic.c_str(), 0, true, payload.c_str(), 0, false);
-    if (result == -1)
-    {
-        ESP_LOGE(TAG, "Failed to publish button '%s' for line ID %lu", config.name, line.id);
-        return ESP_FAIL;
-    }
-    
-    ESP_LOGV(TAG, "Published button '%s' for line ID %lu", config.name, line.id);
-    return ESP_OK;
-}
-
-/**
- * @brief Helper to add availability and device info to config document
- * 
- * Adds availability condition (based on transmission state) and device info
- * to a Home Assistant discovery configuration document.
- * 
- * @param doc JsonDocument to modify
- * @param line Const reference to the alarm line
- */
-void AlarmLinesService::_addAvailabilityAndDevice(JsonDocument &doc, const genius_alarm_line_t &line)
-{
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String idStr = String(line.id);
-    String baseTopic = discoveryPrefix + "genius-alarmline/" + idStr;
-
-    JsonArray avail = doc["availability"].to<JsonArray>();
-    JsonObject availObj = avail.add<JsonObject>();
-    availObj["topic"] = baseTopic + "/transmission/state";
-    availObj["value_template"] = "{% if value_json.state == 'Nothing' %}online{% else %}offline{% endif %}";
-    doc["availability_mode"] = "all";
-
-    _addDeviceInfo(doc, line);
-}
-
-/**
- * @brief Helper to add device info to config document
- * 
- * Adds Home Assistant device information to a discovery configuration document.
- * Includes configuration URL if a valid IP address is available.
- * 
- * @param doc JsonDocument to modify
- * @param line Const reference to the alarm line
- */
-void AlarmLinesService::_addDeviceInfo(JsonDocument &doc, const genius_alarm_line_t &line)
-{
-    String idStr = String(line.id);
-    JsonObject device = doc["device"].to<JsonObject>();
-    device["identifiers"][0] = "genius-alarmline-" + idStr;
-    device["name"] = "Alarm Line '" + line.name + "'";
-    device["manufacturer"] = "Genius Gateway Project";
-    device["model"] = "Genius Plus X Alarm Line";
-    device["via_device"] = "genius-gateway-" + SettingValue::getUniqueId();
-    
-    // Get the current IP address and only add configuration_url if we have a valid IP
-    IPAddress localIP = WiFi.localIP();
-    if (IPUtils::isSet(localIP))
-    {
-        device["configuration_url"] = "http://" + localIP.toString() + "/gateway/alarm-lines";
-    }
+    ESP_LOGV(TAG, "Published completion state (Nothing) for line ID '%lu', action '%s', timedOut=%d",
+             _lastActionLineId, _lastActionType.c_str(), timedOut);
 }
 
 // ============================================================================
@@ -1168,14 +772,8 @@ esp_err_t AlarmLinesService::_removeAlarmLine(uint32_t id)
 
     ESP_LOGI(TAG, "Removed alarm line with id %lu", id);
 
-    // Unpublish Home Assistant MQTT entities for this alarm line
-    if (_mqttClient != nullptr && _mqttSettingsService != nullptr)
-    {
-        if (_cachedMqttSettings.HAIntegrationEnabled && !_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-        {
-            _mqttUnpublishAlarmLine(id);
-        }
-    }
+    // Unpublish HA entities for this alarm line
+    _removeAlarmLineSubDevice(id);
 
     callUpdateHandlers(ALARMLINES_ORIGIN_ID);
 
@@ -1296,20 +894,13 @@ esp_err_t AlarmLinesService::loadPcktSeqNum()
 // Private Methods - Settings Management
 // ============================================================================
 
-/**
- * @brief Updates the local cache of MQTT settings
- *
- * Loads current MQTT settings from GatewayMqttSettingsService and stores them
- * in cache for faster access without repeated service calls. Called on initialization
- * and when MQTT settings change.
- */
 void AlarmLinesService::_updateMqttSettingsCache()
 {
     if (_mqttSettingsService != nullptr)
     {
         _cachedMqttSettings = _mqttSettingsService->getSettingsCopy();
-        ESP_LOGV(TAG, "Updated cached MQTT settings (enabled: %d, prefix: %s)", 
-                 _cachedMqttSettings.HAIntegrationEnabled, 
-                 _cachedMqttSettings.HAMQTTDiscoveryPrefix.c_str());
+        ESP_LOGV(TAG, "Updated cached alarm MQTT settings (alarmEnabled: %d, topic: %s)",
+                 _cachedMqttSettings.alarmEnabled,
+                 _cachedMqttSettings.alarmTopic.c_str());
     }
 }

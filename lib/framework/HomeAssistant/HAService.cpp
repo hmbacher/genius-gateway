@@ -13,6 +13,7 @@
  **/
 
 #include <HomeAssistant/HAService.h>
+#include <HomeAssistant/HADevice.h>
 
 HAService::HAService(PsychicMqttClient *mqttClient)
     : _mqttClient(mqttClient),
@@ -20,10 +21,65 @@ HAService::HAService(PsychicMqttClient *mqttClient)
       _manufacturer(""),
       _model(""),
       _discoveryPrefix(HA_DEFAULT_DISCOVERY_PREFIX),
-      _enabled(false)
+      _enabled(false),
+      _publishTaskHandle(nullptr)
 {
     _generateDeviceId();
     _topicNamespace = _slugify(_deviceName);
+}
+
+// Defined here (not =default in the header) so that the unique_ptr<HADevice>
+// member can see the complete HADevice type at destruction time.
+HAService::~HAService() = default;
+
+void HAService::begin()
+{
+    if (_publishTaskHandle != nullptr)
+    {
+        ESP_LOGW(TAG, "begin() called twice — ignoring");
+        return;
+    }
+
+    BaseType_t ok = xTaskCreate(
+        _publishTaskImpl,
+        "ha_publish",
+        6144,
+        this,
+        1,
+        &_publishTaskHandle);
+
+    if (ok != pdPASS || _publishTaskHandle == nullptr)
+    {
+        ESP_LOGE(TAG, "Failed to create HA publish task");
+        return;
+    }
+
+    if (_mqttClient != nullptr)
+    {
+        _mqttClient->onConnect([this](bool /*sessionPresent*/)
+                               {
+                                   if (_publishTaskHandle != nullptr)
+                                   {
+                                       xTaskNotifyGive(_publishTaskHandle);
+                                   } });
+    }
+
+    ESP_LOGI(TAG, "HA publish task started, listening for MQTT connect notifications");
+}
+
+void HAService::_publishTaskImpl(void *param)
+{
+    static_cast<HAService *>(param)->_publishTask();
+}
+
+void HAService::_publishTask()
+{
+    while (true)
+    {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        ESP_LOGI(TAG, "MQTT connected — invoking publishAll()");
+        publishAll();
+    }
 }
 
 // ============================================================================
@@ -35,16 +91,19 @@ void HAService::setDeviceName(const String &name)
     _deviceName = name;
     _topicNamespace = _slugify(name);
     _generateDeviceId();
+    _syncMainDeviceIdentity();
 }
 
 void HAService::setManufacturer(const String &manufacturer)
 {
     _manufacturer = manufacturer;
+    _syncMainDeviceIdentity();
 }
 
 void HAService::setModel(const String &model)
 {
     _model = model;
+    _syncMainDeviceIdentity();
 }
 
 void HAService::setDiscoveryPrefix(const String &prefix)
@@ -141,7 +200,7 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
 
     if (result != -1)
     {
-        ESP_LOGV(TAG, "Published %s/%s config", component.c_str(), objectId.c_str());
+        ESP_LOGI(TAG, "Published %s/%s config (%d bytes)", component.c_str(), objectId.c_str(), payload.length());
         return true;
     }
     else
@@ -186,11 +245,118 @@ void HAService::publishAll()
         return;
     }
 
-    ESP_LOGI(TAG, "Publishing all HA entities (%d registered callbacks)", _publishCallbacks.size());
+    ESP_LOGI(TAG, "Publishing all HA entities (%d callbacks, main+%d sub-devices)",
+             _publishCallbacks.size(), (int)_subDevices.size());
 
     for (auto &callback : _publishCallbacks)
     {
         callback();
+    }
+
+    if (_mainDevice)
+    {
+        _syncMainDeviceIdentity();
+        _mainDevice->publishAll();
+    }
+
+    for (auto &dev : _subDevices)
+    {
+        if (dev)
+            dev->publishAll();
+    }
+}
+
+// ============================================================================
+// Devices
+// ============================================================================
+
+HADevice &HAService::mainDevice()
+{
+    _ensureMainDevice();
+    return *_mainDevice;
+}
+
+HADevice *HAService::addSubDevice(std::unique_ptr<HADevice> device)
+{
+    if (!device)
+        return nullptr;
+
+    // Wire in the main device relationship if not already set by the caller.
+    HADeviceIdentity &id = device->identity();
+    if (id.viaDevice.isEmpty())
+        id.viaDevice = _deviceId;
+    if (id.topicNamespace.isEmpty())
+        id.topicNamespace = _topicNamespace + "/" + _deviceId;
+
+    HADevice *raw = device.get();
+    _subDevices.push_back(std::move(device));
+
+    // Publish immediately when MQTT is already connected.
+    if (isReady())
+    {
+        ESP_LOGI(TAG, "Adding sub-device '%s' — publishing immediately", raw->getDeviceId().c_str());
+        raw->publishAll();
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Adding sub-device '%s' — will publish on next connect", raw->getDeviceId().c_str());
+    }
+
+    return raw;
+}
+
+bool HAService::removeSubDevice(const String &deviceId)
+{
+    for (auto it = _subDevices.begin(); it != _subDevices.end(); ++it)
+    {
+        if (*it && (*it)->getDeviceId() == deviceId)
+        {
+            ESP_LOGI(TAG, "Removing sub-device '%s'", deviceId.c_str());
+            (*it)->unpublishAll();
+            _subDevices.erase(it);
+            return true;
+        }
+    }
+
+    ESP_LOGW(TAG, "removeSubDevice('%s'): device not found", deviceId.c_str());
+    return false;
+}
+
+void HAService::_ensureMainDevice()
+{
+    if (_mainDevice)
+        return;
+
+    HADeviceIdentity identity;
+    identity.id = _deviceId;
+    identity.name = _deviceName;
+    identity.manufacturer = _manufacturer;
+    identity.model = _model;
+    identity.swVersion = String(APP_VERSION);
+    identity.hwVersion = String(HW_VERSION);
+    identity.topicNamespace = _topicNamespace;
+
+    _mainDevice = std::unique_ptr<HADevice>(new HADevice(this, std::move(identity)));
+}
+
+void HAService::_syncMainDeviceIdentity()
+{
+    if (!_mainDevice)
+        return;
+
+    HADeviceIdentity &id = _mainDevice->identity();
+    id.id = _deviceId;
+    id.name = _deviceName;
+    id.manufacturer = _manufacturer;
+    id.model = _model;
+    id.swVersion = String(APP_VERSION);
+    id.hwVersion = String(HW_VERSION);
+    id.topicNamespace = _topicNamespace;
+
+    IPAddress localIP = WiFi.localIP();
+    if (IPUtils::isSet(localIP))
+    {
+        id.configurationUrl = "http://" + localIP.toString() + "/";
     }
 }
 
@@ -200,7 +366,7 @@ void HAService::publishAll()
 
 void HAService::_generateDeviceId()
 {
-    _deviceId = _slugify(_deviceName) + "-" + SettingValue::getUniqueId();
+    _deviceId = _slugify(String(APP_NAME)) + "-" + SettingValue::getUniqueId();
 }
 
 String HAService::_slugify(const String &name)

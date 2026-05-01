@@ -79,12 +79,19 @@ The Home Assistant integration leverages [MQTT Discovery :material-open-in-new:]
 
 Home Assistant's MQTT Discovery allows devices to automatically register themselves by publishing configuration messages to specific topics. When Genius Gateway publishes discovery messages, Home Assistant automatically creates entities without any manual configuration.
 
+### Multiple Gateways on One Broker
+
+Multiple Genius Gateway instances can share the same MQTT broker without entity conflicts. Every MQTT discovery config topic is scoped under the individual gateway's unique device identifier, so Home Assistant registers each gateway and its sub-devices (smoke detectors, alarm lines) independently.
+
+!!! warning "Upgrading from an earlier firmware version"
+    The discovery config topic format changed in a firmware update to include the gateway namespace. After upgrading, old retained discovery messages at the previous topic paths will remain in the broker until they expire or are manually cleared. To avoid duplicate entities in Home Assistant, send an empty retained message to each old config topic (or use your broker's retained-message cleanup feature) and remove the orphaned devices from Home Assistant.
+
 ### Configuration Requirements
 
 To enable Home Assistant MQTT Discovery integration in Genius Gateway:
 
 1. **[Configure MQTT broker connection](../setup/connections.md#mqtt)** - Set up connection (must be same broker as Home Assistant)
-2. **[Enable Home Assistant Integration](../setup/connections.md#device-publishing)** - Enable MQTT Discovery and adjust the topic prefix if your Home Assistant uses a non-default discovery prefix
+2. **[Enable Home Assistant Integration](../setup/connections.md#home-assistant-integration)** - Enable MQTT Discovery; optionally adjust the discovery prefix and device identity (device name, manufacturer, model)
 3. **[Add devices to Genius Gateway](../setup/configure-gateway.md)** - Register smoke detectors and/or alarm lines
 
 Ensure MQTT Discovery is enabled in your Home Assistant configuration:

@@ -32,7 +32,8 @@ Authorization: Bearer <token>
 | `/rest/alarm-lines` | GET, POST | 🛡️ | Manage alarm lines (RF groups) |
 | `/rest/alarm-lines/do` | POST | 🛡️ | Execute alarm line actions |
 | `/rest/gateway-settings` | GET, POST | 🛡️ | Configure gateway behavior |
-| `/rest/mqtt-settings` | GET, POST | 🛡️ | Configure Home Assistant MQTT |
+| `/rest/mqtt-settings` | GET, POST | 🛡️ | Configure simple alarm publishing |
+| `/rest/haSettings` | GET, POST | 🛡️ | Configure Home Assistant integration |
 | `/rest/end-alarms` | POST | 🛡️ | End all alarms and block new ones |
 | `/rest/end-alarmblocking` | POST | 🛡️ | End alarm blocking period |
 | `/rest/cc1101/state` | GET | 🔒 | Get radio transceiver status |
@@ -190,13 +191,11 @@ Authorization: Bearer <token>
 #### `/rest/mqtt-settings`
 - **Methods:** GET, POST
 - **Auth:** 🛡️ Admin
-- **Description:** Configure Home Assistant MQTT integration
+- **Description:** Configure simple alarm publishing
 
 **GET Response / POST Request:**
 ```json
 {
-  "HAIntegrationEnabled": true,
-  "HAMQTTDiscoveryPrefix": "homeassistant/",
   "alarmEnabled": true,
   "alarmTopic": "smarthome/genius-gateway/alarm"
 }
@@ -204,12 +203,40 @@ Authorization: Bearer <token>
 
 **Settings:**
 
-- `HAIntegrationEnabled` - Enable Home Assistant MQTT auto-discovery
-- `HAMQTTDiscoveryPrefix` - Home Assistant MQTT discovery prefix
-- `alarmEnabled` - Enable alarm state publishing
+- `alarmEnabled` - Enable alarm state publishing to a central MQTT topic
 - `alarmTopic` - MQTT topic for global alarm state
 
 **POST Response:** 200 OK with updated settings
+
+---
+
+### Home Assistant Settings
+
+#### `/rest/haSettings`
+- **Methods:** GET, POST
+- **Auth:** 🛡️ Admin
+- **Description:** Configure Home Assistant MQTT Discovery integration and device identity
+
+**GET Response / POST Request:**
+```json
+{
+  "enabled": true,
+  "discovery_prefix": "homeassistant/",
+  "device_name": "Genius Gateway",
+  "manufacturer": "Genius Gateway Project",
+  "model": "Genius Gateway"
+}
+```
+
+**Settings:**
+
+- `enabled` - Enable Home Assistant MQTT auto-discovery
+- `discovery_prefix` - MQTT Discovery prefix (must match Home Assistant `discovery_prefix`, default `homeassistant/`)
+- `device_name` - Device name shown in Home Assistant; empty string falls back to the firmware name
+- `manufacturer` - Manufacturer label shown in Home Assistant device info
+- `model` - Model label shown in Home Assistant device info
+
+**POST Response:** 200 OK with updated settings; if MQTT is connected, updated discovery messages are published immediately
 
 ---
 

@@ -22,13 +22,6 @@
 #include <EventSocket.h>
 #include <FirmwareUpdateEvents.h>
 
-#ifndef GITHUB_REPO_OWNER
-#define GITHUB_REPO_OWNER "theelims"
-#endif
-
-#ifndef GITHUB_REPO_NAME
-#define GITHUB_REPO_NAME "ESP32-sveltekit"
-#endif
 
 /**
  * @brief Home Assistant firmware update entity service

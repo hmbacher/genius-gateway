@@ -46,7 +46,8 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
                                                                                                                                                         _isAlarming(false),
                                                                                                                                                         _numAlarming(0),
                                                                                                                                                         _mqttClient(mqttClient),
-                                                                                                                                                        _mqttSettingsService(mqttSettingsService)
+                                                                                                                                                        _mqttSettingsService(mqttSettingsService),
+                                                                                                                                                        _haService(sveltekit->getHAService())
 {
 }
 
@@ -72,12 +73,12 @@ void GeniusDevicesService::begin()
                            { _updateAlarmingState(); },
                            false);
 
-    /* Republish MQTT state after device updates (except for packet-originated or alarm state changes) */
+    /* Sync HA sub-devices after device list changes (not for packet-originated adds or alarm state) */
     this->addUpdateHandler([&](const String &originId)
                            {
                                if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET && originId != ALARM_STATE_CHANGE)
                                {
-                                   mqttPublishAllDevices();
+                                   _syncSmokeDetectorSubDevices();
                                } },
                            false);
 
@@ -89,16 +90,26 @@ void GeniusDevicesService::begin()
                            },
                            false);
 
-    /* Update cache and republish MQTT when MQTT settings change */
+    /* Update cache when MQTT settings change */
     if (_mqttSettingsService != nullptr)
     {
         _mqttSettingsService->addUpdateHandler([this](const String &originId)
                                                {
                                                    this->_updateMqttSettingsCache();
-                                                   this->mqttPublishAllDevices(false); // Full republish: prefix or enabled state may have changed
                                                    this->mqttPublishSimpleAlarmState(); },
                                                false);
     }
+
+    /* Republish smoke detector attributes on every MQTT (re)connect */
+    _haService->onPublishAll([this]()
+                             {
+                                 beginTransaction();
+                                 for (const GeniusDevice &device : _state.devices)
+                                     _publishSmokeDetectorAttributes(device.smokeDetector.sn, device);
+                                 endTransaction(); });
+
+    /* Register sub-devices for devices already loaded from FS */
+    _syncSmokeDetectorSubDevices();
 }
 
 // ============================================================================
@@ -548,13 +559,13 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
         hasChanges = true;
 
         // Find deleted devices (in old list but not in processed IDs)
-        geniusDevices.deletedDeviceSNs.clear();
+        geniusDevices.deletedDeviceIds.clear();
         for (const auto &oldDevice : geniusDevices.devices)
         {
             if (std::find(processedDeviceIds.begin(), processedDeviceIds.end(), oldDevice.id) == processedDeviceIds.end())
             {
-                // Device was deleted - store SN for unpublishing
-                geniusDevices.deletedDeviceSNs.push_back(oldDevice.smokeDetector.sn);
+                // Device was deleted - store stable device ID for unpublishing
+                geniusDevices.deletedDeviceIds.push_back(oldDevice.id);
                 ESP_LOGI(GeniusDevices::TAG, "Device with SN %lu marked for deletion.", oldDevice.smokeDetector.sn);
             }
         }
@@ -589,168 +600,36 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
 // Public Methods - MQTT Publishing
 // ============================================================================
 
-/**
- * @brief Publishes all devices (Config + State) to MQTT/Home Assistant
- *
- * First processes any pending deleted devices (unpublishing them), then
- * iterates over all current devices and publishes both configuration and state.
- * Only marks devices as published if both operations succeed (atomic semantics).
- * Uses a single transaction for the entire operation for efficiency.
- *
- * This function synchronizes MQTT state with the current device list.
- *
- * @param onlyUnpublished If true, only publishes devices that haven't been published yet
- */
 void GeniusDevicesService::mqttPublishAllDevices(bool onlyUnpublished)
 {
-    if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
-        return;
-
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
-        return;
-
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-    {
-        ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish devices.");
-        return;
-    }
-
-    beginTransaction();
-
-    // First, unpublish any deleted devices
-    if (!_state.deletedDeviceSNs.empty())
-    {
-        ESP_LOGI(GeniusDevices::TAG, "Processing %d deleted device(s) for MQTT unpublishing.", _state.deletedDeviceSNs.size());
-
-        for (uint32_t sn : _state.deletedDeviceSNs)
-        {
-            _mqttUnpublishDevice(sn);
-        }
-
-        // Clear the list after processing
-        _state.deletedDeviceSNs.clear();
-    }
-
-    // Then publish current devices
-    for (GeniusDevice &device : _state.devices)
-    {
-        if (!onlyUnpublished || !device.published)
-        {
-            // Pass useTransaction=false since we're already holding the lock
-            // Pass markPublished=false since we'll set it after both config and state are published
-            esp_err_t resConfig = mqttPublishDeviceConfig(device, false, false);
-            esp_err_t resState = mqttPublishDeviceState(device, false, false);
-            if (resConfig == ESP_OK && resState == ESP_OK)  // Safe approach: only mark as published if both config and state were successfully published
-            {
-                device.published = true;
-            }
-        }
-    }
-    endTransaction();
+    (void)onlyUnpublished; // sync is idempotent; HAService handles config/state republish
+    _syncSmokeDetectorSubDevices();
 }
 
-/**
- * @brief Publishes only the state of all devices to MQTT/Home Assistant
- *
- * Lightweight function for updating only device states (e.g. alarm ON/OFF).
- * Uses a single transaction for the entire operation for efficiency.
- *
- * @param onlyUnpublished If true, only publishes devices that haven't been published yet
- */
 void GeniusDevicesService::mqttPublishAllDevicesState(bool onlyUnpublished)
 {
-    if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
+    if (!_haService->isReady())
         return;
-
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
-        return;
-
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-    {
-        ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish devices.");
-        return;
-    }
 
     beginTransaction();
     for (GeniusDevice &device : _state.devices)
     {
         if (!onlyUnpublished || !device.published)
         {
-            // Pass useTransaction=false since we're already holding the lock
-            // The function also marks the device as published if successful
-            mqttPublishDeviceState(device, false);
+            uint32_t sn = device.smokeDetector.sn;
+            _alarmStates[device.id] = device.isAlarming;
+            auto it = _haDevices.find(device.id);
+            if (it != _haDevices.end() && it->second.sensor != nullptr)
+                it->second.sensor->publishState();
         }
     }
     endTransaction();
 }
 
-/**
- * @brief Publishes MQTT discovery configuration for a single device (reference variant)
- *
- * Efficient variant that works directly with device reference - no data copying.
- * Used by batch operations and after device lookup. Also publishes device
- * attributes as a separate message.
- *
- * @param device Reference to the device to publish
- * @param useTransaction If true, wraps access in transaction. Set false if caller holds lock.
- * @param markPublished If true, sets device.published to true on success
- * @return ESP_OK on success, ESP_ERR_INVALID_STATE if MQTT not ready, ESP_ERR_INVALID_ARG for missing parameters, ESP_FAIL on publish error
- */
-esp_err_t GeniusDevicesService::mqttPublishDeviceConfig(GeniusDevice &device, bool useTransaction, bool markPublished)
-{
-    if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
-        return ESP_ERR_INVALID_STATE;
-
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
-        return ESP_ERR_INVALID_STATE;
-
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-    {
-        ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish device.");
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (useTransaction)
-        beginTransaction();
-
-    esp_err_t result = _publishDeviceConfig(device);
-    if (markPublished && result == ESP_OK)
-    {
-        device.published = true;
-    }
-
-    _publishDeviceAttributes(device);   // Ignore result - best effort for attributes, doesn't affect published state
-
-    if (useTransaction)
-        endTransaction();
-
-    return result;
-}
-
-/**
- * @brief Publishes MQTT state for a single device (serial number variant)
- *
- * Looks up the device by serial number and publishes state directly.
- * After successful lookup, only one search is performed (O(N) complexity).
- *
- * @param smokeDetectorSN Serial number of the smoke detector
- * @param useTransaction If true, wraps access in transaction. Set false if caller holds lock.
- * @param markPublished If true, sets device.published to true on success
- * @return ESP_OK on success, ESP_ERR_NOT_FOUND if device doesn't exist, ESP_ERR_INVALID_STATE if MQTT not ready, ESP_ERR_INVALID_ARG for missing parameters, ESP_FAIL on publish error
- */
 esp_err_t GeniusDevicesService::mqttPublishDeviceState(uint32_t smokeDetectorSN, bool useTransaction, bool markPublished)
 {
-    if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
+    if (!_haService->isReady())
         return ESP_ERR_INVALID_STATE;
-
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
-        return ESP_ERR_INVALID_STATE;
-
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-    {
-        ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish device.");
-        return ESP_ERR_INVALID_ARG;
-    }
 
     if (useTransaction)
         beginTransaction();
@@ -760,10 +639,14 @@ esp_err_t GeniusDevicesService::mqttPublishDeviceState(uint32_t smokeDetectorSN,
     {
         if (device.smokeDetector.sn == smokeDetectorSN)
         {
-            result = _publishDeviceState(device);
-            if (markPublished && result == ESP_OK)
+            _alarmStates[device.id] = device.isAlarming;
+            auto it = _haDevices.find(device.id);
+            if (it != _haDevices.end() && it->second.sensor != nullptr)
             {
-                device.published = true;
+                it->second.sensor->publishState();
+                result = ESP_OK;
+                if (markPublished)
+                    device.published = true;
             }
             break;
         }
@@ -775,149 +658,141 @@ esp_err_t GeniusDevicesService::mqttPublishDeviceState(uint32_t smokeDetectorSN,
     return result;
 }
 
-/**
- * @brief Publishes MQTT state for a single device (reference variant)
- *
- * Efficient variant that works directly with device reference - no data copying.
- * Used by batch operations and after device lookup.
- *
- * @param device Reference to the device to publish
- * @param useTransaction If true, wraps access in transaction. Set false if caller holds lock.
- * @param markPublished If true, sets device.published to true on success
- * @return ESP_OK on success, ESP_ERR_INVALID_STATE if MQTT not ready, ESP_ERR_INVALID_ARG for missing parameters, ESP_FAIL on publish error
- */
-esp_err_t GeniusDevicesService::mqttPublishDeviceState(GeniusDevice &device, bool useTransaction, bool markPublished)
-{
-    if (_mqttClient == nullptr || !_mqttClient->connected() || _mqttSettingsService == nullptr)
-        return ESP_ERR_INVALID_STATE;
-
-    if (!_cachedMqttSettings.HAIntegrationEnabled)
-        return ESP_ERR_INVALID_STATE;
-
-    if (_cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-    {
-        ESP_LOGW(GeniusDevices::TAG, "Home Assistant MQTT discovery prefix is empty. Cannot publish device.");
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (useTransaction)
-        beginTransaction();
-
-    esp_err_t result = _publishDeviceState(device);
-    if (markPublished && result == ESP_OK)
-    {
-        device.published = true;
-    }
-
-    if (useTransaction)
-        endTransaction();
-
-    return result;
-}
-
 // ============================================================================
-// Private Methods - MQTT Publishing Helpers
+// Private Methods - HA Sub-device Management
 // ============================================================================
 
-/**
- * @brief Internal function for publishing MQTT discovery configuration
- *
- * Creates and sends the Home Assistant MQTT Discovery message for a device.
- * Configures the device as a binary sensor with device class "smoke".
- * No transaction management - caller is responsible.
- *
- * @param device Const reference to the device
- * @return ESP_OK on successful publish, ESP_ERR_INVALID_ARG for invalid parameters, ESP_FAIL on publish error
- */
-esp_err_t GeniusDevicesService::_publishDeviceConfig(const GeniusDevice &device)
+void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device)
 {
-    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
-        return ESP_ERR_INVALID_ARG;
+    uint32_t sn = device.smokeDetector.sn;
+    if (_haDevices.count(device.id))
+        return;
 
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String configTopic = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + device.smokeDetector.sn + "/config";
+    String haDeviceId = "genius-" + String(device.id); // stable HA identifier — independent of SN
 
-    JsonDocument config_jsonDoc;
-    config_jsonDoc["~"] = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + device.smokeDetector.sn;
-    config_jsonDoc["name"] = "Genius Plus X";
-    config_jsonDoc["unique_id"] = String(device.smokeDetector.sn);
-    config_jsonDoc["device_class"] = "smoke";
-    config_jsonDoc["state_topic"] = "~/state";
-    config_jsonDoc["schema"] = "json";
-    config_jsonDoc["value_template"] = "{{value_json.state}}";
+    HADeviceIdentity identity;
+    identity.id = haDeviceId;
+    identity.name = "Rauchmelder";
+    identity.manufacturer = "Hekatron Vertriebs GmbH";
+    identity.model = "Genius Plus X";
+    identity.serialNumber = String(sn);
+    identity.suggestedArea = device.location;
 
-    // Get the current IP address and only add entity_picture if we have a valid IP
     IPAddress localIP = WiFi.localIP();
     if (IPUtils::isSet(localIP))
-    {
-        config_jsonDoc["entity_picture"] = "http://" + localIP.toString() + "/hekatron-genius-plus-x.png";
-    }
+        identity.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
 
-    JsonObject dev_jsonObj = config_jsonDoc["device"].to<JsonObject>();
-    dev_jsonObj["identifiers"][0] = String(device.smokeDetector.sn);
-    dev_jsonObj["manufacturer"] = "Hekatron Vertriebs GmbH";
-    dev_jsonObj["model"] = "Genius Plus X";
-    dev_jsonObj["name"] = "Rauchmelder";
-    dev_jsonObj["serial_number"] = String(device.smokeDetector.sn);
-    dev_jsonObj["suggested_area"] = device.location;
-    dev_jsonObj["via_device"] = "genius-gateway-" + SettingValue::getUniqueId();
-    
-    // Add configuration URL if we have a valid IP (IP was already checked above for entity_picture)
-    if (IPUtils::isSet(localIP))
-    {
-        dev_jsonObj["configuration_url"] = "http://" + localIP.toString() + "/gateway/smoke-detectors";
-    }
+    auto dev = std::make_unique<HADevice>(_haService, std::move(identity));
 
-    // Add attributes topic for entity attributes
-    config_jsonDoc["json_attributes_topic"] = "~/attributes";
+    // Initialise alarm state from current device data (keyed by stable device.id)
+    _alarmStates[device.id] = device.isAlarming;
 
-    String config_payload;
-    serializeJson(config_jsonDoc, config_payload);
+    // Create binary_sensor entity — capture stable device.id so state lookup
+    // survives serial-number changes without recreating the sensor.
+    uint32_t devId = device.id;
+    auto sensor = std::make_unique<HABinarySensor>(_haService, "smoke",
+        [this, devId]() -> bool {
+            auto it = _alarmStates.find(devId);
+            return it != _alarmStates.end() ? it->second : false;
+        },
+        [this, devId](JsonObject &c) {
+            c["device_class"] = "smoke";
+            c["json_attributes_topic"] = _haService->getBaseTopic() + "/genius-" + String(devId) + "/smoke/attributes";
+            IPAddress ip = WiFi.localIP();
+            if (IPUtils::isSet(ip))
+                c["entity_picture"] = "http://" + ip.toString() + "/hekatron-genius-plus-x.png";
+        });
+    sensor->setName("Genius Plus X");
 
-    int res = _mqttClient->publish(configTopic.c_str(), 0, true, config_payload.c_str(), 0, false);
-    if (res == -1)
-    {
-        ESP_LOGE(GeniusDevices::TAG, "Failed to publish config for device SN %lu", device.smokeDetector.sn);
-        return ESP_FAIL;
-    }
-    return ESP_OK;
+    HABinarySensor *rawSensor = dev->registerControl(std::move(sensor));
+    HADevice *rawDev = _haService->addSubDevice(std::move(dev));
+    _haDevices[device.id] = {rawDev, rawSensor};
+
+    // Publish attributes immediately if MQTT is already up
+    if (_haService->isReady())
+        _publishSmokeDetectorAttributes(sn, device);
 }
 
-/**
- * @brief Internal function for publishing device attributes
- *
- * Publishes additional device information (production date, FM Basis X details)
- * as JSON attributes, displayed as entity attributes in Home Assistant.
- * No transaction management - caller is responsible.
- *
- * @param device Const reference to the device
- * @return ESP_OK on successful publish, ESP_ERR_INVALID_ARG for invalid parameters, ESP_FAIL on publish error
- */
-esp_err_t GeniusDevicesService::_publishDeviceAttributes(const GeniusDevice &device)
+void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
 {
-    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
-        return ESP_ERR_INVALID_ARG;
+    _alarmStates.erase(deviceId);
+    _haDevices.erase(deviceId);
+    _haService->removeSubDevice("genius-" + String(deviceId));
+}
 
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String attrTopic = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + device.smokeDetector.sn + "/attributes";
-    JsonDocument attr_jsonDoc;
+void GeniusDevicesService::_syncSmokeDetectorSubDevices()
+{
+    beginTransaction();
 
-    // Add production date in dd.mm.yy format
+    for (uint32_t deviceId : _state.deletedDeviceIds)
+        _removeSmokeDetectorSubDevice(deviceId);
+    _state.deletedDeviceIds.clear();
+
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (!_haDevices.count(device.id))
+        {
+            _addSmokeDetectorSubDevice(device);
+            device.published = true;
+        }
+        else if (!device.published)
+        {
+            // Config changed (e.g. location or serial number) — update the
+            // existing HADevice identity in place and republish its discovery.
+            // Avoids remove+re-add, which causes HA to ignore the new
+            // suggested_area because its device registry entry persists (Bug 2).
+            auto it = _haDevices.find(device.id);
+            if (it != _haDevices.end() && it->second.device != nullptr)
+            {
+                HADeviceIdentity &id = it->second.device->identity();
+                id.serialNumber = String(device.smokeDetector.sn);
+                id.suggestedArea = device.location;
+                IPAddress localIP = WiFi.localIP();
+                if (IPUtils::isSet(localIP))
+                    id.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
+                // Keep alarm state map consistent with current SN
+                _alarmStates[device.id] = device.isAlarming;
+                if (_haService->isReady())
+                    it->second.device->publishAll();
+            }
+            device.published = true;
+        }
+    }
+
+    endTransaction();
+}
+
+esp_err_t GeniusDevicesService::_publishSmokeDetectorAttributes(uint32_t sn, const GeniusDevice &device)
+{
+    auto it = _haDevices.find(device.id);
+    if (it == _haDevices.end() || it->second.device == nullptr)
+        return ESP_ERR_NOT_FOUND;
+    if (!_haService->isReady())
+        return ESP_ERR_INVALID_STATE;
+
+    String attrTopic = it->second.device->getBaseTopic() + "/smoke/attributes";
+
+    JsonDocument doc;
     if (device.smokeDetector.productionDate > 0)
     {
         struct tm *tm = gmtime(&device.smokeDetector.productionDate);
         char dateBuf[9];
         strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y", tm);
-        attr_jsonDoc["Production Date"] = String(dateBuf);
+        doc["Production Date"] = String(dateBuf);
     }
-
-    // Add radio module information as flat attributes for better rendering
     if (device.radioModule.sn > 0)
     {
-        attr_jsonDoc["FM Basis X - Serial"] = String(device.radioModule.sn);
+        doc["FM Basis X - Serial"] = String(device.radioModule.sn);
+        if (device.radioModule.productionDate > 0)
+        {
+            struct tm *tm = gmtime(&device.radioModule.productionDate);
+            char dateBuf[9];
+            strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y", tm);
+            doc["FM Basis X - Production Date"] = String(dateBuf);
+        }
     }
 
-    // Add readout data when available
+    // Add readout data when available (SmartSonic acoustic readout)
     if (device.readoutTime > 0)
     {
         if (device.smokeDetector.lastSelftest > 0)
@@ -925,91 +800,25 @@ esp_err_t GeniusDevicesService::_publishDeviceAttributes(const GeniusDevice &dev
             struct tm *tm = gmtime(&device.smokeDetector.lastSelftest);
             char dateBuf[17];
             strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y %H:%M", tm);
-            attr_jsonDoc["Last Self-Test"] = String(dateBuf);
+            doc["Last Self-Test"] = String(dateBuf);
         }
         if (device.smokeDetector.lastAlarm > 0)
         {
             struct tm *tm = gmtime(&device.smokeDetector.lastAlarm);
             char dateBuf[17];
             strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y %H:%M", tm);
-            attr_jsonDoc["Last Alarm"] = String(dateBuf);
+            doc["Last Alarm"] = String(dateBuf);
         }
-        attr_jsonDoc["Alarms (Total)"] = device.smokeDetector.alarmCountTotal;
-        attr_jsonDoc["Alarms (Last 3 Months)"] = device.smokeDetector.alarmCountLast3Months;
+        doc["Alarms (Total)"] = device.smokeDetector.alarmCountTotal;
+        doc["Alarms (Last 3 Months)"] = device.smokeDetector.alarmCountLast3Months;
         if (device.radioModule.radioInterference > 0.0f)
-            attr_jsonDoc["Radio Interference (%)"] = device.radioModule.radioInterference;
+            doc["Radio Interference (%)"] = device.radioModule.radioInterference;
     }
-
-    String attr_payload;
-    serializeJson(attr_jsonDoc, attr_payload);
-
-    int res = _mqttClient->publish(attrTopic.c_str(), 0, true, attr_payload.c_str(), 0, false);
-    if (res == -1)
-    {
-        ESP_LOGW(GeniusDevices::TAG, "Failed to publish attributes for device SN %lu", device.smokeDetector.sn);
-        return ESP_FAIL;
-    }
-    return ESP_OK;
-}
-
-/**
- * @brief Internal function for publishing device state
- *
- * Sends the current alarm status (ON/OFF) to the MQTT state topic.
- * No transaction management - caller is responsible.
- *
- * @param device Const reference to the device
- * @return ESP_OK on successful publish, ESP_ERR_INVALID_ARG for invalid parameters, ESP_FAIL on publish error
- */
-esp_err_t GeniusDevicesService::_publishDeviceState(const GeniusDevice &device)
-{
-    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
-        return ESP_ERR_INVALID_ARG;
-
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String stateTopic = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + device.smokeDetector.sn + "/state";
-
-    JsonDocument state_jsonDoc;
-    state_jsonDoc["state"] = device.isAlarming ? "ON" : "OFF";
 
     String payload;
-    serializeJson(state_jsonDoc, payload);
+    serializeJson(doc, payload);
 
-    int res = _mqttClient->publish(stateTopic.c_str(), 0, true, payload.c_str(), 0, false);
-    if (res == -1)
-    {
-        ESP_LOGE(GeniusDevices::TAG, "Failed to publish state for device SN %lu", device.smokeDetector.sn);
-        return ESP_FAIL;
-    }
-    return ESP_OK;
-}
-
-/**
- * @brief Unpublishes (removes) a device from Home Assistant MQTT
- * 
- * Sends an empty retained message to the discovery config topic,
- * which signals Home Assistant to remove the entity. This is called when
- * a device is deleted from the system.
- * 
- * No transaction management - caller is responsible.
- * 
- * @param smokeDetectorSN Smoke detector serial number to unpublish
- */
-void GeniusDevicesService::_mqttUnpublishDevice(uint32_t smokeDetectorSN)
-{
-    if (_mqttClient == nullptr || _mqttSettingsService == nullptr)
-        return;
-
-    if (!_cachedMqttSettings.HAIntegrationEnabled || _cachedMqttSettings.HAMQTTDiscoveryPrefix.isEmpty())
-        return;
-
-    String discoveryPrefix = _cachedMqttSettings.HAMQTTDiscoveryPrefix;
-    String configTopic = discoveryPrefix + GATEWAY_HA_MQTT_DEVICE_PATH + smokeDetectorSN + "/config";
-
-    // Send empty retained payload to remove the entity from Home Assistant
-    _mqttClient->publish(configTopic.c_str(), 0, true, "");
-
-    ESP_LOGI(GeniusDevices::TAG, "Unpublished MQTT entity for device with SN %lu.", smokeDetectorSN);
+    return it->second.device->publish(attrTopic, payload) ? ESP_OK : ESP_FAIL;
 }
 
 /**
@@ -1068,8 +877,8 @@ void GeniusDevicesService::_updateMqttSettingsCache()
     if (_mqttSettingsService != nullptr)
     {
         _cachedMqttSettings = _mqttSettingsService->getSettingsCopy();
-        ESP_LOGV(GeniusDevices::TAG, "Updated cached MQTT settings (enabled: %d, prefix: %s)",
-                 _cachedMqttSettings.HAIntegrationEnabled,
-                 _cachedMqttSettings.HAMQTTDiscoveryPrefix.c_str());
+        ESP_LOGV(GeniusDevices::TAG, "Updated cached alarm MQTT settings (alarmEnabled: %d, topic: %s)",
+                 _cachedMqttSettings.alarmEnabled,
+                 _cachedMqttSettings.alarmTopic.c_str());
     }
 }

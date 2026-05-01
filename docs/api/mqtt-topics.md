@@ -273,10 +273,13 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 
 **:material-message-outline: Config Topic**
 ```
-{discovery_prefix}button/{gateway_device_id}/restart/config
+{discovery_prefix}button/{topicNamespace}/{gateway_device_id}/restart/config
 ```
 
-**Example:** `homeassistant/button/genius-gateway-1a2b3c4d5e6f/restart/config`
+**Example:** `homeassistant/button/genius-gateway/genius-gateway-1a2b3c4d5e6f/restart/config`
+
+!!! tip "`topicNamespace` format"
+    `topicNamespace` is the slugified device name, e.g. `genius-gateway`. Together with the device ID, the config topic node becomes `genius-gateway/genius-gateway-1a2b3c4d5e6f`. This scoping ensures entities from different gateway instances never collide on a shared MQTT broker.
 
 **:material-information-outline: Description:** Button entity for remotely restarting the gateway
 
@@ -293,7 +296,6 @@ The gateway publishes two diagnostic sensors that share a common state topic for
   "command_topic": "~/restart/command",
   "payload_press": "PRESS",
   "icon": "mdi:restart",
-  "entity_category": "config",
   "device": {
     "identifiers": ["genius-gateway-1a2b3c4d5e6f"]
   }
@@ -305,7 +307,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 - `command_topic` - Topic where button press commands are published
 - `payload_press` - Payload sent when button is pressed (`"PRESS"`)
 - `icon` - Restart icon for visual identification
-- `entity_category` - Category (`config` for configuration entities)
+- No `entity_category` — Restart appears under **Controls** on the HA device page
 
 **Command Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/restart/command`
 
@@ -356,11 +358,7 @@ Four switches provide remote control of gateway configuration settings that affe
   "unique_id": "genius-gateway-1a2b3c4d5e6f_alert_unknown",
   "state_topic": "~/gateway/state",
   "value_template": "{{ value_json.alert_unknown }}",
-  "command_topic": "~/gateway/switch/alert_unknown/set",
-  "payload_on": "ON",
-  "payload_off": "OFF",
-  "state_on": "ON",
-  "state_off": "OFF",
+  "command_topic": "~/gateway/alert_unknown/set",
   "icon": "mdi:toggle-switch-off-outline",
   "entity_category": "config",
   "device": {
@@ -373,10 +371,8 @@ Four switches provide remote control of gateway configuration settings that affe
 
 - `state_topic` - Shared JSON topic publishing all switch states
 - `value_template` - Template to extract specific switch state from JSON
-- `command_topic` - Individual topic accepting switch commands
-- `payload_on` / `payload_off` - Payloads for ON/OFF commands
-- `state_on` / `state_off` - State values indicating ON/OFF
-- `entity_category` - Category (`config` for configuration entities)
+- `command_topic` - Individual topic accepting `ON` / `OFF` commands
+- `entity_category` - `config` for configuration entities
 
 **Central State Topic:**
 ```
@@ -395,14 +391,14 @@ Four switches provide remote control of gateway configuration settings that affe
 
 **Individual Command Topics:**
 ```
-{discovery_prefix}genius-gateway/{gateway_device_id}/gateway/switch/{switch_suffix}/set
+{discovery_prefix}genius-gateway/{gateway_device_id}/gateway/{objectId}/set
 ```
 
 **Examples:**
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/alert_unknown/set`
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/line_commissioning/set`
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/line_alarm/set`
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/switch/line_test/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/alert_unknown/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/line_commissioning/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/line_alarm/set`
+- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/line_test/set`
 
 **:material-code-json: Command Payloads**
 
@@ -556,16 +552,43 @@ When update is available:
 
 ### Smoke Detectors
 
-The following topics are used for smoke detector integration with Home Assistant.
+Each configured smoke detector is published as an **HA sub-device** nested under the main Genius Gateway device. Each sub-device contains a single binary sensor entity reporting the alarm state.
 
-#### Configuration Topic
+**Requirements:**
 
-**:material-message-outline: Topic (Default)**
+- [Home Assistant Integration must be enabled](../setup/connections.md#device-publishing)
+- MQTT broker must be connected
+
+#### Overview
+
+Each smoke detector sub-device publishes:
+
+- **1 binary_sensor entity** — `smoke` device class, state `ON`/`OFF`
+
+**Topic Structure:**
+
+All smoke detector topics are nested under the main gateway base topic:
 ```
-homeassistant/binary_sensor/genius-{smoke_detector_sn}/config
+{discovery_prefix}{main_namespace}/{main_device_id}/genius-{smoke_detector_sn}/...
 ```
 
-**:material-information-outline: Description:** Device configuration for Home Assistant auto-discovery
+For example, with the default prefix and gateway device ID `genius-gateway-aabbcc`:
+```
+homeassistant/genius-gateway/genius-gateway-aabbcc/genius-12345678/...
+```
+
+---
+
+#### Binary Sensor Configuration Topic
+
+**:material-message-outline: Topic Pattern**
+```
+{discovery_prefix}binary_sensor/{topicNamespace}/{gateway_device_id}/genius-{smoke_detector_sn}/smoke/config
+```
+
+**Example:** `homeassistant/binary_sensor/genius-gateway/genius-gateway-aabbcc/genius-12345678/smoke/config`
+
+**:material-information-outline: Description:** Configuration message for Home Assistant binary sensor discovery
 
 **:material-speedometer: QoS:** 0
 
@@ -574,104 +597,118 @@ homeassistant/binary_sensor/genius-{smoke_detector_sn}/config
 **:material-code-json: Payload**
 ```json
 {
-  "~": "homeassistant/binary_sensor/genius-12345678",
+  "~": "homeassistant/genius-gateway/genius-gateway-aabbcc/genius-12345678",
   "name": "Genius Plus X",
-  "unique_id": "12345678",
   "device_class": "smoke",
-  "state_topic": "~/state",
-  "schema": "json",
-  "value_template": "{{value_json.state}}",
+  "state_topic": "~/smoke/state",
+  "json_attributes_topic": "~/smoke/attributes",
   "entity_picture": "http://192.168.1.100/hekatron-genius-plus-x.png",
   "device": {
-    "identifiers": "12345678",
+    "identifiers": ["genius-12345678"],
+    "name": "Rauchmelder",
     "manufacturer": "Hekatron Vertriebs GmbH",
     "model": "Genius Plus X",
-    "name": "Rauchmelder",
     "serial_number": "12345678",
-    "suggested_area": "Living Room"
+    "suggested_area": "Living Room",
+    "configuration_url": "http://192.168.1.100/gateway/smoke-detectors",
+    "via_device": "genius-gateway-aabbcc"
   }
 }
 ```
 
 **:material-format-list-bulleted: Payload Fields**
 
-- `~` - Topic prefix (base path for relative references)
+- `~` - Base topic (sub-device path nested under main gateway device)
 - `name` - Entity name shown in Home Assistant
-- `unique_id` - Unique identifier (smoke detector serial number)
-- `device_class` - Device class (`smoke` for smoke detectors)
-- `state_topic` - Relative path to state topic (expands to `{prefix}{sn}/state`)
-- `schema` - Payload format (`json`)
-- `value_template` - Jinja2 template to extract state from JSON
+- `device_class` - Device class (`smoke`)
+- `state_topic` - Path to alarm state (plain string `ON`/`OFF`)
+- `json_attributes_topic` - Path to entity attributes (production dates, FM Basis X info)
 - `entity_picture` - URL to device icon (only included if gateway has valid IP)
-- `device` - Device information object
-  - `identifiers` - Device identifier for grouping entities
-  - `manufacturer` - Device manufacturer
-  - `model` - Device model name
-  - `name` - Device name
-  - `serial_number` - Serial number
-  - `suggested_area` - Suggested Home Assistant area/room
+- `device` - Device information block
+  - `identifiers` - Device identifier (`genius-{sn}`)
+  - `name` - Device name (`"Rauchmelder"`)
+  - `manufacturer` / `model` / `serial_number` - Hardware metadata
+  - `suggested_area` - Populated from the detector's configured location
+  - `configuration_url` - Link to gateway smoke detector page (if IP available)
+  - `via_device` - Links this sub-device to the main gateway device in HA
 
 **:material-publish: Publishing Behavior**
 
 - Published when smoke detector is first [created](../features/device-management.md#adding-a-new-detector) or [imported](../features/device-management.md#importing-configuration)
-- Re-published when MQTT connection is established
-- Re-published when [MQTT settings change](../setup/connections.md#mqtt)
+- Re-published on MQTT (re)connect via HA sub-device mechanism
 - Published only if [device publishing](../setup/connections.md#device-publishing) is enabled
 
 **:material-home-assistant: Home Assistant Integration**
 
-- Automatically creates binary sensor entity
-- Adds icon and plenty of metadata (manufacturer, model, serial number, etc.)
-- Can be used in automations and scenes
+- Each smoke detector appears as a separate HA sub-device under the gateway
+- Provides device information panel with manufacturer, model, and serial number
+- Links to gateway smoke detector configuration page
 
 ---
 
 #### State Topic
 
-**:material-message-outline: Topic (Default)**
+**:material-message-outline: Topic**
 ```
-homeassistant/binary_sensor/genius-{smoke_detector_sn}/state
+{main_base_topic}/genius-{smoke_detector_sn}/smoke/state
 ```
 
-**:material-information-outline: Description:** Current alarm state of individual smoke detector
+**Example:** `homeassistant/genius-gateway/genius-gateway-aabbcc/genius-12345678/smoke/state`
+
+**:material-information-outline: Description:** Current alarm state of the smoke detector (plain string)
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** true
+
+**:material-code-json: State Values**
+
+- `OFF` — Smoke detector not alarming (clear)
+- `ON` — Smoke detector actively alarming
+
+**:material-publish: Publishing Behavior**
+
+- Published when device alarm state changes
+- Re-published on MQTT (re)connect via HA sub-device mechanism
+- Published only if [device publishing](../setup/connections.md#device-publishing) is enabled
+
+---
+
+#### Attributes Topic
+
+**:material-message-outline: Topic**
+```
+{main_base_topic}/genius-{smoke_detector_sn}/smoke/attributes
+```
+
+**Example:** `homeassistant/genius-gateway/genius-gateway-aabbcc/genius-12345678/smoke/attributes`
+
+**:material-information-outline: Description:** Additional device metadata displayed as entity attributes in Home Assistant
 
 **:material-speedometer: QoS:** 0
 
 **:material-content-save-outline: Retain:** true
 
 **:material-code-json: Payload**
-
-Published when device is *not* alarming:
 ```json
 {
-  "state": "OFF"
-}
-```
-Published when device *is* alarming:
-```json
-{
-  "state": "ON"
+  "Production Date": "04.06.22",
+  "FM Basis X - Serial": "87654321",
+  "FM Basis X - Production Date": "01.03.22"
 }
 ```
 
 **:material-format-list-bulleted: Payload Fields**
 
-- `state` - Alarm state
-    - `"OFF"` - Smoke detector not alarming
-    - `"ON"` - Smoke detector actively alarming
+- `Production Date` - Smoke detector production date (dd.mm.yy), omitted if unknown
+- `FM Basis X - Serial` - Radio module serial number, omitted if unknown
+- `FM Basis X - Production Date` - Radio module production date (dd.mm.yy), omitted if unknown
 
 **:material-publish: Publishing Behavior**
 
-- Published when device alarm state changes
-- Re-published when MQTT connection is established
-- Re-published when [device configuration changes](../features/device-management.md#editing-a-detector) (location, etc.)
+- Published when sub-device is first registered (if MQTT connected)
+- Re-published on every MQTT (re)connect
 - Published only if [device publishing](../setup/connections.md#device-publishing) is enabled
-
-**:material-home-assistant: Home Assistant Integration**
-
-- Automatically updates binary sensor entity
-- Entity shows as "Clear" (OFF) or "Smoke detected" (ON)
-- Can be used in automations and scenes
 
 ---
 
@@ -687,14 +724,21 @@ The following topics enable remote control of alarm line actions (line tests and
 
 #### Overview
 
-Each configured alarm line publishes:
+Each configured alarm line is published as an **HA sub-device** nested under the main Genius Gateway device. Each sub-device contains:
 
 - **4 Button entities** for triggering actions (line test start/stop, fire alarm start/stop)
 - **1 Sensor entity** for transmission state monitoring
 
 **Topic Structure:**
+
+All alarm line topics are nested under the main gateway base topic:
 ```
-{discovery_prefix}genius-alarmline/{line_id}/{entity_type}/{command|state}
+{discovery_prefix}{main_namespace}/{main_device_id}/genius-alarmline-{line_id}/...
+```
+
+For example, with the default prefix and a gateway device ID `genius-gateway-aabbcc`:
+```
+homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/...
 ```
 
 ---
@@ -703,7 +747,7 @@ Each configured alarm line publishes:
 
 **:material-message-outline: Topic Pattern**
 ```
-{discovery_prefix}button/genius-alarmline-{line_id}-{button_type}/config
+{discovery_prefix}button/{topicNamespace}/{gateway_device_id}/genius-alarmline-{line_id}/{object_id}/config
 ```
 
 **:material-information-outline: Description:** Configuration messages for Home Assistant button discovery
@@ -712,163 +756,135 @@ Each configured alarm line publishes:
 
 **:material-content-save-outline: Retain:** true
 
-**Button Types:**
+**Button Object IDs:**
 
-- `linetest` - Start Line Test button
-- `linetest-stop` - Stop Line Test button
-- `firealarm` - Start Fire Alarm button
-- `firealarm-stop` - Stop Fire Alarm button
+- `linetest-start` - Start Line Test
+- `linetest-stop` - Stop Line Test
+- `firealarm-start` - Start Fire Alarm
+- `firealarm-stop` - Stop Fire Alarm
 
-**:material-code-json: Example Payload (Line Test Start)**
+**:material-code-json: Example Payload (Start Line Test)**
 ```json
 {
-  "~": "homeassistant/genius-alarmline/123456789",
+  "~": "homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789",
   "name": "Start Line Test",
-  "unique_id": "genius-alarmline_123456789_linetest_start",
-  "command_topic": "homeassistant/genius-alarmline/123456789/linetest/command",
-  "payload_press": "{\"action\":\"start\"}",
+  "unique_id": "genius-alarmline-123456789_linetest-start",
+  "command_topic": "~/linetest-start/set",
   "icon": "mdi:map-marker",
   "availability": [{
-    "topic": "homeassistant/genius-alarmline/123456789/transmission/state",
-    "value_template": "{% if value_json.state == 'Nothing' %}online{% else %}offline{% endif %}"
+    "topic": "homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/state",
+    "value_template": "{% if value == 'Nothing' %}online{% else %}offline{% endif %}"
   }],
   "availability_mode": "all",
   "device": {
-    "identifiers": "genius-alarmline-123456789",
+    "identifiers": ["genius-alarmline-123456789"],
     "name": "Alarm Line 'First Floor'",
-    "manufacturer": "Hekatron Vertriebs GmbH",
-    "model": "Genius Plus X Alarm Line"
+    "manufacturer": "Genius Gateway Project",
+    "model": "Genius Plus X Alarm Line",
+    "via_device": "genius-gateway-aabbcc"
   }
 }
 ```
 
 **:material-format-list-bulleted: Key Fields**
 
-- `~` - Topic prefix (base path for relative references)
+- `~` - Base topic (sub-device path nested under main gateway device)
 - `name` - Button name displayed in Home Assistant
 - `unique_id` - Unique identifier for this button
-- `command_topic` - Topic where button press commands are published
-- `payload_press` - JSON payload sent when button is pressed
+- `command_topic` - Topic where HA sends button press commands
 - `icon` - Material Design icon identifier
-- `availability` - Button is only available when no transmission is active
-- `device` - Groups all alarm line entities under one device
+- `availability` - Button unavailable while a transmission is active
+- `device.via_device` - Links this sub-device to the main gateway device in HA
 
 **:material-publish: Publishing Behavior**
 
 - Published when alarm line is first created
-- Re-published when MQTT connection is established
-- Re-published when MQTT settings change
+- Re-published on MQTT (re)connect via HA sub-device mechanism
 - Published only if [Home Assistant Integration is enabled](../setup/connections.md#device-publishing)
 
 **:material-home-assistant: Home Assistant Integration**
 
-- Automatically creates button entities
-- Buttons are grouped under alarm line device
+- Each alarm line appears as a separate HA sub-device under the gateway
+- All 4 buttons and the sensor are grouped on that device's page
 - Buttons become unavailable during active transmissions
-- Can be used in automations and dashboards
 
 ---
 
 #### Command Topics
 
-**:material-message-outline: Topic Patterns**
+**:material-message-outline: Topic Pattern**
 ```
-{discovery_prefix}genius-alarmline/{line_id}/linetest/command
-{discovery_prefix}genius-alarmline/{line_id}/firealarm/command
+{main_base_topic}/genius-alarmline-{line_id}/{button_object_id}/set
 ```
 
-**:material-information-outline: Description:** Accepts commands to trigger line test or fire alarm actions on the specified alarm line
+**:material-information-outline: Description:** HA sends to these topics when a button is pressed in the UI or via automation
 
 **:material-speedometer: QoS:** 0
 
 **:material-content-save-outline: Retain:** false
 
-**:material-code-json: Payload Format**
+**Button Object IDs → Actions:**
 
-Start action:
-```json
-{"action": "start"}
-```
-
-Stop action:
-```json
-{"action": "stop"}
-```
-
-**:material-format-list-bulleted: Payload Fields**
-
-- `action` - Command to execute
-    - `"start"` - Begin line test or fire alarm transmission
-    - `"stop"` - End line test or fire alarm transmission
+- `linetest-start/set` → Start Line Test RF transmission
+- `linetest-stop/set` → Stop Line Test RF transmission
+- `firealarm-start/set` → Start Fire Alarm RF transmission
+- `firealarm-stop/set` → Stop Fire Alarm RF transmission
 
 **:material-publish: Command Behavior**
 
-- Commands are subscribed with wildcard: `{prefix}genius-alarmline/+/linetest/command`
-- Gateway extracts alarm line ID from topic path
+- Each button has its own dedicated command topic (no wildcard, no JSON payload parsing)
 - Triggers RF transmission immediately if no other transmission is active
-- Rejects commands if previous transmission is still in progress (503 internally)
-- Updates transmission state sensor to reflect activity
+- Ignored if a transmission is currently in progress (buttons shown as unavailable via availability topic)
+- Updates transmission state sensor on start; resets to `"Nothing"` on completion
 
 !!! warning "Transmission Blocking"
-    Only one transmission can be active at a time. Commands received during an active transmission are ignored until the current transmission completes (typically 3-10 seconds).
+    Only one transmission can be active at a time. Buttons are automatically shown as unavailable in HA while a transmission is in progress.
 
 ---
 
 #### Transmission State Sensor
 
-**:material-message-outline: Topic**
+**:material-message-outline: Config Topic**
 ```
-{discovery_prefix}genius-alarmline/{line_id}/transmission/state
+{discovery_prefix}sensor/{topicNamespace}/{gateway_device_id}/genius-alarmline-{line_id}/transmission/config
 ```
 
-**Example:** `homeassistant/genius-alarmline/123456789/transmission/state`
+**Example:** `homeassistant/sensor/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/config`
 
-**:material-information-outline: Description:** Current transmission status of the alarm line
+**:material-message-outline: State Topic**
+```
+{main_base_topic}/genius-alarmline-{line_id}/transmission/state
+```
+
+**Example:** `homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/state`
+
+**:material-information-outline: Description:** Current transmission status of the alarm line (plain string, not JSON)
 
 **:material-speedometer: QoS:** 0
 
 **:material-content-save-outline: Retain:** true
 
-**:material-code-json: Payload Examples**
+**:material-code-json: State Values**
 
-Idle state (no active transmission):
-```json
-{"state": "Nothing"}
-```
-
-During line test start transmission:
-```json
-{"state": "Line Test Start"}
-```
-
-During fire alarm stop transmission:
-```json
-{"state": "Fire Alarm Stop"}
-```
-
-**:material-format-list-bulleted: State Values**
-
-- `"Nothing"` - No active transmission, all buttons available
-- `"Line Test Start"` - Line test start transmission in progress
-- `"Line Test Stop"` - Line test stop transmission in progress
-- `"Fire Alarm Start"` - Fire alarm start transmission in progress
-- `"Fire Alarm Stop"` - Fire alarm stop transmission in progress
+- `Nothing` — No active transmission, all buttons available
+- `Line Test Start` — Line test start transmission in progress
+- `Line Test Stop` — Line test stop transmission in progress
+- `Fire Alarm Start` — Fire alarm start transmission in progress
+- `Fire Alarm Stop` — Fire alarm stop transmission in progress
 
 **:material-publish: Publishing Behavior**
 
 - Published when transmission starts (state shows action type)
-- Published when transmission completes (state resets to `"Nothing"`)
-- Published when transmission times out (state resets to `"Nothing"`)
-- Re-published when MQTT connection is established
-- Controls button availability (buttons disabled when state ≠ `"Nothing"`)
+- Published when transmission completes (state resets to `Nothing`)
+- Published when transmission times out (state resets to `Nothing`)
+- Re-published on MQTT (re)connect via HA sub-device mechanism
+- Controls button availability (buttons shown as unavailable when state ≠ `Nothing`)
 
 **:material-home-assistant: Home Assistant Integration**
 
-- Automatically creates sensor entity
-- Used for button availability control via template
-- Displays current transmission activity
+- Appears under the alarm line sub-device as a Diagnostic sensor
+- Used by button availability templates
 - Can trigger automations based on transmission state changes
-- Useful for monitoring scheduled automated line tests
 
 ---
 

@@ -41,7 +41,12 @@
 #include <cc1101.h>
 #include <nvs_flash.h>
 #include <nvs.h>
+#include <map>
 #include <GatewayMqttSettingsService.h>
+#include <HomeAssistant/HAService.h>
+#include <HomeAssistant/HADevice.h>
+#include <HomeAssistant/HAButton.h>
+#include <HomeAssistant/HASensor.h>
 #include <PsychicMqttClient.h>
 #include <SettingValue.h>
 
@@ -87,10 +92,6 @@
 #define ALARMLINES_NVS_NAMESPACE "gg-alarmlines" ///< NVS namespace for alarm lines data storage
 #define ALARMLINES_NVS_SEQ_KEY "pkt_seq_num"     ///< NVS key for packet sequence number storage
 #define ALARMLINES_NVS_SEQ_DEFAULT 0             ///< Default packet sequence number value
-
-#define ALARMLINES_MQTT_TOPIC_PREFIX "genius-alarmline/"                                    ///< MQTT topic prefix for all alarm line related topics (discovery and commands will be under this prefix)
-#define ALARMLINES_MQTT_TOPIC_LINE_TEST ALARMLINES_MQTT_TOPIC_PREFIX "+/linetest/command"   ///< MQTT topic for line test commands (use + for line ID wildcard)
-#define ALARMLINES_MQTT_TOPIC_FIRE_ALARM ALARMLINES_MQTT_TOPIC_PREFIX "+/firealarm/command" ///< MQTT topic for fire alarm commands (use + for line ID wildcard)
 
 /// Enumeration for alarm line acquisition methods
 typedef enum alarm_line_acquisition
@@ -222,16 +223,6 @@ public:
 private:
 };
 
-/// Button configuration for alarm line MQTT discovery
-struct AlarmLineButtonConfig {
-    const char* idSuffix;           ///< Button ID suffix for discovery topic
-    const char* name;               ///< Human-readable button name
-    const char* uniqueIdSuffix;     ///< Unique ID suffix for Home Assistant
-    const char* action;             ///< Action payload ("start" or "stop")
-    const char* icon;               ///< Material Design icon identifier
-    const char* commandTopicSuffix; ///< Command topic suffix
-};
-
 /// Service class for managing alarm lines and RF transmission
 class AlarmLinesService : public StatefulService<AlarmLines>
 {
@@ -254,15 +245,6 @@ public:
 
     /// Load persisted packet sequence number from NVS
     esp_err_t loadPcktSeqNum();
-
-    /**
-     * @brief Register MQTT handlers and subscriptions for alarm line control
-     * 
-     * Main entry point for MQTT integration. Subscribes to command topics,
-     * handles prefix changes, and publishes discovery config for all alarm lines.
-     * Safe to call multiple times (e.g., on reconnect or settings change).
-     */
-    void mqttRegisterTopicsAndPublishAlarmLines();
 
 private:
     // ========== Static Constants ==========
@@ -301,13 +283,23 @@ private:
 
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client instance (not owned)
-    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service for accessing configuration
-    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of MQTT settings (updated on settings change)
-    String _lastMqttPrefix;                           ///< Last registered MQTT prefix for topic cleanup
+    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service for accessing alarm settings
+    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of alarm MQTT settings
+    HAService *_haService;                            ///< HA service for sub-device management
 
     // Last action context
     uint32_t _lastActionLineId; ///< ID of the last triggered alarm line action
     String _lastActionType;     ///< Type of the last triggered action
+
+    // ========== HA Sub-device tracking ==========
+    /// Raw pointers into HADevice-owned entities (valid while sub-device is registered)
+    struct AlarmLineHA
+    {
+        HADevice *device;   ///< Registered sub-device (owned by HAService)
+        HASensor *txSensor; ///< Transmission state sensor (owned by device)
+    };
+    std::map<uint32_t, AlarmLineHA> _haDevices; ///< lineId → registered HA sub-device
+    std::map<uint32_t, String> _txStates;       ///< lineId → last transmission state string
 
     // ========== Core Loops and Timing ==========
     /// Main monitoring loop for alarm line discovery
@@ -352,37 +344,57 @@ private:
     /// Emit WebSocket event for action completion
     void _emitActionFinishedEvent(bool timedOut = false);
 
-    // ========== MQTT Publishing ==========
-    /// Publish HA discovery config and state for all alarm lines (internal helper)
-    void _mqttPublishAllAlarmLines(bool onlyUnpublished = true);
+    // ========== MQTT / HA Publishing ==========
 
-    /// Publish HA discovery config for a single alarm line (buttons + sensors)
-    esp_err_t _mqttPublishAlarmLineConfig(const genius_alarm_line_t &line, bool useTransaction = true);
+    /**
+     * @brief Add a HA sub-device for a single alarm line (4 buttons + 1 sensor).
+     *
+     * Creates an HADevice with identity "genius-alarmline-{lineId}", registers 4
+     * HAButton entities (line-test start/stop, fire-alarm start/stop) and one
+     * HASensor for the current transmission state, then calls
+     * HAService::addSubDevice(). Idempotent — no-op if the device is already
+     * registered.
+     *
+     * @param lineId  Alarm line ID
+     * @param lineName Human-readable line name (used as device name in HA)
+     */
+    void _addAlarmLineSubDevice(uint32_t lineId, const String &lineName);
 
-    /// Unpublish (remove) a single alarm line from Home Assistant by sending empty config messages
-    void _mqttUnpublishAlarmLine(uint32_t lineId);
+    /**
+     * @brief Remove the HA sub-device for a single alarm line.
+     *
+     * Calls HAService::removeSubDevice() which sends empty retained payloads so
+     * HA removes the device from its registry, then erases the tracking entries.
+     *
+     * @param lineId  Alarm line ID
+     */
+    void _removeAlarmLineSubDevice(uint32_t lineId);
 
-    /// Publish transmission state for a specific alarm line (e.g., "Nothing", "Line Test", "Fire Alarm")
+    /**
+     * @brief Synchronize HA sub-devices with the current alarm line list.
+     *
+     * Processes pending deletions (from AlarmLines::deletedLineIds), then adds
+     * sub-devices for any line not yet registered. Also handles line renames by
+     * re-creating the sub-device.
+     *
+     * Called from the state update handler and once from begin().
+     */
+    void _syncAlarmLineSubDevices();
+
+    /**
+     * @brief Publish current transmission state for an alarm line.
+     *
+     * Updates _txStates and calls HASensor::publishState() if the sub-device is
+     * registered and HA is ready.
+     *
+     * @param lineId  Alarm line ID
+     * @param state   State string (default "Nothing")
+     * @return ESP_OK on success, ESP_ERR_INVALID_STATE if HA not ready
+     */
     esp_err_t _publishAlarmLineTransmissionState(uint32_t lineId, const String &state = "Nothing");
 
     /// Publish completion state for the last triggered action (resets to "Nothing")
     void _publishLastActionState(bool timedOut = false);
-
-    // ========== MQTT Publishing Helpers ==========
-    /// Publish all 4 button entities for an alarm line (line test start/stop, fire alarm start/stop)
-    esp_err_t _publishAlarmLineButtons(const genius_alarm_line_t &line);
-
-    /// Publish a single button entity using generic configuration
-    esp_err_t _publishButton(const genius_alarm_line_t &line, const AlarmLineButtonConfig &config);
-
-    /// Publish the transmission state sensor entity for an alarm line
-    esp_err_t _publishTransmissionSensor(const genius_alarm_line_t &line);
-
-    /// Add availability condition and device info to a HA discovery config document
-    void _addAvailabilityAndDevice(JsonDocument &doc, const genius_alarm_line_t &line);
-
-    /// Add device info (identifiers, name, manufacturer, model) to a HA discovery config document
-    void _addDeviceInfo(JsonDocument &doc, const genius_alarm_line_t &line);
 
     // ========== Settings Management ==========
     /// Update cached MQTT settings from GatewayMqttSettingsService for faster access

@@ -93,16 +93,14 @@ When enabled, the broker discards all information about previous sessions when t
 
 Click **Apply Settings** to save and apply the MQTT configuration. The device will reconnect to the MQTT broker with the new settings.
 
-### :tabler-smart-home: Smart Home Integration
+### :tabler-bell: Alarm Publishing
 
-![Smart Home Integration](../assets/images/software/gg-connections-mqtt-smarthome.png)
+The **Alarm Publishing** collapsible card configures a simple, platform-agnostic alarm notification via MQTT.
 
-The Smart Home Integration section provides two MQTT publishing modes specifically designed for home automation systems.
+![Alarm Publishing settings](../assets/images/software/gg-connections-mqtt-alarm-publishing.png)
 
 !!! info "Administrator Access Required"
     Smart home integration settings can only be modified by users with administrator privileges.
-
-#### Simple Alarm Publishing
 
 **Enable simple alarm publishing**
 
@@ -120,53 +118,53 @@ MQTT topic where alarm state is published when *any* smoke detector triggers an 
     - no special characters except `/`, `-`, and `_`
 
 !!! abstract "Global Alarm State Topic"
-    More details to this [Global Alarm State Topic](../api/mqtt-topics.md#global-alarm-state-topic), like its specific payload format, can be found in the [MQTT API](../api/mqtt-topics.md).
+    See [Global Alarm State Topic](../api/mqtt-topics.md#global-alarm-state-topic) for the exact payload format.
 
-#### Home Assistant Integration
+### :tabler-smart-home: Home Assistant Integration {#home-assistant-integration}
+
+The **Home Assistant Integration** collapsible card enables [MQTT Discovery :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } and configures the gateway's device identity in Home Assistant.
+
+!!! info "Administrator Access Required"
+    Home Assistant settings can only be modified by users with administrator privileges.
 
 **Enable Home Assistant Integration**
 
-Toggle to enable/disable publishing with [Home Assistant MQTT Discovery :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } support for:
+Toggle to enable/disable publishing with MQTT Discovery support for:
 
 - Gateway device with diagnostic sensors and remote controls
 - Individual detector configurations and states
 - Alarm line controls (if configured)
 
-**Home Assistant MQTT Discovery Prefix**
+**Discovery Prefix**
 
-Home Assistant MQTT Discovery prefix. All device discovery messages will use this prefix followed by the component type (e.g., `binary_sensor`, `button`, `sensor`).
+Home Assistant MQTT Discovery prefix. All device discovery messages will use this prefix followed by the component type (e.g., `binary_sensor`, `button`, `sensor`). Default: `homeassistant/`.
 
-**Example:** Using the default prefix `homeassistant/` creates discovery topics like:
-- `homeassistant/binary_sensor/genius-12345678/config` (smoke detector)
-- `homeassistant/button/genius-alarmline-987654321-linetest/config` (alarm line button)
+**Example:** Using the default prefix creates discovery topics like:
 
-??? info "Valid MQTT Topic Syntax"
-    - 1-64 characters
-    - no wildcards `+` or `#`
-    - cannot start or end with `/`
-    - no double slashes `//`
-    - no special characters except `/`, `-`, and `_`
+- `homeassistant/binary_sensor/genius-gateway-<id>/…/config` (smoke detector)
+- `homeassistant/button/genius-gateway-<id>/…/config` (alarm line button)
 
 !!! warning "Home Assistant compatibility"
-    The prefix must comply with the [Home Assistant MQTT Discovery Protocol :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } requirements.
+    The prefix must match the `discovery_prefix` configured in your Home Assistant instance.
 
-Below the prefix input field, example discovery topics are displayed for smoke detectors and alarm lines (if configured).
+**Device Name**
 
-!!! abstract "MQTT Topics Reference"
-    More details about [Home Assistant Auto-Discovery](../api/mqtt-topics.md#home-assistant-auto-discovery) related MQTT Topics, including payload formats for [smoke detectors](../api/mqtt-topics.md#smoke-detectors) and [alarm lines](../api/mqtt-topics.md#alarm-lines), can be found in the [MQTT API](../api/mqtt-topics.md).
+Name shown in Home Assistant's device registry. Leave empty to use the firmware's compile-time name (`Genius Gateway`).
+
+**Manufacturer / Model**
+
+Optional labels shown in the Home Assistant device info panel. Useful for multi-gateway deployments to distinguish individual units.
 
 **Applying Changes**
 
-Click **Apply Settings** to save the smart home integration configuration. The button is:
+Click **Apply Settings** to save. Changes take effect immediately — if MQTT is connected, updated discovery messages are published automatically.
 
-- **Disabled** when no changes are pending or validation errors exist
-- **Enabled** when valid changes are ready to apply
-
-Changes take effect immediately after applying.
+!!! abstract "MQTT Topics Reference"
+    See [Home Assistant Auto-Discovery](../api/mqtt-topics.md#home-assistant-auto-discovery) for topic structure and payload formats.
 
 #### Related Documentation
 
-Integration with Home Assistant and other smart home systems is described in more detail in [Smart Home Integration](../features/smart-home-integration.md).
+Integration with Home Assistant is described in detail in [Smart Home Integration](../features/smart-home-integration.md).
 
 ## :tabler-clock-check: Network Time (NTP)
 

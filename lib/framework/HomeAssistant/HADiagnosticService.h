@@ -16,20 +16,20 @@
 
 #include <Arduino.h>
 #include <HomeAssistant/HAService.h>
-#include <RestartService.h>
+#include <HomeAssistant/HAGroupedSensorPublisher.h>
 
 /**
  * @brief Home Assistant diagnostic entities service
  *
  * Provides standard diagnostic entities for any ESP32 device:
- * - Status sensor (device registration, online state)
+ * - Status sensor (device registration, "online")
  * - Free heap memory sensor (percentage)
  * - Core temperature sensor (°C)
  * - Restart button
  *
- * Updates diagnostic sensor values periodically via FreeRTOS timer.
- * Registers itself with HAService via onPublishAll() for automatic
- * entity publishing on MQTT connect.
+ * The three sensors share one MQTT state topic via HAGroupedSensorPublisher.
+ * The restart button is registered as an HAButton on the main HADevice.
+ * Sensor values are refreshed periodically via a FreeRTOS timer.
  */
 class HADiagnosticService
 {
@@ -39,64 +39,15 @@ public:
     /// Diagnostic sensor update interval (1 minute)
     static constexpr uint32_t DIAGNOSTIC_SENSOR_UPDATE_INTERVAL_MS = 1 * 60 * 1000;
 
-    /**
-     * @brief Constructor
-     * @param haService Shared HAService for device identity and MQTT helpers
-     */
     HADiagnosticService(HAService *haService);
 
-    /**
-     * @brief Initialize the service
-     *
-     * Creates diagnostic sensor timer and registers with HAService
-     * for entity publishing on MQTT connect.
-     */
     void begin();
-
-    /**
-     * @brief Publish all diagnostic entity configs and current states
-     *
-     * Called by HAService::publishAll() on MQTT connect.
-     */
-    void publishAll();
 
 private:
     HAService *_haService;
+    HAGroupedSensorPublisher _diagnosticSensors;
     TimerHandle_t _diagnosticSensorTimer;
 
-    // ========================================================================
-    // Entity publishing
-    // ========================================================================
-
-    /** @brief Publish status sensor (registers the device in HA) */
-    void _publishStatusSensor();
-
-    /** @brief Publish free heap memory sensor config */
-    void _publishHeapSensor();
-
-    /** @brief Publish core temperature sensor config */
-    void _publishTempSensor();
-
-    /** @brief Publish current diagnostic sensor values */
-    void _publishDiagnosticSensorStates();
-
-    /** @brief Publish restart button entity config */
-    void _publishRestartButton();
-
-    // ========================================================================
-    // Command handlers
-    // ========================================================================
-
-    /** @brief Subscribe to command topics */
-    void _subscribeToCommands();
-
-    /** @brief Handle restart command from HA */
-    void _onRestartCommand(char *topic, char *payload, int retain, int qos, bool dup);
-
-    // ========================================================================
-    // Timer
-    // ========================================================================
-
-    /** @brief Static timer callback for periodic diagnostic updates */
+    static void _readDiagnosticState(JsonObject &state);
     static void _diagnosticSensorTimerCallback(TimerHandle_t timer);
 };
