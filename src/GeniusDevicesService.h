@@ -185,7 +185,7 @@ public:
     static constexpr const char *TAG = "GeniusDevices";
 
     std::vector<GeniusDevice> devices;
-    std::vector<uint32_t> deletedDeviceSNs; ///< Temporary storage for deleted device SNs (populated during update)
+    std::vector<uint32_t> deletedDeviceIds; ///< Temporary storage for deleted device IDs (populated during update)
 
     static void read(GeniusDevices &geniusDevices, JsonObject &root)
     {
@@ -262,7 +262,7 @@ public:
     /**
      * @brief Publish alarm state for a single device (by serial number).
      *
-     * Updates _alarmStates[sn] and calls sensor->publishState().
+     * Updates _alarmStates[device.id] and calls sensor->publishState().
      *
      * @param smokeDetectorSN Smoke detector serial number
      * @param useTransaction If true, wraps access in transaction
@@ -295,8 +295,8 @@ private:
         HADevice *device;      ///< owned by HAService
         HABinarySensor *sensor; ///< owned by device
     };
-    std::map<uint32_t, SmokeDetectorHA> _haDevices; ///< maps smokeDetector.sn → HA objects
-    std::map<uint32_t, bool> _alarmStates;           ///< maps smokeDetector.sn → isAlarming
+    std::map<uint32_t, SmokeDetectorHA> _haDevices; ///< maps device.id → HA objects
+    std::map<uint32_t, bool> _alarmStates;           ///< maps device.id → isAlarming
 
     // ========================================================================
     // State Management
@@ -319,8 +319,8 @@ private:
     /// Add a HADevice sub-device for one smoke detector (idempotent)
     void _addSmokeDetectorSubDevice(const GeniusDevice &device);
 
-    /// Remove a HADevice sub-device for one smoke detector by SN
-    void _removeSmokeDetectorSubDevice(uint32_t sn);
+    /// Remove a HADevice sub-device for one smoke detector by stable device ID
+    void _removeSmokeDetectorSubDevice(uint32_t deviceId);
 
     /// Sync the HA sub-device list with the current _state.devices list
     void _syncSmokeDetectorSubDevices();

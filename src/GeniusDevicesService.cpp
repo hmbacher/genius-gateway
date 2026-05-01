@@ -613,13 +613,13 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
         hasChanges = true;
 
         // Find deleted devices (in old list but not in processed IDs)
-        geniusDevices.deletedDeviceSNs.clear();
+        geniusDevices.deletedDeviceIds.clear();
         for (const auto &oldDevice : geniusDevices.devices)
         {
             if (std::find(processedDeviceIds.begin(), processedDeviceIds.end(), oldDevice.id) == processedDeviceIds.end())
             {
-                // Device was deleted - store SN for unpublishing
-                geniusDevices.deletedDeviceSNs.push_back(oldDevice.smokeDetector.sn);
+                // Device was deleted - store stable device ID for unpublishing
+                geniusDevices.deletedDeviceIds.push_back(oldDevice.id);
                 ESP_LOGI(GeniusDevices::TAG, "Device with SN %lu marked for deletion.", oldDevice.smokeDetector.sn);
             }
         }
@@ -671,8 +671,8 @@ void GeniusDevicesService::mqttPublishAllDevicesState(bool onlyUnpublished)
         if (!onlyUnpublished || !device.published)
         {
             uint32_t sn = device.smokeDetector.sn;
-            _alarmStates[sn] = device.isAlarming;
-            auto it = _haDevices.find(sn);
+            _alarmStates[device.id] = device.isAlarming;
+            auto it = _haDevices.find(device.id);
             if (it != _haDevices.end() && it->second.sensor != nullptr)
                 it->second.sensor->publishState();
         }
@@ -693,8 +693,8 @@ esp_err_t GeniusDevicesService::mqttPublishDeviceState(uint32_t smokeDetectorSN,
     {
         if (device.smokeDetector.sn == smokeDetectorSN)
         {
-            _alarmStates[smokeDetectorSN] = device.isAlarming;
-            auto it = _haDevices.find(smokeDetectorSN);
+            _alarmStates[device.id] = device.isAlarming;
+            auto it = _haDevices.find(device.id);
             if (it != _haDevices.end() && it->second.sensor != nullptr)
             {
                 it->second.sensor->publishState();
@@ -719,13 +719,13 @@ esp_err_t GeniusDevicesService::mqttPublishDeviceState(uint32_t smokeDetectorSN,
 void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device)
 {
     uint32_t sn = device.smokeDetector.sn;
-    if (_haDevices.count(sn))
+    if (_haDevices.count(device.id))
         return;
 
-    String deviceId = "genius-" + String(sn);
+    String haDeviceId = "genius-" + String(device.id); // stable HA identifier — independent of SN
 
     HADeviceIdentity identity;
-    identity.id = deviceId;
+    identity.id = haDeviceId;
     identity.name = "Rauchmelder";
     identity.manufacturer = "Hekatron Vertriebs GmbH";
     identity.model = "Genius Plus X";
@@ -738,18 +738,20 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
 
     auto dev = std::make_unique<HADevice>(_haService, std::move(identity));
 
-    // Initialise alarm state from current device data
-    _alarmStates[sn] = device.isAlarming;
+    // Initialise alarm state from current device data (keyed by stable device.id)
+    _alarmStates[device.id] = device.isAlarming;
 
-    // Create binary_sensor entity
+    // Create binary_sensor entity — capture stable device.id so state lookup
+    // survives serial-number changes without recreating the sensor.
+    uint32_t devId = device.id;
     auto sensor = std::make_unique<HABinarySensor>(_haService, "smoke",
-        [this, sn]() -> bool {
-            auto it = _alarmStates.find(sn);
+        [this, devId]() -> bool {
+            auto it = _alarmStates.find(devId);
             return it != _alarmStates.end() ? it->second : false;
         },
-        [this, sn](JsonObject &c) {
+        [this, devId](JsonObject &c) {
             c["device_class"] = "smoke";
-            c["json_attributes_topic"] = _haService->getBaseTopic() + "/genius-" + String(sn) + "/smoke/attributes";
+            c["json_attributes_topic"] = _haService->getBaseTopic() + "/genius-" + String(devId) + "/smoke/attributes";
             IPAddress ip = WiFi.localIP();
             if (IPUtils::isSet(ip))
                 c["entity_picture"] = "http://" + ip.toString() + "/hekatron-genius-plus-x.png";
@@ -758,40 +760,55 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
 
     HABinarySensor *rawSensor = dev->registerControl(std::move(sensor));
     HADevice *rawDev = _haService->addSubDevice(std::move(dev));
-    _haDevices[sn] = {rawDev, rawSensor};
+    _haDevices[device.id] = {rawDev, rawSensor};
 
     // Publish attributes immediately if MQTT is already up
     if (_haService->isReady())
         _publishSmokeDetectorAttributes(sn, device);
 }
 
-void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t sn)
+void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
 {
-    _alarmStates.erase(sn);
-    _haDevices.erase(sn);
-    _haService->removeSubDevice("genius-" + String(sn));
+    _alarmStates.erase(deviceId);
+    _haDevices.erase(deviceId);
+    _haService->removeSubDevice("genius-" + String(deviceId));
 }
 
 void GeniusDevicesService::_syncSmokeDetectorSubDevices()
 {
     beginTransaction();
 
-    for (uint32_t sn : _state.deletedDeviceSNs)
-        _removeSmokeDetectorSubDevice(sn);
-    _state.deletedDeviceSNs.clear();
+    for (uint32_t deviceId : _state.deletedDeviceIds)
+        _removeSmokeDetectorSubDevice(deviceId);
+    _state.deletedDeviceIds.clear();
 
     for (GeniusDevice &device : _state.devices)
     {
-        if (!_haDevices.count(device.smokeDetector.sn))
+        if (!_haDevices.count(device.id))
         {
             _addSmokeDetectorSubDevice(device);
             device.published = true;
         }
         else if (!device.published)
         {
-            // Config data changed (e.g. location) — recreate sub-device
-            _removeSmokeDetectorSubDevice(device.smokeDetector.sn);
-            _addSmokeDetectorSubDevice(device);
+            // Config changed (e.g. location or serial number) — update the
+            // existing HADevice identity in place and republish its discovery.
+            // Avoids remove+re-add, which causes HA to ignore the new
+            // suggested_area because its device registry entry persists (Bug 2).
+            auto it = _haDevices.find(device.id);
+            if (it != _haDevices.end() && it->second.device != nullptr)
+            {
+                HADeviceIdentity &id = it->second.device->identity();
+                id.serialNumber = String(device.smokeDetector.sn);
+                id.suggestedArea = device.location;
+                IPAddress localIP = WiFi.localIP();
+                if (IPUtils::isSet(localIP))
+                    id.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
+                // Keep alarm state map consistent with current SN
+                _alarmStates[device.id] = device.isAlarming;
+                if (_haService->isReady())
+                    it->second.device->publishAll();
+            }
             device.published = true;
         }
     }
@@ -801,7 +818,7 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
 
 esp_err_t GeniusDevicesService::_publishSmokeDetectorAttributes(uint32_t sn, const GeniusDevice &device)
 {
-    auto it = _haDevices.find(sn);
+    auto it = _haDevices.find(device.id);
     if (it == _haDevices.end() || it->second.device == nullptr)
         return ESP_ERR_NOT_FOUND;
     if (!_haService->isReady())
