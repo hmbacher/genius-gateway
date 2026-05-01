@@ -550,16 +550,43 @@ When update is available:
 
 ### Smoke Detectors
 
-The following topics are used for smoke detector integration with Home Assistant.
+Each configured smoke detector is published as an **HA sub-device** nested under the main Genius Gateway device. Each sub-device contains a single binary sensor entity reporting the alarm state.
 
-#### Configuration Topic
+**Requirements:**
 
-**:material-message-outline: Topic (Default)**
+- [Home Assistant Integration must be enabled](../setup/connections.md#device-publishing)
+- MQTT broker must be connected
+
+#### Overview
+
+Each smoke detector sub-device publishes:
+
+- **1 binary_sensor entity** — `smoke` device class, state `ON`/`OFF`
+
+**Topic Structure:**
+
+All smoke detector topics are nested under the main gateway base topic:
 ```
-homeassistant/binary_sensor/genius-{smoke_detector_sn}/config
+{discovery_prefix}{main_namespace}/{main_device_id}/genius-{smoke_detector_sn}/...
 ```
 
-**:material-information-outline: Description:** Device configuration for Home Assistant auto-discovery
+For example, with the default prefix and gateway device ID `genius-gateway-aabbcc`:
+```
+homeassistant/genius-gateway/genius-gateway-aabbcc/genius-12345678/...
+```
+
+---
+
+#### Binary Sensor Configuration Topic
+
+**:material-message-outline: Topic Pattern**
+```
+{discovery_prefix}binary_sensor/genius-{smoke_detector_sn}/smoke/config
+```
+
+**Example:** `homeassistant/binary_sensor/genius-12345678/smoke/config`
+
+**:material-information-outline: Description:** Configuration message for Home Assistant binary sensor discovery
 
 **:material-speedometer: QoS:** 0
 
@@ -568,104 +595,118 @@ homeassistant/binary_sensor/genius-{smoke_detector_sn}/config
 **:material-code-json: Payload**
 ```json
 {
-  "~": "homeassistant/binary_sensor/genius-12345678",
+  "~": "homeassistant/genius-gateway/genius-gateway-aabbcc/genius-12345678",
   "name": "Genius Plus X",
-  "unique_id": "12345678",
   "device_class": "smoke",
-  "state_topic": "~/state",
-  "schema": "json",
-  "value_template": "{{value_json.state}}",
+  "state_topic": "~/smoke/state",
+  "json_attributes_topic": "~/smoke/attributes",
   "entity_picture": "http://192.168.1.100/hekatron-genius-plus-x.png",
   "device": {
-    "identifiers": "12345678",
+    "identifiers": ["genius-12345678"],
+    "name": "Rauchmelder",
     "manufacturer": "Hekatron Vertriebs GmbH",
     "model": "Genius Plus X",
-    "name": "Rauchmelder",
     "serial_number": "12345678",
-    "suggested_area": "Living Room"
+    "suggested_area": "Living Room",
+    "configuration_url": "http://192.168.1.100/gateway/smoke-detectors",
+    "via_device": "genius-gateway-aabbcc"
   }
 }
 ```
 
 **:material-format-list-bulleted: Payload Fields**
 
-- `~` - Topic prefix (base path for relative references)
+- `~` - Base topic (sub-device path nested under main gateway device)
 - `name` - Entity name shown in Home Assistant
-- `unique_id` - Unique identifier (smoke detector serial number)
-- `device_class` - Device class (`smoke` for smoke detectors)
-- `state_topic` - Relative path to state topic (expands to `{prefix}{sn}/state`)
-- `schema` - Payload format (`json`)
-- `value_template` - Jinja2 template to extract state from JSON
+- `device_class` - Device class (`smoke`)
+- `state_topic` - Path to alarm state (plain string `ON`/`OFF`)
+- `json_attributes_topic` - Path to entity attributes (production dates, FM Basis X info)
 - `entity_picture` - URL to device icon (only included if gateway has valid IP)
-- `device` - Device information object
-  - `identifiers` - Device identifier for grouping entities
-  - `manufacturer` - Device manufacturer
-  - `model` - Device model name
-  - `name` - Device name
-  - `serial_number` - Serial number
-  - `suggested_area` - Suggested Home Assistant area/room
+- `device` - Device information block
+  - `identifiers` - Device identifier (`genius-{sn}`)
+  - `name` - Device name (`"Rauchmelder"`)
+  - `manufacturer` / `model` / `serial_number` - Hardware metadata
+  - `suggested_area` - Populated from the detector's configured location
+  - `configuration_url` - Link to gateway smoke detector page (if IP available)
+  - `via_device` - Links this sub-device to the main gateway device in HA
 
 **:material-publish: Publishing Behavior**
 
 - Published when smoke detector is first [created](../features/device-management.md#adding-a-new-detector) or [imported](../features/device-management.md#importing-configuration)
-- Re-published when MQTT connection is established
-- Re-published when [MQTT settings change](../setup/connections.md#mqtt)
+- Re-published on MQTT (re)connect via HA sub-device mechanism
 - Published only if [device publishing](../setup/connections.md#device-publishing) is enabled
 
 **:material-home-assistant: Home Assistant Integration**
 
-- Automatically creates binary sensor entity
-- Adds icon and plenty of metadata (manufacturer, model, serial number, etc.)
-- Can be used in automations and scenes
+- Each smoke detector appears as a separate HA sub-device under the gateway
+- Provides device information panel with manufacturer, model, and serial number
+- Links to gateway smoke detector configuration page
 
 ---
 
 #### State Topic
 
-**:material-message-outline: Topic (Default)**
+**:material-message-outline: Topic**
 ```
-homeassistant/binary_sensor/genius-{smoke_detector_sn}/state
+{main_base_topic}/genius-{smoke_detector_sn}/smoke/state
 ```
 
-**:material-information-outline: Description:** Current alarm state of individual smoke detector
+**Example:** `homeassistant/genius-gateway/genius-gateway-aabbcc/genius-12345678/smoke/state`
+
+**:material-information-outline: Description:** Current alarm state of the smoke detector (plain string)
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** true
+
+**:material-code-json: State Values**
+
+- `OFF` — Smoke detector not alarming (clear)
+- `ON` — Smoke detector actively alarming
+
+**:material-publish: Publishing Behavior**
+
+- Published when device alarm state changes
+- Re-published on MQTT (re)connect via HA sub-device mechanism
+- Published only if [device publishing](../setup/connections.md#device-publishing) is enabled
+
+---
+
+#### Attributes Topic
+
+**:material-message-outline: Topic**
+```
+{main_base_topic}/genius-{smoke_detector_sn}/smoke/attributes
+```
+
+**Example:** `homeassistant/genius-gateway/genius-gateway-aabbcc/genius-12345678/smoke/attributes`
+
+**:material-information-outline: Description:** Additional device metadata displayed as entity attributes in Home Assistant
 
 **:material-speedometer: QoS:** 0
 
 **:material-content-save-outline: Retain:** true
 
 **:material-code-json: Payload**
-
-Published when device is *not* alarming:
 ```json
 {
-  "state": "OFF"
-}
-```
-Published when device *is* alarming:
-```json
-{
-  "state": "ON"
+  "Production Date": "04.06.22",
+  "FM Basis X - Serial": "87654321",
+  "FM Basis X - Production Date": "01.03.22"
 }
 ```
 
 **:material-format-list-bulleted: Payload Fields**
 
-- `state` - Alarm state
-    - `"OFF"` - Smoke detector not alarming
-    - `"ON"` - Smoke detector actively alarming
+- `Production Date` - Smoke detector production date (dd.mm.yy), omitted if unknown
+- `FM Basis X - Serial` - Radio module serial number, omitted if unknown
+- `FM Basis X - Production Date` - Radio module production date (dd.mm.yy), omitted if unknown
 
 **:material-publish: Publishing Behavior**
 
-- Published when device alarm state changes
-- Re-published when MQTT connection is established
-- Re-published when [device configuration changes](../features/device-management.md#editing-a-detector) (location, etc.)
+- Published when sub-device is first registered (if MQTT connected)
+- Re-published on every MQTT (re)connect
 - Published only if [device publishing](../setup/connections.md#device-publishing) is enabled
-
-**:material-home-assistant: Home Assistant Integration**
-
-- Automatically updates binary sensor entity
-- Entity shows as "Clear" (OFF) or "Smoke detected" (ON)
-- Can be used in automations and scenes
 
 ---
 

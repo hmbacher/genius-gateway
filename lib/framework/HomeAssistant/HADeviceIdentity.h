@@ -41,6 +41,7 @@ public:
     String swVersion;        ///< Optional
     String hwVersion;        ///< Optional
     String configurationUrl; ///< Optional — typically "http://<ip>/"
+    String serialNumber;     ///< Optional — shown in HA device info panel
     String viaDevice;        ///< Optional — identifier of bridge/parent device
     String suggestedArea;    ///< Optional — HA room/area suggestion (e.g., "Living Room")
     String topicNamespace;   ///< Slugified, used in topic paths (not in payload)
