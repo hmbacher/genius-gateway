@@ -254,14 +254,35 @@ automation:
 
 ### Overview
 
-Each smoke detector registered in Genius Gateway is automatically published to Home Assistant as an individual device with a binary sensor entity. This provides rich functionality including:
+Each smoke detector registered in Genius Gateway is automatically published to Home Assistant as an individual sub-device. This provides rich functionality including:
 
 - **Automatic device discovery** - No manual configuration in Home Assistant
 - **Individual detector tracking** - Monitor each detector's state separately
-- **Rich device information** - Model, manufacturer, serial numbers, location
+- **Rich device information** - Model, manufacturer, serial number, location
+- **Diagnostic entities** - Detailed readout data after acoustic service
 - **Automation capabilities** - Create detector-specific automations
 - **Historical data** - Track alarm history per detector
-- **Dashboard integration** - Visual representation of detector network
+
+### Entities Overview
+
+| Entity | Category | Available | Description |
+|--------|----------|-----------|-------------|
+| **Smoke Detector** (binary_sensor) | Control | Always | Alarm state `ON`/`OFF` |
+| **Battery** (binary_sensor) | Diagnostic | After readout | Battery low fault |
+| **Smoke Detector State** (binary_sensor) | Diagnostic | After readout | Internal device fault |
+| **Radio Module State** (binary_sensor) | Diagnostic | After readout | Radio network fault |
+| **Deinstallation Count** | Diagnostic | After readout | Lifetime deinstall count |
+| **Last Service** | Diagnostic | After readout | Timestamp of last acoustic readout |
+| **Radio Module Model** | Diagnostic | After readout | Model name (e.g. FM Basis X) |
+| **Alarm Line ID** | Diagnostic | After readout | FM line identifier |
+| **Alarm Line** | Diagnostic | After readout | Line character + number (e.g. A.0) |
+| **Production Date** | Diagnostic | After readout | Smoke detector manufacturing date |
+| **Radio Module Serial** | Diagnostic | After readout | Radio module serial number |
+| **Alarms (Total)** | Diagnostic | After readout | Lifetime alarm count |
+| **Alarms (3 Months)** | Diagnostic | After readout | Alarm count in last 3 months |
+| **Radio Interference** | Diagnostic | After readout | Radio interference level (%) |
+
+Diagnostic entities show as **unavailable** until the first acoustic readout is performed via the SmartSonic interface.
 
 ### Home Assistant Visual Integration
 

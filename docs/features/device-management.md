@@ -19,16 +19,17 @@ The device list displays all registered Genius smoke detectors in a structured t
 The assigned location name for each detector (e.g., "Living Room", "Bedroom"). If no location has been assigned, the device shows "Unknown location" in italicized gray text.
 
 #### Smoke Detector
-Information about the smoke detector component:
+Model name and status of the smoke detector component:
 
-- :tabler-number: **Serial Number**: The unique identifier of the smoke detector unit
-- :tabler-building-factory-2: **Production Date**: Manufacturing date displayed in DD.MM.YYYY format, or "Unknown" if not available
+- **Model**: The smoke detector model (e.g., "Genius Plus X"), or "Unknown model" in italics if not yet identified
+- **Status**: Shown after acoustic readout — :tabler-circle-check: **OK** (green) if no faults, :tabler-circle-x: **Fault** (red) with fault details in tooltip, or "Status not available" if no readout has been performed. The status indicator is greyed out if the last readout is more than one year old.
 
 #### Radio Module
-Information about the radio communication module:
+Model name and status of the radio communication module:
 
-- :tabler-number: **Serial Number**: The unique identifier of the radio module
-- :tabler-building-factory-2: **Production Date**: Manufacturing date displayed in DD.MM.YYYY format, or "Unknown" if not available
+- **No radio module**: shown if the device has no radio module or serial number
+- **Model**: The radio module model (e.g., "FM Basis X"), or "Unknown model" in italics
+- **Status**: Same as smoke detector status — OK / Fault / not available, based on readout data
 
 #### Alarms
 Alarm statistics for the device:
@@ -36,16 +37,18 @@ Alarm statistics for the device:
 - **Count**: Total number of recorded alarms
 - **Last Alarm**: Date of the most recent alarm event (displayed if any alarms exist)
 
-#### Registration
-Indicates how the device was added to the system:
+#### Service
+Acoustic readout status icon:
 
-- :tabler-forms: **Manual**: Device was manually configured by an administrator
-- :tabler-access-point: **Automatic**: Device was automatically registered after receiving an alert packet
+- :tabler-award: **Green** — Readout performed and up to date (within the last year)
+- :tabler-calendar-exclamation: **Red** — Last readout is more than 1 year ago
+- :tabler-microphone-off: **Red** — No acoustic readout performed yet
 
 #### Manage
 Action buttons for device operations:
 
 - :tabler-logs: **Alarm Log**: View detailed alarm history (only visible if alarms exist)
+- :tabler-list-details: **Device Details**: View full readout data and trigger a new acoustic readout
 - :tabler-pencil: **Edit**: Modify device configuration
 - :tabler-trash: **Delete**: Remove device from the system
 
