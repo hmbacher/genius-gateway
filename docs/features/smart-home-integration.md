@@ -284,6 +284,9 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 
 Diagnostic entities show as **unavailable** until the first acoustic readout is performed via the SmartSonic interface.
 
+!!! info "Shared MQTT State Topic"
+    All 13 diagnostic entities share a single MQTT state topic (`diagnostics/state`) that carries a JSON payload with all values. Availability is folded into the same payload — there is no separate availability topic. This reduces MQTT traffic and keeps the broker's retained-message store lean. See [MQTT API - Readout-Derived Diagnostic Entities](../api/mqtt-topics.md#readout-derived-diagnostic-entities) for the full payload schema.
+
 ### Home Assistant Visual Integration
 
 **Overview Dashboard**

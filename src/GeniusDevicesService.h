@@ -43,7 +43,7 @@
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
 #include <HomeAssistant/HABinarySensor.h>
-#include <HomeAssistant/HASensor.h>
+#include <HomeAssistant/HAGroupedSensorPublisher.h>
 #include <PsychicMqttClient.h>
 
 #define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"  ///< Configuration file path for device data
@@ -366,15 +366,14 @@ public:
     /**
      * @brief Re-publish alarm state for all devices.
      *
-     * Updates _alarmStates from current device data and calls publishState()
-     * on each sensor. Used after bulk alarm resets.
+     * Calls publishState() on each smoke-alarm sensor. Used after bulk alarm resets.
      */
     void mqttPublishAllDevicesState(bool onlyUnpublished = true);
 
     /**
      * @brief Publish alarm state for a single device (by serial number).
      *
-     * Updates _alarmStates[device.id] and calls sensor->publishState().
+     * Calls sensor->publishState() — the sensor getter reads device.isAlarming live.
      *
      * @param smokeDetectorSN Smoke detector serial number
      * @param useTransaction If true, wraps access in transaction
@@ -402,46 +401,13 @@ private:
     GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of alarm MQTT settings
     HAService *_haService;                            ///< HA service
 
-    /// Cached readout state per device — updated on each acoustic readout publish
-    struct SmokeDetectorReadout {
-        bool batteryLowFault = false;
-        bool deviceFault = false;
-        bool radioNetworkFault = false;
-        uint8_t deinstallationCount = 0;
-        uint8_t alarmCountTotal = 0;
-        uint8_t alarmCount3m = 0;
-        float radioInterference = 0.0f;
-        uint32_t rmSerial = 0;
-        String productionDate;     ///< "DD.MM.YY", empty if unknown
-        String lastReadout;        ///< ISO 8601 timestamp, empty if never read
-        String radioModuleModel;   ///< empty if no radio module
-        uint32_t lineId = 0;
-        String alarmLine;          ///< e.g. "A.0", empty if not available
-    };
-
     // HA sub-device tracking
     struct SmokeDetectorHA {
-        HADevice       *device;
-        HABinarySensor *sensor;
-        // Readout-derived entities — unavailable until first acoustic readout
-        HABinarySensor *batteryLow;
-        HABinarySensor *deviceFault;
-        HABinarySensor *radioFault;
-        HASensor       *deinstallCount;
-        HASensor       *lastReadout;
-        HASensor       *rmModel;
-        HASensor       *alarmLineId;
-        HASensor       *alarmLine;
-        HASensor       *productionDate;
-        HASensor       *rmSerial;
-        HASensor       *alarmCountTotal;
-        HASensor       *alarmCount3m;
-        HASensor       *radioInterference;
-        String          readoutAvailTopic;
+        HADevice                                  *device;
+        HABinarySensor                            *sensor;       ///< smoke alarm binary_sensor (Control)
+        std::unique_ptr<HAGroupedSensorPublisher>  diagnostics;  ///< 13 readout entities on one shared state topic
     };
-    std::map<uint32_t, SmokeDetectorHA> _haDevices;          ///< maps device.id → HA objects
-    std::map<uint32_t, bool> _alarmStates;                    ///< maps device.id → isAlarming
-    std::map<uint32_t, SmokeDetectorReadout> _readoutStates;  ///< maps device.id → readout cache
+    std::map<uint32_t, SmokeDetectorHA> _haDevices;  ///< maps device.id → HA objects
 
     // ========================================================================
     // State Management
@@ -470,10 +436,9 @@ private:
     /// Sync the HA sub-device list with the current _state.devices list
     void _syncSmokeDetectorSubDevices();
 
-    /// Update readout cache and publish entity states for one device.
-    /// Pass emitStates=false when called from an onPublishAll callback to avoid
-    /// double-publishing (HADevice::publishAll will emit states right after).
-    esp_err_t _publishSmokeDetectorAttributes(uint32_t sn, const GeniusDevice &device, bool emitStates = true);
+    /// Trigger a diagnostics state publish for one device (by stable device ID).
+    /// Reads all values directly from _state.devices — no separate cache needed.
+    esp_err_t _publishSmokeDetectorAttributes(uint32_t deviceId);
 
     // ========================================================================
     // Settings Management

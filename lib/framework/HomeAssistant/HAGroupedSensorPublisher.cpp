@@ -13,11 +13,14 @@
  **/
 
 #include <HomeAssistant/HAGroupedSensorPublisher.h>
+#include <HomeAssistant/HADevice.h>
 
 HAGroupedSensorPublisher::HAGroupedSensorPublisher(HAService *haService,
                                                    const String &topicSuffix,
-                                                   StateReader stateReader)
+                                                   StateReader stateReader,
+                                                   HADevice *ownerDevice)
     : _haService(haService),
+      _ownerDevice(ownerDevice),
       _topicSuffix(topicSuffix),
       _stateReader(stateReader)
 {
@@ -73,6 +76,13 @@ void HAGroupedSensorPublisher::publishState()
     _haService->publish(_sharedStateTopicAbs(), payload);
 }
 
+String HAGroupedSensorPublisher::_deviceId() const
+{
+    if (_ownerDevice != nullptr)
+        return _ownerDevice->getDeviceId();
+    return _haService->getDeviceId();
+}
+
 String HAGroupedSensorPublisher::_sharedStateTopicRel() const
 {
     return "~/" + _topicSuffix + "/state";
@@ -80,14 +90,32 @@ String HAGroupedSensorPublisher::_sharedStateTopicRel() const
 
 String HAGroupedSensorPublisher::_sharedStateTopicAbs() const
 {
+    if (_ownerDevice != nullptr)
+        return _ownerDevice->getBaseTopic() + "/" + _topicSuffix + "/state";
     return _haService->getBaseTopic() + "/" + _topicSuffix + "/state";
+}
+
+void HAGroupedSensorPublisher::unpublishAll()
+{
+    if (_haService == nullptr || !_haService->isReady())
+        return;
+
+    _haService->publish(_sharedStateTopicAbs(), String(), 0, true, false);
+
+    String id = _deviceId();
+    for (const auto &sensor : _sensors)
+    {
+        String configTopic = _haService->getDiscoveryPrefix() + sensor.component +
+                             "/" + id + "/" + sensor.objectId + "/config";
+        _haService->publish(configTopic, String(), 0, true, false);
+    }
 }
 
 void HAGroupedSensorPublisher::_publishSensorConfig(const Sensor &sensor)
 {
     JsonDocument config;
     config["state_topic"] = _sharedStateTopicRel();
-    config["unique_id"]   = _haService->getDeviceId() + "_" + sensor.objectId;
+    config["unique_id"]   = _deviceId() + "_" + sensor.objectId;
 
     if (!sensor.name.isEmpty())
         config["name"] = sensor.name;
@@ -114,5 +142,8 @@ void HAGroupedSensorPublisher::_publishSensorConfig(const Sensor &sensor)
         sensor.extraConfig(obj);
     }
 
-    _haService->publishConfig(sensor.component, sensor.objectId, config);
+    if (_ownerDevice != nullptr)
+        _ownerDevice->publishConfig(sensor.component, sensor.objectId, config);
+    else
+        _haService->publishConfig(sensor.component, sensor.objectId, config);
 }

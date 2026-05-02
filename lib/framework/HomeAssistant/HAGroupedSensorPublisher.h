@@ -21,6 +21,8 @@
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HAEntityBase.h>
 
+class HADevice;
+
 /**
  * @brief Multi-sensor publisher sharing one MQTT state topic.
  *
@@ -74,10 +76,15 @@ public:
      *                      (~/<topicSuffix>/state). Slugified is recommended.
      * @param stateReader   producer for the shared state JSON; invoked on
      *                      publishAll() and publishState().
+     * @param ownerDevice   optional sub-device owner. When set, discovery configs
+     *                      are published via the sub-device (attaches its identity
+     *                      block and scopes topics under its base topic). Pass
+     *                      nullptr (default) to publish against the main device.
      */
     HAGroupedSensorPublisher(HAService *haService,
                              const String &topicSuffix,
-                             StateReader stateReader);
+                             StateReader stateReader,
+                             HADevice *ownerDevice = nullptr);
 
     virtual ~HAGroupedSensorPublisher() = default;
 
@@ -112,6 +119,13 @@ public:
      */
     void publishState();
 
+    /**
+     * Remove all entities from HA by sending empty retained payloads to every
+     * discovery config topic and the shared state topic. Mirrors HADevice::unpublishAll().
+     * No-op if HAService is not ready.
+     */
+    void unpublishAll();
+
 protected:
     struct Sensor
     {
@@ -124,12 +138,15 @@ protected:
     };
 
     HAService *_haService;
+    HADevice *_ownerDevice;
     String _topicSuffix;
     StateReader _stateReader;
     std::vector<Sensor> _sensors;
 
     String _sharedStateTopicRel() const;
     String _sharedStateTopicAbs() const;
+
+    String _deviceId() const;
 
     void _publishSensorConfig(const Sensor &sensor);
 };

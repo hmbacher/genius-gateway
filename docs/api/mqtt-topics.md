@@ -650,42 +650,78 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-1746234159/...
 
 #### Readout-Derived Diagnostic Entities
 
-All readout-derived entities share a common **readout availability topic** and report as `unavailable` until the first acoustic readout:
+All 13 readout-derived diagnostic entities share a **single state topic** that carries a JSON object with all values. Availability is folded into the same JSON payload — no separate availability topic is needed.
 
+**:material-message-outline: Shared State Topic**
 ```
-{base_topic}/genius-{device_id}/readout/avail
+{base_topic}/genius-{device_id}/diagnostics/state
 ```
 
-Published `online` after a successful readout, never published `offline` (entities remain available after first readout).
+**:material-speedometer: QoS:** 0 &nbsp;&nbsp; **:material-content-save-outline: Retain:** true
 
-**Diagnostic binary_sensor entities:**
+**JSON Payload Example:**
+```json
+{
+  "available": true,
+  "battery_low": false,
+  "device_fault": false,
+  "radio_fault": false,
+  "deinstall_count": 2,
+  "last_readout": "2026-04-30T14:22:00",
+  "radio_module_model": "FM Basis X",
+  "alarm_line_id": 123456789,
+  "alarm_line": "A.0",
+  "production_date": "01.03.22",
+  "radio_module_serial": 987654321,
+  "alarm_count_total": 5,
+  "alarm_count_3m": 1,
+  "radio_interference": 12.5
+}
+```
 
-| Object ID | Name | Device Class | Description |
-|-----------|------|-------------|-------------|
-| `battery_low` | Battery | `battery` | Battery low fault |
-| `device_fault` | Smoke Detector State | `problem` | Smoke detector internal fault |
-| `radio_fault` | Radio Module State | `problem` | Radio network fault |
+`available` is `false` (and all other fields absent or stale) until the first successful acoustic readout. Each entity's discovery config uses `availability_template` on this same topic:
 
-**Diagnostic sensor entities:**
+```yaml
+availability_topic: "{base_topic}/genius-{device_id}/diagnostics/state"
+availability_template: "{{ 'online' if value_json.available else 'offline' }}"
+```
 
-| Object ID | Name | Unit / Class | Description |
-|-----------|------|-------------|-------------|
-| `deinstallation_count` | Deinstallation Count | `total_increasing` | Lifetime deinstall count |
-| `last_readout` | Last Service | `timestamp` | ISO 8601 readout timestamp |
-| `radio_module_model` | Radio Module Model | — | Model name (e.g. `FM Basis X`), `None` if not available |
-| `alarm_line_id` | Alarm Line ID | — | FM line identifier (uint32), `None` if not assigned |
-| `alarm_line` | Alarm Line | — | Line character + number (e.g. `A.0`), `None` if not assigned |
-| `production_date` | Production Date | — | `DD.MM.YY` format, empty if unknown |
-| `radio_module_serial` | Radio Module Serial | — | Radio module serial number |
-| `alarm_count_total` | Alarms (Total) | `total_increasing` | Lifetime alarm count |
-| `alarm_count_3m` | Alarms (3 Months) | `measurement` | Alarm count in last 3 months |
-| `radio_interference` | Radio Interference | `%` / `measurement` | Radio interference level |
+**Discovery Config Topic Pattern:**
+```
+{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/genius-{device_id}/{object_id}/config
+```
+
+**Diagnostic binary_sensor entities** (`value_template` extracts a boolean as `ON`/`OFF`):
+
+| Object ID | Name | Device Class | `value_template` |
+|-----------|------|-------------|-----------------|
+| `battery_low` | Battery | `battery` | `{{ 'ON' if value_json.battery_low else 'OFF' }}` |
+| `device_fault` | Smoke Detector State | `problem` | `{{ 'ON' if value_json.device_fault else 'OFF' }}` |
+| `radio_fault` | Radio Module State | `problem` | `{{ 'ON' if value_json.radio_fault else 'OFF' }}` |
+
+**Diagnostic sensor entities** (`value_template` extracts the relevant field):
+
+| Object ID | Name | Unit / Class | JSON field |
+|-----------|------|-------------|-----------|
+| `deinstallation_count` | Deinstallation Count | `total_increasing` | `deinstall_count` |
+| `last_readout` | Last Service | `timestamp` | `last_readout` |
+| `radio_module_model` | Radio Module Model | — | `radio_module_model` |
+| `alarm_line_id` | Alarm Line ID | — | `alarm_line_id` |
+| `alarm_line` | Alarm Line | — | `alarm_line` |
+| `production_date` | Production Date | — | `production_date` |
+| `radio_module_serial` | Radio Module Serial | — | `radio_module_serial` |
+| `alarm_count_total` | Alarms (Total) | `total_increasing` | `alarm_count_total` |
+| `alarm_count_3m` | Alarms (3 Months) | `measurement` | `alarm_count_3m` |
+| `radio_interference` | Radio Interference | `%` / `measurement` | `radio_interference` |
 
 **:material-publish: Publishing Behavior**
 
 - Configs published on MQTT (re)connect alongside the main smoke sensor config
-- States published immediately after a successful acoustic readout
-- Re-published on MQTT (re)connect if readout data is available
+- State published immediately after a successful acoustic readout
+- State re-published on MQTT (re)connect; `available: false` until first readout
+
+!!! note "Migration from pre-1.x firmware"
+    Firmware upgrading from a version that used per-entity state topics will automatically clear the 13 stale retained state topics and the old `readout/avail` topic on the first MQTT connect after upgrade. Entity history and customizations in Home Assistant are preserved because all object IDs remain unchanged.
 
 ---
 
