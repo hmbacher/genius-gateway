@@ -79,6 +79,11 @@ void GeniusDevicesService::begin()
                                if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET && originId != ALARM_STATE_CHANGE)
                                {
                                    _syncSmokeDetectorSubDevices();
+                                   if (_haService->isReady())
+                                   {
+                                       for (const GeniusDevice &device : _state.devices)
+                                           _publishSmokeDetectorAttributes(device.smokeDetector.sn, device);
+                                   }
                                } },
                            false);
 
@@ -105,7 +110,7 @@ void GeniusDevicesService::begin()
                              {
                                  beginTransaction();
                                  for (const GeniusDevice &device : _state.devices)
-                                     _publishSmokeDetectorAttributes(device.smokeDetector.sn, device);
+                                     _publishSmokeDetectorAttributes(device.smokeDetector.sn, device, false);
                                  endTransaction(); });
 
     /* Register sub-devices for devices already loaded from FS */
@@ -662,6 +667,31 @@ esp_err_t GeniusDevicesService::mqttPublishDeviceState(uint32_t smokeDetectorSN,
 // Private Methods - HA Sub-device Management
 // ============================================================================
 
+static const char *smokeDetectorModelName(GeniusSmokeDetector model)
+{
+    switch (model)
+    {
+        case GSD_GENIUS_H:      return "Genius H";
+        case GSD_GENIUS_HX:     return "Genius Hx";
+        case GSD_GENIUS_PLUS:   return "Genius Plus";
+        case GSD_GENIUS_PLUS_X: return "Genius Plus X";
+        default:                return "Genius Smoke Detector";
+    }
+}
+
+static const char *radioModuleModelName(GeniusRadioModule model)
+{
+    switch (model)
+    {
+        case GRM_FM_BASIS:   return "FM Basis";
+        case GRM_FM_PRO:     return "FM Pro";
+        case GRM_FM_MCP:     return "FM MCP";
+        case GRM_FM_BASIS_X: return "FM Basis X";
+        case GRM_FM_PRO_X:   return "FM Pro X";
+        default:             return nullptr;
+    }
+}
+
 void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device)
 {
     uint32_t sn = device.smokeDetector.sn;
@@ -672,9 +702,9 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
 
     HADeviceIdentity identity;
     identity.id = haDeviceId;
-    identity.name = "Rauchmelder";
+    identity.name = smokeDetectorModelName(device.smokeDetector.model);
     identity.manufacturer = "Hekatron Vertriebs GmbH";
-    identity.model = "Genius Plus X";
+    identity.model = smokeDetectorModelName(device.smokeDetector.model);
     identity.serialNumber = String(sn);
     identity.suggestedArea = device.location;
 
@@ -682,14 +712,17 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
     if (IPUtils::isSet(localIP))
         identity.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
 
+    // Readout availability topic — published "online" when acoustic readout data is present
+    uint32_t devId = device.id;
+    String readoutAvailTopic = _haService->getBaseTopic() + "/genius-" + String(devId) + "/readout/avail";
+
     auto dev = std::make_unique<HADevice>(_haService, std::move(identity));
 
-    // Initialise alarm state from current device data (keyed by stable device.id)
+    // Initialise state caches keyed by stable device.id
     _alarmStates[device.id] = device.isAlarming;
+    _readoutStates.emplace(device.id, SmokeDetectorReadout{});
 
-    // Create binary_sensor entity — capture stable device.id so state lookup
-    // survives serial-number changes without recreating the sensor.
-    uint32_t devId = device.id;
+    // ---- Main smoke alarm binary_sensor (Control) ---------------------------
     auto sensor = std::make_unique<HABinarySensor>(_haService, "smoke",
         [this, devId]() -> bool {
             auto it = _alarmStates.find(devId);
@@ -697,16 +730,135 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         },
         [this, devId](JsonObject &c) {
             c["device_class"] = "smoke";
-            c["json_attributes_topic"] = _haService->getBaseTopic() + "/genius-" + String(devId) + "/smoke/attributes";
             IPAddress ip = WiFi.localIP();
             if (IPUtils::isSet(ip))
                 c["entity_picture"] = "http://" + ip.toString() + "/hekatron-genius-plus-x.png";
         });
-    sensor->setName("Genius Plus X");
-
+    sensor->setName("Smoke Detector");
     HABinarySensor *rawSensor = dev->registerControl(std::move(sensor));
+
+    // ---- Readout-derived Diagnostic entities --------------------------------
+    // All share readoutAvailTopic — shown as "unavailable" until first readout.
+
+    auto battLow = std::make_unique<HABinarySensor>(_haService, "battery_low",
+        [this, devId]() -> bool { return _readoutStates[devId].batteryLowFault; });
+    battLow->setName("Battery")
+           .setDeviceClass("battery")
+           .setAvailabilityTopic(readoutAvailTopic);
+    HABinarySensor *rawBattLow = dev->registerDiagnostic(std::move(battLow));
+
+    auto devFault = std::make_unique<HABinarySensor>(_haService, "device_fault",
+        [this, devId]() -> bool { return _readoutStates[devId].deviceFault; });
+    devFault->setName("Smoke Detector State")
+            .setDeviceClass("problem")
+            .setAvailabilityTopic(readoutAvailTopic);
+    HABinarySensor *rawDevFault = dev->registerDiagnostic(std::move(devFault));
+
+    auto radioFault = std::make_unique<HABinarySensor>(_haService, "radio_fault",
+        [this, devId]() -> bool { return _readoutStates[devId].radioNetworkFault; });
+    radioFault->setName("Radio Module State")
+              .setDeviceClass("problem")
+              .setAvailabilityTopic(readoutAvailTopic);
+    HABinarySensor *rawRadioFault = dev->registerDiagnostic(std::move(radioFault));
+
+    auto deinstall = std::make_unique<HASensor>(_haService, "deinstallation_count",
+        [this, devId]() -> String { return String(_readoutStates[devId].deinstallationCount); },
+        [](JsonObject &c) { c["state_class"] = "total_increasing"; });
+    deinstall->setName("Deinstallation Count")
+             .setIcon("mdi:autorenew")
+             .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawDeinstall = dev->registerDiagnostic(std::move(deinstall));
+
+    auto lastReadout = std::make_unique<HASensor>(_haService, "last_readout",
+        [this, devId]() -> String { return _readoutStates[devId].lastReadout; },
+        [](JsonObject &c) { c["device_class"] = "timestamp"; });
+    lastReadout->setName("Last Service")
+               .setIcon("mdi:clock-check-outline")
+               .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawLastReadout = dev->registerDiagnostic(std::move(lastReadout));
+
+    auto rmModel = std::make_unique<HASensor>(_haService, "radio_module_model",
+        [this, devId]() -> String { return _readoutStates[devId].radioModuleModel; });
+    rmModel->setName("Radio Module Model")
+           .setIcon("mdi:radio-tower")
+           .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawRmModel = dev->registerDiagnostic(std::move(rmModel));
+
+    auto alarmLineId = std::make_unique<HASensor>(_haService, "alarm_line_id",
+        [this, devId]() -> String {
+            uint32_t id = _readoutStates[devId].lineId;
+            return id > 0 ? String(id) : "None";
+        });
+    alarmLineId->setName("Alarm Line ID")
+               .setIcon("mdi:identifier")
+               .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawAlarmLineId = dev->registerDiagnostic(std::move(alarmLineId));
+
+    auto alarmLine = std::make_unique<HASensor>(_haService, "alarm_line",
+        [this, devId]() -> String {
+            const String &l = _readoutStates[devId].alarmLine;
+            return l.isEmpty() ? "None" : l;
+        });
+    alarmLine->setName("Alarm Line")
+             .setIcon("mdi:alarm-light-outline")
+             .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawAlarmLine = dev->registerDiagnostic(std::move(alarmLine));
+
+    auto prodDate = std::make_unique<HASensor>(_haService, "production_date",
+        [this, devId]() -> String { return _readoutStates[devId].productionDate; });
+    prodDate->setName("Production Date")
+            .setIcon("mdi:calendar-badge")
+            .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawProdDate = dev->registerDiagnostic(std::move(prodDate));
+
+    auto rmSer = std::make_unique<HASensor>(_haService, "radio_module_serial",
+        [this, devId]() -> String {
+            uint32_t sn = _readoutStates[devId].rmSerial;
+            return sn > 0 ? String(sn) : String("Unknown");
+        });
+    rmSer->setName("Radio Module Serial")
+         .setIcon("mdi:barcode")
+         .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawRmSer = dev->registerDiagnostic(std::move(rmSer));
+
+    auto alarmTotal = std::make_unique<HASensor>(_haService, "alarm_count_total",
+        [this, devId]() -> String { return String(_readoutStates[devId].alarmCountTotal); },
+        [](JsonObject &c) { c["state_class"] = "total_increasing"; });
+    alarmTotal->setName("Alarms (Total)")
+              .setIcon("mdi:alarm-light")
+              .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawAlarmTotal = dev->registerDiagnostic(std::move(alarmTotal));
+
+    auto alarm3m = std::make_unique<HASensor>(_haService, "alarm_count_3m",
+        [this, devId]() -> String { return String(_readoutStates[devId].alarmCount3m); },
+        [](JsonObject &c) { c["state_class"] = "measurement"; });
+    alarm3m->setName("Alarms (3 Months)")
+           .setIcon("mdi:calendar-clock")
+           .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawAlarm3m = dev->registerDiagnostic(std::move(alarm3m));
+
+    auto radioIntf = std::make_unique<HASensor>(_haService, "radio_interference",
+        [this, devId]() -> String { return String(_readoutStates[devId].radioInterference, 1); },
+        [](JsonObject &c) {
+            c["unit_of_measurement"] = "%";
+            c["state_class"] = "measurement";
+        });
+    radioIntf->setName("Radio Interference")
+             .setIcon("mdi:wifi-alert")
+             .setAvailabilityTopic(readoutAvailTopic);
+    HASensor *rawRadioIntf = dev->registerDiagnostic(std::move(radioIntf));
+
+    // -------------------------------------------------------------------------
     HADevice *rawDev = _haService->addSubDevice(std::move(dev));
-    _haDevices[device.id] = {rawDev, rawSensor};
+    _haDevices[device.id] = {
+        rawDev, rawSensor,
+        rawBattLow, rawDevFault, rawRadioFault,
+        rawDeinstall, rawLastReadout,
+        rawRmModel, rawAlarmLineId, rawAlarmLine,
+        rawProdDate, rawRmSer,
+        rawAlarmTotal, rawAlarm3m, rawRadioIntf,
+        readoutAvailTopic
+    };
 
     // Publish attributes immediately if MQTT is already up
     if (_haService->isReady())
@@ -716,6 +868,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
 void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
 {
     _alarmStates.erase(deviceId);
+    _readoutStates.erase(deviceId);
     _haDevices.erase(deviceId);
     _haService->removeSubDevice("genius-" + String(deviceId));
 }
@@ -745,8 +898,10 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
             if (it != _haDevices.end() && it->second.device != nullptr)
             {
                 HADeviceIdentity &id = it->second.device->identity();
+                id.name = smokeDetectorModelName(device.smokeDetector.model);
                 id.serialNumber = String(device.smokeDetector.sn);
                 id.suggestedArea = device.location;
+                id.model = smokeDetectorModelName(device.smokeDetector.model);
                 IPAddress localIP = WiFi.localIP();
                 if (IPUtils::isSet(localIP))
                     id.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
@@ -762,7 +917,7 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
     endTransaction();
 }
 
-esp_err_t GeniusDevicesService::_publishSmokeDetectorAttributes(uint32_t sn, const GeniusDevice &device)
+esp_err_t GeniusDevicesService::_publishSmokeDetectorAttributes(uint32_t sn, const GeniusDevice &device, bool emitStates)
 {
     auto it = _haDevices.find(device.id);
     if (it == _haDevices.end() || it->second.device == nullptr)
@@ -770,55 +925,65 @@ esp_err_t GeniusDevicesService::_publishSmokeDetectorAttributes(uint32_t sn, con
     if (!_haService->isReady())
         return ESP_ERR_INVALID_STATE;
 
-    String attrTopic = it->second.device->getBaseTopic() + "/smoke/attributes";
+    SmokeDetectorHA &ha = it->second;
 
-    JsonDocument doc;
-    if (device.smokeDetector.productionDate > 0)
-    {
-        struct tm *tm = gmtime(&device.smokeDetector.productionDate);
-        char dateBuf[9];
-        strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y", tm);
-        doc["Production Date"] = String(dateBuf);
-    }
-    if (device.radioModule.sn > 0)
-    {
-        doc["FM Basis X - Serial"] = String(device.radioModule.sn);
-        if (device.radioModule.productionDate > 0)
-        {
-            struct tm *tm = gmtime(&device.radioModule.productionDate);
-            char dateBuf[9];
-            strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y", tm);
-            doc["FM Basis X - Production Date"] = String(dateBuf);
-        }
-    }
-
-    // Add readout data when available (SmartSonic acoustic readout)
+    // ---- Readout-derived entities: update cache + publish state -------------
     if (device.readoutTime > 0)
     {
-        if (device.smokeDetector.lastSelftest > 0)
+        SmokeDetectorReadout &rs = _readoutStates[device.id];
+
+        rs.batteryLowFault    = device.smokeDetector.batteryLowFault;
+        rs.deviceFault        = device.smokeDetector.deviceFault;
+        rs.radioNetworkFault  = device.radioModule.radioNetworkFault;
+        rs.deinstallationCount = device.smokeDetector.deinstallationCount;
+        rs.lastReadout        = Utils::time_t_to_iso8601(device.readoutTime);
+
+        const char *rmName = radioModuleModelName(device.radioModule.model);
+        rs.radioModuleModel   = rmName ? String(rmName) : String();
+
+        rs.lineId = device.radioModule.lineId;
+
+        if (device.radioModule.lineCharacter)
+            rs.alarmLine = String(device.radioModule.lineCharacter) + "." + String(device.radioModule.lineNumber);
+        else
+            rs.alarmLine = String();
+
+        rs.rmSerial        = device.radioModule.sn;
+        rs.alarmCountTotal = device.smokeDetector.alarmCountTotal;
+        rs.alarmCount3m    = device.smokeDetector.alarmCountLast3Months;
+        rs.radioInterference = device.radioModule.radioInterference;
+
+        rs.productionDate = "";
+        if (device.smokeDetector.productionDate > 0)
         {
-            struct tm *tm = gmtime(&device.smokeDetector.lastSelftest);
-            char dateBuf[17];
-            strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y %H:%M", tm);
-            doc["Last Self-Test"] = String(dateBuf);
+            struct tm *pd_tm = gmtime(&device.smokeDetector.productionDate);
+            char pdBuf[9];
+            strftime(pdBuf, sizeof(pdBuf), "%d.%m.%y", pd_tm);
+            rs.productionDate = String(pdBuf);
         }
-        if (device.smokeDetector.lastAlarm > 0)
+
+        // Mark readout entities available; push states only when not called from
+        // an onPublishAll context (HADevice::publishAll will emit them right after).
+        ha.device->publish(ha.readoutAvailTopic, "online");
+        if (emitStates)
         {
-            struct tm *tm = gmtime(&device.smokeDetector.lastAlarm);
-            char dateBuf[17];
-            strftime(dateBuf, sizeof(dateBuf), "%d.%m.%y %H:%M", tm);
-            doc["Last Alarm"] = String(dateBuf);
+            if (ha.batteryLow)       ha.batteryLow->publishState();
+            if (ha.deviceFault)      ha.deviceFault->publishState();
+            if (ha.radioFault)       ha.radioFault->publishState();
+            if (ha.deinstallCount)   ha.deinstallCount->publishState();
+            if (ha.lastReadout)      ha.lastReadout->publishState();
+            if (ha.rmModel)          ha.rmModel->publishState();
+            if (ha.alarmLineId)      ha.alarmLineId->publishState();
+            if (ha.alarmLine)        ha.alarmLine->publishState();
+            if (ha.productionDate)   ha.productionDate->publishState();
+            if (ha.rmSerial)         ha.rmSerial->publishState();
+            if (ha.alarmCountTotal)  ha.alarmCountTotal->publishState();
+            if (ha.alarmCount3m)     ha.alarmCount3m->publishState();
+            if (ha.radioInterference) ha.radioInterference->publishState();
         }
-        doc["Alarms (Total)"] = device.smokeDetector.alarmCountTotal;
-        doc["Alarms (Last 3 Months)"] = device.smokeDetector.alarmCountLast3Months;
-        if (device.radioModule.radioInterference > 0.0f)
-            doc["Radio Interference (%)"] = device.radioModule.radioInterference;
     }
 
-    String payload;
-    serializeJson(doc, payload);
-
-    return it->second.device->publish(attrTopic, payload) ? ESP_OK : ESP_FAIL;
+    return ESP_OK;
 }
 
 /**

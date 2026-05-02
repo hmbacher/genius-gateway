@@ -67,12 +67,11 @@ void HADevice::unpublishAll()
             continue;
 
         // Send empty retained payload → HA removes the device.
-        // Topic: {prefix}{component}/{topicNamespace}/{id}/{objectId}/config
-        String configNodeId = _identity.topicNamespace.isEmpty()
-            ? _identity.id
-            : (_identity.topicNamespace + "/" + _identity.id);
+        // Topic: {prefix}{component}/{id}/{objectId}/config
+        // Note: use only device ID as node_id (HA requires a single-level node_id,
+        // no slashes allowed per MQTT discovery spec).
         String configTopic = _haService->getDiscoveryPrefix() + entity->component() +
-                             "/" + configNodeId + "/" + entity->objectId() + "/config";
+                             "/" + _identity.id + "/" + entity->objectId() + "/config";
         _haService->publish(configTopic, String(), 0, true, false);
     }
 }
@@ -106,11 +105,10 @@ bool HADevice::publishConfig(const String &component,
         }
     }
 
-    String configNodeId = _identity.topicNamespace.isEmpty()
-        ? _identity.id
-        : (_identity.topicNamespace + "/" + _identity.id);
+    // Use only device ID as node_id (HA discovery requires a single-level node_id,
+    // no slashes allowed per spec). The ~ base topic uses the full namespace path.
     String configTopic = _haService->getDiscoveryPrefix() + component +
-                         "/" + configNodeId + "/" + objectId + "/config";
+                         "/" + _identity.id + "/" + objectId + "/config";
 
     String payload;
     serializeJson(config, payload);

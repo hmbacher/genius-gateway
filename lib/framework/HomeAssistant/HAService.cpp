@@ -89,8 +89,6 @@ void HAService::_publishTask()
 void HAService::setDeviceName(const String &name)
 {
     _deviceName = name;
-    _topicNamespace = _slugify(name);
-    _generateDeviceId();
     _syncMainDeviceIdentity();
 }
 

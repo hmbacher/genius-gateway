@@ -8,7 +8,7 @@
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { GeniusDevices, GeniusDevice, GeniusSmokeDetectorInfo, GeniusRadioModuleInfo, AlarmLines, AlarmLine } from '$lib/types/models';
-	import { GeniusDeviceRegistration, AlarmLineAcquisition } from '$lib/types/enums';
+	import { GeniusDeviceRegistration, GeniusSmokeDetector, GeniusRadioModule, AlarmLineAcquisition } from '$lib/types/enums';
 	import type { TunerData } from '$lib/audio/tuner-pipeline';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
@@ -28,18 +28,17 @@
 	import SmokeDetector from '~icons/custom-icons/smoke-detector-m';
 	import Cancel from '~icons/tabler/x';
 	import Check from '~icons/tabler/check';
-	import Number from '~icons/tabler/number';
-	import Factory from '~icons/tabler/building-factory-2';
 	import Grip from '~icons/tabler/grip-vertical';
 	import Save from '~icons/tabler/device-floppy';
 	import Load from '~icons/tabler/folder-open';
-	import Manual from '~icons/tabler/forms';
-	import Automatic from '~icons/tabler/access-point';
 	import Microphone from '~icons/tabler/microphone';
 	import ListDetails from '~icons/tabler/list-details';
 	import CalendarExclamation from '~icons/tabler/calendar-exclamation';
 	import MicrophoneOff from '~icons/tabler/microphone-off';
 	import Award from '~icons/tabler/award';
+	import StatusOk from '~icons/tabler/circle-check';
+	import StatusFault from '~icons/tabler/circle-x';
+	import AntennaOff from '~icons/tabler/antenna-off';
 	import { dragHandle } from 'svelte-dnd-action';
 
 	interface Props {
@@ -449,10 +448,66 @@
 
 	const isSecureContext = $derived(page.url.protocol === 'https:');
 
-	function hasReadoutWarning(device: GeniusDevice): boolean {
-		if (device.registration !== GeniusDeviceRegistration.Acoustic) return true;
-		if (!device.readoutTime) return true;
-		return Date.now() - device.readoutTime.getTime() > 365.25 * 24 * 60 * 60 * 1000;
+	const ONE_YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
+
+	function hasReadout(device: GeniusDevice): boolean {
+		return device.registration === GeniusDeviceRegistration.Acoustic && !!device.readoutTime;
+	}
+
+	function isStaleReadout(device: GeniusDevice): boolean {
+		if (!device.readoutTime) return false;
+		return Date.now() - device.readoutTime.getTime() > ONE_YEAR_MS;
+	}
+
+	function getSmokeDetectorModelName(model?: number): string {
+		switch (model) {
+			case GeniusSmokeDetector.GeniusH: return 'Genius H';
+			case GeniusSmokeDetector.GeniusHx: return 'Genius Hx';
+			case GeniusSmokeDetector.GeniusPlus: return 'Genius Plus';
+			case GeniusSmokeDetector.GeniusPlusX: return 'Genius Plus X';
+			default: return '';
+		}
+	}
+
+	function getRadioModuleModelName(model?: number): string {
+		switch (model) {
+			case GeniusRadioModule.FmBasis: return 'FM Basis';
+			case GeniusRadioModule.FmPro: return 'FM Pro';
+			case GeniusRadioModule.FmMcp: return 'FM MCP';
+			case GeniusRadioModule.FmBasisX: return 'FM Basis X';
+			case GeniusRadioModule.FmProX: return 'FM Pro X';
+			default: return '';
+		}
+	}
+
+	function hasRadioModule(rm: GeniusRadioModuleInfo): boolean {
+		return rm.model !== GeniusRadioModule.None && (rm.sn ?? 0) > 0;
+	}
+
+	function getSmokeDetectorFaults(sd: GeniusSmokeDetectorInfo): string[] {
+		const faults: string[] = [];
+		if (sd.batteryLowFault) faults.push('Battery low');
+		if (sd.deviceFault) faults.push('Device fault');
+		const drift = sd.driftState ?? 0;
+		if (drift >= 4) faults.push(`Drift defect (state ${drift})`);
+		else if (drift >= 2) faults.push(`Drift warning (state ${drift})`);
+		if (sd.dirtForecastNegative) faults.push('Dirt forecast negative');
+		if ((sd.warrantyFlags ?? 0) > 0) faults.push('Warranty flag(s) set');
+		return faults;
+	}
+
+	function getRadioModuleFaults(rm: GeniusRadioModuleInfo): string[] {
+		const faults: string[] = [];
+		if (rm.radioNetworkFault) faults.push('Radio network fault');
+		return faults;
+	}
+
+	function openDeviceDetails(index: number) {
+		modals.open(DeviceDetailsDialog, {
+			title: 'Device Details',
+			device: geniusDevices.devices[index],
+			onReadout: () => handleDeviceReadout(index)
+		});
 	}
 
 	let files: any = $state();
@@ -574,7 +629,7 @@
 					<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<!-- Header row -->
 						<div
-							class="grid grid-cols-[30px_1fr_1fr_1fr_65px_80px_120px_50px] gap-2 bg-base-200 px-4 py-2 rounded-t-lg font-bold text-sm"
+							class="grid grid-cols-[30px_1fr_1fr_1fr_65px_50px_120px] gap-2 bg-base-200 px-4 py-2 rounded-t-lg font-bold text-sm"
 						>
 							<div></div>
 							<!-- Space for grip icon -->
@@ -582,9 +637,8 @@
 							<div>Smoke Detector</div>
 							<div>Radio Module</div>
 							<div class="text-center">Alarms</div>
-							<div class="text-center">Registration</div>
-							<div class="text-right">Manage</div>
 							<div class="text-center">Service</div>
+							<div class="text-right">Manage</div>
 						</div>
 
 						<!-- Draggable device list -->
@@ -595,8 +649,15 @@
 							class="space-y-1"
 						>
 							{#snippet children({ item: device, index }: { item: GeniusDevice; index: number })}
+								{@const sdModelName = getSmokeDetectorModelName(device.smokeDetector.model)}
+								{@const sdFaults = getSmokeDetectorFaults(device.smokeDetector)}
+								{@const sdReadout = hasReadout(device)}
+								{@const stale = isStaleReadout(device)}
+								{@const rmPresent = hasRadioModule(device.radioModule)}
+								{@const rmModelName = getRadioModuleModelName(device.radioModule.model)}
+								{@const rmFaults = getRadioModuleFaults(device.radioModule)}
 								<div
-									class="rounded-box bg-base-100 grid grid-cols-[30px_1fr_1fr_1fr_65px_80px_120px_50px] gap-2 px-4 py-2 items-center"
+									class="rounded-box bg-base-100 grid grid-cols-[30px_1fr_1fr_1fr_65px_50px_120px] gap-2 px-4 py-2 items-center"
 								>
 									<!-- Drag handle -->
 									<div class="flex items-center justify-center" use:dragHandle>
@@ -614,33 +675,77 @@
 
 									<!-- Smoke Detector -->
 									<div class="text-sm min-w-0">
-										<div class="flex items-center">
-											<Number class="flex-shrink-0 mr-1 h-4 w-4" />
-											<span class="truncate">{device.smokeDetector.sn}</span>
-										</div>
-										<div class="flex items-center">
-											<Factory class="flex-shrink-0 mr-1 h-4 w-4" />
-											{#if !device.smokeDetector.productionDate}
-												<span class="italic text-base-content/70">Unknown</span>
+										<div class="truncate">
+											{#if sdModelName}
+												<span class="font-medium">{sdModelName}</span>
 											{:else}
-												<span class="truncate"
-													>{device.smokeDetector.productionDate.toLocaleDateString('de-DE', {
-														day: '2-digit',
-														month: '2-digit',
-														year: 'numeric'
-													})}</span
-												>
+												<span class="italic text-base-content/50">Unknown model</span>
 											{/if}
 										</div>
+										{#if !sdReadout}
+											<div class="text-base-content/40 italic truncate">Status not available</div>
+										{:else if sdFaults.length === 0}
+											<div class="tooltip tooltip-top" data-tip="Status OK">
+												<button
+													class="flex items-center gap-1 cursor-pointer hover:opacity-80"
+													onclick={() => openDeviceDetails(index)}
+												>
+													<StatusOk class="h-5 w-5 {stale ? 'text-base-content/40' : 'text-success'}" />
+													<span class={stale ? 'text-base-content/40' : 'text-success'}>OK</span>
+												</button>
+											</div>
+										{:else}
+											<div class="tooltip tooltip-top" data-tip={sdFaults.join(', ')}>
+												<button
+													class="flex items-center gap-1 cursor-pointer hover:opacity-80"
+													onclick={() => openDeviceDetails(index)}
+												>
+													<StatusFault class="h-5 w-5 text-error" />
+													<span class="text-error">Fault</span>
+												</button>
+											</div>
+										{/if}
 									</div>
 
 									<!-- Radio Module -->
 									<div class="text-sm min-w-0">
-										<div class="flex items-center">
-											<Number class="flex-shrink-0 mr-1 h-4 w-4" />
-											<span class="truncate">{device.radioModule.sn}</span>
-										</div>
-
+										{#if !rmPresent}
+											<div class="flex items-center text-base-content/40 italic">
+												<AntennaOff class="flex-shrink-0 mr-1 h-4 w-4" />
+												<span class="truncate">No radio module</span>
+											</div>
+										{:else}
+											<div class="truncate">
+												{#if rmModelName}
+													<span class="font-medium">{rmModelName}</span>
+												{:else}
+													<span class="italic text-base-content/50">Unknown model</span>
+												{/if}
+											</div>
+											{#if !sdReadout}
+												<div class="text-base-content/40 italic truncate">Status not available</div>
+											{:else if rmFaults.length === 0}
+												<div class="tooltip tooltip-top" data-tip="Status OK">
+													<button
+														class="flex items-center gap-1 cursor-pointer hover:opacity-80"
+														onclick={() => openDeviceDetails(index)}
+													>
+														<StatusOk class="h-5 w-5 {stale ? 'text-base-content/40' : 'text-success'}" />
+														<span class={stale ? 'text-base-content/40' : 'text-success'}>OK</span>
+													</button>
+												</div>
+											{:else}
+												<div class="tooltip tooltip-top" data-tip={rmFaults.join(', ')}>
+													<button
+														class="flex items-center gap-1 cursor-pointer hover:opacity-80"
+														onclick={() => openDeviceDetails(index)}
+													>
+														<StatusFault class="h-5 w-5 text-error" />
+														<span class="text-error">Fault</span>
+													</button>
+												</div>
+											{/if}
+										{/if}
 									</div>
 
 									<!-- Alarms -->
@@ -656,25 +761,20 @@
 										{/if}
 									</div>
 
-									<!-- Registration -->
+									<!-- Service: readout age -->
 									<div class="flex items-center justify-center">
-										{#if device.registration === GeniusDeviceRegistration.Manual}
-											<div class="tooltip tooltip-top" data-tip="Manually added Genius device">
-											<Manual class="h-6 w-6" />
-										</div>
-										{:else if device.registration === GeniusDeviceRegistration.GeniusPacket}
-											<div
-												class="tooltip tooltip-top"
-												data-tip="Genius device added from received alert packet"
-											>
-												<Automatic class="h-6 w-6" />
+										{#if sdReadout && !stale}
+											<div class="tooltip tooltip-top" data-tip="Acoustic readout up to date">
+												<Award class="h-6 w-6 text-success" />
 											</div>
-										{:else if device.registration === GeniusDeviceRegistration.Acoustic}
-											<div class="tooltip tooltip-top" data-tip="Genius device identified via acoustic readout">
-												<Microphone class="h-6 w-6" />
+										{:else if sdReadout && stale}
+											<div class="tooltip tooltip-top" data-tip="Last acoustic readout is more than 1 year ago">
+												<CalendarExclamation class="h-6 w-6 text-error" />
 											</div>
 										{:else}
-											<span class="italic text-base-content/70">Unknown</span>
+											<div class="tooltip tooltip-top" data-tip="No acoustic readout performed yet">
+												<MicrophoneOff class="h-6 w-6 text-error" />
+											</div>
 										{/if}
 									</div>
 
@@ -706,13 +806,7 @@
 											<div class="tooltip tooltip-left" data-tip="Device details">
 												<button
 													class="btn btn-ghost btn-circle btn-sm"
-													onclick={() => {
-														modals.open(DeviceDetailsDialog, {
-															title: 'Device Details',
-															device: device,
-															onReadout: () => handleDeviceReadout(index)
-														});
-													}}
+													onclick={() => openDeviceDetails(index)}
 												>
 													<ListDetails class="h-6 w-6" />
 												</button>
@@ -730,24 +824,6 @@
 										</span>
 									</div>
 
-									<!-- Readout age warning -->
-									<div class="flex items-center justify-center">
-										{#if device.registration === GeniusDeviceRegistration.Acoustic}
-											{#if !device.readoutTime || Date.now() - device.readoutTime.getTime() > 365.25 * 24 * 60 * 60 * 1000}
-												<div class="tooltip tooltip-left" data-tip="Last acoustic readout is more than 1 year ago">
-													<CalendarExclamation class="h-6 w-6 text-error" />
-												</div>
-											{:else}
-												<div class="tooltip tooltip-left" data-tip="Acoustic readout up to date">
-													<Award class="h-6 w-6 text-success" />
-												</div>
-											{/if}
-										{:else}
-											<div class="tooltip tooltip-left" data-tip="No acoustic readout via test button for this device has been performed yet">
-												<MicrophoneOff class="h-6 w-6 text-error" />
-											</div>
-										{/if}
-									</div>
 								</div>
 							{/snippet}
 						</DraggableList>
