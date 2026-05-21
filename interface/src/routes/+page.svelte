@@ -71,7 +71,13 @@
 					</div>
 				{/if}
 				{#each geniusDevices.devices as device}
-					<DeviceStatusCard detector={device} />
+					<a
+						href="/gateway/smoke-detectors"
+						aria-label="Open smoke detectors page"
+						class="block w-full max-w-120 hover:scale-[1.03] active:scale-[0.97] transition-transform"
+					>
+						<DeviceStatusCard detector={device} />
+					</a>
 				{/each}
 			{:else}
 				<div class="col-span-full">

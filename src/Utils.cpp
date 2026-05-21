@@ -35,13 +35,28 @@ time_t Utils::iso8601_to_time_t(const String &iso8601_date)
     int millis = 0; // Ignore milliseconds
     if (sscanf(iso8601_date.c_str(), "%4d-%2d-%2dT%2d:%2d:%2d.%3dZ",
                &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
-               &tm.tm_hour, &tm.tm_min, &tm.tm_sec, &millis) != 7)
+               &tm.tm_hour, &tm.tm_min, &tm.tm_sec, &millis) != 7 &&
+        sscanf(iso8601_date.c_str(), "%4d-%2d-%2dT%2d:%2d:%2dZ",
+               &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+               &tm.tm_hour, &tm.tm_min, &tm.tm_sec) != 6)
     {
         return -1;
     }
     tm.tm_year -= 1900; // Adjust year
     tm.tm_mon -= 1;     // Adjust month (0-based)
-    return mktime(&tm);
+    // mktime() applies the local timezone offset to what is a UTC struct,
+    // corrupting the result. Convert directly using the civil-days formula
+    // (Hinnant, https://howardhinnant.github.io/date_algorithms.html).
+    int y = tm.tm_year + 1900;
+    int m = tm.tm_mon + 1;
+    int d = tm.tm_mday;
+    y -= (m <= 2);
+    int era = y / 400;
+    int yoe = y - era * 400;
+    int doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    long days = (long)era * 146097 + doe - 719468;
+    return (time_t)(days * 86400L + tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec);
 }
 
 String Utils::time_t_to_iso8601(time_t time_s)

@@ -1,22 +1,17 @@
 <script lang="ts">
-	import { modals } from 'svelte-modals';
+	import { modals, type ModalProps } from 'svelte-modals';
 	import { fly } from 'svelte/transition';
 	import Cancel from '~icons/tabler/x';
 	import BellOff from '~icons/tabler/bell-off';
 
 	// provided by <Modals />
 
-	interface Props {
-		isOpen: boolean;
+	interface Props extends ModalProps {
 		title: string;
-		onSubmit: (time: number) => void
+		onSubmit: (time: number) => void;
 	}
 
-	let {
-		isOpen,
-		title,
-		onSubmit
-	}: Props = $props();
+	let { isOpen, title, onSubmit }: Props = $props();
 
 	let AlarmBlockingTimesOptions = [
 		{
@@ -51,28 +46,28 @@
 
 	let time = $state(0); // Default to no blocking time
 
-	function preventDefault(fn) {
-		return function (event) {
-			event.preventDefault();
-			fn.call(this, event);
-		};
-	}
+	const titleId = `alarm-ending-title-${Math.random().toString(36).slice(2)}`;
 </script>
 
 {#if isOpen}
 	<div
 		role="dialog"
+		aria-modal="true"
+		aria-labelledby={titleId}
 		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center overflow-y-auto"
 		transition:fly={{ y: 50 }}
 	>
 		<div
 			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex min-w-fit max-w-md flex-col justify-between p-4 shadow-lg md:w-[28rem]"
 		>
-			<h2 class="text-base-content text-start text-2xl font-bold">{title}</h2>
+			<h2 id={titleId} class="text-base-content text-start text-2xl font-bold">{title}</h2>
 			<div class="divider my-2"></div>
 			<form
 				class="form-control text-base-content mb-1 w-full"
-				onsubmit={preventDefault(() => {onSubmit(time)})}
+				onsubmit={(e) => {
+					e.preventDefault();
+					onSubmit(time);
+				}}
 				novalidate
 			>
 				<div>

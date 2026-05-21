@@ -52,10 +52,15 @@ void HACommandEntity::_subscribe()
     if (_haService == nullptr)
         return;
 
+    // Capture _alive so the callback stays safe to invoke after this entity
+    // is destroyed — HAService/PsychicMqttClient have no unsubscribe API, so
+    // the lambda outlives the entity (e.g. when an alarm-line sub-device is
+    // removed and re-added on import).
+    auto alive = _alive;
     _haService->subscribe(_commandTopicAbs(),
-                          [this](char *, char *, int, int, bool)
+                          [this, alive](char *, char *, int, int, bool)
                           {
-                              if (_onPress)
+                              if (*alive && _onPress)
                                   _onPress();
                           });
 }

@@ -98,7 +98,7 @@
 	>
 		<SettingsCard collapsible={false} isDirty={isSettingsDirty}>
 			{#snippet icon()}
-				<IconSettings class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+				<IconSettings class="h-6 w-6" />
 			{/snippet}
 			{#snippet title()}
 				<span>Gateway Settings</span>
@@ -114,8 +114,8 @@
 						</span>
 					</div>
 					<div>
-						<label class="label cursor-pointer w-full justify-between">
-							<span class="">Process alerts from unknown smoke detectors</span>
+						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
+							<span class="min-w-0 mr-4">Process alerts from unknown smoke detectors</span>
 							<input
 								type="checkbox"
 								class="toggle toggle-primary"
@@ -133,8 +133,8 @@
 						</span>
 					</div>
 					<div>
-						<label class="label cursor-pointer w-full justify-between">
-							<span class="">Add alarm line ID of received <em>comissioning</em> packets automatically</span
+						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
+							<span class="min-w-0 mr-4">Add alarm line ID of received <em>comissioning</em> packets automatically</span
 							>
 							<input
 								type="checkbox"
@@ -144,9 +144,8 @@
 						</label>
 					</div>
 					<div>
-						<label class="label cursor-pointer w-full justify-between">
-							<span class=""
-								>Add alarm line ID of received <em>alarming/silencing</em> packets automatically</span
+						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
+							<span class="min-w-0 mr-4">Add alarm line ID of received <em>alarming/silencing</em> packets automatically</span
 							>
 							<input
 								type="checkbox"
@@ -156,8 +155,8 @@
 						</label>
 					</div>
 					<div>
-						<label class="label cursor-pointer w-full justify-between">
-							<span class="">Add alarm line ID of received <em>line test</em> packets automatically</span>
+						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
+							<span class="min-w-0 mr-4">Add alarm line ID of received <em>line test</em> packets automatically</span>
 							<input
 								type="checkbox"
 								class="toggle toggle-primary"

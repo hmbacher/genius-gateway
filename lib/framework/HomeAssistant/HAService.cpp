@@ -36,7 +36,7 @@ void HAService::begin()
 {
     if (_publishTaskHandle != nullptr)
     {
-        ESP_LOGW(TAG, "begin() called twice — ignoring");
+        ESP_LOGW(TAG, "begin() called twice - ignoring");
         return;
     }
 
@@ -77,7 +77,7 @@ void HAService::_publishTask()
     while (true)
     {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        ESP_LOGI(TAG, "MQTT connected — invoking publishAll()");
+        ESP_LOGI(TAG, "MQTT connected - invoking publishAll()");
         publishAll();
     }
 }
@@ -232,25 +232,53 @@ void HAService::subscribe(const String &topic,
 // Entity lifecycle management
 // ============================================================================
 
-void HAService::onPublishAll(PublishAllCallback callback)
+HAService::CallbackId HAService::onPublishAll(PublishAllCallback callback)
 {
-    _publishCallbacks.push_back(callback);
+    CallbackId id = _nextCallbackId++;
+    _publishCallbacks.emplace_back(id, std::move(callback));
+    return id;
+}
+
+HAService::CallbackId HAService::onUnpublishAll(PublishAllCallback callback)
+{
+    CallbackId id = _nextCallbackId++;
+    _unpublishCallbacks.emplace_back(id, std::move(callback));
+    return id;
+}
+
+void HAService::removePublishAllCallback(CallbackId id)
+{
+    auto it = std::find_if(_publishCallbacks.begin(), _publishCallbacks.end(),
+                           [id](const CallbackEntry &e) { return e.first == id; });
+    if (it != _publishCallbacks.end())
+        _publishCallbacks.erase(it);
+}
+
+void HAService::removeUnpublishAllCallback(CallbackId id)
+{
+    auto it = std::find_if(_unpublishCallbacks.begin(), _unpublishCallbacks.end(),
+                           [id](const CallbackEntry &e) { return e.first == id; });
+    if (it != _unpublishCallbacks.end())
+        _unpublishCallbacks.erase(it);
 }
 
 void HAService::publishAll()
 {
-    if (!isReady())
+    if (!_enabled)
+        return;
+
+    if (_mqttClient == nullptr || !_mqttClient->connected())
     {
-        ESP_LOGW(TAG, "publishAll() called but HA integration is not ready");
+        ESP_LOGW(TAG, "publishAll() called but MQTT is not connected");
         return;
     }
 
     ESP_LOGI(TAG, "Publishing all HA entities (%d callbacks, main+%d sub-devices)",
              _publishCallbacks.size(), (int)_subDevices.size());
 
-    for (auto &callback : _publishCallbacks)
+    for (auto &[id, callback] : _publishCallbacks)
     {
-        callback();
+        if (callback) callback();
     }
 
     if (_mainDevice)
@@ -263,6 +291,35 @@ void HAService::publishAll()
     {
         if (dev)
             dev->publishAll();
+    }
+}
+
+void HAService::unpublishAll()
+{
+    if (!_enabled)
+        return;
+
+    if (_mqttClient == nullptr || !_mqttClient->connected())
+    {
+        ESP_LOGW(TAG, "unpublishAll() called but MQTT is not connected");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Unpublishing all HA entities (%d callbacks, main+%d sub-devices)",
+             _unpublishCallbacks.size(), (int)_subDevices.size());
+
+    for (auto &[id, callback] : _unpublishCallbacks)
+    {
+        if (callback) callback();
+    }
+
+    if (_mainDevice)
+        _mainDevice->unpublishAll();
+
+    for (auto &dev : _subDevices)
+    {
+        if (dev)
+            dev->unpublishAll();
     }
 }
 
@@ -294,12 +351,12 @@ HADevice *HAService::addSubDevice(std::unique_ptr<HADevice> device)
     // Publish immediately when MQTT is already connected.
     if (isReady())
     {
-        ESP_LOGI(TAG, "Adding sub-device '%s' — publishing immediately", raw->getDeviceId().c_str());
+        ESP_LOGI(TAG, "Adding sub-device '%s' - publishing immediately", raw->getDeviceId().c_str());
         raw->publishAll();
     }
     else
     {
-        ESP_LOGI(TAG, "Adding sub-device '%s' — will publish on next connect", raw->getDeviceId().c_str());
+        ESP_LOGI(TAG, "Adding sub-device '%s' - will publish on next connect", raw->getDeviceId().c_str());
     }
 
     return raw;
@@ -366,7 +423,7 @@ void HAService::_syncMainDeviceIdentity()
 
 void HAService::_generateDeviceId()
 {
-    _deviceId = _slugify(String(APP_NAME)) + "-" + SettingValue::getUniqueId();
+    _deviceId = _slugify(_deviceName) + "-" + SettingValue::getUniqueId();
 }
 
 String HAService::_slugify(const String &name)

@@ -10,6 +10,8 @@ export enum AlarmLineAcquisition {
   GeniusPacket,
   /** /< Manually added via web interface */
   Manual,
+  /** /< Discovered via acoustic device readout */
+  Acoustic,
 }
 
 // From cc1101.h
@@ -27,22 +29,40 @@ export enum GeniusAlarmEnding {
   BySmokeDetector = 0,
   /** /< Alarm was ended manually via web interface */
   ByManual,
+  /** /< Alarm was cleared during a device config import */
+  ByImport,
 }
 
 // From GeniusDevicesService.h
 export enum GeniusSmokeDetector {
   /** /< Unknown smoke detector type */
   Unknown = -1,
-  /** /< Genius Plus X smoke detector model */
-  GeniusPlusX = 0,
+  /** /< Genius H smoke detector */
+  GeniusH = 0,
+  /** /< Genius Hx smoke detector */
+  GeniusHx = 1,
+  /** /< Genius Plus smoke detector */
+  GeniusPlus = 2,
+  /** /< Genius Plus X smoke detector */
+  GeniusPlusX = 3,
 }
 
 // From GeniusDevicesService.h
 export enum GeniusRadioModule {
   /** /< Unknown radio module type */
   Unknown = -1,
-  /** /< FM Basis X radio module model */
-  FmBasisX = 0,
+  /** /< No FM radio module */
+  None = 0,
+  /** /< FM Basis radio module */
+  FmBasis = 1,
+  /** /< FM Pro radio module */
+  FmPro = 2,
+  /** /< FM MCP radio module */
+  FmMcp = 3,
+  /** /< FM Basis X radio module */
+  FmBasisX = 4,
+  /** /< FM Pro X radio module */
+  FmProX = 5,
 }
 
 // From GeniusDevicesService.h
@@ -53,6 +73,8 @@ export enum GeniusDeviceRegistration {
   GeniusPacket,
   /** /< Device registered manually (via web interface) */
   Manual,
+  /** /< Device identified via acoustic (smartsonic) readout */
+  Acoustic,
 }
 
 // From GeniusGateway.h

@@ -17,6 +17,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <functional>
+#include <memory>
 #include <vector>
 #include <StatefulService.h>
 #include <HomeAssistant/HAService.h>
@@ -75,7 +76,8 @@ public:
                              const String &topicSuffix)
         : _statefulService(statefulService),
           _haService(haService),
-          _topicSuffix(topicSuffix)
+          _topicSuffix(topicSuffix),
+          _alive(std::make_shared<bool>(true))
     {
         if (_statefulService != nullptr)
         {
@@ -88,7 +90,10 @@ public:
         }
     }
 
-    virtual ~HAGroupedSwitchPublisher() = default;
+    virtual ~HAGroupedSwitchPublisher()
+    {
+        *_alive = false;
+    }
 
     /**
      * Register a switch entity bound to one bool field of T.
@@ -114,14 +119,21 @@ public:
         return *this;
     }
 
-    /** Register with HAService::onPublishAll. */
+    /** Register with HAService::onPublishAll and onUnpublishAll. */
     void begin()
     {
         if (_haService == nullptr)
             return;
 
-        _haService->onPublishAll([this]()
-                                 { this->publishAll(); });
+        // Capture _alive by value so the lambdas stay safe to call after this
+        // publisher is destroyed — HAService has no deregistration API.
+        auto alive = _alive;
+        _haService->onPublishAll([this, alive]() {
+            if (*alive) this->publishAll();
+        });
+        _haService->onUnpublishAll([this, alive]() {
+            if (*alive) this->unpublishAll();
+        });
     }
 
     /** Publish all switch configs, the current shared state, and subscribe. */
@@ -137,6 +149,22 @@ public:
         }
 
         publishState();
+    }
+
+    /** Remove all switch entities from HA. No-op if HAService is not ready. */
+    void unpublishAll()
+    {
+        if (_haService == nullptr || !_haService->isReady())
+            return;
+
+        _haService->publish(_sharedStateTopicAbs(), String(), 0, true, false);
+
+        for (const auto &sw : _switches)
+        {
+            String configTopic = _haService->getDiscoveryPrefix() + "switch" +
+                                 "/" + _haService->getDeviceId() + "/" + sw.objectId + "/config";
+            _haService->publish(configTopic, String(), 0, true, false);
+        }
     }
 
     /** Publish only the shared state JSON. No-op if HAService is not ready. */
@@ -177,6 +205,12 @@ protected:
     HAService *_haService;
     String _topicSuffix;
     std::vector<Switch> _switches;
+
+    // Liveness flag captured by the lambdas registered with HAService in begin().
+    // Set to false in the destructor so post-destruction invocations bail out
+    // instead of dereferencing freed memory — HAService never deregisters its
+    // _publishCallbacks/_unpublishCallbacks, so the lambdas can outlive us.
+    std::shared_ptr<bool> _alive;
 
     String _sharedStateTopicRel() const
     {

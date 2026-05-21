@@ -87,6 +87,7 @@
 #define ALARMLINES_FIREALARM_PCKTCNT_STEP (float)(ALARMLINES_FIREALARM_FIRST_PCKTCNT - ALARMLINES_FIREALARM_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_FIREALARM - 1) ///< Packet count step size calculation for fire alarm
 
 #define ALARMLINES_EVENT_NEW_LINE "new-alarm-line"                    ///< WebSocket event for new alarm line discovery
+#define ALARMLINES_EVENT_ACTION_STARTED "alarm-line-action-started"   ///< WebSocket event for action start notification
 #define ALARMLINES_EVENT_ACTION_FINISHED "alarm-line-action-finished" ///< WebSocket event for action completion notification
 
 #define ALARMLINES_NVS_NAMESPACE "gg-alarmlines" ///< NVS namespace for alarm lines data storage
@@ -100,6 +101,7 @@ typedef enum alarm_line_acquisition
     ALA_BUILT_IN = 0,  ///< Built-in alarm line (e.g. broadcast line)
     ALA_GENIUS_PACKET, ///< Discovered via received genius packet
     ALA_MANUAL,        ///< Manually added via web interface
+    ALA_ACOUSTIC,      ///< Discovered via acoustic device readout
     ALA_MAX            ///< Boundary check maximum value
 } alarm_line_acquisition_t;
 
@@ -176,6 +178,16 @@ public:
 
                 genius_alarm_line_t newLine;
                 newLine.id = jsonLine["id"].as<uint32_t>();
+                if (newLine.id == ALARMLINES_ID_NONE)
+                {
+                    ESP_LOGW(AlarmLines::TAG, "Skipping reserved alarm line ID: None (0 / 0x00000000).");
+                    continue;
+                }
+                if (newLine.id == ALARMLINES_ID_BROADCAST)
+                {
+                    ESP_LOGW(AlarmLines::TAG, "Skipping reserved alarm line ID: Broadcast (4294967295 / 0xFFFFFFFF).");
+                    continue;
+                }
                 newLine.name = jsonLine["name"].as<String>();
                 newLine.created = Utils::iso8601_to_time_t(jsonLine["created"].as<String>());
                 newLine.acquisition = jsonLine["acquisition"].as<alarm_line_acquisition_t>();
@@ -339,6 +351,9 @@ private:
     // ========== Event Emission ==========
     /// Emit WebSocket event for new alarm line discovery
     void _emitNewAlarmLineEvent(uint32_t id);
+
+    /// Emit WebSocket event for action start
+    void _emitActionStartedEvent(uint32_t lineIdHostOrder, const String &action);
 
     /// Emit WebSocket event for action completion
     void _emitActionFinishedEvent(bool timedOut = false);

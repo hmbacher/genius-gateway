@@ -25,21 +25,30 @@ HAEntityBase::HAEntityBase(HAService *haService,
       _objectId(objectId),
       _category(HACategory::Control),
       _enabledByDefault(false),
-      _hasEnabledByDefault(false)
+      _hasEnabledByDefault(false),
+      _alive(std::make_shared<bool>(true))
 {
+}
+
+HAEntityBase::~HAEntityBase()
+{
+    *_alive = false;
 }
 
 void HAEntityBase::begin()
 {
     if (_haService == nullptr)
     {
-        ESP_LOGW("HAEntityBase", "begin() called with null haService — %s will not publish", _objectId.c_str());
+        ESP_LOGW("HAEntityBase", "begin() called with null haService - %s will not publish", _objectId.c_str());
         return;
     }
 
     ESP_LOGI("HAEntityBase", "Registering %s/%s with onPublishAll", _component.c_str(), _objectId.c_str());
-    _haService->onPublishAll([this]()
-                             { this->publishAll(); });
+    // Capture _alive by value so the lambda stays safe to call after this
+    // entity is destroyed — HAService has no deregistration API.
+    auto alive = _alive;
+    _haService->onPublishAll([this, alive]()
+                             { if (*alive) this->publishAll(); });
 }
 
 // ============================================================================

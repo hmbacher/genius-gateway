@@ -17,6 +17,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <functional>
+#include <memory>
 
 class HAService;
 class HADevice;
@@ -67,7 +68,7 @@ public:
                  const String &component,
                  const String &objectId);
 
-    virtual ~HAEntityBase() = default;
+    virtual ~HAEntityBase();
 
     /**
      * Register with HAService::onPublishAll so that publishAll() runs on
@@ -137,6 +138,12 @@ protected:
 
     // Escape hatch for fields not covered by typed setters
     ConfigBuilder _extraConfig;
+
+    // Liveness flag captured by the lambda registered with HAService in begin().
+    // Set to false in the destructor so post-destruction invocations bail out
+    // instead of dereferencing freed memory — HAService never deregisters its
+    // _publishCallbacks, so the lambda can outlive us.
+    std::shared_ptr<bool> _alive;
 
     /**
      * Returns the device ID that should appear in entity `unique_id` values.

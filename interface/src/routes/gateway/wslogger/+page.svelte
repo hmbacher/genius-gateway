@@ -73,7 +73,7 @@
 	>
 		<SettingsCard collapsible={false} isDirty={isSettingsDirty}>
 			{#snippet icon()}
-				<IconSettings class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+				<IconSettings class="h-6 w-6" />
 			{/snippet}
 			{#snippet title()}
 				<span>WebSocket Logger Settings</span>
@@ -83,8 +83,8 @@
 			{:then nothing}
 				<div class="flex w-full flex-col gap-2 px-2">
 					<div>
-						<label class="label cursor-pointer w-full justify-between">
-							<span class="">Enable WebSocket Logger</span>
+						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
+							<span class="min-w-0 mr-4">Enable WebSocket Logger</span>
 							<input
 								type="checkbox"
 								class="toggle toggle-primary"
@@ -103,7 +103,7 @@
 							<div>Logging tools can connect via WebSocket using the following URL:</div>
 							<div class="mt-1 font-semibold">
 								<code>
-									ws://{window.location.host}/ws/logger
+									{@html ('ws://' + window.location.host + '/ws/logger').replace(/\//g, '/<wbr>')}
 								</code>
 							</div>
 						</div>

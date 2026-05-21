@@ -82,6 +82,8 @@ public:
     static constexpr const char *TAG = "HAService";
 
     using PublishAllCallback = std::function<void()>;
+    using CallbackId = uint32_t;
+    static constexpr CallbackId INVALID_CALLBACK_ID = UINT32_MAX;
 
     HAService(PsychicMqttClient *mqttClient);
     ~HAService();
@@ -225,7 +227,20 @@ public:
      *
      * @param callback Function to call during publishAll()
      */
-    void onPublishAll(PublishAllCallback callback);
+    CallbackId onPublishAll(PublishAllCallback callback);
+
+    /**
+     * @brief Register a callback to be invoked during unpublishAll()
+     *
+     * Used by HAGroupedSensorPublisher and HAGroupedSwitchPublisher to hook
+     * into the service-level unpublish triggered when HA integration is disabled.
+     *
+     * @param callback Function to call during unpublishAll()
+     */
+    CallbackId onUnpublishAll(PublishAllCallback callback);
+
+    void removePublishAllCallback(CallbackId id);
+    void removeUnpublishAllCallback(CallbackId id);
 
     /**
      * @brief Publish all registered entities
@@ -236,6 +251,15 @@ public:
      * connected.
      */
     void publishAll();
+
+    /**
+     * @brief Remove all registered entities from Home Assistant
+     *
+     * Sends empty retained payloads to every discovery topic so HA deletes
+     * the device and all its entities. Must be called while isReady() is true
+     * (i.e. before setEnabled(false)).
+     */
+    void unpublishAll();
 
     // ========================================================================
     // Devices
@@ -293,8 +317,11 @@ private:
     String _discoveryPrefix;
     bool _enabled;
 
-    // Publish callbacks
-    std::vector<PublishAllCallback> _publishCallbacks;
+    // Publish / unpublish callbacks — keyed by ID for O(n) removal
+    using CallbackEntry = std::pair<CallbackId, PublishAllCallback>;
+    std::vector<CallbackEntry> _publishCallbacks;
+    std::vector<CallbackEntry> _unpublishCallbacks;
+    CallbackId _nextCallbackId{0};
 
     // Main device (lazy-created) and sub-devices
     std::unique_ptr<HADevice> _mainDevice;

@@ -6,6 +6,7 @@ icon: tabler/alarm-smoke
 
 The Device Management page provides a centralized interface for configuring and monitoring all Genius smoke detector devices connected to your gateway. This page allows you to add, edit, and delete smoke detectors, view their alarm history, organize them through drag-and-drop, and manage device configurations via export/import functionality.
 
+<!-- TODO: retake screenshot – trash-x delete-all button (btn-error, rightmost in toolbar) added to the actions area -->
 ![Device Management](../assets/images/software/gg-gateway-devices.png)
 
 !!! info "Access Requirements"
@@ -19,16 +20,17 @@ The device list displays all registered Genius smoke detectors in a structured t
 The assigned location name for each detector (e.g., "Living Room", "Bedroom"). If no location has been assigned, the device shows "Unknown location" in italicized gray text.
 
 #### Smoke Detector
-Information about the smoke detector component:
+Model name and status of the smoke detector component:
 
-- :tabler-number: **Serial Number**: The unique identifier of the smoke detector unit
-- :tabler-building-factory-2: **Production Date**: Manufacturing date displayed in DD.MM.YYYY format, or "Unknown" if not available
+- **Model**: The smoke detector model (e.g., "Genius Plus X"), or "Unknown model" in italics if not yet identified
+- **Status**: Shown after acoustic readout — :tabler-circle-check:{ style="color: #4caf50" } **OK** if no faults, :tabler-alert-circle:{ style="color: #f44336" } **Fault** with fault details in tooltip, or "Status not available" if no readout has been performed. The status indicator is greyed out if the last readout is more than one year old.
 
 #### Radio Module
-Information about the radio communication module:
+Model name and status of the radio communication module:
 
-- :tabler-number: **Serial Number**: The unique identifier of the radio module
-- :tabler-building-factory-2: **Production Date**: Manufacturing date displayed in DD.MM.YYYY format, or "Unknown" if not available
+- **No radio module**: shown if the device has no radio module or serial number
+- **Model**: The radio module model (e.g., "FM Basis X"), or "Unknown model" in italics
+- **Status**: Same as smoke detector status — :tabler-circle-check:{ style="color: #4caf50" } OK / :tabler-alert-circle:{ style="color: #f44336" } Fault / not available, based on readout data
 
 #### Alarms
 Alarm statistics for the device:
@@ -36,16 +38,18 @@ Alarm statistics for the device:
 - **Count**: Total number of recorded alarms
 - **Last Alarm**: Date of the most recent alarm event (displayed if any alarms exist)
 
-#### Registration
-Indicates how the device was added to the system:
+#### Service
+Acoustic readout status icon:
 
-- :tabler-forms: **Manual**: Device was manually configured by an administrator
-- :tabler-access-point: **Automatic**: Device was automatically registered after receiving an alert packet
+- :tabler-award:{ style="color: #4caf50" } — Readout performed and up to date (within the last year)
+- :tabler-calendar-exclamation:{ style="color: #f44336" } — Last readout is more than 1 year ago
+- :tabler-microphone-off:{ style="color: #f44336" } — No acoustic readout performed yet
 
 #### Manage
 Action buttons for device operations:
 
 - :tabler-logs: **Alarm Log**: View detailed alarm history (only visible if alarms exist)
+- :tabler-list-details: **Device Details**: View full readout data and trigger a new acoustic readout
 - :tabler-pencil: **Edit**: Modify device configuration
 - :tabler-trash: **Delete**: Remove device from the system
 
@@ -86,7 +90,8 @@ Each device maintains a log of all alarm events. To view the alarm history:
     - :tabler-arrow-bar-to-right: **End**: Date and time when the alarm ended (only for resolved alarms)
     - **Ending Reason**: How the alarm was resolved:
         - :tabler-flame-off: **Automatic**: Smoke detector no longer detected smoke
-        - :tabler-volume-3: **Manual**: User manually stopped the alarm
+        - :tabler-volume-3: **Manual**: User manually stopped the alarm via the web interface
+        - :tabler-file-import: **Cleared by import**: Alarm was cleared during a device configuration import
 
 Active alarms show "No data" for the end time and no ending reason icon.
 
@@ -156,6 +161,47 @@ Automatically discovered devices appear in the device list with "Unknown locatio
 !!! info "Device Registration Type"
     The registration type indicator (:tabler-forms: Manual vs :tabler-access-point: Automatic) shows how each device was originally added and persists even after editing the device details.
 
+### Adding via Acoustic Readout
+
+The gateway can register a new smoke detector by capturing its acoustic (SmartSonic) readout directly in the browser. All device identity fields — serial numbers, model, and production date — are read from the signal automatically.
+
+!!! warning "HTTPS required"
+    The browser's microphone API is only available over a secure (HTTPS) connection. The button is shown in warning color and disabled on plain HTTP.
+
+To add a device via acoustic readout:
+
+1. Click the :tabler-microphone: **Add smoke detector via acoustic detection** button in the top-right corner
+2. The Acoustic Device Detection dialog opens and begins listening
+3. Hold a phone or laptop microphone near the smoke detector and trigger its acoustic readout (refer to the detector's manual for how to initiate the tone)
+4. Once the signal is captured and decoded, one of the following outcomes occurs based on whether the detected serial numbers are already known:
+
+    | Situation | Outcome |
+    |-----------|---------|
+    | Both serial numbers are new | Add dialog opens pre-filled — enter a location and save |
+    | Smoke detector SN already exists | Confirmation to update that device's readout data (location and alarm history preserved) |
+    | Radio module SN already assigned to a different device | Confirmation to replace that device (alarm history of the previous device is lost) |
+    | Each SN belongs to a different existing device | Confirmation to delete both conflicting devices and create a new combined entry |
+
+5. After confirming, the device record is saved with registration type :tabler-microphone: **Acoustic**
+
+Fields that were read from the acoustic signal (model, serial number, production date) are locked and cannot be changed after saving. Only the **Location** name needs to be entered manually.
+
+!!! info "Acoustic readout signal details"
+    See [Acoustic Readout](../reverse-engineering/acoustic-readout.md) in the Reverse Engineering section for a description of the signal modulation, framing, and payload format.
+
+## Viewing Device Details
+
+Click the :tabler-list-details: **Device Details** button in a device's row to open the Device Details dialog. It consolidates all available information about a detector in one place:
+
+- **General** — location, registration type, and last acoustic readout timestamp. If a readout exists, the age is shown alongside the date (e.g. `15.03.2026 10:00 (37d ago)`). A :tabler-award:{ style="color: #4caf50" } icon indicates a recent readout; :tabler-calendar-exclamation:{ style="color: #f44336" } indicates a stale one (> 1 year).
+- **Smoke Detector** — model, serial number, production date and age, and (after readout) full diagnostic status: detector fault, battery, dirt forecast, chamber drift, warranty flags with individual flag breakdown, plus lifetime statistics (last self-test, last alarm, alarm counts, deinstallation count, storage hours).
+- **Radio Module** — model, serial number, and (after readout) radio status with individual state flags, interference level, alarm line ID and character, and DIP switch configuration.
+
+The dialog also provides an **Update** button (:tabler-microphone:) to trigger a new acoustic readout for that device directly, without leaving the dialog.
+
+!!! info "Acoustic readout internals"
+    For a detailed description of the signal modulation, framing, and the full payload field reference, see [Acoustic Readout](../reverse-engineering/acoustic-readout.md) in the Reverse Engineering section.
+
 ## Editing a Detector
 
 To modify an existing detector's configuration:
@@ -167,8 +213,8 @@ To modify an existing detector's configuration:
 
 3. Modify any fields as needed:
     - Location name
-    - Smoke detector serial number or production date
-    - Radio module serial number or production date
+    - Smoke detector serial number or production date (only if device has been added manually)
+    - Radio module serial number or production date (only if device has been added manually)
 4. Click :tabler-device-floppy: **Save** to apply changes
 
 !!! tip "Unique Serial Numbers"
@@ -184,6 +230,19 @@ To remove a detector from the system:
 
 !!! warning "Deletion is Permanent"
     Deleting a device removes all associated data including alarm history. This action cannot be undone. Consider exporting your configuration before deleting devices.
+
+## Deleting All Detectors
+
+To remove every smoke detector from the system in one operation:
+
+1. Click the :tabler-trash-x: **Delete all smoke detectors** button in the top-right corner
+2. A confirmation dialog appears stating the number of detectors that will be deleted and that all alarm history will be lost
+3. Click **Delete all** to confirm, or **Cancel** to abort
+
+!!! danger "Export a backup first"
+    Deleting all devices removes every device and its complete alarm history in a single, irreversible operation. Export your configuration using the :tabler-device-floppy: save button before proceeding.
+
+The button is disabled and cannot be clicked when no devices are configured.
 
 ## Exporting Configuration
 
@@ -207,8 +266,11 @@ You can import a previously exported device configuration:
 
 1. Click the :tabler-folder-open: **Load smoke detector configuration from file** button in the top-right corner
 2. Select a valid configuration file from your computer
-3. The system validates the file format and imports all devices
-4. All existing devices are replaced with the imported configuration
+3. The system validates the file format and migrates it if needed (older backup formats are automatically upgraded)
+4. If any device in the file is marked as alarming, a dialog asks how to handle the alarm state:
+    - **Keep Alarm State** — imports as-is; connected integrations (e.g. Home Assistant) may trigger automations (useful for testing)
+    - **Clear Alarm State** — resets the alarm flag on all affected devices and closes open alarm log entries with a `Cleared by import` ending reason
+5. All existing devices are replaced with the imported configuration
 
 ## Related Documentation
 

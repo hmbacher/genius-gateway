@@ -430,7 +430,7 @@ Authorization: Bearer <token>
       "dns_ip_2": "8.8.4.4"
     }
   ],
-  "hostname": "genius-gateway",
+  "hostname": "genius-gateway-aabbcc",
   "connection_mode": 0
 }
 ```

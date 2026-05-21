@@ -1,94 +1,93 @@
 <script lang="ts">
 	import type { GeniusDevice } from '$lib/types/models';
 	import { GeniusDeviceRegistration } from '$lib/types/enums';
+	import { hasReadout, isStaleReadout, getDeviceFaults } from '$lib/utils/deviceStatus';
+	import { formatDate } from '$lib/utils/formatDate';
 	import IconDetector from '~icons/custom-icons/smoke-detector-2xl';
 	import IconNumber from '~icons/tabler/number';
 	import IconFactory from '~icons/tabler/building-factory-2';
 	import IconBell from '~icons/tabler/bell';
-	import IconHeart from '~icons/tabler/heart';
 	import IconFire from '~icons/tabler/flame-filled';
 	import IconExternal from '~icons/tabler/external-link';
+	import IconFault from '~icons/tabler/alert-circle';
+	import IconStale from '~icons/tabler/calendar-exclamation';
+	import IconReadoutOk from '~icons/tabler/award';
+	import IconNoReadout from '~icons/tabler/microphone-off';
 
 	interface Props {
 		detector: GeniusDevice;
 	}
 
 	let { detector }: Props = $props();
-	let isForeign = detector.registration === GeniusDeviceRegistration.GeniusPacket;
+
+	let isForeign = $derived(detector.registration === GeniusDeviceRegistration.GeniusPacket);
+	let readoutPresent = $derived(hasReadout(detector));
+	let stale = $derived(isStaleReadout(detector));
+	let faults = $derived(getDeviceFaults(detector));
+	let hasFaults = $derived(faults.length > 0);
+	let needsWarning = $derived(!readoutPresent || hasFaults || stale);
+
+	let cardClass = $derived(
+		detector.isAlarming
+			? 'bg-error text-error-content'
+			: needsWarning
+				? 'bg-warning text-warning-content'
+				: 'bg-primary text-primary-content'
+	);
 </script>
 
-<div
-	class="rounded-box shadow-primary/50 relative w-full max-w-120 overflow-hidden shadow-lg p-5 {detector.isAlarming
-		? 'bg-error text-error-content'
-		: isForeign
-			? 'bg-secondary text-secondary-content'
-			: 'bg-primary text-primary-content'}"
->
+<div class="rounded-box shadow-lg relative w-full max-w-120 overflow-hidden p-5 {cardClass}">
 	<div class="flex">
 		<div class="shrink-0">
 			<IconDetector class="h-20 w-24 text-current/60" />
 		</div>
 	</div>
 
-	<div class="absolute top-4 right-4">
-		{#if !detector.isAlarming}
-			<IconHeart class="h-6 w-6" />
-		{:else}
+	<!-- Status icon stack (top right): health · faults · stale · foreign -->
+	<div class="absolute top-4 right-4 flex flex-col items-end gap-1.5">
+		{#if detector.isAlarming}
 			<IconFire class="h-6 w-6" />
 		{/if}
+		{#if !detector.isAlarming && !needsWarning}
+			<IconReadoutOk class="h-6 w-6" />
+		{/if}
+		{#if !detector.isAlarming && !readoutPresent}
+			<IconNoReadout class="h-6 w-6" />
+		{/if}
+		{#if hasFaults}
+			<IconFault class="h-6 w-6" />
+		{/if}
+		{#if stale}
+			<IconStale class="h-6 w-6" />
+		{/if}
+		{#if isForeign}
+			<IconExternal class="h-6 w-6" />
+		{/if}
 	</div>
-
-	{#if isForeign}
-		<div class="absolute top-10 right-4">
-			<div
-				class="tooltip tooltip-left"
-				data-tip="Foreign detector"
-			>
-				<IconExternal class="h-6 w-6 text-current/50" />
-			</div>
-		</div>
-	{/if}
 
 	<div class="text-xl font-medium">
 		{detector.location}
 	</div>
-	<div
-		class="divider my-1 {detector.isAlarming
-			? 'before:text-error-content/30 after:text-error-content/30'
-			: isForeign
-				? 'before:bg-secondary-content/30 after:bg-secondary-content/30'
-				: 'before:bg-primary-content/30 after:bg-primary-content/30'}"
-	></div>
-	<div class="flex text-current/70 gap-5">
+	<div class="divider my-1 before:bg-current/30 after:bg-current/30"></div>
+	<div class="flex flex-wrap text-current/70 gap-x-5 gap-y-1">
 		<span class="inline-flex">
 			<IconNumber class="mr-1 h-5 w-5" />
 			<span class="text-sm">{detector.smokeDetector.sn}</span>
 		</span>
-		<span class="inline-flex">
-			{#if detector.smokeDetector.productionDate}
+		{#if detector.smokeDetector.productionDate}
+			<span class="inline-flex">
 				<IconFactory class="mr-1 h-5 w-5" />
-				<span class="text-sm"
-					>{detector.smokeDetector.productionDate.toLocaleDateString('en-US', {
-						month: '2-digit',
-						year: '2-digit'
-					})}</span
-				>
-			{/if}
-		</span>
-	</div>
-	<div class="flex text-current/70 gap-5">
-		<div class="inline-flex">
+				<span class="text-sm">{formatDate(detector.smokeDetector.productionDate)}</span>
+			</span>
+		{/if}
+		<span class="inline-flex">
 			<IconBell class="mr-1 h-5 w-5" />
 			<span class="text-sm">
 				{detector.alarms.length}
 				{#if detector.alarms.length > 0}
-					({detector.alarms[detector.alarms.length - 1].startTime.toLocaleDateString('de-DE', {
-						day: '2-digit',
-						month: '2-digit',
-						year: 'numeric'
-					})})
+					({formatDate(detector.alarms[detector.alarms.length - 1].startTime)})
 				{/if}
 			</span>
-		</div>
+		</span>
 	</div>
 </div>

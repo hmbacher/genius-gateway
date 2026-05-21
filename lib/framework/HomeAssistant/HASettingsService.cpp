@@ -30,6 +30,7 @@ HASettingsService::HASettingsService(PsychicHttpServer *server,
                      this,
                      fs,
                      HA_SETTINGS_FILE),
+      _fs(fs),
       _haService(haService)
 {
     addUpdateHandler([this](const String &originId)
@@ -40,14 +41,63 @@ HASettingsService::HASettingsService(PsychicHttpServer *server,
 void HASettingsService::begin()
 {
     _httpEndpoint.begin();
+    _migrateLegacyHASettings();
     _fsPersistence.readFromFS();
     _applyToHAService();
+}
+
+// Pre-v1.3.0 the HA enable flag and discovery prefix lived in the gateway-MQTT
+// settings file under different key names. On first boot after the upgrade,
+// copy those values into the new haSettings.json so the user doesn't have to
+// re-enable HA and re-enter the discovery prefix.
+void HASettingsService::_migrateLegacyHASettings()
+{
+    constexpr const char *LEGACY_FILE = "/config/mqtt-settings.json";
+    constexpr const char *LEGACY_ENABLED_KEY = "HAIntegrationEnabled";
+    constexpr const char *LEGACY_PREFIX_KEY = "HAMQTTDiscoveryPrefix";
+
+    // New file already present → nothing to migrate.
+    if (_fs->exists(HA_SETTINGS_FILE))
+        return;
+
+    if (!_fs->exists(LEGACY_FILE))
+        return;
+
+    File legacy = _fs->open(LEGACY_FILE, "r");
+    if (!legacy)
+        return;
+
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, legacy);
+    legacy.close();
+    if (error != DeserializationError::Ok)
+        return;
+
+    bool hasLegacyFields = doc[LEGACY_ENABLED_KEY].is<bool>() || doc[LEGACY_PREFIX_KEY].is<String>();
+    if (!hasLegacyFields)
+        return;
+
+    _state.enabled = doc[LEGACY_ENABLED_KEY] | FACTORY_HA_ENABLED;
+    _state.discoveryPrefix = doc[LEGACY_PREFIX_KEY] | FACTORY_HA_DISCOVERY_PREFIX;
+    _state.deviceName = SettingValue::format(FACTORY_HA_DEVICE_NAME);
+    _state.manufacturer = FACTORY_HA_MANUFACTURER;
+    _state.model = FACTORY_HA_MODEL;
+
+    if (!_state.discoveryPrefix.endsWith("/"))
+        _state.discoveryPrefix += "/";
+
+    _fsPersistence.writeToFS();
+
+    ESP_LOGI(TAG, "Migrated legacy HA settings from %s (enabled=%d, prefix=%s)",
+             LEGACY_FILE, _state.enabled, _state.discoveryPrefix.c_str());
 }
 
 void HASettingsService::_applyToHAService()
 {
     if (_haService == nullptr)
         return;
+
+    bool wasReady = _haService->isReady();
 
     // Empty device_name falls back to APP_NAME (compile-time firmware name)
     String name = _state.deviceName.isEmpty() ? String(APP_NAME) : _state.deviceName;
@@ -56,6 +106,13 @@ void HASettingsService::_applyToHAService()
     _haService->setManufacturer(_state.manufacturer);
     _haService->setModel(_state.model);
     _haService->setDiscoveryPrefix(_state.discoveryPrefix);
+
+    // Remove from HA before disabling — must happen while MQTT is still connected
+    if (wasReady && !_state.enabled)
+    {
+        _haService->unpublishAll();
+    }
+
     _haService->setEnabled(_state.enabled);
 
     ESP_LOGI(TAG, "Applied HA settings (enabled=%d, prefix=%s, device=%s)",

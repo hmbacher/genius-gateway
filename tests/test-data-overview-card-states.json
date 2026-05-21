@@ -1,0 +1,207 @@
+{
+	"version": 1,
+	"devices": [
+		{
+			"id": 1700000001,
+			"smokeDetector": {
+				"sn": 100000001,
+				"model": 3,
+				"productionDate": "2022-03-15T00:00:00.000Z",
+				"alarmCountTotal": 0,
+				"alarmCountLast3Months": 0,
+				"hoursInStorageMode": 0,
+				"warrantyFlags": 0,
+				"batteryLowFault": false,
+				"deviceFault": false,
+				"driftState": 0,
+				"dirtForecastNegative": false
+			},
+			"radioModule": {
+				"sn": 200000001,
+				"model": 4,
+				"lineId": 1,
+				"radioStateMask": 0,
+				"radioSwitchMask": 0,
+				"radioInterference": 0,
+				"radioNetworkFault": false
+			},
+			"location": "Test 1 — Healthy (BLUE)",
+			"registration": 3,
+			"isAlarming": false,
+			"alarms": [],
+			"readoutTime": "2026-03-15T10:00:00.000Z",
+			"readoutProtocolVersion": 1
+		},
+		{
+			"id": 1700000002,
+			"smokeDetector": {
+				"sn": 100000002,
+				"model": 3,
+				"productionDate": "2022-04-20T00:00:00.000Z",
+				"alarmCountTotal": 0,
+				"alarmCountLast3Months": 0,
+				"hoursInStorageMode": 0,
+				"warrantyFlags": 0,
+				"batteryLowFault": false,
+				"deviceFault": false,
+				"driftState": 0,
+				"dirtForecastNegative": false
+			},
+			"radioModule": {
+				"sn": 200000002,
+				"model": 4,
+				"lineId": 1,
+				"radioStateMask": 0,
+				"radioSwitchMask": 0,
+				"radioInterference": 0,
+				"radioNetworkFault": false
+			},
+			"location": "Test 2a — No readout (YELLOW, foreign)",
+			"registration": 1,
+			"isAlarming": false,
+			"alarms": []
+		},
+		{
+			"id": 1700000003,
+			"smokeDetector": {
+				"sn": 100000003,
+				"model": 3,
+				"productionDate": "2022-05-10T00:00:00.000Z",
+				"alarmCountTotal": 1,
+				"alarmCountLast3Months": 0,
+				"hoursInStorageMode": 0,
+				"warrantyFlags": 0,
+				"batteryLowFault": true,
+				"deviceFault": false,
+				"driftState": 4,
+				"dirtForecastNegative": true
+			},
+			"radioModule": {
+				"sn": 200000003,
+				"model": 4,
+				"lineId": 2,
+				"radioStateMask": 0,
+				"radioSwitchMask": 0,
+				"radioInterference": 0,
+				"radioNetworkFault": false
+			},
+			"location": "Test 2b — Faults, recent readout (YELLOW + fault icon)",
+			"registration": 3,
+			"isAlarming": false,
+			"alarms": [
+				{
+					"startTime": "2025-12-10T08:30:00.000Z",
+					"endTime": "2025-12-10T08:32:00.000Z",
+					"endingReason": 0
+				}
+			],
+			"readoutTime": "2026-04-01T10:00:00.000Z",
+			"readoutProtocolVersion": 1
+		},
+		{
+			"id": 1700000004,
+			"smokeDetector": {
+				"sn": 100000004,
+				"model": 3,
+				"productionDate": "2020-08-01T00:00:00.000Z",
+				"alarmCountTotal": 0,
+				"alarmCountLast3Months": 0,
+				"hoursInStorageMode": 0,
+				"warrantyFlags": 0,
+				"batteryLowFault": false,
+				"deviceFault": false,
+				"driftState": 0,
+				"dirtForecastNegative": false
+			},
+			"radioModule": {
+				"sn": 200000004,
+				"model": 4,
+				"lineId": 2,
+				"radioStateMask": 0,
+				"radioSwitchMask": 0,
+				"radioInterference": 0,
+				"radioNetworkFault": false
+			},
+			"location": "Test 2c — Stale readout (YELLOW + stale icon)",
+			"registration": 3,
+			"isAlarming": false,
+			"alarms": [],
+			"readoutTime": "2024-12-01T10:00:00.000Z",
+			"readoutProtocolVersion": 1
+		},
+		{
+			"id": 1700000005,
+			"smokeDetector": {
+				"sn": 100000005,
+				"model": 3,
+				"productionDate": "2020-11-15T00:00:00.000Z",
+				"alarmCountTotal": 2,
+				"alarmCountLast3Months": 0,
+				"hoursInStorageMode": 0,
+				"warrantyFlags": 1,
+				"batteryLowFault": true,
+				"deviceFault": true,
+				"driftState": 4,
+				"dirtForecastNegative": true
+			},
+			"radioModule": {
+				"sn": 200000005,
+				"model": 4,
+				"lineId": 3,
+				"radioStateMask": 0,
+				"radioSwitchMask": 0,
+				"radioInterference": 0,
+				"radioNetworkFault": true
+			},
+			"location": "Test 2b+2c — Faults + stale (YELLOW + both icons)",
+			"registration": 3,
+			"isAlarming": false,
+			"alarms": [
+				{
+					"startTime": "2024-09-01T08:00:00.000Z",
+					"endTime": "2024-09-01T08:05:00.000Z",
+					"endingReason": 0
+				}
+			],
+			"readoutTime": "2024-09-01T10:00:00.000Z",
+			"readoutProtocolVersion": 1
+		},
+		{
+			"id": 1700000006,
+			"smokeDetector": {
+				"sn": 100000006,
+				"model": 3,
+				"productionDate": "2022-06-20T00:00:00.000Z",
+				"alarmCountTotal": 1,
+				"alarmCountLast3Months": 1,
+				"hoursInStorageMode": 0,
+				"warrantyFlags": 0,
+				"batteryLowFault": false,
+				"deviceFault": false,
+				"driftState": 0,
+				"dirtForecastNegative": false
+			},
+			"radioModule": {
+				"sn": 200000006,
+				"model": 4,
+				"lineId": 1,
+				"radioStateMask": 0,
+				"radioSwitchMask": 0,
+				"radioInterference": 0,
+				"radioNetworkFault": false
+			},
+			"location": "Test 3 — Alarming (RED)",
+			"registration": 3,
+			"isAlarming": true,
+			"alarms": [
+				{
+					"startTime": "2026-05-08T07:30:00.000Z",
+					"endTime": "1970-01-01T00:00:00.000Z",
+					"endingReason": -1
+				}
+			],
+			"readoutTime": "2026-04-15T10:00:00.000Z",
+			"readoutProtocolVersion": 1
+		}
+	]
+}

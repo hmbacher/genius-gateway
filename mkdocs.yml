@@ -25,6 +25,7 @@ nav:
     - Protocol Captures: reverse-engineering/protocol-captures.md # Listing and describing all captured communication with links to DSL files
     - UART Analysis: reverse-engineering/uart-analysis.md # Describing the UART interface btw. smoke detector and radio module
     - EEPROM Analysis: reverse-engineering/eeprom-analysis.md # Describing the EEPROM structure and the data stored there
+    - Acoustic Readout: reverse-engineering/acoustic-readout.md # SmartSonic acoustic readout signal modulation, framing, and payload format
   
   - Hardware: hardware.md # Schematics, PCB layout, BOM & manufacturing, CAD files
 

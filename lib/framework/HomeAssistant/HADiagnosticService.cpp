@@ -50,7 +50,7 @@ HADiagnosticService::HADiagnosticService(HAService *haService)
             new HAButton(_haService, "restart",
                          []()
                          {
-                             ESP_LOGI(TAG, "Restart button pressed via MQTT — restarting in 1 second");
+                             ESP_LOGI(TAG, "Restart button pressed via MQTT - restarting in 1 second");
                              vTaskDelay(pdMS_TO_TICKS(1000));
                              RestartService::restartNow();
                          },

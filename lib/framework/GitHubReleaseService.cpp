@@ -17,6 +17,97 @@
 extern const uint8_t rootca_crt_bundle_start[] asm("_binary_src_certs_x509_crt_bundle_bin_start");
 extern const uint8_t rootca_crt_bundle_end[] asm("_binary_src_certs_x509_crt_bundle_bin_end");
 
+// Reads the full HTTP response body for both Content-Length and chunked responses.
+// http.getString() stalls and truncates on large chunked responses because the inter-chunk
+// gap trips its read timeout. This function reads raw bytes with a progressive stall timer
+// and decodes chunked framing manually when Content-Length is absent.
+static String readFullBody(HTTPClient &http, WiFiClientSecure &client)
+{
+    int expectedLen = http.getSize();  // -1 means chunked / unknown length
+    String body;
+    if (expectedLen > 0)
+        body.reserve(expectedLen);
+
+    auto *stream = http.getStreamPtr();
+    if (!stream)
+        return body;
+
+    uint8_t buf[512];
+    uint32_t deadline = millis() + 10000;
+
+    if (expectedLen >= 0)
+    {
+        // Content-Length known: read blocks until all bytes received
+        while ((int)body.length() < expectedLen && millis() < deadline)
+        {
+            int avail = stream->available();
+            if (avail > 0)
+            {
+                int toRead = min(min(avail, expectedLen - (int)body.length()), (int)sizeof(buf));
+                int n = stream->readBytes(buf, toRead);
+                if (n > 0) { body.concat((const char *)buf, n); deadline = millis() + 5000; }
+            }
+            else if (!client.connected()) break;
+            else delay(1);
+        }
+        if ((int)body.length() < expectedLen)
+        {
+            ESP_LOGW("GitHubRelease", "Body truncated: %d of %d bytes", (int)body.length(), expectedLen);
+            return "";
+        }
+    }
+    else
+    {
+        // Chunked transfer encoding: decode framing manually.
+        // Format: <hex-size>\r\n<data>\r\n ... 0\r\n\r\n
+        bool done = false;
+        while (!done && millis() < deadline)
+        {
+            // Read chunk size hex line
+            String sizeLine;
+            bool gotLine = false;
+            while (!gotLine && millis() < deadline)
+            {
+                if (stream->available())
+                {
+                    char c = (char)stream->read();
+                    deadline = millis() + 5000;
+                    if (c == '\n') gotLine = true;
+                    else if (c != '\r') sizeLine += c;
+                }
+                else if (!client.connected()) { done = true; break; }
+                else delay(1);
+            }
+            if (!gotLine) break;
+
+            int chunkSize = (int)strtol(sizeLine.c_str(), nullptr, 16);
+            if (chunkSize == 0) break;  // terminal chunk
+
+            // Read chunk data in blocks
+            int remaining = chunkSize;
+            while (remaining > 0 && millis() < deadline)
+            {
+                int avail = stream->available();
+                if (avail > 0)
+                {
+                    int toRead = min(min(avail, remaining), (int)sizeof(buf));
+                    int n = stream->readBytes(buf, toRead);
+                    if (n > 0) { body.concat((const char *)buf, n); remaining -= n; deadline = millis() + 5000; }
+                }
+                else if (!client.connected()) { done = true; break; }
+                else delay(1);
+            }
+
+            // Consume trailing \r\n after chunk data
+            uint32_t trailEnd = millis() + 1000;
+            while (stream->available() < 2 && millis() < trailEnd) delay(1);
+            if (stream->available() >= 2) { stream->read(); stream->read(); }
+        }
+    }
+
+    return body;
+}
+
 GitHubReleaseInfo GitHubReleaseService::queryLatestRelease(
     const String &repoOwner,
     const String &repoName,
@@ -69,14 +160,19 @@ GitHubReleaseInfo GitHubReleaseService::queryLatestRelease(
         return result;
     }
     
-    String payload = http.getString();
-    
+    String payload = readFullBody(http, client);
     http.end();
-    
+
+    if (payload.isEmpty())
+    {
+        ESP_LOGE(TAG, "Failed to read complete GitHub API response (truncated)");
+        return result;
+    }
+
     // Parse JSON response
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, payload);
-    
+
     if (error)
     {
         ESP_LOGE(TAG, "Failed to parse GitHub API response: %s", error.c_str());
@@ -182,11 +278,17 @@ bool GitHubReleaseService::queryAllReleases(
         return false;
     }
     
-    jsonResponse = http.getString();
+    jsonResponse = readFullBody(http, client);
     http.end();
-    
+
+    if (jsonResponse.isEmpty())
+    {
+        ESP_LOGE(TAG, "Failed to read complete GitHub API response (truncated)");
+        return false;
+    }
+
     ESP_LOGI(TAG, "GitHub query successful - Retrieved all releases (response size: %d bytes)", jsonResponse.length());
-    
+
     return true;
 }
 

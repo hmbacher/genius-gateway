@@ -109,37 +109,33 @@
 {#if page.data.features.cc1101_controller && $user.admin}
 	<SettingsCard collapsible={false}>
 		{#snippet icon()}
-			<IconCPU class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+			<IconCPU class="h-6 w-6" />
 		{/snippet}
 		{#snippet title()}
 			<span>CC1101 State</span>
 		{/snippet}
+		{#snippet actions()}
+			<div class="tooltip tooltip-left" data-tip="Update CC1101 state">
+				<button
+					class="btn btn-primary text-primary-content btn-md"
+					onclick={() => getCC1101State(true)}
+				>
+					<IconReload class="h-6 w-6" />
+				</button>
+			</div>
+			<div class="tooltip tooltip-left" data-tip="Set CC1101 to RX state">
+				<button
+					class="btn btn-primary text-primary-content btn-md"
+					onclick={setCC1101RX}
+					disabled={!cc1101State.state_success || cc1101State.state === 13}
+				>
+					<IconListen class="h-6 w-6" />
+				</button>
+			</div>
+		{/snippet}
 		{#await getCC1101State()}
 			<Spinner text="Requesting state..." />
 		{:then nothing}
-			<div class="relative w-full overflow-visible">
-				<div class="flex flex-row absolute right-16 -top-13 gap-2 justify-end">
-					<div class="tooltip tooltip-left" data-tip="Update CC1101 state">
-						<button
-							class="btn btn-primary text-primary-content btn-md"
-							onclick={() => getCC1101State(true)}
-						>
-							<IconReload class="h-6 w-6" />
-						</button>
-					</div>
-				</div>
-				<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
-					<div class="tooltip tooltip-left" data-tip="Set CC1101 to RX state">
-						<button
-							class="btn btn-primary text-primary-content btn-md"
-							onclick={setCC1101RX}
-							disabled={!cc1101State.state_success || cc1101State.state === 13}
-						>
-							<IconListen class="h-6 w-6" />
-						</button>
-					</div>
-				</div>
-			</div>
 
 			<div
 				class="flex w-full flex-col space-y-1"

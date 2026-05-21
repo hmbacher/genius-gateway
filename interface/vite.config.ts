@@ -22,6 +22,7 @@ const config: UserConfig = {
 		viteLittleFS()
 	],
 	server: {
+		allowedHosts: ['gg-dev.bacher.cloud'],
 		proxy: {
 			// Proxying REST: http://localhost:5173/rest/bar -> http://192.168.1.83/rest/bar
 			'/rest': {

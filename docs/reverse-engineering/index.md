@@ -24,3 +24,4 @@ The analysis was carried out in the following steps:
 * Investigation of the PCB (documentation coming soon)
 * Determination of the [:octicons-arrow-right-24: RF configuration](fm-basis-x-rf.md)
 * Investigation of the [:octicons-arrow-right-24: communication protocol](protocol-analysis.md)
+* Decoding the [:octicons-arrow-right-24: acoustic (SmartSonic) readout](acoustic-readout.md)

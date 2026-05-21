@@ -31,10 +31,10 @@
 			acquisition: AlarmLineAcquisition.Manual // Default to manually added
 		}
 	}: Props = $props();
-	
+
 	// Make passed object reactive in EditAlarmLine modal
 	// https://github.com/sveltejs/svelte/issues/12320
-	let alarmLine = $state(_alarmLine);	
+	let alarmLine = $state(_alarmLine);
 
 	let _orgID = $state.snapshot(alarmLine.id); // Store the original ID to check for duplicates
 
@@ -43,9 +43,6 @@
 
 	let minNameLength = 1;
 	let maxNameLength = 100;
-
-	// Use this to directly access the form's DOM element
-	let formField: any = $state();
 
 	let formErrors = $state({
 		id: {
@@ -61,35 +58,34 @@
 		return existingAlarmLines.some((line) => line.id === id) && id !== _orgID;
 	}
 
-	function preventDefault(fn) {
-		return function (event) {
-			event.preventDefault();
-			fn.call(this, event);
-		};
-	}
-
 	const focus: Action = (node) => {
 		// the node has been mounted in the DOM
 		node.focus();
 	};
+
+	const titleId = `edit-alarm-line-title-${Math.random().toString(36).slice(2)}`;
 </script>
 
 {#if isOpen}
 	<div
 		role="dialog"
+		aria-modal="true"
+		aria-labelledby={titleId}
 		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center overflow-y-auto"
 		transition:fly={{ y: 50 }}
 	>
 		<div
 			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex min-w-fit max-w-md flex-col justify-between p-4 shadow-lg md:w-[28rem]"
 		>
-			<h2 class="text-base-content text-start text-2xl font-bold">{title}</h2>
+			<h2 id={titleId} class="text-base-content text-start text-2xl font-bold">{title}</h2>
 			<div class="divider my-2"></div>
 			<form
 				class="fieldset"
-				onsubmit={preventDefault(() => onSaveAlarmLine(alarmLine))}
+				onsubmit={(e) => {
+					e.preventDefault();
+					onSaveAlarmLine(alarmLine);
+				}}
 				novalidate
-				bind:this={formField}
 			>
 				<div class="flex flex-col gap-2">
 					<div class="flex-1">
@@ -100,6 +96,8 @@
 							min={minID}
 							max={maxID}
 							required
+							disabled={alarmLine.acquisition === AlarmLineAcquisition.Acoustic ||
+								alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket}
 							class="input input-bordered invalid:border-error w-full invalid:border-2 {formErrors
 								.id.range || formErrors.id.exists
 								? 'border-error border-2'
@@ -112,7 +110,18 @@
 							}}
 							use:focus
 						/>
-						{#if formErrors.id.range}
+						{#if alarmLine.acquisition === AlarmLineAcquisition.Acoustic || alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket}
+							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+								<label for="AlarmLineID" class="label">
+									<span class="text-wrap pl-1">
+										IDs of alarm lines discovered via {alarmLine.acquisition ===
+										AlarmLineAcquisition.Acoustic
+											? 'acoustic readout'
+											: 'Genius radio packet'} cannot be changed.
+									</span>
+								</label>
+							</div>
+						{:else if formErrors.id.range}
 							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 								<label for="AlarmLineID" class="label">
 									<span class="text-error text-wrap">

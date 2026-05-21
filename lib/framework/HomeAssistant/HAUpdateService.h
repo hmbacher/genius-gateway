@@ -72,6 +72,14 @@ public:
     void publishAll();
 
     /**
+     * @brief Remove the update entity from Home Assistant
+     *
+     * Sends empty retained payloads to the discovery config topic and the
+     * state topic. Called by HAService::unpublishAll() when HA is disabled.
+     */
+    void unpublishAll();
+
+    /**
      * @brief Check for firmware updates on GitHub
      *
      * Queries GitHub API for latest release and compares with current version.

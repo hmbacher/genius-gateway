@@ -8,35 +8,64 @@ The Overview page serves as the main dashboard of the Genius Gateway web interfa
 
 ![Overview Dashboard](../assets/images/software/gg-gateway-overview.png)
 
+## Top-Bar Health Indicator
+
+The health indicator icon in the navigation bar reflects the overall system state at a glance and links back to the Overview page from anywhere in the interface:
+
+| Icon | Meaning |
+|------|---------|
+| :tabler-heart:{ style="color: currentColor; opacity: 0.5" } | No smoke detectors configured yet |
+| :tabler-heart:{ style="color: #4caf50" } | All detectors healthy — readout present and up to date, no faults |
+| :tabler-heart-exclamation:{ style="color: #ff9800" } | At least one detector needs attention (see [warning conditions](#yellow-warning) below) |
+| :tabler-alert-hexagon-filled:{ style="color: #f44336" } | At least one detector is actively alarming |
+
 ## Device Status Grid
 
-The Overview page displays all registered smoke detectors in a responsive grid layout. Each device is represented by a status card showing:
+The Overview page displays all registered smoke detectors in a responsive grid layout. Each card is a link to the [Device Management](device-management.md) page. Clicking any card opens the full device list.
 
-#### Device Information
-- **Location**: The assigned location name for easy identification
-- :tabler-number: **Smoke Detector Serial Number**: Unique identifier of the smoke detector unit
-- :tabler-buildung-factory-2: **Production Date**: Manufacturing date (if configured)
-- :tabler-bell: **Alarm Counter and Last Alarm Date**: Total number of recorded alarms and date of the most recent alarm event (if any alarms exist)
+### Card Color States
 
-#### Visual States
-Status cards change appearance based on the device state:
+Cards use a three-level health-driven color scheme:
 
-- :tabler-heart: **Normal Mode**: Blue/primary color scheme indicating standby operation
+#### Healthy (Primary theme color) {#healthy}
 
-    ![Standby Status Card](../assets/images/software/gg-gateway-overview-status-card-standby.png){ .off-glb }
+All of the following are true:
 
-- :tabler-flame: **Alarm Mode**: Red/error color scheme with fire icon for active alarms
+- Device has an acoustic readout on record
+- Readout was performed within the last year
+- No fault conditions detected
 
-    ![Alarming Status Card](../assets/images/software/gg-gateway-overview-status-card-alarming.png){ .off-glb }
+A :tabler-award:{ style="color: #4caf50" } icon appears in the top-right corner of these cards.
 
-- :tabler-external-link: **Foreign Detector**: External link icon for detectors from other alarm lines
+#### Needs Attention (Warning theme color) {#warning}
 
-    ![Foreign Alarming Status Card](../assets/images/software/gg-gateway-overview-status-card-alarming-unknown.png){ .off-glb } 
-    ![Foreign Standby Status Card](../assets/images/software/gg-gateway-overview-status-card-standby-unknown.png){ .off-glb }
+One or more of the following apply:
+
+- **No readout data** — the device has never had an acoustic readout performed. A :tabler-microphone-off: icon is shown.
+- **Faults detected** — at least one fault condition is active (battery low, device fault, drift defect or warning, dirt forecast negative, warranty flags set, radio network fault). A :tabler-alert-circle: icon is shown.
+- **Stale readout** — the last acoustic readout is more than one year old. A :tabler-calendar-exclamation: icon is shown.
+
+Multiple icons can appear together when more than one condition applies (e.g. both faults and a stale readout). A :tabler-external-link: foreign-detector indicator is appended last when applicable, independent of the health state.
+
+#### Alarming (Error theme color) {#alarming}
+
+The device has an active alarm (`isAlarming` is set). A :tabler-flame-filled: flame icon appears in the top-right corner.
+
+### Card Information
+
+Each card displays:
+
+- **Location** — the assigned location name
+- :tabler-number: **Serial Number** — smoke detector unit identifier
+- :tabler-building-factory-2: **Production Date** — manufacturing date (if available)
+- :tabler-bell: **Alarm count and last alarm date** — total recorded alarms and date of the most recent event (if any)
+
+### Foreign Detectors
+
+A :tabler-external-link: icon marks cards for detectors from neighboring alarm lines that are received by the gateway but not part of your configured system.
 
 !!! info "Foreign Detectors"
-    Devices marked as "foreign" are smoke detectors from neighboring alarm lines that are received by your gateway but not part of your currently configured system.  
-    To process alarms from foreign "Process alerts from unknown smoke detectors" setting to be enabled in [Gateway Settings](gateway-settings.md#process-alerts-from-unknown-smoke-detectors). 
+    To process alarms from foreign detectors, enable "Process alerts from unknown smoke detectors" in [Gateway Settings](gateway-settings.md#process-alerts-from-unknown-smoke-detectors).
 
 ## Alarm Management
 

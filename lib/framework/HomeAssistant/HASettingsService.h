@@ -17,6 +17,7 @@
 #include <HttpEndpoint.h>
 #include <FSPersistence.h>
 #include <HomeAssistant/HAService.h>
+#include <SettingValue.h>
 
 #ifndef FACTORY_HA_ENABLED
 #define FACTORY_HA_ENABLED false
@@ -63,7 +64,7 @@ public:
     {
         settings.enabled = root["enabled"] | FACTORY_HA_ENABLED;
         settings.discoveryPrefix = root["discovery_prefix"] | FACTORY_HA_DISCOVERY_PREFIX;
-        settings.deviceName = root["device_name"] | FACTORY_HA_DEVICE_NAME;
+        settings.deviceName = root["device_name"] | SettingValue::format(FACTORY_HA_DEVICE_NAME);
         settings.manufacturer = root["manufacturer"] | FACTORY_HA_MANUFACTURER;
         settings.model = root["model"] | FACTORY_HA_MODEL;
 
@@ -101,7 +102,9 @@ public:
 private:
     HttpEndpoint<HASettings> _httpEndpoint;
     FSPersistence<HASettings> _fsPersistence;
+    FS *_fs;
     HAService *_haService;
 
     void _applyToHAService();
+    void _migrateLegacyHASettings();
 };

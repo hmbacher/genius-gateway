@@ -35,9 +35,9 @@ HAUpdateService::HAUpdateService(HAService *haService,
 
 void HAUpdateService::begin()
 {
-    // Register with HAService for entity publishing on MQTT connect
-    _haService->onPublishAll([this]()
-                             { this->publishAll(); });
+    // Register with HAService for entity publishing and removal
+    _haService->onPublishAll([this]() { this->publishAll(); });
+    _haService->onUnpublishAll([this]() { this->unpublishAll(); });
 
     // Create persistent task for update checks (single 8KB stack, reused)
     xTaskCreate(
@@ -86,6 +86,21 @@ void HAUpdateService::begin()
 // ============================================================================
 // Entity publishing
 // ============================================================================
+
+void HAUpdateService::unpublishAll()
+{
+    if (_haService == nullptr || !_haService->isReady())
+        return;
+
+    String configTopic = _haService->getDiscoveryPrefix() + "update/" +
+                         _haService->getDeviceId() + "/firmware/config";
+    _haService->publish(configTopic, String(), 0, true, false);
+
+    String stateTopic = _haService->getBaseTopic() + "/update/state";
+    _haService->publish(stateTopic, String(), 0, true, false);
+
+    ESP_LOGI(TAG, "Unpublished update entity");
+}
 
 void HAUpdateService::publishAll()
 {

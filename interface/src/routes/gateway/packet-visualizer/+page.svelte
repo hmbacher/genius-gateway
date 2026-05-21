@@ -367,7 +367,7 @@
 
 <SettingsCard collapsible={true}>
 	{#snippet icon()}
-		<IconSettings class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+		<IconSettings class="h-6 w-6" />
 	{/snippet}
 	{#snippet title()}
 		<span>Vizualizer Settings</span>
@@ -376,8 +376,8 @@
 		<Spinner text="Loading settings..." />
 	{:then nothing}
 		<div>
-			<label class="label cursor-pointer w-full justify-between">
-				<span class="">Show packet details (data interpretation and highlighting)</span>
+			<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
+				<span class="min-w-0 mr-4">Show packet details (data interpretation and highlighting)</span>
 				<input
 					type="checkbox"
 					class="toggle toggle-primary"
@@ -387,9 +387,8 @@
 			</label>
 		</div>
 		<div>
-			<label class="label cursor-pointer w-full justify-between">
-				<span class=""
-					>Show meta data of packets (packet number, receive timestamp, repetition, etc.)</span
+			<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
+				<span class="min-w-0 mr-4">Show meta data of packets (packet number, receive timestamp, repetition, etc.)</span
 				>
 				<input
 					type="checkbox"
@@ -404,42 +403,41 @@
 
 <SettingsCard collapsible={false} maxwidth="max-w-6xl">
 	{#snippet icon()}
-		<IconLogs class="lex-shrink-0 mr-2 h-6 w-6 self-end" />
+		<IconLogs class="h-6 w-6" />
 	{/snippet}
 	{#snippet title()}
 		<span>Genius Packets</span>
 	{/snippet}
-	<div class="relative w-full overflow-visible">
-		<div class="flex flex-row absolute right-0 -top-13 gap-2 justify-end">
-			<div class="tooltip tooltip-left" data-tip="Copy packet data to clipboard">
-				<button class="btn btn-primary text-primary-content btn-md" onclick={handleCopyLog} disabled={packets.length === 0}>
-					<IconCopy class="h-6 w-6" />
-				</button>
-			</div>
-			<div class="tooltip tooltip-left" data-tip="Clear packets log">
-				<button class="btn btn-primary text-primary-content btn-md" onclick={handleClearPacketsLog} disabled={packets.length === 0}>
-					<IconTrash class="h-6 w-6" />
-				</button>
-			</div>
-			<div class="divider divider-horizontal my-0 -mx-1"></div>
-			<div class="tooltip tooltip-left" data-tip="Load packets log from file">
-				<label for="upload" class="btn btn-primary text-primary-content btn-md">
-					<IconLoad class="h-6 w-6" />
-				</label>
-				<input bind:files id="upload" type="file" class="hidden" />
-			</div>
-			<div class="tooltip tooltip-left" data-tip="Save packets log to file">
-				<button
-					class="btn btn-primary text-primary-content btn-md"
-					disabled={packets.length === 0}
-					onclick={() => downloadPacketAsJson(packets, 'genius-packets')}
-				>
-					<IconSave class="h-6 w-6" />
-				</button>
-			</div>
+	{#snippet actions()}
+		<div class="tooltip tooltip-left" data-tip="Copy packet data to clipboard">
+			<button class="btn btn-primary text-primary-content btn-md" onclick={handleCopyLog} disabled={packets.length === 0}>
+				<IconCopy class="h-6 w-6" />
+			</button>
 		</div>
+		<div class="tooltip tooltip-left" data-tip="Clear packets log">
+			<button class="btn btn-primary text-primary-content btn-md" onclick={handleClearPacketsLog} disabled={packets.length === 0}>
+				<IconTrash class="h-6 w-6" />
+			</button>
+		</div>
+		<div class="divider divider-horizontal my-0 -mx-1"></div>
+		<div class="tooltip tooltip-left" data-tip="Load packets log from file">
+			<label for="upload" class="btn btn-primary text-primary-content btn-md">
+				<IconLoad class="h-6 w-6" />
+			</label>
+			<input bind:files id="upload" type="file" class="hidden" />
+		</div>
+		<div class="tooltip tooltip-left" data-tip="Save packets log to file">
+			<button
+				class="btn btn-primary text-primary-content btn-md"
+				disabled={packets.length === 0}
+				onclick={() => downloadPacketAsJson(packets, 'genius-packets')}
+			>
+				<IconSave class="h-6 w-6" />
+			</button>
+		</div>
+	{/snippet}
 
-		{#if packets.length > 0}
+	{#if packets.length > 0}
 			<div class="divider mt-0 mb-1"></div>
 		{/if}
 
@@ -462,5 +460,4 @@
 		{:else}
 			<Spinner text="Waiting for packets..." />
 		{/if}
-	</div></SettingsCard
->
+</SettingsCard>

@@ -32,3 +32,5 @@ dependencies.lock
 sdkconfig*
 CMakeLists.txt
 src/CMakeLists.txt
+
+todo*

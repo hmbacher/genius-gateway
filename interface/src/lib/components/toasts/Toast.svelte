@@ -22,7 +22,7 @@
 	} } = $props();
 </script>
 
-<div class="toast toast-end mr-4">
+<div class="toast toast-end z-[100] mr-4">
 	{#each $notifications as notification (notification.id)}
 		{@const SvelteComponent = icon[notification.type]}
 		<div

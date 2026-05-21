@@ -207,6 +207,7 @@ void AlarmLinesService::begin()
 
     // Register WebSocket events for real-time notifications
     _eventSocket->registerEvent(ALARMLINES_EVENT_NEW_LINE);
+    _eventSocket->registerEvent(ALARMLINES_EVENT_ACTION_STARTED);
     _eventSocket->registerEvent(ALARMLINES_EVENT_ACTION_FINISHED);
 
     // Initialize cached MQTT settings
@@ -466,6 +467,15 @@ void AlarmLinesService::_emitNewAlarmLineEvent(uint32_t id)
     _eventSocket->emitEvent(ALARMLINES_EVENT_NEW_LINE, jsonRoot);
 }
 
+void AlarmLinesService::_emitActionStartedEvent(uint32_t lineIdHostOrder, const String &action)
+{
+    JsonDocument jsonDoc;
+    JsonObject jsonRoot = jsonDoc.to<JsonObject>();
+    jsonRoot["lineId"] = lineIdHostOrder;
+    jsonRoot["action"] = action;
+    _eventSocket->emitEvent(ALARMLINES_EVENT_ACTION_STARTED, jsonRoot);
+}
+
 void AlarmLinesService::_emitActionFinishedEvent(bool timedOut)
 {
     JsonDocument jsonDoc;
@@ -502,7 +512,7 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
     }
     endTransaction();
 
-    ESP_LOGI(TAG, "MQTT Command received: Action='%s' for Alarm Line ID=%lu", action.c_str(), lineIdHostOrder);
+    ESP_LOGI(TAG, "Action triggered: '%s' for Alarm Line ID=%lu", action.c_str(), lineIdHostOrder);
 
     if (lineName.isEmpty())
     {
@@ -562,14 +572,14 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
     _lastActionLineId = lineIdHostOrder;
     _lastActionType = action;
 
-    // Notify the pending TX task to start the transmission
-    if (xSemaphoreGive(_txSemaphore) != pdTRUE)
-    {
-        ESP_LOGE(TAG, "Failed to give semaphore.");
-        return ESP_FAIL;
-    }
+    ESP_LOGI(TAG, "Action '%s' triggered successfully for line ID %lu ('%s').", action.c_str(), lineIdHostOrder, lineName.c_str());
 
-    // Publish running transmission state
+    // Publish "running" state BEFORE giving the semaphore: once the TX task
+    // starts the RF transmission, it interferes with WiFi enough that
+    // esp_mqtt_client_enqueue blocks until the TX completes (~3 s). If we
+    // publish after the give, this call can land AFTER the tx-task's
+    // end-of-TX "Nothing" publish and leave the retained MQTT state stuck on
+    // the running value forever.
     String state;
     if (action == "line-test-start")
         state = "Line Test Start";
@@ -584,7 +594,17 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
 
     _publishAlarmLineTransmissionState(lineIdHostOrder, state);
 
-    ESP_LOGI(TAG, "Action '%s' triggered successfully for line ID %lu ('%s').", action.c_str(), lineIdHostOrder, lineName.c_str());
+    // Notify any connected Web UI clients so they can show the running
+    // spinner even when the trigger came from HA / MQTT / another tab.
+    _emitActionStartedEvent(lineIdHostOrder, action);
+
+    // Notify the pending TX task to start the transmission
+    if (xSemaphoreGive(_txSemaphore) != pdTRUE)
+    {
+        ESP_LOGE(TAG, "Failed to give semaphore.");
+        return ESP_FAIL;
+    }
+
     return ESP_OK;
 }
 
@@ -718,12 +738,19 @@ esp_err_t AlarmLinesService::_publishAlarmLineTransmissionState(uint32_t lineId,
 
     auto it = _haDevices.find(lineId);
     if (it == _haDevices.end() || it->second.txSensor == nullptr)
+    {
+        ESP_LOGW(TAG, "_publishAlarmLineTransmissionState: no HA device for line ID %lu", lineId);
         return ESP_ERR_NOT_FOUND;
+    }
 
     if (!_haService->isReady())
+    {
+        ESP_LOGW(TAG, "_publishAlarmLineTransmissionState: HA not ready (line ID %lu, state '%s')", lineId, state.c_str());
         return ESP_ERR_INVALID_STATE;
+    }
 
     it->second.txSensor->publishState();
+    ESP_LOGD(TAG, "_publishAlarmLineTransmissionState: published '%s' for line ID %lu", state.c_str(), lineId);
     return ESP_OK;
 }
 
