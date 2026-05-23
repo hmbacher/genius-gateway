@@ -191,7 +191,9 @@ Fields that were read from the acoustic signal (model, serial number, production
 
 ## Viewing Device Details
 
-Click the :tabler-list-details: **Device Details** button in a device's row to open the Device Details dialog. It consolidates all available information about a detector in one place:
+Click the :tabler-list-details: **Device Details** button in a device's row to open the Device Details dialog. It consolidates all available information about a detector in one place.
+
+![Viewing Device Details](../assets/images/software/gg-gateway-devices-details.png)
 
 - **General** — location, registration type, and last acoustic readout timestamp. If a readout exists, the age is shown alongside the date (e.g. `15.03.2026 10:00 (37d ago)`). A :tabler-award:{ style="color: #4caf50" } icon indicates a recent readout; :tabler-calendar-exclamation:{ style="color: #f44336" } indicates a stale one (> 1 year).
 - **Smoke Detector** — model, serial number, production date and age, and (after readout) full diagnostic status: detector fault, battery, dirt forecast, chamber drift, warranty flags with individual flag breakdown, plus lifetime statistics (last self-test, last alarm, alarm counts, deinstallation count, storage hours).
