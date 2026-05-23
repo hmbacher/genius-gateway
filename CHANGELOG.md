@@ -1,8 +1,12 @@
 # v1.3.0
 ## Upgrade Notes
-When upgrading from v1.2.x, three persisted-settings files are affected. All three migrate transparently — no manual reconfiguration is required:
+When upgrading from v1.2.x, four persisted-settings files are affected. All migrations run transparently on first boot — no manual reconfiguration is required:
 
-- **Home Assistant settings are auto-migrated from `mqtt-settings.json` to a new `haSettings.json`.** The HA enable flag and discovery prefix used to live in `/config/mqtt-settings.json` under the keys `HAIntegrationEnabled` / `HAMQTTDiscoveryPrefix`. They now live in a new file `/config/haSettings.json` under renamed keys (`enabled`, `discovery_prefix`) alongside three new fields (`device_name`, `manufacturer`, `model`). On first boot after the upgrade, `HASettingsService` checks for the legacy keys and copies them into the new file, so HA integration stays enabled and your discovery prefix is preserved. The orphaned legacy keys in `mqtt-settings.json` are cleared the next time the MQTT settings are saved via the UI.
+- **`mqtt-settings.json` is split into two dedicated files and then removed.** The pre-v1.3.0 file mixed two unrelated concerns: Home Assistant integration and simple alarm publishing. On first boot, the gateway splits it into:
+    - `/config/haSettings.json` — HA enable flag and discovery prefix migrate from `HAIntegrationEnabled` / `HAMQTTDiscoveryPrefix` into renamed keys (`enabled`, `discovery_prefix`), alongside three new fields (`device_name`, `manufacturer`, `model`).
+    - `/config/alarm-publishing.json` — `alarmEnabled` and `alarmTopic` are copied across unchanged. The REST endpoint moves from `/rest/mqtt-settings` to `/rest/alarm-publishing`.
+
+    Once both new files exist, the legacy `/config/mqtt-settings.json` is deleted. Migration is order-independent: whichever service finishes its migration last performs the cleanup.
 - **Smoke detector list is auto-migrated (v0 → v1).** Model enum values were renumbered (Genius Plus X: `0` → `3`, FM Basis X: `0` → `4`) and the obsolete `radioModule.productionDate` field is stripped on first load. New diagnostic fields introduced in v1.3.0 (drift state, dirt forecast, warranty flags, battery state, last self-test, radio interference, line/switch masks, etc.) default to zero/false and only populate after the next acoustic readout of each detector.
 - **Alarm lines with reserved IDs are dropped.** Any alarm line previously stored with id `0` (None) or `0xFFFFFFFF` (Broadcast) is silently removed on load. Normally invisible; when `FT_ALLOW_BROADCAST` is enabled, the broadcast line is re-added automatically on boot.
 

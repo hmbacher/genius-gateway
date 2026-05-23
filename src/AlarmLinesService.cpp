@@ -30,9 +30,7 @@
 #include <AlarmLinesService.h>
 #include <cc1101.h>
 #include <GeniusGateway.h>
-#include <GatewayMqttSettingsService.h>
-#include <PsychicMqttClient.h>
-#include <GatewayMqttSettingsService.h>
+#include <AlarmPublishingSettingsService.h>
 #include <PsychicMqttClient.h>
 #include <WiFi.h>
 #include <IPUtils.h>
@@ -95,7 +93,7 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
  *
  * @note The begin() method must be called after construction to start services.
  */
-AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, CC1101Controller *cc1101Ctrl, GatewayMqttSettingsService *mqttSettingsService) : _sveltekit(sveltekit),
+AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, CC1101Controller *cc1101Ctrl, AlarmPublishingSettingsService *alarmPublishingSettings) : _sveltekit(sveltekit),
                                                                                                                                                  _server(sveltekit->getServer()),
                                                                                                                                                  _securityManager(sveltekit->getSecurityManager()),
                                                                                                                                                  _featureService(sveltekit->getFeatureService()),
@@ -121,7 +119,7 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClien
                                                                                                                                                  _lastTXLoop(0),
                                                                                                                                                  _txRepeat(0),
                                                                                                                                                  _mqttClient(mqttClient),
-                                                                                                                                                 _mqttSettingsService(mqttSettingsService),
+                                                                                                                                                 _alarmPublishingSettings(alarmPublishingSettings),
                                                                                                                                                  _haService(sveltekit->getHAService()),
                                                                                                                                                  _lastActionLineId(0),
                                                                                                                                                  _lastActionType(String()),
@@ -210,8 +208,8 @@ void AlarmLinesService::begin()
     _eventSocket->registerEvent(ALARMLINES_EVENT_ACTION_STARTED);
     _eventSocket->registerEvent(ALARMLINES_EVENT_ACTION_FINISHED);
 
-    // Initialize cached MQTT settings
-    _updateMqttSettingsCache();
+    // Initialize cached alarm-publishing settings
+    _updateAlarmPublishingSettingsCache();
 
     /* Sync sub-devices and republish MQTT when alarm lines change */
     this->addUpdateHandler([this](const String &originId)
@@ -220,14 +218,14 @@ void AlarmLinesService::begin()
                           },
                           false);
 
-    /* Update cache when alarm MQTT settings change */
-    if (_mqttSettingsService != nullptr)
+    /* Update cache when alarm-publishing settings change */
+    if (_alarmPublishingSettings != nullptr)
     {
-        _mqttSettingsService->addUpdateHandler([this](const String &originId)
-                                               {
-                                                   this->_updateMqttSettingsCache();
-                                               },
-                                               false);
+        _alarmPublishingSettings->addUpdateHandler([this](const String &originId)
+                                                   {
+                                                       this->_updateAlarmPublishingSettingsCache();
+                                                   },
+                                                   false);
     }
 
     // Register sub-devices for all lines already loaded from FS
@@ -921,13 +919,13 @@ esp_err_t AlarmLinesService::loadPcktSeqNum()
 // Private Methods - Settings Management
 // ============================================================================
 
-void AlarmLinesService::_updateMqttSettingsCache()
+void AlarmLinesService::_updateAlarmPublishingSettingsCache()
 {
-    if (_mqttSettingsService != nullptr)
+    if (_alarmPublishingSettings != nullptr)
     {
-        _cachedMqttSettings = _mqttSettingsService->getSettingsCopy();
-        ESP_LOGV(TAG, "Updated cached alarm MQTT settings (alarmEnabled: %d, topic: %s)",
-                 _cachedMqttSettings.alarmEnabled,
-                 _cachedMqttSettings.alarmTopic.c_str());
+        _cachedAlarmPublishingSettings = _alarmPublishingSettings->getSettingsCopy();
+        ESP_LOGV(TAG, "Updated cached alarm-publishing settings (alarmEnabled: %d, topic: %s)",
+                 _cachedAlarmPublishingSettings.alarmEnabled,
+                 _cachedAlarmPublishingSettings.alarmTopic.c_str());
     }
 }

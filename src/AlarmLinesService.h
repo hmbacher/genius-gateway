@@ -42,7 +42,7 @@
 #include <nvs_flash.h>
 #include <nvs.h>
 #include <map>
-#include <GatewayMqttSettingsService.h>
+#include <AlarmPublishingSettingsService.h>
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
 #include <HomeAssistant/HAButton.h>
@@ -240,7 +240,7 @@ class AlarmLinesService : public StatefulService<AlarmLines>
 public:
     static constexpr const char *TAG = "AlarmLinesService"; ///< Logging tag
 
-    AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, CC1101Controller *cc1101Ctrl, GatewayMqttSettingsService *mqttSettingsService);
+    AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, CC1101Controller *cc1101Ctrl, AlarmPublishingSettingsService *alarmPublishingSettings);
 
     /// Initialize the alarm lines service
     void begin();
@@ -294,8 +294,8 @@ private:
 
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client instance (not owned)
-    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service for accessing alarm settings
-    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of alarm MQTT settings
+    AlarmPublishingSettingsService *_alarmPublishingSettings; ///< Alarm-publishing settings service
+    AlarmPublishingSettings _cachedAlarmPublishingSettings;   ///< Cached copy of alarm-publishing settings
     HAService *_haService;                            ///< HA service for sub-device management
 
     // Last action context
@@ -411,6 +411,6 @@ private:
     void _publishLastActionState(bool timedOut = false);
 
     // ========== Settings Management ==========
-    /// Update cached MQTT settings from GatewayMqttSettingsService for faster access
-    void _updateMqttSettingsCache();
+    /// Update cached alarm-publishing settings from AlarmPublishingSettingsService for faster access
+    void _updateAlarmPublishingSettingsCache();
 };

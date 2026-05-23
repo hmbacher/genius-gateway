@@ -32,7 +32,7 @@ Authorization: Bearer <token>
 | `/rest/alarm-lines` | GET, POST | 🛡️ | Manage alarm lines (RF groups) |
 | `/rest/alarm-lines/do` | POST | 🛡️ | Execute alarm line actions |
 | `/rest/gateway-settings` | GET, POST | 🛡️ | Configure gateway behavior |
-| `/rest/mqtt-settings` | GET, POST | 🛡️ | Configure simple alarm publishing |
+| `/rest/alarm-publishing` | GET, POST | 🛡️ | Configure simple alarm publishing |
 | `/rest/haSettings` | GET, POST | 🛡️ | Configure Home Assistant integration |
 | `/rest/end-alarms` | POST | 🛡️ | End all alarms and block new ones |
 | `/rest/end-alarmblocking` | POST | 🛡️ | End alarm blocking period |
@@ -186,9 +186,9 @@ Authorization: Bearer <token>
 
 ---
 
-### Gateway MQTT Settings
+### Simple Alarm Publishing Settings
 
-#### `/rest/mqtt-settings`
+#### `/rest/alarm-publishing`
 - **Methods:** GET, POST
 - **Auth:** 🛡️ Admin
 - **Description:** Configure simple alarm publishing

@@ -8,6 +8,7 @@
 /interface/node_modules
 /interface/.eslintcache
 .vscode
+.claude
 node_modules
 /releases
 /src/certs

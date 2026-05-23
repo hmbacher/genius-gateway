@@ -52,11 +52,11 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
                                                           _securityManager(sveltekit->getSecurityManager()),
                                                           _mqttClient(sveltekit->getMqttClient()),
                                                           _sveltekit(sveltekit),
-                                                          _gatewayMqttSettingsService(sveltekit),
+                                                          _alarmPublishingSettingsService(sveltekit),
                                                           _gatewaySettings(sveltekit),
                                                           _gatewayDeviceMqttService(sveltekit->getHAService(), &_gatewaySettings),
-                                                          _geniusDevices(sveltekit, _mqttClient, &_gatewayMqttSettingsService),
-                                                          _alarmLines(sveltekit, _mqttClient, &this->_cc1101Controller, &_gatewayMqttSettingsService),
+                                                          _geniusDevices(sveltekit, _mqttClient, &_alarmPublishingSettingsService),
+                                                          _alarmLines(sveltekit, _mqttClient, &this->_cc1101Controller, &_alarmPublishingSettingsService),
                                                           _wsLogger(sveltekit),
                                                           _visualizerSettingsService(sveltekit),
                                                           _cc1101Controller(sveltekit),
@@ -110,8 +110,8 @@ void GeniusGateway::begin()
         ESP_LOGE(TAG, "RX task creation failed.");
     }
 
-    /* Initialize Gateway MQTT Settings Service first - other services depend on its settings */
-    _gatewayMqttSettingsService.begin();
+    /* Initialize Alarm Publishing Settings Service first - other services depend on its settings */
+    _alarmPublishingSettingsService.begin();
     /* Initialize Gateway Settings Service - must be before Gateway Device MQTT Service */
     _gatewaySettings.begin();
     /* Initialize Gateway Device MQTT Service */

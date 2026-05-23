@@ -35,7 +35,7 @@
 #include <GeniusDevicesService.h>
 #include <AlarmLinesService.h>
 #include <GatewaySettingsService.h>
-#include <GatewayMqttSettingsService.h>
+#include <AlarmPublishingSettingsService.h>
 #include <GatewayDeviceMqttService.h>
 #include <CC1101Controller.h>
 #include <cc1101.h>
@@ -127,7 +127,7 @@ private:
   PsychicMqttClient *_mqttClient;                         ///< MQTT client instance
   ESP32SvelteKit *_sveltekit;                             ///< Framework instance (for HAService access)
   FeaturesService *_featureService;                       ///< Feature flags service
-  GatewayMqttSettingsService _gatewayMqttSettingsService; ///< MQTT settings service
+  AlarmPublishingSettingsService _alarmPublishingSettingsService; ///< Simple alarm-publishing settings service
   GatewaySettingsService _gatewaySettings;                ///< Gateway settings service
   GatewayDeviceMqttService _gatewayDeviceMqttService;     ///< Gateway device MQTT service
   GeniusDevicesService _geniusDevices;                  ///< Genius devices service

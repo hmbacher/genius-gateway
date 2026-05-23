@@ -39,7 +39,7 @@
 #include <PsychicHttp.h>
 #include <ESP32SvelteKit.h>
 #include <Utils.hpp>
-#include <GatewayMqttSettingsService.h>
+#include <AlarmPublishingSettingsService.h>
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
 #include <HomeAssistant/HABinarySensor.h>
@@ -327,7 +327,7 @@ class GeniusDevicesService : public StatefulService<GeniusDevices>
 public:
     static constexpr const char *TAG = "GeniusDevicesService"; ///< Logging tag
 
-    GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, GatewayMqttSettingsService *mqttSettingsService);
+    GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, AlarmPublishingSettingsService *alarmPublishingSettings);
 
     /// Initialize the gateway devices service
     void begin();
@@ -403,8 +403,8 @@ private:
 
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client (for simple alarm topic)
-    GatewayMqttSettingsService *_mqttSettingsService; ///< MQTT settings service
-    GatewayMqttSettings _cachedMqttSettings;          ///< Cached copy of alarm MQTT settings
+    AlarmPublishingSettingsService *_alarmPublishingSettings; ///< Alarm-publishing settings service
+    AlarmPublishingSettings _cachedAlarmPublishingSettings;   ///< Cached copy of alarm-publishing settings
     HAService *_haService;                            ///< HA service
 
     // HA sub-device tracking
@@ -450,8 +450,8 @@ private:
     // Settings Management
     // ========================================================================
 
-    /// Update cached MQTT settings from GatewayMqttSettingsService for faster access
-    void _updateMqttSettingsCache();
+    /// Update cached alarm-publishing settings from AlarmPublishingSettingsService for faster access
+    void _updateAlarmPublishingSettingsCache();
 };
 
 #endif // GeniusDevicesService_h

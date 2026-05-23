@@ -31,7 +31,7 @@
 #include <WiFi.h>
 #include <Utils.hpp>
 
-GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, GatewayMqttSettingsService *mqttSettingsService) : _httpEndpoint(GeniusDevices::read,
+GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, AlarmPublishingSettingsService *alarmPublishingSettings) : _httpEndpoint(GeniusDevices::read,
                                                                                                                                                                       GeniusDevices::update,
                                                                                                                                                                       this,
                                                                                                                                                                       sveltekit->getServer(),
@@ -46,7 +46,7 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
                                                                                                                                                         _isAlarming(false),
                                                                                                                                                         _numAlarming(0),
                                                                                                                                                         _mqttClient(mqttClient),
-                                                                                                                                                        _mqttSettingsService(mqttSettingsService),
+                                                                                                                                                        _alarmPublishingSettings(alarmPublishingSettings),
                                                                                                                                                         _haService(sveltekit->getHAService())
 {
 }
@@ -65,8 +65,8 @@ void GeniusDevicesService::begin()
     // persisted immediately and don't re-run on the next restart.
     _fsPersistence.writeToFS();
 
-    // Initialize cached MQTT settings
-    _updateMqttSettingsCache();
+    // Initialize cached alarm-publishing settings
+    _updateAlarmPublishingSettingsCache();
 
     /* Update alarming state after every device update */
     this->addUpdateHandler([&](const String &originId)
@@ -87,14 +87,14 @@ void GeniusDevicesService::begin()
                                } },
                            false);
 
-    /* Update cache when MQTT settings change */
-    if (_mqttSettingsService != nullptr)
+    /* Update cache when alarm-publishing settings change */
+    if (_alarmPublishingSettings != nullptr)
     {
-        _mqttSettingsService->addUpdateHandler([this](const String &originId)
-                                               {
-                                                   this->_updateMqttSettingsCache();
-                                                   this->mqttPublishSimpleAlarmState(); },
-                                               false);
+        _alarmPublishingSettings->addUpdateHandler([this](const String &originId)
+                                                   {
+                                                       this->_updateAlarmPublishingSettingsCache();
+                                                       this->mqttPublishSimpleAlarmState(); },
+                                                   false);
     }
 
     /* Register sub-devices for devices already loaded from FS */
@@ -976,10 +976,10 @@ void GeniusDevicesService::mqttPublishSimpleAlarmState()
     if (_mqttClient == nullptr || !_mqttClient->connected())
         return;
 
-    if (!_cachedMqttSettings.alarmEnabled)
+    if (!_cachedAlarmPublishingSettings.alarmEnabled)
         return;
 
-    if (_cachedMqttSettings.alarmTopic.isEmpty())
+    if (_cachedAlarmPublishingSettings.alarmTopic.isEmpty())
     {
         ESP_LOGE(GeniusDevices::TAG, "Alarm MQTT topic is empty. Cannot publish alarm state.");
         return;
@@ -992,7 +992,7 @@ void GeniusDevicesService::mqttPublishSimpleAlarmState()
     String payload;
     serializeJson(doc, payload);
 
-    if (_mqttClient->publish(_cachedMqttSettings.alarmTopic.c_str(), 0, true, payload.c_str()) == -1)
+    if (_mqttClient->publish(_cachedAlarmPublishingSettings.alarmTopic.c_str(), 0, true, payload.c_str()) == -1)
     {
         ESP_LOGE(GeniusDevices::TAG, "Failed to publish simple alarm state.");
     }
@@ -1003,18 +1003,18 @@ void GeniusDevicesService::mqttPublishSimpleAlarmState()
 // ============================================================================
 
 /**
- * @brief Updates the local cache of MQTT settings
+ * @brief Updates the local cache of alarm-publishing settings
  *
- * Loads current MQTT settings from MqttSettingsService and stores them
- * in cache for faster access without repeated service calls.
+ * Loads current alarm-publishing settings from AlarmPublishingSettingsService
+ * and stores them in cache for faster access without repeated service calls.
  */
-void GeniusDevicesService::_updateMqttSettingsCache()
+void GeniusDevicesService::_updateAlarmPublishingSettingsCache()
 {
-    if (_mqttSettingsService != nullptr)
+    if (_alarmPublishingSettings != nullptr)
     {
-        _cachedMqttSettings = _mqttSettingsService->getSettingsCopy();
-        ESP_LOGV(GeniusDevices::TAG, "Updated cached alarm MQTT settings (alarmEnabled: %d, topic: %s)",
-                 _cachedMqttSettings.alarmEnabled,
-                 _cachedMqttSettings.alarmTopic.c_str());
+        _cachedAlarmPublishingSettings = _alarmPublishingSettings->getSettingsCopy();
+        ESP_LOGV(GeniusDevices::TAG, "Updated cached alarm-publishing settings (alarmEnabled: %d, topic: %s)",
+                 _cachedAlarmPublishingSettings.alarmEnabled,
+                 _cachedAlarmPublishingSettings.alarmTopic.c_str());
     }
 }

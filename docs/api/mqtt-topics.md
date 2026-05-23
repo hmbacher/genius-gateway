@@ -9,7 +9,7 @@ This document describes the MQTT topics published by the Genius Gateway. The gat
 MQTT functionality is mainly configured via [web frontend](../features/index.md) or HTTP API endpoints:
 
 - **Framework MQTT Settings:** `/rest/mqttSettings` - Basic MQTT connection settings
-- **Gateway MQTT Settings:** `/rest/mqtt-settings` - Genius Gateway specific publishing options
+- **Simple Alarm Publishing:** `/rest/alarm-publishing` - Genius Gateway specific publishing options
 
 ---
 

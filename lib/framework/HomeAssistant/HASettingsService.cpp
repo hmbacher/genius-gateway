@@ -46,17 +46,19 @@ void HASettingsService::begin()
     _applyToHAService();
 }
 
-// Pre-v1.3.0 the HA enable flag and discovery prefix lived in the gateway-MQTT
-// settings file under different key names. On first boot after the upgrade,
-// copy those values into the new haSettings.json so the user doesn't have to
-// re-enable HA and re-enter the discovery prefix.
+// Pre-v1.3.0 the HA enable flag and discovery prefix lived in the legacy
+// /config/mqtt-settings.json file under different key names. On first boot
+// after the upgrade, copy those values into the new haSettings.json so the
+// user doesn't have to re-enable HA and re-enter the discovery prefix. The
+// legacy file itself is removed later — by LegacyConfigMigration, once the
+// alarm-publishing service has also had a chance to read it (see
+// AlarmPublishingSettingsService::begin()).
 void HASettingsService::_migrateLegacyHASettings()
 {
     constexpr const char *LEGACY_FILE = "/config/mqtt-settings.json";
     constexpr const char *LEGACY_ENABLED_KEY = "HAIntegrationEnabled";
     constexpr const char *LEGACY_PREFIX_KEY = "HAMQTTDiscoveryPrefix";
 
-    // New file already present → nothing to migrate.
     if (_fs->exists(HA_SETTINGS_FILE))
         return;
 

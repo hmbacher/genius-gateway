@@ -9,21 +9,21 @@
 	import Info from '~icons/tabler/info-circle';
 	import Collapsible from '$lib/components/Collapsible.svelte';
 
-	type GatewayMQTTSettings = {
+	type AlarmPublishingSettings = {
 		alarmEnabled: boolean;
 		alarmTopic: string;
 	};
 
 	const maxTopicPathLength = 64;
 
-	const defaultSettings: GatewayMQTTSettings = {
+	const defaultSettings: AlarmPublishingSettings = {
 		alarmEnabled: false,
 		alarmTopic: 'smarthome/genius-gateway/alarm'
 	};
 
-	let mqttSettings: GatewayMQTTSettings = $state(defaultSettings);
+	let settings: AlarmPublishingSettings = $state(defaultSettings);
 	let strSettings: string = $state(JSON.stringify(defaultSettings));
-	let isSettingsDirty: boolean = $derived(JSON.stringify(mqttSettings) !== strSettings);
+	let isSettingsDirty: boolean = $derived(JSON.stringify(settings) !== strSettings);
 
 	function isValidMQTTTopicPath(topic: string): boolean {
 		if (!topic || typeof topic !== 'string') return false;
@@ -40,17 +40,17 @@
 		return true;
 	}
 
-	async function getGatewayMQTTSettings() {
+	async function getAlarmPublishingSettings() {
 		try {
-			const response = await fetch('/rest/mqtt-settings', {
+			const response = await fetch('/rest/alarm-publishing', {
 				method: 'GET',
 				headers: {
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				}
 			});
-			mqttSettings = await response.json();
-			strSettings = JSON.stringify(mqttSettings);
+			settings = await response.json();
+			strSettings = JSON.stringify(settings);
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -59,32 +59,32 @@
 
 	onMount(() => {
 		if (!page.data.features.security || $user.admin) {
-			getGatewayMQTTSettings();
+			getAlarmPublishingSettings();
 		}
 	});
 
-	const alarmTopicError = $derived(!isValidMQTTTopicPath(mqttSettings.alarmTopic));
+	const alarmTopicError = $derived(!isValidMQTTTopicPath(settings.alarmTopic));
 
 	function handleSubmit() {
 		if (!alarmTopicError) {
-			postGatewayMQTTSettings();
+			postAlarmPublishingSettings();
 		}
 	}
 
-	async function postGatewayMQTTSettings() {
+	async function postAlarmPublishingSettings() {
 		try {
-			const response = await fetch('/rest/mqtt-settings', {
+			const response = await fetch('/rest/alarm-publishing', {
 				method: 'POST',
 				headers: {
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(mqttSettings)
+				body: JSON.stringify(settings)
 			});
 			if (response.status == 200) {
 				notifications.success('Alarm settings updated.', 3000);
-				mqttSettings = await response.json();
-				strSettings = JSON.stringify(mqttSettings);
+				settings = await response.json();
+				strSettings = JSON.stringify(settings);
 			} else {
 				notifications.error('Updating alarm settings failed.', 3000);
 			}
@@ -111,11 +111,11 @@
 			<input
 				type="checkbox"
 				class="toggle toggle-primary"
-				bind:checked={mqttSettings.alarmEnabled}
+				bind:checked={settings.alarmEnabled}
 			/>
 			<span>Enable simple alarm publishing</span>
 		</label>
-		{#if mqttSettings.alarmEnabled}
+		{#if settings.alarmEnabled}
 			<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 				<label class="label" for="alarmTopic">Alarm Topic</label>
 				<input
@@ -124,12 +124,12 @@
 					class="input w-full invalid:border-error invalid:border-2 {alarmTopicError
 						? 'border-error border-2'
 						: ''}"
-					bind:value={mqttSettings.alarmTopic}
+					bind:value={settings.alarmTopic}
 					id="alarmTopic"
 					min="1"
 					max={maxTopicPathLength}
 					required
-					disabled={!mqttSettings.alarmEnabled}
+					disabled={!settings.alarmEnabled}
 				/>
 				{#if alarmTopicError}
 					<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
@@ -147,7 +147,7 @@
 	<div class="mx-4 flex flex-wrap justify-end gap-2">
 		<button
 			class="btn btn-primary"
-			disabled={!isSettingsDirty || (mqttSettings.alarmEnabled && alarmTopicError)}
+			disabled={!isSettingsDirty || (settings.alarmEnabled && alarmTopicError)}
 			onclick={handleSubmit}>Apply Settings</button
 		>
 	</div>
