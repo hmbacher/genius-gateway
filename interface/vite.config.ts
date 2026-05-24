@@ -2,6 +2,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import type { UserConfig } from 'vite';
 import Icons from 'unplugin-icons/vite';
 import viteLittleFS from './vite-plugin-littlefs';
+import viteAppVersion from './vite-plugin-app-version';
 import { FileSystemIconLoader } from 'unplugin-icons/loaders'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -19,7 +20,9 @@ const config: UserConfig = {
 		  	}
 		}),
 		// Shorten file names for LittleFS 32 char limit
-		viteLittleFS()
+		viteLittleFS(),
+		// Stamp APP_VERSION_FULL into version.ts (frontend) and AppVersion.h (firmware)
+		viteAppVersion()
 	],
 	server: {
 		allowedHosts: ['gg-dev.bacher.cloud'],

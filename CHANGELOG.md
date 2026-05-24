@@ -1,3 +1,10 @@
+# v1.4.0
+
+## Frontend / Firmware Version Sync
+- **Version mismatch banner**: after a firmware upgrade, a previously cached web UI may keep running against a backend whose REST and WebSocket contracts have moved on. Each build now stamps a combined `APP_VERSION_FULL = <semver>-<UTC YYYYMMDD.HHMMSS>` into both the frontend bundle (`interface/src/lib/version.ts`) and the firmware (`lib/framework/AppVersion.h`) via a new Vite plugin (`vite-plugin-app-version.ts`). The firmware announces its value on a new `app_version` WebSocket event emitted once per subscriber; if the running UI's baked-in value differs, an amber sticky banner appears at the top of the page with a **Reload** button. Suppressed during `vite dev` since mismatch is expected when the dev server runs against a flashed firmware
+- **Static-asset cache control tightened**: the previous `Cache-Control: public, immutable, max-age=31536000` was applied to *every* embedded asset including `index.html`, which meant browsers could hold the old shell for up to a year after a firmware upgrade. Only content-hashed assets under `/_app/immutable/` keep the long-cache header now; everything else (notably `index.html`) is served with `Cache-Control: no-cache` so the shell is revalidated on every load
+- **Reload button uses cache-busting query parameter**: for users upgrading *from* a pre-fix firmware whose `index.html` is still pinned as immutable in their browser cache, the banner's reload button appends `?v=<timestamp>` to force a fresh fetch of the shell. New hashed bundles are loaded as normal; old hashed bundles stay cached but are never re-referenced
+
 # v1.3.0
 ## Upgrade Notes
 When upgrading from v1.2.x, four persisted-settings files are affected. All migrations run transparently on first boot — no manual reconfiguration is required:

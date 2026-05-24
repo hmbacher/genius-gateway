@@ -86,11 +86,22 @@ def get_package_manager():
         return "npm"
 
 
+def get_app_version():
+    for define in buildFlags.get("CPPDEFINES"):
+        if isinstance(define, list) and define[0] == "APP_VERSION":
+            return str(define[1]).strip('"')
+    return "0.0.0"
+
+
 def build_webapp():
     package_manager = get_package_manager()
     print(f"Building interface with {package_manager}")
     os.chdir(interface_dir)
     env.Execute(f"{package_manager} install")
+    # Pass APP_VERSION to the Vite plugin so it can stamp the combined
+    # APP_VERSION_FULL into version.ts (frontend) and AppVersion.h (firmware).
+    os.environ["APP_VERSION"] = get_app_version()
+    print(f"Building with APP_VERSION={os.environ['APP_VERSION']}")
     env.Execute(f"{package_manager} run build")
     os.chdir("..")
 
