@@ -25,6 +25,7 @@
 	import IconCheckCircle from '~icons/tabler/circle-check';
 	import IconCheck from '~icons/tabler/check';
 	import IconError from '~icons/tabler/circle-x';
+	import IconWarning from '~icons/tabler/alert-triangle';
 	import IconBattery from '~icons/tabler/battery';
 	import IconBatteryOff from '~icons/tabler/battery-off';
 	import IconAlarm from '~icons/tabler/bell-ringing';
@@ -105,13 +106,14 @@
 		name: string;
 		inactive: [string, string, string];
 		neutral: boolean;
+		warn?: boolean;
 	}[] = [
 		{ name: 'FM Fault', inactive: ['No ', 'FM Fault', ''], neutral: false },
 		{ name: 'Range Test active', inactive: ['', 'Range Test', ' is not active'], neutral: true },
 		{ name: 'Self-Test active', inactive: ['', 'Self-Test', ' is not active'], neutral: true },
 		{ name: 'FM Battery Low', inactive: ['', 'FM Battery', ' is not low'], neutral: false },
-		{ name: 'Remote Battery Low', inactive: ['', 'Remote Battery', ' is not low'], neutral: false },
-		{ name: 'Remote Error', inactive: ['No ', 'Remote Error', ''], neutral: false },
+		{ name: 'Remote Battery Low', inactive: ['', 'Remote Battery', ' is not low'], neutral: false, warn: true },
+		{ name: 'Remote Error', inactive: ['No ', 'Remote Error', ''], neutral: false, warn: true },
 		{ name: 'Radio Link Error', inactive: ['No ', 'Radio Link Error', ''], neutral: false },
 		{ name: 'Remote Alarm', inactive: ['', 'Remote Alarm', ' is not active'], neutral: true }
 	];
@@ -398,8 +400,10 @@
 							{#if device.readoutTime}
 								<div class="divider my-1 mt-3 text-sm text-base-content/40">Radio Status</div>
 
+								<!-- Matches Hekatron Genius Home: bit 0 (FmFault) + bit 3 (FmBatteryLowFault) -->
+								{@const fmFault = !!((device.radioModule.radioStateMask ?? 0) & 0x09)}
 								<DetailRow icon={IconCheckCircle} label="Radio Status">
-									{#if device.radioModule.radioNetworkFault}
+									{#if fmFault}
 										<span class="inline-flex items-center gap-1">
 											<IconError class="h-4 w-4 flex-shrink-0 text-error" />
 											<span class="font-medium text-error">Fault</span>
@@ -412,10 +416,15 @@
 									{/if}
 								</DetailRow>
 
+								<div class="divider my-1 mt-3 text-sm text-base-content/40">FM Module Flags</div>
+
 								{#each RADIO_STATE_FLAGS as flag, i}
 									{@const active = !!(((device.radioModule.radioStateMask ?? 0) >> i) & 1)}
 									<div class="flex items-center gap-2 pl-6">
-										{#if active}
+										{#if active && flag.warn}
+											<IconWarning class="h-3.5 w-3.5 flex-shrink-0 text-warning" />
+											<span class="text-xs text-warning">{flag.name}</span>
+										{:else if active}
 											<IconError class="h-3.5 w-3.5 flex-shrink-0 text-error" />
 											<span class="text-xs text-error">{flag.name}</span>
 										{:else if flag.neutral}

@@ -5,6 +5,11 @@
 - **Static-asset cache control tightened**: the previous `Cache-Control: public, immutable, max-age=31536000` was applied to *every* embedded asset including `index.html`, which meant browsers could hold the old shell for up to a year after a firmware upgrade. Only content-hashed assets under `/_app/immutable/` keep the long-cache header now; everything else (notably `index.html`) is served with `Cache-Control: no-cache` so the shell is revalidated on every load
 - **Reload button uses cache-busting query parameter**: for users upgrading *from* a pre-fix firmware whose `index.html` is still pinned as immutable in their browser cache, the banner's reload button appends `?v=<timestamp>` to force a fresh fetch of the shell. New hashed bundles are loaded as normal; old hashed bundles stay cached but are never re-referenced
 
+## Device Details & Diagnostics
+- **Radio Status badge realigned with the Hekatron Genius Home app**: in the Device Details dialog, the "Radio Status: OK / Fault" indicator is now derived from the FM module's own status bits — `FmFault` (bit 0) and `FmBatteryLowFault` (bit 3) of `radioStateMask` — matching what the vendor app surfaces. Previously the badge reflected the detector-reported `radioNetworkFault` flag from a separate byte, which could disagree with the per-bit flag list rendered below it. The list/table/card/MQTT views are unchanged (they already used `radioNetworkFault` only and never escalated `RemoteError`, matching vendor behaviour)
+- **"FM Module Flags" subhead** added between the badge and the per-bit list, so the indented flags no longer read as if they composed the badge above
+- **`RemoteBattLow` and `RemoteError` flags now styled as warnings** (amber triangle) instead of errors (red). These bits describe the state of *another* device on the radio line, not the inspected device, so they warrant attention but not a fault indication
+
 # v1.3.0
 ## Upgrade Notes
 When upgrading from v1.2.x, four persisted-settings files are affected. All migrations run transparently on first boot — no manual reconfiguration is required:
