@@ -37,13 +37,20 @@ function writeIfChanged(path: string, content: string): boolean {
 }
 
 export default function viteAppVersion(): Plugin {
+	// SvelteKit + adapter-static invokes Vite twice per build (server bundle for
+	// the SPA fallback HTML, then the client bundle). buildStart fires on each
+	// pass, so cache the stamp on first invocation to keep server-rendered HTML
+	// and the client bundle agreeing on APP_VERSION_FULL — otherwise the
+	// stale-UI check over WS sees a phantom mismatch right after every deploy.
+	let cachedFull: string | null = null;
 	return {
 		name: 'vite-plugin-app-version',
 		apply: 'build',
 		buildStart() {
-			const base = readBaseVersion();
-			const buildId = makeBuildId();
-			const full = `${base}-${buildId}`;
+			if (cachedFull === null) {
+				cachedFull = `${readBaseVersion()}-${makeBuildId()}`;
+			}
+			const full = cachedFull;
 
 			const tsBody =
 				`// AUTO-GENERATED FILE — DO NOT EDIT.\n` +
