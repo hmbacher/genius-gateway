@@ -137,13 +137,20 @@ def create_enum_file_header():
     ]
 
 def write_enum_file(output_file, all_enums):
-    """Write the enum content to the output file."""
-    # Create output directory if it doesn't exist
+    """Write the enum content to the output file, skipping the write when the
+    file is already byte-identical. Unconditional writes bump the mtime on
+    every build, which makes build_interface.py see a 'newer' source file and
+    forces a full frontend rebuild even when nothing changed."""
+    new_content = '\n'.join(all_enums)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Write the TypeScript file
+    try:
+        if output_file.read_text(encoding='utf-8') == new_content:
+            return False
+    except FileNotFoundError:
+        pass
     with open(output_file, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(all_enums))
+        f.write(new_content)
+    return True
 
 def generate_enums_main(project_dir_override=None):
     """Main function to generate TypeScript enums."""
@@ -211,10 +218,11 @@ def generate_enums_main(project_dir_override=None):
         if file_enum_count == 0:
             print(f"  No enums found")
     
-    write_enum_file(output_file, all_enums)
-    
+    wrote = write_enum_file(output_file, all_enums)
+
     print(f"\n{'-' * 60}")
-    print(f"Generated {enum_count} TypeScript enum(s) in {output_file}")
+    action = "Generated" if wrote else "Up-to-date (skipped write):"
+    print(f"{action} {enum_count} TypeScript enum(s) in {output_file}")
     
     if processed_enums:
         print(f"\nEnum Mapping Summary:")
