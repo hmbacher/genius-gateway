@@ -25,8 +25,10 @@
 	import Health from '~icons/tabler/stethoscope';
 	import Stopwatch from '~icons/tabler/24-hours';
 	import SDK from '~icons/tabler/sdk';
+	import Browser from '~icons/tabler/browser';
 	import type { SystemInformation, Analytics } from '$lib/types/models';
 	import { socket } from '$lib/stores/socket';
+	import { APP_VERSION_FULL } from '$lib/version';
 
 	let systemInformation: SystemInformation = $state();
 
@@ -340,6 +342,18 @@
 						<div class="font-bold">Firmware Version</div>
 						<div class="text-sm opacity-75">
 							{systemInformation.firmware_version} @ {systemInformation.build_target}
+						</div>
+					</div>
+				</div>
+
+				<div class="rounded-box bg-base-100 flex items-center space-x-3 px-4 py-2">
+					<div class="mask mask-hexagon bg-primary h-auto w-10 flex-none">
+						<Browser class="text-primary-content h-auto w-full scale-75" />
+					</div>
+					<div>
+						<div class="font-bold">Frontend Version</div>
+						<div class="text-sm opacity-75">
+							{APP_VERSION_FULL}
 						</div>
 					</div>
 				</div>
