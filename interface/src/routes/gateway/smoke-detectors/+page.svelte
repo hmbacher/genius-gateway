@@ -892,6 +892,7 @@
 					<button
 						class="btn btn-primary text-primary-content btn-md"
 						aria-label="Add smoke detector"
+						disabled={!geniusDevices.isLoaded}
 						onclick={handleNewGeniusDevice}
 					>
 						<Add class="h-6 w-6" />
@@ -910,6 +911,7 @@
 						aria-label={isSecureContext
 							? 'Add smoke detector via acoustic detection'
 							: 'Acoustic device detection requires a secure (HTTPS) connection'}
+						disabled={!geniusDevices.isLoaded}
 						onclick={handleAcousticDetection}
 					>
 						<span class="relative inline-flex">
@@ -926,16 +928,25 @@
 					<label
 						for="upload"
 						class="btn btn-primary text-primary-content btn-md"
+						class:btn-disabled={!geniusDevices.isLoaded}
 						aria-label="Load smoke detector configuration from file"
 					>
 						<Load class="h-6 w-6" />
 					</label>
-					<input bind:files bind:this={fileInput} id="upload" type="file" class="hidden" />
+					<input
+						bind:files
+						bind:this={fileInput}
+						id="upload"
+						type="file"
+						class="hidden"
+						disabled={!geniusDevices.isLoaded}
+					/>
 				</div>
 				<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
 					<button
 						class="btn btn-primary text-primary-content btn-md"
 						aria-label="Save smoke detector configuration to file"
+						disabled={!geniusDevices.isLoaded}
 						onclick={() =>
 							downloadObjectAsJson(
 								{ version: 1, devices: geniusDevices.devices },
