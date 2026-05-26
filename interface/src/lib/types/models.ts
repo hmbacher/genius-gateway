@@ -365,3 +365,9 @@ export type HASettings = {
 	manufacturer: string;
 	model: string;
 };
+
+export type ReportSettings = {
+	propertyName: string;
+	propertyAddress: string;
+	customerName: string;
+};

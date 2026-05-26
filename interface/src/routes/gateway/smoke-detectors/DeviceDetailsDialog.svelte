@@ -416,7 +416,7 @@
 									{/if}
 								</DetailRow>
 
-								<div class="divider my-1 mt-3 text-sm text-base-content/40">FM Module Flags</div>
+								<DetailRow icon={IconRadar} label="Radio State Flags" />
 
 								{#each RADIO_STATE_FLAGS as flag, i}
 									{@const active = !!(((device.radioModule.radioStateMask ?? 0) >> i) & 1)}
