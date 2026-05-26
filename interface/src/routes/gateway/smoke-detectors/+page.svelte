@@ -52,35 +52,181 @@
 
 	const GENIUS_DEVICE_DEFAULT_LOCATION = 'Unknown location';
 
+	// Backend rejects request bodies > 16 KB (PsychicHttp MAX_REQUEST_BODY_SIZE).
+	// Budget set well below the hard limit because larger chunks have been observed to
+	// stall the HTTP task before our handler runs (likely body-read / JsonDocument
+	// memory pressure under WS keepalive load — TBC via server-side log).
+	// 6 KB ≈ 3 fully-populated devices per chunk; 50-device imports = ~17 round-trips,
+	// well within an acceptable interactive latency budget.
+	const IMPORT_CHUNK_BYTE_BUDGET = 6000;
+
 	let { data }: Props = $props();
 
 	$effect(() => {
 		if (!$user.admin) goto('/');
 	});
 
-	async function postGeniusDevices() {
-		try {
-			const response = await fetch('/rest/gateway-devices', {
-				method: 'POST',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ devices: geniusDevices.devices } as GeniusDevices)
-			});
+	function authHeaders(): Record<string, string> {
+		return {
+			Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+			'Content-Type': 'application/json'
+		};
+	}
 
-			if (response.status == 200) {
-				notifications.success('Smoke detectors updated.', 3000);
-				geniusDevices.devices = (
-					JSON.parse(await response.text(), jsonDateReviver) as GeniusDevices
-				).devices;
-			} else {
-				notifications.error('Updating smoke detectors failed.', 3000);
+	/** Upsert a single device. Server returns the canonical device on success; the local store
+	 *  entry is replaced so anything the server normalized propagates back into the UI. */
+	async function apiPutDevice(device: GeniusDevice): Promise<boolean> {
+		try {
+			const response = await fetch('/rest/gateway-devices/device', {
+				method: 'PUT',
+				headers: authHeaders(),
+				body: JSON.stringify(device)
+			});
+			if (response.status === 200) {
+				const saved = JSON.parse(await response.text(), jsonDateReviver) as GeniusDevice;
+				const idx = geniusDevices.devices.findIndex((d) => d.id === saved.id);
+				if (idx >= 0) geniusDevices.devices[idx] = saved;
+				else geniusDevices.devices = [...geniusDevices.devices, saved];
+				notifications.success('Smoke detector saved.', 3000);
+				return true;
 			}
+			notifications.error('Saving smoke detector failed.', 3000);
+			return false;
 		} catch (error) {
 			console.error('Error:', error);
+			notifications.error('Saving smoke detector failed.', 3000);
+			return false;
 		}
-		return;
+	}
+
+	async function apiDeleteDevice(id: number): Promise<boolean> {
+		try {
+			const response = await fetch('/rest/gateway-devices/device/delete', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ id })
+			});
+			if (response.status === 200) {
+				geniusDevices.devices = geniusDevices.devices.filter((d) => d.id !== id);
+				notifications.success('Smoke detector deleted.', 3000);
+				return true;
+			}
+			notifications.error('Deleting smoke detector failed.', 3000);
+			return false;
+		} catch (error) {
+			console.error('Error:', error);
+			notifications.error('Deleting smoke detector failed.', 3000);
+			return false;
+		}
+	}
+
+	async function apiReorderDevices(order: number[]): Promise<boolean> {
+		try {
+			const response = await fetch('/rest/gateway-devices/reorder', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ order })
+			});
+			if (response.status === 200) return true;
+			notifications.error('Reordering failed.', 3000);
+			return false;
+		} catch (error) {
+			console.error('Error:', error);
+			notifications.error('Reordering failed.', 3000);
+			return false;
+		}
+	}
+
+	/** Group devices into chunks whose serialized JSON byte size stays under the budget.
+	 *  Each chunk always contains at least one device — a device larger than the budget
+	 *  is sent on its own and the server may reject it (surfaced as an error). */
+	function chunkByBytes(devices: GeniusDevice[]): GeniusDevice[][] {
+		const encoder = new TextEncoder();
+		const chunks: GeniusDevice[][] = [];
+		let current: GeniusDevice[] = [];
+		let currentBytes = 2; // outer "[]"
+		for (const d of devices) {
+			const devBytes = encoder.encode(JSON.stringify(d)).length;
+			const separatorBytes = current.length > 0 ? 1 : 0; // comma between elements
+			if (current.length > 0 && currentBytes + separatorBytes + devBytes > IMPORT_CHUNK_BYTE_BUDGET) {
+				chunks.push(current);
+				current = [];
+				currentBytes = 2;
+			}
+			current.push(d);
+			currentBytes += (current.length > 1 ? 1 : 0) + devBytes;
+		}
+		if (current.length > 0) chunks.push(current);
+		return chunks;
+	}
+
+	/** Atomically replace the full device list using the chunked-import protocol.
+	 *  Used for file import and for "delete all" — both cases where holding the whole
+	 *  payload in one HTTP body would exceed the backend's body-size limit. */
+	async function replaceAllDevices(devices: GeniusDevice[]): Promise<boolean> {
+		let sessionId = '';
+		const abort = async () => {
+			if (!sessionId) return;
+			await fetch('/rest/gateway-devices/import/abort', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ sessionId })
+			}).catch(() => {});
+			sessionId = '';
+		};
+		try {
+			const beginRes = await fetch('/rest/gateway-devices/import/begin', {
+				method: 'POST',
+				headers: authHeaders()
+			});
+			if (beginRes.status !== 200) {
+				const msg = beginRes.status === 409
+					? 'Another import is in progress. Please try again in a minute.'
+					: 'Could not start import.';
+				notifications.error(msg, 4000);
+				return false;
+			}
+			sessionId = (await beginRes.json()).sessionId as string;
+
+			const chunks = chunkByBytes(devices);
+			for (const chunk of chunks) {
+				const chunkRes = await fetch('/rest/gateway-devices/import/chunk', {
+					method: 'POST',
+					headers: authHeaders(),
+					body: JSON.stringify({ sessionId, devices: chunk })
+				});
+				if (chunkRes.status !== 200) {
+					const detail = await chunkRes.text().catch(() => '');
+					notifications.error(
+						`Import chunk rejected (${chunkRes.status})` + (detail ? `: ${detail}` : ''),
+						5000
+					);
+					await abort();
+					return false;
+				}
+			}
+
+			const commitRes = await fetch('/rest/gateway-devices/import/commit', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ sessionId })
+			});
+			if (commitRes.status !== 200) {
+				notifications.error('Import commit failed.', 4000);
+				await abort();
+				return false;
+			}
+			sessionId = ''; // committed — no abort needed
+
+			// Server is now authoritative — adopt the submitted list locally.
+			geniusDevices.devices = devices;
+			return true;
+		} catch (error) {
+			console.error('Error:', error);
+			await abort();
+			notifications.error('Import failed.', 4000);
+			return false;
+		}
 	}
 
 	function confirmDeleteAll() {
@@ -97,9 +243,8 @@
 			},
 			confirmClass: 'btn-error',
 			onConfirm: async () => {
-				geniusDevices.devices = [];
 				modals.close();
-				await postGeniusDevices();
+				await replaceAllDevices([]);
 			}
 		});
 	}
@@ -118,9 +263,9 @@
 				confirm: { label: 'Yes', icon: Check }
 			},
 			onConfirm: async () => {
-				geniusDevices.devices.splice(index, 1);
+				const id = geniusDevices.devices[index].id;
 				modals.close();
-				await postGeniusDevices();
+				await apiDeleteDevice(id);
 			}
 		});
 	}
@@ -131,8 +276,7 @@
 			//geniusDevice: { ...geniusDevices.devices[index] }, // Shallow Copy
 			geniusDevice: $state.snapshot(geniusDevices.devices[index]), // Deep copy
 			onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
-				geniusDevices.devices[index] = editedGeniusDevice;
-				await postGeniusDevices();
+				await apiPutDevice(editedGeniusDevice);
 				modals.close();
 			}
 		});
@@ -142,8 +286,7 @@
 		modals.open(EditSmokeDetector, {
 			title: 'Add smoke detector',
 			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				geniusDevices.devices = [...geniusDevices.devices, newGeniusDevice];
-				await postGeniusDevices();
+				await apiPutDevice(newGeniusDevice);
 				modals.close();
 			}
 		});
@@ -162,7 +305,7 @@
 			(d, i) => d.smokeDetector.sn !== geniusDevices.devices[i]?.smokeDetector.sn
 		);
 		geniusDevices.devices = reorderedDevices;
-		if (orderChanged) postGeniusDevices();
+		if (orderChanged) apiReorderDevices(reorderedDevices.map((d) => d.id));
 	}
 
 	function handleAcousticDetection() {
@@ -282,9 +425,8 @@
 		newDevice.location = existing.location;
 		newDevice.alarms = existing.alarms;
 		newDevice.isAlarming = existing.isAlarming;
-		geniusDevices.devices[index] = newDevice;
-		await postGeniusDevices();
-		notifications.success('Readout data updated successfully.', 3000);
+		const ok = await apiPutDevice(newDevice);
+		if (ok) notifications.success('Readout data updated successfully.', 3000);
 		checkAndWarnDiagnostics(newDevice, () => checkAndOfferAlarmLine(newDevice));
 	}
 
@@ -339,8 +481,7 @@
 							geniusDevice: newDevice,
 							saveButtonLabel: 'Replace',
 							onSaveGeniusDevice: async (editedDevice: GeniusDevice) => {
-								geniusDevices.devices[match.fmIndex] = editedDevice;
-								await postGeniusDevices();
+								await apiPutDevice(editedDevice);
 								modals.close();
 								checkAndWarnDiagnostics(editedDevice, () => checkAndOfferAlarmLine(editedDevice));
 							}
@@ -353,6 +494,7 @@
 			case 'cross-match': {
 				const deviceA = geniusDevices.devices[match.rwmIndex];
 				const deviceB = geniusDevices.devices[match.fmIndex];
+				const idsToDelete = [deviceA.id, deviceB.id];
 				modals.open(ConfirmDialog, {
 					title: 'Components found in different devices',
 					message:
@@ -365,12 +507,8 @@
 						confirm: { label: 'Continue', icon: Check }
 					},
 					onConfirm: () => {
-						// Remove both old devices
-						geniusDevices.devices = geniusDevices.devices.filter(
-							(d) => d.smokeDetector.sn !== rwmSN && d.radioModule.sn !== fmSN
-						);
 						modals.close();
-						acousticAddNew(newDevice, 'Delete previous & add device');
+						acousticAddNew(newDevice, 'Delete previous & add device', idsToDelete);
 					}
 				});
 				return;
@@ -378,14 +516,16 @@
 		}
 	}
 
-	function acousticAddNew(device: GeniusDevice, saveButtonLabel: string = 'Add') {
+	function acousticAddNew(device: GeniusDevice, saveButtonLabel: string = 'Add', idsToDeleteFirst: number[] = []) {
 		modals.open(EditSmokeDetector, {
 			title: 'Add smoke detector',
 			geniusDevice: device,
 			saveButtonLabel,
 			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				geniusDevices.devices = [...geniusDevices.devices, newGeniusDevice];
-				await postGeniusDevices();
+				// Cross-match path: clean up superseded devices first. Not atomic across requests —
+				// if a delete fails mid-flight the user sees the error and can retry.
+				for (const id of idsToDeleteFirst) await apiDeleteDevice(id);
+				await apiPutDevice(newGeniusDevice);
 				modals.close();
 				checkAndWarnDiagnostics(newGeniusDevice, () => checkAndOfferAlarmLine(newGeniusDevice));
 			}
@@ -614,8 +754,8 @@
 					}
 
 					const finishImport = async () => {
-						geniusDevices.devices = importedGeniusDevices.devices;
-						await postGeniusDevices();
+						const ok = await replaceAllDevices(importedGeniusDevices.devices);
+						if (!ok) return;
 						if (fileVersion < CURRENT_VERSION) {
 							modals.open(InfoDialog, {
 								title: 'Migration Successful',

@@ -29,6 +29,7 @@
 
 #include <GeniusDevicesService.h>
 #include <WiFi.h>
+#include <esp_random.h>
 #include <Utils.hpp>
 
 GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqttClient *mqttClient, AlarmPublishingSettingsService *alarmPublishingSettings) : _httpEndpoint(GeniusDevices::read,
@@ -43,22 +44,212 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
                                                                                                                                                                        this,
                                                                                                                                                                        sveltekit->getFS(),
                                                                                                                                                                        GATEWAY_DEVICES_FILE),
+                                                                                                                                                        _server(sveltekit->getServer()),
+                                                                                                                                                        _securityManager(sveltekit->getSecurityManager()),
                                                                                                                                                         _isAlarming(false),
                                                                                                                                                         _numAlarming(0),
                                                                                                                                                         _mqttClient(mqttClient),
                                                                                                                                                         _alarmPublishingSettings(alarmPublishingSettings),
                                                                                                                                                         _haService(sveltekit->getHAService())
 {
+    _importMutex = xSemaphoreCreateRecursiveMutex();
 }
 
 // ============================================================================
 // Public Methods - Lifecycle
 // ============================================================================
 
+// Small helper to write a JSON {success, reason} reply with an HTTP status code.
+static esp_err_t replyJson(PsychicRequest *request, int status, const char *body)
+{
+    return request->reply(status, "application/json", body);
+}
+
+// Serialize one device into a 200 response.
+static esp_err_t replyDevice(PsychicRequest *request, GeniusDevice &device)
+{
+    PsychicJsonResponse response(request, false);
+    JsonObject root = response.getRoot().to<JsonObject>();
+    device.toJson(root);
+    return response.send();
+}
+
 void GeniusDevicesService::begin()
 {
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
+
+    // Spawn the post-commit task — it sleeps on a notification and runs the
+    // update-handler chain (FS write + HA sync) for chunked-import commits so
+    // those don't block the HTTP server task.
+    xTaskCreatePinnedToCore(
+        _postCommitTaskImpl,
+        "gd-post-commit",
+        6144,
+        this,
+        4,
+        &_postCommitTaskHandle,
+        ESP32SVELTEKIT_RUNNING_CORE);
+
+    // ---- Per-device CRUD: PUT /rest/gateway-devices/device (upsert by id) ----
+    _server->on(
+        GATEWAY_DEVICES_DEVICE_PATH,
+        HTTP_PUT,
+        _securityManager->wrapCallback(
+            [this](PsychicRequest *request, JsonVariant &json) -> esp_err_t {
+                if (!json.is<JsonObject>())
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Body must be a device object\"}");
+                GeniusDevice updated(GeniusSmokeDetectorInfo{}, GeniusRadioModuleInfo{}, String(), 0);
+                switch (this->upsertDevice(json, updated))
+                {
+                case DeviceOpResult::OK:
+                case DeviceOpResult::UNCHANGED:
+                    return replyDevice(request, updated);
+                case DeviceOpResult::INVALID_BODY:
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Invalid device payload (id required and non-zero)\"}");
+                case DeviceOpResult::LIMIT_REACHED:
+                    return replyJson(request, 409, "{\"success\":false,\"reason\":\"Device limit reached\"}");
+                default:
+                    return replyJson(request, 500, "{\"success\":false}");
+                }
+            },
+            AuthenticationPredicates::IS_ADMIN));
+
+    // ---- Per-device CRUD: POST /rest/gateway-devices/device/delete  body: { id } ----
+    _server->on(
+        GATEWAY_DEVICES_DEVICE_DELETE_PATH,
+        HTTP_POST,
+        _securityManager->wrapCallback(
+            [this](PsychicRequest *request, JsonVariant &json) -> esp_err_t {
+                if (!json.is<JsonObject>() || !json["id"].is<uint32_t>())
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Missing id\"}");
+                uint32_t id = json["id"].as<uint32_t>();
+                switch (this->removeDevice(id))
+                {
+                case DeviceOpResult::OK:
+                    return replyJson(request, 200, "{\"success\":true}");
+                case DeviceOpResult::NOT_FOUND:
+                    return replyJson(request, 404, "{\"success\":false,\"reason\":\"Device not found\"}");
+                case DeviceOpResult::INVALID_BODY:
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Invalid id\"}");
+                default:
+                    return replyJson(request, 500, "{\"success\":false}");
+                }
+            },
+            AuthenticationPredicates::IS_ADMIN));
+
+    // ---- Per-device CRUD: POST /rest/gateway-devices/reorder  body: { order: [id...] } ----
+    _server->on(
+        GATEWAY_DEVICES_REORDER_PATH,
+        HTTP_POST,
+        _securityManager->wrapCallback(
+            [this](PsychicRequest *request, JsonVariant &json) -> esp_err_t {
+                if (!json.is<JsonObject>() || !json["order"].is<JsonArray>())
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Missing order array\"}");
+                std::vector<uint32_t> order;
+                order.reserve(json["order"].as<JsonArray>().size());
+                for (JsonVariant v : json["order"].as<JsonArray>())
+                    order.push_back(v.as<uint32_t>());
+                switch (this->reorderDevices(order))
+                {
+                case DeviceOpResult::OK:
+                case DeviceOpResult::UNCHANGED:
+                    return replyJson(request, 200, "{\"success\":true}");
+                case DeviceOpResult::INVALID_BODY:
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Order does not match current device set\"}");
+                default:
+                    return replyJson(request, 500, "{\"success\":false}");
+                }
+            },
+            AuthenticationPredicates::IS_ADMIN));
+
+    // ---- Chunked import: POST /rest/gateway-devices/import/begin ----
+    _server->on(
+        GATEWAY_DEVICES_IMPORT_BEGIN_PATH,
+        HTTP_POST,
+        _securityManager->wrapRequest(
+            [this](PsychicRequest *request) -> esp_err_t {
+                String token;
+                switch (this->importBegin(token))
+                {
+                case ImportResult::OK: {
+                    String body = String("{\"sessionId\":\"") + token + "\"}";
+                    return replyJson(request, 200, body.c_str());
+                }
+                case ImportResult::BUSY:
+                    return replyJson(request, 409, "{\"success\":false,\"reason\":\"Another import session is in progress\"}");
+                default:
+                    return replyJson(request, 500, "{\"success\":false}");
+                }
+            },
+            AuthenticationPredicates::IS_ADMIN));
+
+    // ---- Chunked import: POST /rest/gateway-devices/import/chunk  body: { sessionId, devices: [...] } ----
+    _server->on(
+        GATEWAY_DEVICES_IMPORT_CHUNK_PATH,
+        HTTP_POST,
+        _securityManager->wrapCallback(
+            [this](PsychicRequest *request, JsonVariant &json) -> esp_err_t {
+                if (!json.is<JsonObject>() || !json["sessionId"].is<const char *>() || !json["devices"].is<JsonArray>())
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Body must include sessionId and devices array\"}");
+                String token = json["sessionId"].as<String>();
+                switch (this->importChunk(token, json["devices"].as<JsonArray>()))
+                {
+                case ImportResult::OK:
+                    return replyJson(request, 200, "{\"success\":true}");
+                case ImportResult::BAD_SESSION:
+                    return replyJson(request, 410, "{\"success\":false,\"reason\":\"Unknown or expired session\"}");
+                case ImportResult::BAD_PAYLOAD:
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Malformed device entry in chunk\"}");
+                case ImportResult::LIMIT_REACHED:
+                    return replyJson(request, 409, "{\"success\":false,\"reason\":\"Device limit reached\"}");
+                default:
+                    return replyJson(request, 500, "{\"success\":false}");
+                }
+            },
+            AuthenticationPredicates::IS_ADMIN));
+
+    // ---- Chunked import: POST /rest/gateway-devices/import/commit  body: { sessionId } ----
+    _server->on(
+        GATEWAY_DEVICES_IMPORT_COMMIT_PATH,
+        HTTP_POST,
+        _securityManager->wrapCallback(
+            [this](PsychicRequest *request, JsonVariant &json) -> esp_err_t {
+                if (!json.is<JsonObject>() || !json["sessionId"].is<const char *>())
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Missing sessionId\"}");
+                String token = json["sessionId"].as<String>();
+                switch (this->importCommit(token))
+                {
+                case ImportResult::OK:
+                    return replyJson(request, 200, "{\"success\":true}");
+                case ImportResult::BAD_SESSION:
+                    return replyJson(request, 410, "{\"success\":false,\"reason\":\"Unknown or expired session\"}");
+                default:
+                    return replyJson(request, 500, "{\"success\":false}");
+                }
+            },
+            AuthenticationPredicates::IS_ADMIN));
+
+    // ---- Chunked import: POST /rest/gateway-devices/import/abort  body: { sessionId } ----
+    _server->on(
+        GATEWAY_DEVICES_IMPORT_ABORT_PATH,
+        HTTP_POST,
+        _securityManager->wrapCallback(
+            [this](PsychicRequest *request, JsonVariant &json) -> esp_err_t {
+                if (!json.is<JsonObject>() || !json["sessionId"].is<const char *>())
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Missing sessionId\"}");
+                String token = json["sessionId"].as<String>();
+                switch (this->importAbort(token))
+                {
+                case ImportResult::OK:
+                    return replyJson(request, 200, "{\"success\":true}");
+                case ImportResult::BAD_SESSION:
+                    return replyJson(request, 410, "{\"success\":false,\"reason\":\"Unknown session\"}");
+                default:
+                    return replyJson(request, 500, "{\"success\":false}");
+                }
+            },
+            AuthenticationPredicates::IS_ADMIN));
     // FSPersistence::readFromFS uses updateWithoutPropagation, so update handlers
     // (incl. writeToFS) are never triggered on load. Force a write-back here so
     // any migration changes (e.g. v0→v1 enum remapping + version field) are
@@ -99,6 +290,18 @@ void GeniusDevicesService::begin()
 
     /* Register sub-devices for devices already loaded from FS */
     _syncSmokeDetectorSubDevices();
+
+    // Heap snapshot after all HA sub-devices are constructed — useful for verifying
+    // PSRAM-routing sdkconfig changes actually moved allocations off internal RAM.
+    // Compare internal/PSRAM free before vs. after the import → boot → settle cycle.
+    ESP_LOGI(GeniusDevices::TAG,
+             "heap after begin(): devices=%u  internal_free=%u (largest=%u)  psram_free=%u (largest=%u)  total_free=%u",
+             (unsigned)_state.devices.size(),
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM),
+             (unsigned)esp_get_free_heap_size());
 }
 
 // ============================================================================
@@ -341,6 +544,152 @@ bool GeniusDevicesService::isSmokeDetectorKnown(uint32_t detectorSN)
     return found;
 }
 
+// ============================================================================
+// GeniusDevice JSON helpers (shared between bulk-POST and per-device endpoints)
+// ============================================================================
+
+std::vector<genius_device_alarm_t> GeniusDevice::parseAlarms(JsonArray jsonAlarms)
+{
+    std::vector<genius_device_alarm_t> result;
+    int count = 0;
+    for (JsonVariant jsonAlarm : jsonAlarms)
+    {
+        if (count++ >= GATEWAY_MAX_ALARMS)
+        {
+            ESP_LOGE(GeniusDevices::TAG, "Too many alarms for smoke detector device. Maximum allowed is %d.", GATEWAY_MAX_ALARMS);
+            break;
+        }
+        result.push_back(genius_device_alarm_t{
+            .startTime = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>()),
+            .endTime = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>()),
+            .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
+    }
+    return result;
+}
+
+bool GeniusDevice::buildFromJson(JsonVariant src, GeniusDevice &out)
+{
+    uint32_t deviceId = src["id"].as<uint32_t>();
+    if (deviceId == 0)
+        return false;
+
+    JsonObject smokeDetectorJson = src["smokeDetector"].as<JsonObject>();
+    JsonObject radioModuleJson = src["radioModule"].as<JsonObject>();
+
+    out = GeniusDevice(
+        GeniusSmokeDetectorInfo::fromJson(smokeDetectorJson),
+        GeniusRadioModuleInfo::fromJson(radioModuleJson),
+        src["location"].as<String>(),
+        deviceId);
+
+    out.isAlarming = src["isAlarming"].is<bool>() ? src["isAlarming"].as<bool>() : false;
+    out.registration = src["registration"].is<int>()
+                           ? static_cast<genius_device_registration_t>(src["registration"].as<int>())
+                           : GDR_MANUAL;
+    out.readoutTime = src["readoutTime"].is<String>()
+                          ? Utils::iso8601_to_time_t(src["readoutTime"].as<String>())
+                          : 0;
+    out.readoutProtocolVersion = src["readoutProtocolVersion"].is<int>()
+                                     ? src["readoutProtocolVersion"].as<uint8_t>()
+                                     : 0;
+
+    if (src["alarms"].is<JsonArray>())
+        out.alarms = parseAlarms(src["alarms"].as<JsonArray>());
+
+    out.published = false; // new device — needs publish
+    return true;
+}
+
+bool GeniusDevice::mergeFromJson(JsonVariant src)
+{
+    bool changed = false;
+
+    JsonObject smokeDetectorJson = src["smokeDetector"].as<JsonObject>();
+    JsonObject radioModuleJson = src["radioModule"].as<JsonObject>();
+
+    GeniusSmokeDetectorInfo newSD = GeniusSmokeDetectorInfo::fromJson(smokeDetectorJson);
+    GeniusRadioModuleInfo newRM = GeniusRadioModuleInfo::fromJson(radioModuleJson);
+    time_t newReadoutTime = src["readoutTime"].is<String>()
+                                ? Utils::iso8601_to_time_t(src["readoutTime"].as<String>())
+                                : 0;
+    uint8_t newReadoutProtocolVersion = src["readoutProtocolVersion"].is<int>()
+                                            ? src["readoutProtocolVersion"].as<uint8_t>()
+                                            : 0;
+
+    // Identity fields: smoke detector
+    if (this->smokeDetector.model != newSD.model)
+    {
+        this->smokeDetector.model = newSD.model;
+        changed = true;
+    }
+    if (this->smokeDetector.sn != newSD.sn)
+    {
+        this->smokeDetector.sn = newSD.sn;
+        changed = true;
+    }
+    if (this->smokeDetector.productionDate != newSD.productionDate)
+    {
+        this->smokeDetector.productionDate = newSD.productionDate;
+        changed = true;
+    }
+
+    // Identity fields: radio module
+    if (this->radioModule.model != newRM.model)
+    {
+        this->radioModule.model = newRM.model;
+        changed = true;
+    }
+    if (this->radioModule.sn != newRM.sn)
+    {
+        this->radioModule.sn = newRM.sn;
+        changed = true;
+    }
+
+    // Readout-time bump: replace full SD/RM structs and bump registration
+    if (this->readoutTime != newReadoutTime)
+    {
+        this->readoutTime = newReadoutTime;
+        this->readoutProtocolVersion = newReadoutProtocolVersion;
+        this->smokeDetector = newSD;
+        this->radioModule = newRM;
+        if (src["registration"].is<int>())
+            this->registration = static_cast<genius_device_registration_t>(src["registration"].as<int>());
+        changed = true;
+    }
+
+    String newLocation = src["location"].as<String>();
+    if (this->location != newLocation)
+    {
+        this->location = newLocation;
+        changed = true;
+    }
+
+    if (src["alarms"].is<JsonArray>())
+    {
+        auto newAlarms = parseAlarms(src["alarms"].as<JsonArray>());
+        if (this->alarms != newAlarms)
+        {
+            this->alarms = std::move(newAlarms);
+            changed = true;
+        }
+    }
+
+    if (src["isAlarming"].is<bool>())
+    {
+        bool newIsAlarming = src["isAlarming"].as<bool>();
+        if (this->isAlarming != newIsAlarming)
+        {
+            this->isAlarming = newIsAlarming;
+            changed = true;
+        }
+    }
+
+    if (changed)
+        this->published = false;
+
+    return changed;
+}
+
 StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusDevices, const String &originId)
 {
     bool hasChanges = false;
@@ -377,7 +726,7 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
     }
 
     JsonArray jsonDevices = root["devices"].as<JsonArray>();
-    std::vector<GeniusDevice> newDevicesVector; // Build new devices vector in JSON order
+    std::vector<GeniusDevice, PsramAllocator<GeniusDevice>> newDevicesVector; // Build new devices vector in JSON order
     std::vector<uint32_t> processedDeviceIds;   // Track which device IDs we've seen in JSON
 
     // Process each device from JSON - add new or update existing
@@ -1017,4 +1366,314 @@ void GeniusDevicesService::_updateAlarmPublishingSettingsCache()
                  _cachedAlarmPublishingSettings.alarmEnabled,
                  _cachedAlarmPublishingSettings.alarmTopic.c_str());
     }
+}
+
+// ============================================================================
+// Public Methods - Per-Device CRUD
+// ============================================================================
+
+GeniusDevicesService::DeviceOpResult
+GeniusDevicesService::upsertDevice(JsonVariant deviceJson, GeniusDevice &out)
+{
+    uint32_t deviceId = deviceJson["id"].as<uint32_t>();
+    if (deviceId == 0)
+        return DeviceOpResult::INVALID_BODY;
+
+    DeviceOpResult result = DeviceOpResult::OK;
+    bool stateChanged = false;
+
+    beginTransaction();
+    auto it = std::find_if(_state.devices.begin(), _state.devices.end(),
+                           [deviceId](const GeniusDevice &d) { return d.id == deviceId; });
+
+    if (it != _state.devices.end())
+    {
+        // Update in place. `published=false` is set inside mergeFromJson when something changed.
+        bool changed = it->mergeFromJson(deviceJson);
+        out = *it;
+        result = changed ? DeviceOpResult::OK : DeviceOpResult::UNCHANGED;
+        stateChanged = changed;
+    }
+    else
+    {
+        if (_state.devices.size() >= GATEWAY_MAX_DEVICES)
+        {
+            endTransaction();
+            return DeviceOpResult::LIMIT_REACHED;
+        }
+        GeniusDevice newDevice(GeniusSmokeDetectorInfo{}, GeniusRadioModuleInfo{}, String(), 0);
+        if (!GeniusDevice::buildFromJson(deviceJson, newDevice))
+        {
+            endTransaction();
+            return DeviceOpResult::INVALID_BODY;
+        }
+        _state.devices.push_back(std::move(newDevice));
+        out = _state.devices.back();
+        stateChanged = true;
+    }
+    endTransaction();
+
+    if (stateChanged)
+        callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
+
+    return result;
+}
+
+GeniusDevicesService::DeviceOpResult
+GeniusDevicesService::removeDevice(uint32_t deviceId)
+{
+    if (deviceId == 0)
+        return DeviceOpResult::INVALID_BODY;
+
+    bool removed = false;
+    beginTransaction();
+    auto it = std::find_if(_state.devices.begin(), _state.devices.end(),
+                           [deviceId](const GeniusDevice &d) { return d.id == deviceId; });
+    if (it != _state.devices.end())
+    {
+        ESP_LOGI(GeniusDevices::TAG, "Device with SN %lu marked for deletion.", it->smokeDetector.sn);
+        _state.deletedDeviceIds.push_back(it->id);
+        _state.devices.erase(it);
+        removed = true;
+    }
+    endTransaction();
+
+    if (!removed)
+        return DeviceOpResult::NOT_FOUND;
+
+    callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
+    return DeviceOpResult::OK;
+}
+
+GeniusDevicesService::DeviceOpResult
+GeniusDevicesService::reorderDevices(const std::vector<uint32_t> &newOrder)
+{
+    bool orderChanged = false;
+    bool valid = true;
+
+    beginTransaction();
+
+    // The new order must contain exactly the current id set — same size, same elements.
+    if (newOrder.size() != _state.devices.size())
+    {
+        valid = false;
+    }
+    else
+    {
+        for (uint32_t id : newOrder)
+        {
+            auto found = std::find_if(_state.devices.begin(), _state.devices.end(),
+                                      [id](const GeniusDevice &d) { return d.id == id; });
+            if (found == _state.devices.end())
+            {
+                valid = false;
+                break;
+            }
+        }
+    }
+
+    if (valid)
+    {
+        std::vector<GeniusDevice, PsramAllocator<GeniusDevice>> reordered;
+        reordered.reserve(newOrder.size());
+        for (uint32_t id : newOrder)
+        {
+            auto found = std::find_if(_state.devices.begin(), _state.devices.end(),
+                                      [id](const GeniusDevice &d) { return d.id == id; });
+            // Detect actual order change before moving
+            if (!orderChanged && (size_t)(found - _state.devices.begin()) != reordered.size())
+                orderChanged = true;
+            reordered.push_back(std::move(*found));
+        }
+        _state.devices = std::move(reordered);
+    }
+    endTransaction();
+
+    if (!valid)
+        return DeviceOpResult::INVALID_BODY;
+
+    if (orderChanged)
+        callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
+
+    return orderChanged ? DeviceOpResult::OK : DeviceOpResult::UNCHANGED;
+}
+
+// ============================================================================
+// Public Methods - Chunked Import
+// ============================================================================
+
+String GeniusDevicesService::_newImportToken()
+{
+    // 16 hex chars = 64 bits — plenty of entropy for a single-slot session id.
+    // esp_random() is hardware-backed when WiFi/BT is enabled (always true here).
+    char buf[17];
+    snprintf(buf, sizeof(buf), "%08lx%08lx",
+             (unsigned long)esp_random(), (unsigned long)esp_random());
+    return String(buf);
+}
+
+bool GeniusDevicesService::_expireImportSessionIfStale()
+{
+    if (!_importSession.active)
+        return false;
+    if ((time(nullptr) - _importSession.lastActivity) < GATEWAY_DEVICES_IMPORT_SESSION_TTL_S)
+        return false;
+
+    ESP_LOGW(GeniusDevices::TAG, "Import session %s expired (idle > %ds), discarding %u staged devices.",
+             _importSession.token.c_str(),
+             GATEWAY_DEVICES_IMPORT_SESSION_TTL_S,
+             (unsigned)_importSession.staging.size());
+    _importSession.active = false;
+    _importSession.token = String();
+    _importSession.staging.clear();
+    _importSession.staging.shrink_to_fit();
+    return true;
+}
+
+GeniusDevicesService::ImportResult
+GeniusDevicesService::importBegin(String &tokenOut)
+{
+    xSemaphoreTakeRecursive(_importMutex, portMAX_DELAY);
+    _expireImportSessionIfStale();
+    if (_importSession.active)
+    {
+        xSemaphoreGiveRecursive(_importMutex);
+        return ImportResult::BUSY;
+    }
+
+    _importSession.active = true;
+    _importSession.token = _newImportToken();
+    _importSession.lastActivity = time(nullptr);
+    _importSession.staging.clear();
+    _importSession.staging.reserve(GATEWAY_MAX_DEVICES);
+    tokenOut = _importSession.token;
+    ESP_LOGI(GeniusDevices::TAG, "Import session %s started.", _importSession.token.c_str());
+
+    xSemaphoreGiveRecursive(_importMutex);
+    return ImportResult::OK;
+}
+
+GeniusDevicesService::ImportResult
+GeniusDevicesService::importChunk(const String &token, JsonArray devices)
+{
+    // Entry log promoted to INFO so the serial monitor confirms the handler runs.
+    // Useful when troubleshooting reports where the chunk request appears to "hang":
+    // absence of this line means PsychicHttp blocked before invoking the callback
+    // (body recv, JSON parse, etc.), not anything in our code.
+    ESP_LOGI(GeniusDevices::TAG, "importChunk: token=%s incoming=%u devices, staged=%u",
+             token.c_str(), (unsigned)devices.size(), (unsigned)_importSession.staging.size());
+
+    xSemaphoreTakeRecursive(_importMutex, portMAX_DELAY);
+    _expireImportSessionIfStale();
+    if (!_importSession.active || _importSession.token != token || token.length() == 0)
+    {
+        xSemaphoreGiveRecursive(_importMutex);
+        return ImportResult::BAD_SESSION;
+    }
+
+    for (JsonVariant deviceJson : devices)
+    {
+        if (_importSession.staging.size() >= GATEWAY_MAX_DEVICES)
+        {
+            ESP_LOGE(GeniusDevices::TAG, "Import chunk rejected: would exceed GATEWAY_MAX_DEVICES (%d).", GATEWAY_MAX_DEVICES);
+            xSemaphoreGiveRecursive(_importMutex);
+            return ImportResult::LIMIT_REACHED;
+        }
+        GeniusDevice newDevice(GeniusSmokeDetectorInfo{}, GeniusRadioModuleInfo{}, String(), 0);
+        if (!GeniusDevice::buildFromJson(deviceJson, newDevice))
+        {
+            ESP_LOGE(GeniusDevices::TAG, "Import chunk rejected: malformed device entry.");
+            xSemaphoreGiveRecursive(_importMutex);
+            return ImportResult::BAD_PAYLOAD;
+        }
+        _importSession.staging.push_back(std::move(newDevice));
+    }
+    _importSession.lastActivity = time(nullptr);
+    ESP_LOGI(GeniusDevices::TAG, "importChunk: %u staged after this chunk.",
+             (unsigned)_importSession.staging.size());
+
+    xSemaphoreGiveRecursive(_importMutex);
+    return ImportResult::OK;
+}
+
+GeniusDevicesService::ImportResult
+GeniusDevicesService::importCommit(const String &token)
+{
+    xSemaphoreTakeRecursive(_importMutex, portMAX_DELAY);
+    _expireImportSessionIfStale();
+    if (!_importSession.active || _importSession.token != token || token.length() == 0)
+    {
+        xSemaphoreGiveRecursive(_importMutex);
+        return ImportResult::BAD_SESSION;
+    }
+
+    // Atomic swap: replace live device list with staging. Track deletions so HA cleans up.
+    beginTransaction();
+    _state.deletedDeviceIds.clear();
+    for (const auto &oldDevice : _state.devices)
+    {
+        // A staged device with the same id counts as an update, not a deletion.
+        bool stagedHasSameId = std::any_of(_importSession.staging.begin(), _importSession.staging.end(),
+                                           [&oldDevice](const GeniusDevice &s) { return s.id == oldDevice.id; });
+        if (!stagedHasSameId)
+            _state.deletedDeviceIds.push_back(oldDevice.id);
+    }
+
+    _state.devices.clear();
+    _state.devices.reserve(_importSession.staging.size());
+    for (auto &dev : _importSession.staging)
+        _state.devices.push_back(std::move(dev));
+    endTransaction();
+
+    ESP_LOGI(GeniusDevices::TAG, "Import session %s committed: %u devices, %u deletions.",
+             _importSession.token.c_str(),
+             (unsigned)_state.devices.size(),
+             (unsigned)_state.deletedDeviceIds.size());
+
+    _importSession.active = false;
+    _importSession.token = String();
+    _importSession.staging.clear();
+    _importSession.staging.shrink_to_fit();
+    xSemaphoreGiveRecursive(_importMutex);
+
+    // Defer the slow part (FS persistence + HA discovery republish) to a background
+    // task so this handler returns immediately. For a fresh 30-device import the
+    // HA publish chain takes ~18 s and would otherwise block the HTTP task, time out
+    // the commit response, and starve the WS heartbeat.
+    if (_postCommitTaskHandle)
+        xTaskNotifyGive(_postCommitTaskHandle);
+    else
+        callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID); // fallback if task wasn't created
+    return ImportResult::OK;
+}
+
+void GeniusDevicesService::_postCommitTask()
+{
+    ESP_LOGI(GeniusDevices::TAG, "post-commit task started.");
+    while (true)
+    {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        ESP_LOGI(GeniusDevices::TAG, "post-commit: running deferred FS write + HA sync.");
+        callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
+        ESP_LOGI(GeniusDevices::TAG, "post-commit: deferred work complete.");
+    }
+}
+
+GeniusDevicesService::ImportResult
+GeniusDevicesService::importAbort(const String &token)
+{
+    xSemaphoreTakeRecursive(_importMutex, portMAX_DELAY);
+    if (!_importSession.active || _importSession.token != token || token.length() == 0)
+    {
+        xSemaphoreGiveRecursive(_importMutex);
+        return ImportResult::BAD_SESSION;
+    }
+    ESP_LOGI(GeniusDevices::TAG, "Import session %s aborted (%u devices staged).",
+             _importSession.token.c_str(), (unsigned)_importSession.staging.size());
+    _importSession.active = false;
+    _importSession.token = String();
+    _importSession.staging.clear();
+    _importSession.staging.shrink_to_fit();
+    xSemaphoreGiveRecursive(_importMutex);
+    return ImportResult::OK;
 }

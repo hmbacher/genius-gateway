@@ -39,6 +39,7 @@
 #include <PsychicHttp.h>
 #include <ESP32SvelteKit.h>
 #include <Utils.hpp>
+#include <PsramAllocator.h>
 #include <AlarmPublishingSettingsService.h>
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
@@ -47,9 +48,24 @@
 #include <PsychicMqttClient.h>
 
 #define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"  ///< Configuration file path for device data
-#define GATEWAY_DEVICES_SERVICE_PATH "/rest/gateway-devices"  ///< REST API service endpoint path
+#define GATEWAY_DEVICES_SERVICE_PATH "/rest/gateway-devices"  ///< REST API service endpoint path (bulk GET/POST)
 
-#define GATEWAY_MAX_DEVICES 50   ///< Maximum number of devices supported
+// Per-device CRUD endpoints (keep request bodies small regardless of total device count)
+#define GATEWAY_DEVICES_DEVICE_PATH         "/rest/gateway-devices/device"          ///< PUT: upsert single device
+#define GATEWAY_DEVICES_DEVICE_DELETE_PATH  "/rest/gateway-devices/device/delete"   ///< POST: delete single device (body: { id })
+#define GATEWAY_DEVICES_REORDER_PATH        "/rest/gateway-devices/reorder"         ///< POST: reorder (body: { order: [id...] })
+
+// Chunked import endpoints (let arbitrarily large device lists land without holding the whole payload in heap)
+#define GATEWAY_DEVICES_IMPORT_BEGIN_PATH   "/rest/gateway-devices/import/begin"
+#define GATEWAY_DEVICES_IMPORT_CHUNK_PATH   "/rest/gateway-devices/import/chunk"
+#define GATEWAY_DEVICES_IMPORT_COMMIT_PATH  "/rest/gateway-devices/import/commit"
+#define GATEWAY_DEVICES_IMPORT_ABORT_PATH   "/rest/gateway-devices/import/abort"
+
+#define GATEWAY_DEVICES_IMPORT_SESSION_TTL_S 60  ///< Idle-expiry for a chunked-import session
+
+#ifndef GATEWAY_MAX_DEVICES
+#define GATEWAY_MAX_DEVICES 50   ///< Maximum number of devices supported (override via build flag for no-PSRAM boards)
+#endif
 #define GATEWAY_MAX_ALARMS 100   ///< Maximum number of alarms supported
 
 #define ALARM_STATE_CHANGE "alarm-state-change"  ///< WebSocket event for alarm state changes
@@ -293,6 +309,16 @@ public:
     bool published;                       ///< Whether current device config has been published via MQTT
     time_t readoutTime;                   ///< SmartSonic readout timestamp (0 = no readout performed)
     uint8_t readoutProtocolVersion;       ///< SmartSonic protocol version (valid when readoutTime > 0)
+
+    /// Parse an "alarms" JsonArray into a vector, capped at GATEWAY_MAX_ALARMS.
+    static std::vector<genius_device_alarm_t> parseAlarms(JsonArray jsonAlarms);
+
+    /// Build a fresh GeniusDevice from a JSON object. Returns false if `id` is missing or zero.
+    static bool buildFromJson(JsonVariant src, GeniusDevice &out);
+
+    /// Apply incoming JSON onto an existing device. Returns true if any field changed.
+    /// Mirrors the merge semantics of the bulk-POST path (readout merge, identity update, alarms diff).
+    bool mergeFromJson(JsonVariant src);
 };
 
 class GeniusDevices
@@ -301,7 +327,7 @@ class GeniusDevices
 public:
     static constexpr const char *TAG = "GeniusDevices";
 
-    std::vector<GeniusDevice> devices;
+    std::vector<GeniusDevice, PsramAllocator<GeniusDevice>> devices;
     std::vector<uint32_t> deletedDeviceIds; ///< Temporary storage for deleted device IDs (populated during update)
 
     static void read(GeniusDevices &geniusDevices, JsonObject &root)
@@ -388,14 +414,70 @@ public:
      */
     esp_err_t mqttPublishDeviceState(uint32_t smokeDetectorSN, bool useTransaction = true, bool markPublished = true);
 
+    // ========================================================================
+    // Per-Device CRUD (small-body endpoints — replace the bulk POST for UI ops)
+    // ========================================================================
+
+    /// Outcome of a per-device CRUD operation. ERROR codes are mapped to HTTP status by the endpoint layer.
+    enum class DeviceOpResult
+    {
+        OK,
+        INVALID_BODY,    ///< Missing/zero id, malformed payload
+        NOT_FOUND,       ///< No device with that id
+        LIMIT_REACHED,   ///< Would exceed GATEWAY_MAX_DEVICES
+        UNCHANGED,       ///< Upsert matched an identical existing device
+    };
+
+    /// Create or update a single device by id. The id MUST be set by the client.
+    /// On success, the persisted device is written to `out` (with current state, e.g. preserved id/alarms).
+    DeviceOpResult upsertDevice(JsonVariant deviceJson, GeniusDevice &out);
+
+    /// Delete a single device by id.
+    DeviceOpResult removeDevice(uint32_t deviceId);
+
+    /// Reorder devices to match the given id list. The list MUST contain exactly the
+    /// current device id set (no additions, no removals) — otherwise INVALID_BODY.
+    DeviceOpResult reorderDevices(const std::vector<uint32_t> &newOrder);
+
+    // ========================================================================
+    // Chunked Import (single global slot — only one admin can import at a time)
+    // ========================================================================
+
+    enum class ImportResult
+    {
+        OK,
+        BUSY,            ///< Another import session is already in progress
+        BAD_SESSION,     ///< Token missing/expired/unknown
+        BAD_PAYLOAD,     ///< Missing required field or malformed
+        LIMIT_REACHED,   ///< Staging would exceed GATEWAY_MAX_DEVICES
+    };
+
+    /// Start a new import session. Fails with BUSY if another non-stale session exists.
+    /// On success, writes the session token to `tokenOut`.
+    ImportResult importBegin(String &tokenOut);
+
+    /// Append parsed devices from `devices` array to the staging buffer.
+    ImportResult importChunk(const String &token, JsonArray devices);
+
+    /// Atomically replace the live device list with the staging buffer and persist.
+    /// Triggers HA sub-device sync exactly once.
+    ImportResult importCommit(const String &token);
+
+    /// Discard an in-flight import session.
+    ImportResult importAbort(const String &token);
+
 private:
     // ========================================================================
     // Member Variables
     // ========================================================================
 
     // Endpoints and persistence
-    HttpEndpoint<GeniusDevices> _httpEndpoint;   ///< REST API endpoint handler
+    HttpEndpoint<GeniusDevices> _httpEndpoint;   ///< REST API endpoint handler (bulk GET/POST)
     FSPersistence<GeniusDevices> _fsPersistence; ///< File system persistence handler
+
+    // Direct server access for the additional per-device + import endpoints registered in begin()
+    PsychicHttpServer *_server;
+    SecurityManager  *_securityManager;
 
     // Alarm state tracking
     bool _isAlarming;      ///< Current global alarming state
@@ -414,6 +496,36 @@ private:
         std::unique_ptr<HAGroupedSensorPublisher>  diagnostics;  ///< 13 readout entities on one shared state topic
     };
     std::map<uint32_t, SmokeDetectorHA> _haDevices;  ///< maps device.id → HA objects
+
+    // ------------------------------------------------------------------------
+    // Import session state (single-slot, RAM-only, PSRAM-preferred staging)
+    // ------------------------------------------------------------------------
+    struct ImportSession {
+        bool active = false;
+        String token;
+        time_t lastActivity = 0;
+        std::vector<GeniusDevice, PsramAllocator<GeniusDevice>> staging;
+    };
+    ImportSession   _importSession;
+    SemaphoreHandle_t _importMutex = nullptr;  ///< guards _importSession (separate from state mutex)
+
+    /// Returns true if a session is active but past its TTL, and resets it.
+    bool _expireImportSessionIfStale();
+
+    /// Generate a new opaque session token (URL-safe).
+    static String _newImportToken();
+
+    // ------------------------------------------------------------------------
+    // Post-commit background task
+    // ------------------------------------------------------------------------
+    // Triggered from importCommit. Runs callUpdateHandlers (FS write + HA sync)
+    // OFF the HTTP server task so the commit response returns in milliseconds
+    // instead of blocking 15-20 s while ~420 HA-discovery MQTT messages publish
+    // for a fresh 30-device import. That blocking otherwise starves the WS
+    // heartbeat and causes the front end to time out the commit request.
+    TaskHandle_t _postCommitTaskHandle = nullptr;
+    void _postCommitTask();
+    static void _postCommitTaskImpl(void *ctx) { static_cast<GeniusDevicesService *>(ctx)->_postCommitTask(); }
 
     // ========================================================================
     // State Management
