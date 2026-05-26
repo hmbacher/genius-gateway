@@ -991,20 +991,22 @@
 					</button>
 				</div>
 				<div class="tooltip tooltip-left" data-tip="Generate PDF report">
-				<button
-					class="btn btn-primary text-primary-content btn-md disabled:text-base-content/30"
-					aria-label="Generate PDF report"
-					disabled={!geniusDevices.isLoaded || geniusDevices.devices.length === 0 || pdfGenerating}
-					onclick={handleGenerateReport}
-				>
-					{#if pdfGenerating}
-						<span class="loading loading-spinner loading-sm"></span>
-					{:else}
-						<ClipboardList class="h-6 w-6" />
-					{/if}
-				</button>
-			</div>
-			<div class="tooltip tooltip-left" data-tip="Delete all smoke detectors">
+					<button
+						class="btn btn-primary btn-md"
+						aria-label="Generate PDF report"
+						disabled={!geniusDevices.isLoaded ||
+							geniusDevices.devices.length === 0 ||
+							pdfGenerating}
+						onclick={handleGenerateReport}
+					>
+						{#if pdfGenerating}
+							<span class="loading loading-spinner loading-sm"></span>
+						{:else}
+							<ClipboardList class="h-6 w-6" />
+						{/if}
+					</button>
+				</div>
+				<div class="tooltip tooltip-left" data-tip="Delete all smoke detectors">
 					<button
 						class="btn btn-error btn-md"
 						aria-label="Delete all smoke detectors"
