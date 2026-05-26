@@ -32,6 +32,7 @@
 	import EditSmokeDetector from './EditSmokeDetector.svelte';
 	import AlarmLog from './AlarmLog.svelte';
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
+	import DeviceImportDialog from './DeviceImportDialog.svelte';
 	import DeviceDetailsDialog from './DeviceDetailsDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
 	import { matchAcousticResult, matchAcousticUpdate } from './acousticMatch';
@@ -162,8 +163,14 @@
 
 	/** Atomically replace the full device list using the chunked-import protocol.
 	 *  Used for file import and for "delete all" — both cases where holding the whole
-	 *  payload in one HTTP body would exceed the backend's body-size limit. */
-	async function replaceAllDevices(devices: GeniusDevice[]): Promise<boolean> {
+	 *  payload in one HTTP body would exceed the backend's body-size limit.
+	 *
+	 *  Optional `onProgress` lets a progress dialog drive its UI from the chunk loop;
+	 *  callers that don't pass it (e.g. delete-all) just get success/failure toasts. */
+	async function replaceAllDevices(
+		devices: GeniusDevice[],
+		onProgress?: (p: import('./DeviceImportDialog.svelte').ImportProgress) => void
+	): Promise<{ ok: boolean; error?: string }> {
 		let sessionId = '';
 		const abort = async () => {
 			if (!sessionId) return;
@@ -175,6 +182,7 @@
 			sessionId = '';
 		};
 		try {
+			onProgress?.({ phase: 'starting' });
 			const beginRes = await fetch('/rest/gateway-devices/import/begin', {
 				method: 'POST',
 				headers: authHeaders()
@@ -183,13 +191,14 @@
 				const msg = beginRes.status === 409
 					? 'Another import is in progress. Please try again in a minute.'
 					: 'Could not start import.';
-				notifications.error(msg, 4000);
-				return false;
+				return { ok: false, error: msg };
 			}
 			sessionId = (await beginRes.json()).sessionId as string;
 
 			const chunks = chunkByBytes(devices);
-			for (const chunk of chunks) {
+			let devicesSent = 0;
+			for (let i = 0; i < chunks.length; i++) {
+				const chunk = chunks[i];
 				const chunkRes = await fetch('/rest/gateway-devices/import/chunk', {
 					method: 'POST',
 					headers: authHeaders(),
@@ -197,36 +206,49 @@
 				});
 				if (chunkRes.status !== 200) {
 					const detail = await chunkRes.text().catch(() => '');
-					notifications.error(
-						`Import chunk rejected (${chunkRes.status})` + (detail ? `: ${detail}` : ''),
-						5000
-					);
 					await abort();
-					return false;
+					return {
+						ok: false,
+						error: `Chunk rejected (${chunkRes.status})` + (detail ? `: ${detail}` : '')
+					};
 				}
+				devicesSent += chunk.length;
+				onProgress?.({
+					phase: 'uploading',
+					chunkIndex: i + 1,
+					totalChunks: chunks.length,
+					devicesSent,
+					devicesTotal: devices.length
+				});
 			}
 
+			onProgress?.({ phase: 'committing' });
 			const commitRes = await fetch('/rest/gateway-devices/import/commit', {
 				method: 'POST',
 				headers: authHeaders(),
 				body: JSON.stringify({ sessionId })
 			});
 			if (commitRes.status !== 200) {
-				notifications.error('Import commit failed.', 4000);
 				await abort();
-				return false;
+				return { ok: false, error: 'Commit failed.' };
 			}
 			sessionId = ''; // committed — no abort needed
 
 			// Server is now authoritative — adopt the submitted list locally.
 			geniusDevices.devices = devices;
-			return true;
+			return { ok: true };
 		} catch (error) {
 			console.error('Error:', error);
 			await abort();
-			notifications.error('Import failed.', 4000);
-			return false;
+			return { ok: false, error: error instanceof Error ? error.message : String(error) };
 		}
+	}
+
+	/** Thin wrapper for callers that don't want the progress dialog (delete-all). */
+	async function replaceAllDevicesQuiet(devices: GeniusDevice[]): Promise<boolean> {
+		const result = await replaceAllDevices(devices);
+		if (!result.ok) notifications.error(result.error ?? 'Import failed.', 4000);
+		return result.ok;
 	}
 
 	function confirmDeleteAll() {
@@ -244,7 +266,7 @@
 			confirmClass: 'btn-error',
 			onConfirm: async () => {
 				modals.close();
-				await replaceAllDevices([]);
+				await replaceAllDevicesQuiet([]);
 			}
 		});
 	}
@@ -753,23 +775,28 @@
 						migrateGeniusDevices(importedGeniusDevices, fileVersion);
 					}
 
-					const finishImport = async () => {
-						const ok = await replaceAllDevices(importedGeniusDevices.devices);
-						if (!ok) return;
-						if (fileVersion < CURRENT_VERSION) {
-							modals.open(InfoDialog, {
-								title: 'Migration Successful',
-								message: `The file was from an older backup (v${fileVersion}) and has been automatically migrated to the current format (v${CURRENT_VERSION}).<br><br>Please verify your smoke detector configuration and export a fresh backup.`,
-								variant: 'info',
-								onDismiss: () => {
-									modals.close();
+					const finishImport = () => {
+						modals.open(DeviceImportDialog, {
+							totalDevices: importedGeniusDevices.devices.length,
+							task: (onProgress) =>
+								replaceAllDevices(importedGeniusDevices.devices, onProgress),
+							onSuccess: () => {
+								if (fileVersion < CURRENT_VERSION) {
+									modals.open(InfoDialog, {
+										title: 'Migration Successful',
+										message: `The file was from an older backup (v${fileVersion}) and has been automatically migrated to the current format (v${CURRENT_VERSION}).<br><br>Please verify your smoke detector configuration and export a fresh backup.`,
+										variant: 'info',
+										onDismiss: () => {
+											modals.close();
+											checkImportedDeviceFaults(importedGeniusDevices.devices);
+										}
+									});
+								} else {
+									notifications.success('Smoke detectors imported.', 3000);
 									checkImportedDeviceFaults(importedGeniusDevices.devices);
 								}
-							});
-						} else {
-							notifications.success('Smoke detectors imported.', 3000);
-							checkImportedDeviceFaults(importedGeniusDevices.devices);
-						}
+							}
+						});
 					};
 
 					const alarmingCount = importedGeniusDevices.devices.filter((d) => d.isAlarming).length;
@@ -783,26 +810,18 @@
 							},
 							confirmClass: 'btn-success',
 							cancelClass: 'btn-warning',
-							onCancel: async () => {
+							onCancel: () => {
 								modals.close();
-								try {
-									await finishImport();
-								} catch {
-									notifications.error('Error importing smoke detectors.', 3000);
-								}
+								finishImport();
 							},
-							onConfirm: async () => {
+							onConfirm: () => {
 								modals.close();
 								clearAlarmingDevices(importedGeniusDevices.devices);
-								try {
-									await finishImport();
-								} catch {
-									notifications.error('Error importing smoke detectors.', 3000);
-								}
+								finishImport();
 							}
 						});
 					} else {
-						await finishImport();
+						finishImport();
 					}
 				}
 			} catch (error) {
