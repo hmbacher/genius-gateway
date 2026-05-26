@@ -48,6 +48,7 @@
 	});
 
 	let alarmLines: AlarmLines = $state({ lines: [] });
+	let alarmLinesLoaded = $state(false);
 
 	let activeActions = $state({
 		lineTestStart: [] as boolean[],
@@ -146,6 +147,7 @@
 			});
 
 			alarmLines = JSON.parse(await response.text(), jsonDateReviver);
+			alarmLinesLoaded = true;
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -422,8 +424,9 @@
 			{#snippet actions()}
 				<div class="tooltip tooltip-bottom" data-tip="Add alarm line">
 					<button
-						class="btn btn-primary text-primary-content btn-md"
+						class="btn btn-primary btn-md"
 						aria-label="Add alarm line"
+						disabled={!alarmLinesLoaded}
 						onclick={handleNewAlarmLine}
 					>
 						<Add class="h-6 w-6" />
@@ -432,17 +435,26 @@
 				<div class="tooltip tooltip-bottom" data-tip="Load alarm lines from file">
 					<label
 						for="upload"
-						class="btn btn-primary text-primary-content btn-md"
+						class="btn btn-primary btn-md"
+						class:btn-disabled={!alarmLinesLoaded}
 						aria-label="Load alarm lines from file"
 					>
 						<Load class="h-6 w-6" />
 					</label>
-					<input bind:files bind:this={fileInput} id="upload" type="file" class="hidden" />
+					<input
+						bind:files
+						bind:this={fileInput}
+						id="upload"
+						type="file"
+						class="hidden"
+						disabled={!alarmLinesLoaded}
+					/>
 				</div>
 				<div class="tooltip tooltip-left" data-tip="Save alarm lines to file">
 					<button
-						class="btn btn-primary text-primary-content btn-md"
+						class="btn btn-primary btn-md"
 						aria-label="Save alarm lines to file"
+						disabled={!alarmLinesLoaded}
 						onclick={() => downloadObjectAsJson(alarmLines, 'genius-alarm-lines')}
 					>
 						<Save class="h-6 w-6" />
