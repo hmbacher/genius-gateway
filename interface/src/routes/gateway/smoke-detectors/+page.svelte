@@ -799,8 +799,8 @@
 					const finishImport = () => {
 						modals.open(DeviceImportDialog, {
 							totalDevices: importedGeniusDevices.devices.length,
-							task: (onProgress) =>
-								replaceAllDevices(importedGeniusDevices.devices, onProgress),
+							task: (onProgress, signal) =>
+								replaceAllDevices(importedGeniusDevices.devices, onProgress, signal),
 							onSuccess: () => {
 								if (fileVersion < CURRENT_VERSION) {
 									modals.open(InfoDialog, {
