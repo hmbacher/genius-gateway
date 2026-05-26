@@ -53,6 +53,7 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
                                                           _mqttClient(sveltekit->getMqttClient()),
                                                           _sveltekit(sveltekit),
                                                           _alarmPublishingSettingsService(sveltekit),
+                                                          _reportSettingsService(sveltekit),
                                                           _gatewaySettings(sveltekit),
                                                           _gatewayDeviceMqttService(sveltekit->getHAService(), &_gatewaySettings),
                                                           _geniusDevices(sveltekit, _mqttClient, &_alarmPublishingSettingsService),
@@ -83,16 +84,19 @@ void GeniusGateway::begin()
     gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0);
     /* END TEMPORARY */
 
-    /* Create packet handling task */
+    /* Create packet handling task — stack forced to internal DRAM so ISR-driven
+     * task notifications and real-time CC1101 reads are not slowed by PSRAM latency.
+     * CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=128 would otherwise route this stack to PSRAM. */
     BaseType_t xReturned;
-    xReturned = xTaskCreatePinnedToCore(
+    xReturned = xTaskCreatePinnedToCoreWithCaps(
         this->_rx_packetsImpl,
         RX_TASK_NAME,
         RX_TASK_STACK_SIZE,
         this,
         RX_TASK_PRIORITY,
         &GeniusGateway::xRxTaskHandle,
-        RX_TASK_CORE_AFFINITY);
+        RX_TASK_CORE_AFFINITY,
+        MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 
     if (xReturned == pdPASS)
     {
@@ -112,6 +116,8 @@ void GeniusGateway::begin()
 
     /* Initialize Alarm Publishing Settings Service first - other services depend on its settings */
     _alarmPublishingSettingsService.begin();
+    /* Initialize Report Settings Service */
+    _reportSettingsService.begin();
     /* Initialize Gateway Settings Service - must be before Gateway Device MQTT Service */
     _gatewaySettings.begin();
     /* Initialize Gateway Device MQTT Service */

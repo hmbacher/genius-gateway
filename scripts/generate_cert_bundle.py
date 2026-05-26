@@ -216,6 +216,17 @@ def main():
 
     output_file = os.path.join(binary_dir, ca_bundle_bin_file)
 
+    # Skip the write when the freshly built bundle is byte-identical to the
+    # existing one. x509_crt_bundle.bin is in board_build.embed_files, so a
+    # mtime bump here forces SCons to re-embed and relink every build.
+    try:
+        with open(output_file, 'rb') as f:
+            if f.read() == crt_bundle:
+                status('Up-to-date (skipped write): %s' % output_file)
+                return
+    except FileNotFoundError:
+        pass
+
     with open(output_file, 'wb') as f:
         f.write(crt_bundle)
 

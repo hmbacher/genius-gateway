@@ -35,7 +35,7 @@
 
 PsychicHttpServer server;
 
-ESP32SvelteKit esp32sveltekit(&server, 150);
+ESP32SvelteKit esp32sveltekit(&server, 200);
 
 GeniusGateway geniusGateway = GeniusGateway(&esp32sveltekit);
 
