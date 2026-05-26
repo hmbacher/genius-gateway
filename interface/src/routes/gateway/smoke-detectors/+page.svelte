@@ -13,7 +13,10 @@
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
 		AlarmLines,
-		AlarmLine
+		AlarmLine,
+		ReportSettings,
+		StaticSystemInformation,
+		WifiSettings
 	} from '$lib/types/models';
 	import {
 		GeniusDeviceRegistration,
@@ -40,6 +43,7 @@
 	import Add from '~icons/tabler/circle-plus';
 	import SmokeDetector from '~icons/custom-icons/smoke-detector-m';
 	import Cancel from '~icons/tabler/x';
+	import ClipboardList from '~icons/tabler/clipboard-list';
 	import Check from '~icons/tabler/check';
 	import Save from '~icons/tabler/device-floppy';
 	import Load from '~icons/tabler/folder-open';
@@ -730,6 +734,36 @@
 		});
 	}
 
+	let pdfGenerating = $state(false);
+
+	async function handleGenerateReport() {
+		pdfGenerating = true;
+		try {
+			const headers: Record<string, string> = {
+				Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+				'Content-Type': 'application/json'
+			};
+			const [reportRes, systemRes, wifiRes] = await Promise.all([
+				fetch('/rest/report-settings', { headers }),
+				fetch('/rest/systemStatus', { headers }),
+				fetch('/rest/wifiSettings', { headers })
+			]);
+			const reportSettings: ReportSettings = await reportRes.json();
+			const systemInfo: StaticSystemInformation = await systemRes.json();
+			const wifiSettings: WifiSettings = await wifiRes.json();
+			const { generateSmokeDetectorReport } = await import('./pdfReport');
+			await generateSmokeDetectorReport($state.snapshot(geniusDevices).devices, reportSettings, {
+				hostname: wifiSettings.hostname,
+				firmwareVersion: systemInfo.firmware_version
+			});
+		} catch (error) {
+			console.error('Error generating report:', error);
+			notifications.error('Failed to generate PDF report.', 3000);
+		} finally {
+			pdfGenerating = false;
+		}
+	}
+
 	let files = $state<FileList | undefined>(undefined);
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 
@@ -956,7 +990,21 @@
 						<Save class="h-6 w-6" />
 					</button>
 				</div>
-				<div class="tooltip tooltip-left" data-tip="Delete all smoke detectors">
+				<div class="tooltip tooltip-left" data-tip="Generate PDF report">
+				<button
+					class="btn btn-primary text-primary-content btn-md disabled:text-base-content/30"
+					aria-label="Generate PDF report"
+					disabled={!geniusDevices.isLoaded || geniusDevices.devices.length === 0 || pdfGenerating}
+					onclick={handleGenerateReport}
+				>
+					{#if pdfGenerating}
+						<span class="loading loading-spinner loading-sm"></span>
+					{:else}
+						<ClipboardList class="h-6 w-6" />
+					{/if}
+				</button>
+			</div>
+			<div class="tooltip tooltip-left" data-tip="Delete all smoke detectors">
 					<button
 						class="btn btn-error btn-md"
 						aria-label="Delete all smoke detectors"

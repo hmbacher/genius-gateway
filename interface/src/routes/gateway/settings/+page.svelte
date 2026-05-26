@@ -5,12 +5,14 @@
 	import { page } from '$app/state';
 	import { socket } from '$lib/stores/socket';
 	import { notifications } from '$lib/components/toasts/notifications';
+	import type { ReportSettings } from '$lib/types/models';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import IconSettings from '~icons/tabler/adjustments';
 	import IconAlarm from '~icons/tabler/alert-hexagon';
 	import IconAlarmLine from '~icons/tabler/topology-ring-2';
 	import IconSave from '~icons/tabler/device-floppy';
+	import IconReport from '~icons/tabler/file-type-pdf';
 
 	type GatewaySettings = {
 		alert_on_unknown_detectors: boolean;
@@ -71,6 +73,59 @@
 			console.error('Error:', error);
 		}
 		return;
+	}
+
+	// ── Report Settings ──────────────────────────────────────────────────────
+
+	const defaultReportSettings: ReportSettings = {
+		propertyName: '',
+		propertyAddress: '',
+		customerName: ''
+	};
+
+	let reportSettings: ReportSettings = $state({ ...defaultReportSettings });
+	let strReportSettings: string = $state(JSON.stringify(defaultReportSettings));
+
+	let isReportSettingsDirty: boolean = $derived(
+		JSON.stringify(reportSettings) !== strReportSettings
+	);
+
+	async function getReportSettings() {
+		try {
+			const response = await fetch('/rest/report-settings', {
+				method: 'GET',
+				headers: {
+					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+			reportSettings = await response.json();
+			strReportSettings = JSON.stringify(reportSettings);
+		} catch (error) {
+			console.error('Error:', error);
+		}
+	}
+
+	async function postReportSettings() {
+		try {
+			const response = await fetch('/rest/report-settings', {
+				method: 'POST',
+				headers: {
+					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(reportSettings)
+			});
+			if (response.status === 200) {
+				notifications.success('Report settings updated.', 3000);
+				reportSettings = await response.json();
+				strReportSettings = JSON.stringify(reportSettings);
+			} else {
+				notifications.error('Updating report settings failed.', 3000);
+			}
+		} catch (error) {
+			console.error('Error:', error);
+		}
 	}
 
 	// WebSocket synchronization for real-time updates from backend (e.g., MQTT changes)
@@ -175,6 +230,74 @@
 							onclick={() => {
 								postGatewaySettings();
 							}}
+						>
+							<IconSave class="h-6 w-6" />
+							Save
+						</button>
+					</div>
+				</div>
+			{/await}
+		</SettingsCard>
+
+		<SettingsCard collapsible={false} isDirty={isReportSettingsDirty}>
+			{#snippet icon()}
+				<IconReport class="h-6 w-6" />
+			{/snippet}
+			{#snippet title()}
+				<span>Report Settings</span>
+			{/snippet}
+			{#await getReportSettings()}
+				<Spinner />
+			{:then}
+				<div class="flex w-full flex-col gap-4 px-2">
+					<p class="text-sm text-base-content/60">
+						These fields appear in the header of exported PDF reports. All fields are optional.
+					</p>
+					<label class="form-control w-full">
+						<div class="label">
+							<span class="label-text">Property Name</span>
+						</div>
+						<input
+							type="text"
+							class="input input-bordered w-full"
+							placeholder="e.g. Mustermann House"
+							maxlength="256"
+							bind:value={reportSettings.propertyName}
+						/>
+					</label>
+					<label class="form-control w-full">
+						<div class="label">
+							<span class="label-text">Property Address</span>
+						</div>
+						<textarea
+							class="textarea textarea-bordered w-full"
+							placeholder={"e.g. Musterstraße 1\n12345 Berlin"}
+							maxlength="256"
+							rows="3"
+							bind:value={reportSettings.propertyAddress}
+						></textarea>
+					</label>
+					<label class="form-control w-full">
+						<div class="label">
+							<span class="label-text">Customer / Owner</span>
+						</div>
+						<input
+							type="text"
+							class="input input-bordered w-full"
+							placeholder="e.g. Max Mustermann"
+							maxlength="256"
+							bind:value={reportSettings.customerName}
+						/>
+					</label>
+				</div>
+				<div class="divider my-2"></div>
+				<div class="mb-4 flex flex-wrap justify-end gap-2">
+					<div class="tooltip tooltip-left" data-tip="Save report settings">
+						<button
+							class="btn btn-primary"
+							type="button"
+							disabled={!isReportSettingsDirty}
+							onclick={postReportSettings}
 						>
 							<IconSave class="h-6 w-6" />
 							Save

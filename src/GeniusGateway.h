@@ -36,6 +36,7 @@
 #include <AlarmLinesService.h>
 #include <GatewaySettingsService.h>
 #include <AlarmPublishingSettingsService.h>
+#include <ReportSettingsService.h>
 #include <GatewayDeviceMqttService.h>
 #include <CC1101Controller.h>
 #include <cc1101.h>
@@ -128,6 +129,7 @@ private:
   ESP32SvelteKit *_sveltekit;                             ///< Framework instance (for HAService access)
   FeaturesService *_featureService;                       ///< Feature flags service
   AlarmPublishingSettingsService _alarmPublishingSettingsService; ///< Simple alarm-publishing settings service
+  ReportSettingsService _reportSettingsService;                   ///< PDF report header settings service
   GatewaySettingsService _gatewaySettings;                ///< Gateway settings service
   GatewayDeviceMqttService _gatewayDeviceMqttService;     ///< Gateway device MQTT service
   GeniusDevicesService _geniusDevices;                  ///< Genius devices service

@@ -18,6 +18,7 @@
 		"@sveltejs/vite-plugin-svelte": "^4.0.4",
 		"@tailwindcss/vite": "^4.1.11",
 		"@types/msgpack-lite": "^0.1.11",
+		"@types/pdfmake": "^0.3.3",
 		"@typescript-eslint/eslint-plugin": "^8.36.0",
 		"@typescript-eslint/parser": "^8.36.0",
 		"daisyui": "^5.0.46",
@@ -46,6 +47,7 @@
 		"jwt-decode": "^4.0.0",
 		"luxon": "^3.7.1",
 		"msgpack-lite": "^0.1.26",
+		"pdfmake": "^0.3.9",
 		"svelte-dnd-action": "^0.9.65",
 		"svelte-modals": "^2.0.1"
 	}
