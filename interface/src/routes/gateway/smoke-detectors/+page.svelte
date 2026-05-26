@@ -165,14 +165,19 @@
 	 *  Used for file import and for "delete all" — both cases where holding the whole
 	 *  payload in one HTTP body would exceed the backend's body-size limit.
 	 *
-	 *  Optional `onProgress` lets a progress dialog drive its UI from the chunk loop;
-	 *  callers that don't pass it (e.g. delete-all) just get success/failure toasts. */
+	 *  `onProgress` lets a progress dialog drive its UI from the chunk loop.
+	 *  `signal` cancels in-flight fetches and breaks out of the chunk loop; on user
+	 *  abort the function still POSTs /import/abort with an UNbound fetch so the
+	 *  server-side session slot is freed even after the signal has fired. */
 	async function replaceAllDevices(
 		devices: GeniusDevice[],
-		onProgress?: (p: import('./DeviceImportDialog.svelte').ImportProgress) => void
-	): Promise<{ ok: boolean; error?: string }> {
+		onProgress?: (p: import('./DeviceImportDialog.svelte').ImportProgress) => void,
+		signal?: AbortSignal
+	): Promise<{ ok: boolean; error?: string; aborted?: boolean }> {
 		let sessionId = '';
-		const abort = async () => {
+		// Cleanup uses a fresh fetch (no signal) so it completes even after the caller
+		// aborted the controller — otherwise we'd leave the server-side session slot held.
+		const cleanupSession = async () => {
 			if (!sessionId) return;
 			await fetch('/rest/gateway-devices/import/abort', {
 				method: 'POST',
@@ -181,11 +186,13 @@
 			}).catch(() => {});
 			sessionId = '';
 		};
+		const isAborted = () => signal?.aborted === true;
 		try {
 			onProgress?.({ phase: 'starting' });
 			const beginRes = await fetch('/rest/gateway-devices/import/begin', {
 				method: 'POST',
-				headers: authHeaders()
+				headers: authHeaders(),
+				signal
 			});
 			if (beginRes.status !== 200) {
 				const msg = beginRes.status === 409
@@ -198,15 +205,20 @@
 			const chunks = chunkByBytes(devices);
 			let devicesSent = 0;
 			for (let i = 0; i < chunks.length; i++) {
+				if (isAborted()) {
+					await cleanupSession();
+					return { ok: false, aborted: true };
+				}
 				const chunk = chunks[i];
 				const chunkRes = await fetch('/rest/gateway-devices/import/chunk', {
 					method: 'POST',
 					headers: authHeaders(),
-					body: JSON.stringify({ sessionId, devices: chunk })
+					body: JSON.stringify({ sessionId, devices: chunk }),
+					signal
 				});
 				if (chunkRes.status !== 200) {
 					const detail = await chunkRes.text().catch(() => '');
-					await abort();
+					await cleanupSession();
 					return {
 						ok: false,
 						error: `Chunk rejected (${chunkRes.status})` + (detail ? `: ${detail}` : '')
@@ -222,14 +234,20 @@
 				});
 			}
 
+			if (isAborted()) {
+				await cleanupSession();
+				return { ok: false, aborted: true };
+			}
+
 			onProgress?.({ phase: 'committing' });
 			const commitRes = await fetch('/rest/gateway-devices/import/commit', {
 				method: 'POST',
 				headers: authHeaders(),
-				body: JSON.stringify({ sessionId })
+				body: JSON.stringify({ sessionId }),
+				signal
 			});
 			if (commitRes.status !== 200) {
-				await abort();
+				await cleanupSession();
 				return { ok: false, error: 'Commit failed.' };
 			}
 			sessionId = ''; // committed — no abort needed
@@ -238,8 +256,11 @@
 			geniusDevices.devices = devices;
 			return { ok: true };
 		} catch (error) {
-			console.error('Error:', error);
-			await abort();
+			// AbortController.abort() causes fetch to throw a DOMException with name 'AbortError'.
+			const aborted = isAborted() || (error instanceof DOMException && error.name === 'AbortError');
+			if (!aborted) console.error('Error:', error);
+			await cleanupSession();
+			if (aborted) return { ok: false, aborted: true };
 			return { ok: false, error: error instanceof Error ? error.message : String(error) };
 		}
 	}

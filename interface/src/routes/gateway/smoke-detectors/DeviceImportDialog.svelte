@@ -20,20 +20,35 @@
 		title?: string;
 		totalDevices: number;
 		/** Runs the chunked-import task. Resolves with ok=true on success, ok=false with
-		 *  optional error text on failure. The dialog calls onProgress to drive its UI. */
-		task: (onProgress: (p: ImportProgress) => void) => Promise<{ ok: boolean; error?: string }>;
+		 *  optional error text on failure, ok=false + aborted=true if the signal fires.
+		 *  The dialog calls onProgress to drive its UI, and passes its AbortSignal so the
+		 *  task can cancel in-flight fetches and clean up the server-side session slot. */
+		task: (
+			onProgress: (p: ImportProgress) => void,
+			signal: AbortSignal
+		) => Promise<{ ok: boolean; error?: string; aborted?: boolean }>;
 		onSuccess?: () => void;
+		onAborted?: () => void;
 		onError?: (errorDetail?: string) => void;
 	}
 
-	let { isOpen, title = 'Importing Devices', totalDevices, task, onSuccess, onError }: Props = $props();
+	let {
+		isOpen,
+		title = 'Importing Devices',
+		totalDevices,
+		task,
+		onSuccess,
+		onAborted,
+		onError
+	}: Props = $props();
 
 	let phase = $state<'pending' | 'progress' | 'success' | 'error'>('pending');
 	let progress = $state<number | undefined>(undefined);
 	let message = $state('Preparing import...');
 	let stepLabel = $state<string | undefined>(undefined);
 	let errorDetails = $state<string | undefined>(undefined);
-	let aborted = false;
+	let controller: AbortController | undefined;
+	let userAborting = $state(false);
 
 	function handleProgress(p: ImportProgress) {
 		if (aborted) return;
@@ -60,7 +75,8 @@
 	}
 
 	async function runTask() {
-		aborted = false;
+		controller = new AbortController();
+		userAborting = false;
 		phase = 'pending';
 		progress = undefined;
 		message = totalDevices === 0 ? 'Clearing device list...' : 'Preparing import...';
@@ -68,8 +84,7 @@
 		errorDetails = undefined;
 
 		try {
-			const result = await task(handleProgress);
-			if (aborted) return;
+			const result = await task(handleProgress, controller.signal);
 			if (result.ok) {
 				phase = 'success';
 				message =
@@ -79,17 +94,25 @@
 				stepLabel = undefined;
 				// Brief delay so the user sees the success state, then close + notify caller.
 				setTimeout(() => {
-					if (aborted) return;
 					modals.close();
 					onSuccess?.();
 				}, 1200);
+			} else if (result.aborted) {
+				// Confirm the abort briefly so the user sees it took effect, then close.
+				phase = 'success';
+				message = 'Import aborted.';
+				stepLabel = undefined;
+				progress = undefined;
+				setTimeout(() => {
+					modals.close();
+					onAborted?.();
+				}, 800);
 			} else {
 				phase = 'error';
 				message = 'Import failed.';
 				errorDetails = result.error;
 			}
 		} catch (e) {
-			if (aborted) return;
 			phase = 'error';
 			message = 'Import failed.';
 			errorDetails = e instanceof Error ? e.message : String(e);
@@ -97,9 +120,16 @@
 	}
 
 	function handleCancel() {
-		aborted = true;
-		modals.close();
-		onError?.('Aborted by user');
+		if (userAborting || !controller) return; // already aborting / completed
+		userAborting = true;
+		// Show indeterminate spinner while the task unwinds and cleanupSession runs.
+		// runTask's await then resolves with { ok: false, aborted: true } and the
+		// resolution branch above closes the dialog.
+		phase = 'progress';
+		progress = undefined;
+		message = 'Aborting…';
+		stepLabel = undefined;
+		controller.abort();
 	}
 
 	function handleRetry() {
@@ -130,7 +160,8 @@
 		label: 'Abort',
 		icon: Cancel,
 		class: 'btn-ghost',
-		handler: handleCancel
+		handler: handleCancel,
+		disabled: userAborting
 	}}
 	errorButtons={[
 		{ label: 'Close', icon: Cancel, class: 'btn-ghost', handler: handleErrorClose },

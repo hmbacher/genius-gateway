@@ -18,6 +18,8 @@
 		/** DaisyUI button class, e.g. 'btn-primary', 'btn-error', 'btn-ghost'. */
 		class?: string;
 		handler: () => void;
+		/** Disable the button (greys it out, ignores clicks). */
+		disabled?: boolean;
 	};
 
 	interface Props extends ModalProps {
@@ -160,7 +162,8 @@
 					{@const CancelIcon = cancelButton.icon ?? Cancel}
 					<button
 						class="btn btn-sm {cancelButton.class ?? 'btn-ghost'}"
-						disabled={phase === 'progress' && cancelButton.disabledDuringProgress}
+						disabled={cancelButton.disabled ||
+							(phase === 'progress' && cancelButton.disabledDuringProgress)}
 						onclick={cancelButton.handler}
 					>
 						<CancelIcon class="h-4 w-4" />
