@@ -6,11 +6,12 @@
 	import Cancel from '~icons/tabler/x';
 	import Check from '~icons/tabler/check';
 	import AlertCircle from '~icons/tabler/alert-circle';
+	import Ban from '~icons/tabler/ban';
 	import Loader from '~icons/tabler/loader-2';
 
 	type IconComponent = Component<{ class?: string }>;
 
-	type Phase = 'pending' | 'progress' | 'success' | 'error';
+	type Phase = 'pending' | 'progress' | 'success' | 'error' | 'aborted';
 
 	type ActionButton = {
 		label: string;
@@ -39,6 +40,8 @@
 		successButton?: ActionButton & { autoTriggerAfterSeconds?: number };
 		/** Visible while phase === 'error'. Order is preserved left-to-right. */
 		errorButtons?: ActionButton[];
+		/** Visible while phase === 'aborted'. Falls back to a plain Close button. */
+		abortedButton?: ActionButton;
 		/** Block backdrop-click / Esc dismissal while task runs. Default true. */
 		blockCloseDuringProgress?: boolean;
 	}
@@ -54,6 +57,7 @@
 		cancelButton,
 		successButton,
 		errorButtons,
+		abortedButton,
 		blockCloseDuringProgress = true
 	}: Props = $props();
 
@@ -130,6 +134,10 @@
 					<div class="flex items-center justify-center w-24 h-24 rounded-full bg-success/10">
 						<Check class="h-16 w-16 text-success" />
 					</div>
+				{:else if phase === 'aborted'}
+					<div class="flex items-center justify-center w-24 h-24 rounded-full bg-base-200">
+						<Ban class="h-16 w-16 text-base-content/50" />
+					</div>
 				{:else if phase === 'error'}
 					<div class="flex items-center justify-center w-24 h-24 rounded-full bg-error/10">
 						<AlertCircle class="h-16 w-16 text-error" />
@@ -195,6 +203,22 @@
 				{#if phase === 'success' && !successButton}
 					<button class="btn btn-sm btn-primary" onclick={() => modals.close()}>
 						<Check class="h-4 w-4" />
+						Close
+					</button>
+				{/if}
+				{#if phase === 'aborted' && abortedButton}
+					{@const AbortedIcon = abortedButton.icon}
+					<button
+						class="btn btn-sm {abortedButton.class ?? 'btn-primary'}"
+						onclick={abortedButton.handler}
+					>
+						{#if AbortedIcon}<AbortedIcon class="h-4 w-4" />{/if}
+						{abortedButton.label}
+					</button>
+				{/if}
+				{#if phase === 'aborted' && !abortedButton}
+					<button class="btn btn-sm btn-primary" onclick={() => modals.close()}>
+						<Cancel class="h-4 w-4" />
 						Close
 					</button>
 				{/if}

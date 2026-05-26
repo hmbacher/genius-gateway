@@ -3,6 +3,7 @@
 	import { untrack } from 'svelte';
 	import ProgressDialog from '$lib/components/ProgressDialog.svelte';
 	import Cancel from '~icons/tabler/x';
+	import Check from '~icons/tabler/check';
 	import Refresh from '~icons/tabler/refresh';
 
 	export type ImportProgress =
@@ -42,7 +43,7 @@
 		onError
 	}: Props = $props();
 
-	let phase = $state<'pending' | 'progress' | 'success' | 'error'>('pending');
+	let phase = $state<'pending' | 'progress' | 'success' | 'error' | 'aborted'>('pending');
 	let progress = $state<number | undefined>(undefined);
 	let message = $state('Preparing import...');
 	let stepLabel = $state<string | undefined>(undefined);
@@ -95,21 +96,12 @@
 						? 'Device list cleared.'
 						: `${totalDevices} ${totalDevices === 1 ? 'device' : 'devices'} imported.`;
 				stepLabel = undefined;
-				// Brief delay so the user sees the success state, then close + notify caller.
-				setTimeout(() => {
-					modals.close();
-					onSuccess?.();
-				}, 1200);
+				// User confirms by clicking Close; onSuccess fires from that handler.
 			} else if (result.aborted) {
-				// Confirm the abort briefly so the user sees it took effect, then close.
-				phase = 'success';
+				phase = 'aborted';
 				message = 'Import aborted.';
 				stepLabel = undefined;
 				progress = undefined;
-				setTimeout(() => {
-					modals.close();
-					onAborted?.();
-				}, 800);
 			} else {
 				phase = 'error';
 				message = 'Import failed.';
@@ -144,6 +136,16 @@
 		onError?.(errorDetails);
 	}
 
+	function handleSuccessClose() {
+		modals.close();
+		onSuccess?.();
+	}
+
+	function handleAbortedClose() {
+		modals.close();
+		onAborted?.();
+	}
+
 	// Kick off as soon as the dialog mounts. untrack() guards against accidental
 	// re-runs if runTask's reads of reactive state (e.g. totalDevices) ever change.
 	$effect(() => {
@@ -162,9 +164,21 @@
 	cancelButton={{
 		label: 'Abort',
 		icon: Cancel,
-		class: 'btn-ghost',
+		class: 'btn-primary',
 		handler: handleCancel,
 		disabled: userAborting
+	}}
+	successButton={{
+		label: 'Close',
+		icon: Check,
+		class: 'btn-primary',
+		handler: handleSuccessClose
+	}}
+	abortedButton={{
+		label: 'Close',
+		icon: Check,
+		class: 'btn-primary',
+		handler: handleAbortedClose
 	}}
 	errorButtons={[
 		{ label: 'Close', icon: Cancel, class: 'btn-ghost', handler: handleErrorClose },
