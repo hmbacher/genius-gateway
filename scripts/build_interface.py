@@ -96,6 +96,17 @@ def get_app_version():
 def build_webapp():
     package_manager = get_package_manager()
     print(f"Building interface with {package_manager}")
+    # @sveltejs/adapter-static only cleans the files it emits, so a previous
+    # build with a different bundle naming scheme (e.g. before/after toggling
+    # kit.output.bundleStrategy or upgrading Vite) leaves stale .js orphans
+    # in build/_app/immutable that build_progmem() then blindly embeds into
+    # WWWData.h -- silently inflating the firmware by ~1 MB per orphan. Wipe
+    # build/ first so every rebuild starts clean. Do NOT wipe .svelte-kit/ --
+    # it's metadata SvelteKit regenerates on demand and tsconfig.json extends
+    # from it, so wiping it produces a noisy "cannot find base config" warning
+    # until svelte-kit sync re-creates it mid-build.
+    if exists(build_dir):
+        rmtree(build_dir)
     os.chdir(interface_dir)
     env.Execute(f"{package_manager} install")
     # Pass APP_VERSION to the Vite plugin so it can stamp the combined
