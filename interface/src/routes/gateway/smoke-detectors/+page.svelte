@@ -890,7 +890,7 @@
 			{#snippet actions()}
 				<div class="tooltip tooltip-bottom" data-tip="Add smoke detector">
 					<button
-						class="btn btn-primary text-primary-content btn-md"
+						class="btn btn-primary btn-md"
 						aria-label="Add smoke detector"
 						disabled={!geniusDevices.isLoaded}
 						onclick={handleNewGeniusDevice}
@@ -906,8 +906,8 @@
 				>
 					<button
 						class={isSecureContext
-							? 'btn btn-primary text-primary-content btn-md'
-							: 'btn btn-warning text-warning-content btn-md'}
+							? 'btn btn-primary btn-md'
+							: 'btn btn-warning btn-md'}
 						aria-label={isSecureContext
 							? 'Add smoke detector via acoustic detection'
 							: 'Acoustic device detection requires a secure (HTTPS) connection'}
@@ -927,7 +927,7 @@
 				<div class="tooltip tooltip-left" data-tip="Load smoke detector configuration from file">
 					<label
 						for="upload"
-						class="btn btn-primary text-primary-content btn-md"
+						class="btn btn-primary btn-md"
 						class:btn-disabled={!geniusDevices.isLoaded}
 						aria-label="Load smoke detector configuration from file"
 					>
@@ -944,7 +944,7 @@
 				</div>
 				<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
 					<button
-						class="btn btn-primary text-primary-content btn-md"
+						class="btn btn-primary btn-md"
 						aria-label="Save smoke detector configuration to file"
 						disabled={!geniusDevices.isLoaded}
 						onclick={() =>
@@ -958,7 +958,7 @@
 				</div>
 				<div class="tooltip tooltip-left" data-tip="Delete all smoke detectors">
 					<button
-						class="btn btn-error text-error-content btn-md"
+						class="btn btn-error btn-md"
 						aria-label="Delete all smoke detectors"
 						disabled={!geniusDevices.isLoaded || geniusDevices.devices.length === 0}
 						onclick={confirmDeleteAll}
