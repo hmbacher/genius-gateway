@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Packet, AlarmStopInfo } from '$lib/types/models';
 	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
+	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
 	import IconWifi from '~icons/tabler/wifi';
 	import IconHops from '~icons/tabler/arrow-forward-up';
 	import IconDetector from '~icons/tabler/alarm-smoke';
@@ -26,7 +27,7 @@
 		type: 'counter'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(3, 9)} />
+<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(3, 9)} />
 <GeniusPacketDataBlock
 	{showDetails}
 	data={packet.data.subarray(9, 13)}
@@ -81,7 +82,7 @@
 		type: 'sequence-nr'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(24, 30)} />
+<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(24, 30)} />
 <GeniusPacketDataBlock
 	{showDetails}
 	data={packet.data.subarray(30, 31)}

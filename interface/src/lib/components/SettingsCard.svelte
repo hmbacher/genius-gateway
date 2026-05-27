@@ -101,7 +101,7 @@
 				{/if}
 			</span>
 			{#if actions}
-				<span class="inline-flex shrink-0 ml-auto items-center gap-2">
+				<span class="flex flex-wrap ml-auto items-center justify-end gap-2">
 					{@render actions()}
 				</span>
 			{/if}
