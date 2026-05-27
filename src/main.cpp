@@ -28,6 +28,9 @@
 #include <ESP32SvelteKit.h>
 #include <PsychicHttpServer.h>
 #include <GeniusGateway.h>
+#include <migrations/MigrationService.h>
+#include <migrations/GatewayMigrations.h>
+#include <migrations/MigrationApi.h>
 #include <nvs_flash.h>
 #include <esp_http_server.h>
 
@@ -38,6 +41,10 @@ PsychicHttpServer server;
 ESP32SvelteKit esp32sveltekit(&server, 200);
 
 GeniusGateway geniusGateway = GeniusGateway(&esp32sveltekit);
+
+MigrationService migrations(esp32sveltekit.getFS());
+
+MigrationApi migrationApi(&server, esp32sveltekit.getSecurityManager(), &migrations);
 
 constexpr const char *TAG = "main"; ///< Log tag for main application
 
@@ -107,11 +114,22 @@ void setup()
     server.config.enable_so_linger = true;
     server.config.linger_timeout = 2;  // seconds
 
+    // Wire migrations: pre-phase runs from within esp32sveltekit.begin() right
+    // after the FS is mounted but before any settings service reads its file;
+    // post-phase runs after both apps are up to drop legacy artefacts that
+    // depend on successor files being present.
+    registerGatewayMigrations(migrations);
+    esp32sveltekit.setPreServiceHook([]
+                                     { migrations.runPhase(MigrationPhase::PreServiceBegin); });
+
     // start ESP32-SvelteKit
     esp32sveltekit.begin();
 
     // start Genius Gateway
     geniusGateway.begin();
+
+    migrationApi.begin();
+    migrations.runPhase(MigrationPhase::PostServiceBegin);
 }
 
 /// Main loop - delete Arduino loop task as ESP32SvelteKit handles everything

@@ -152,6 +152,65 @@ If a core dump is available:
 !!! info
     If no core dump is available, the message "No core dump available." is displayed.
 
+## :tabler-database-import: Migrations
+
+The Migrations page surfaces the state of automatic one-shot config transforms that run across firmware upgrades. The user does not have to do anything — migrations apply on first boot after an upgrade and are recorded so they never re-run.
+
+<!-- TODO: screenshot at ../assets/images/software/gg-system-migrations.png -->
+
+!!! info "Administrator Access Required"
+    The Migrations page is only accessible to users with administrator privileges. The `GET /rest/migrations` endpoint is available to any authenticated user; only the **Retry** button (`POST /rest/migrations/retry`) requires admin.
+
+State is persisted in `/config/migrations.json` (applied IDs with the firmware version at apply time, plus any failure records).
+
+### States
+
+Each migration is shown in exactly one of four states:
+
+| State | Icon | Meaning |
+|---|---|---|
+| **Applied** | :tabler-circle-check: | Ran successfully and was recorded. Will never re-run. |
+| **Failed** | :tabler-circle-x: | Ran but its apply step returned an error. Retries on the next reboot unless its failure policy is `skipAfterRetries` and the attempt counter has been exceeded. |
+| **Pending** | :tabler-clock: | Registered, never applied, precondition currently true — the migration will run on the next applicable boot trigger. |
+| **Not applicable** | :tabler-circle-minus: | Registered, never applied, precondition currently false on this device. Typical for migrations whose legacy source file does not exist (e.g. on a fresh install). |
+
+In normal steady-state operation after a successful upgrade, the table contains only **Applied** rows for completed migrations and **Not applicable** rows for migrations whose preconditions never matched this particular device.
+
+### Failure Handling
+
+Each migration is tagged with one of three failure policies:
+
+| Policy | Behaviour on failure |
+|---|---|
+| `retryNextBoot` (default) | Migration left unmarked. Retries on the next reboot. Use for transient failures. |
+| `skipAfterRetries` | Retries up to `maxAttempts` boots, then records as given up. The **Retry** button can re-enable it. |
+| `abortBoot` | Boot is halted with a loud error log. The device cannot run in a half-migrated state. Manual recovery required (factory reset or fresh flash). |
+
+If any migration is in the **Failed** state, a warning banner appears at the top of the page. Pending migrations tagged `abortBoot` are additionally marked with a small **critical** badge.
+
+### Retry
+
+Admins can clear the failure history with **Retry on next reboot**. This removes every entry from the failure list in `/config/migrations.json` — but does **not** mark anything as applied and does **not** run migrations synchronously. The device must then be rebooted; on boot, the run loop encounters the migrations as eligible (not applied, not failed) and tries them again. Migrations are designed to be idempotent, so re-running after a partial failure is safe.
+
+### Currently Shipped Migrations
+
+| ID | Introduced in | Purpose |
+|---|---|---|
+| `v1.3-split-mqtt-settings-ha` | v1.3.0 | Splits the legacy `/config/mqtt-settings.json` into the dedicated `/config/haSettings.json` for Home Assistant integration flags. |
+| `v1.3-split-mqtt-settings-alarm` | v1.3.0 | Splits the legacy `/config/mqtt-settings.json` into the dedicated `/config/alarm-publishing.json`. |
+| `v1.3-drop-legacy-mqtt-settings` | v1.3.0 | Once both successor files exist, removes the obsolete `/config/mqtt-settings.json`. |
+
+All three are `retryNextBoot` and only execute on devices that still have the pre-v1.3.0 file on disk. On a fresh v1.3.0+ install they show as *Not applicable*.
+
+### How it works
+
+The migration runner has two phases:
+
+- **PreServiceBegin** — fires once inside `ESP32SvelteKit::begin()`, right after the filesystem is mounted but before any settings service reads its persisted config. Used for file-level transforms (rename, split, reshape on disk).
+- **PostServiceBegin** — fires after all settings services have started. Used for cleanup that depends on successor files being present (e.g. dropping a legacy file once the services that read its data have rewritten their own).
+
+Each migration declares a stable, version-prefixed ID that is never renamed (e.g. `v1.3-split-mqtt-settings-ha`), a cheap precondition (`shouldRun`), an idempotent apply function, a failure policy, and a phase + order. Source: `src/migrations/MigrationService.h`, `src/migrations/GatewayMigrations.cpp`, `src/migrations/MigrationApi.h`.
+
 ## :tabler-refresh-alert: Firmware Update
 
 The Firmware Update page provides two methods for updating the gateway firmware: downloading releases from GitHub or manually uploading firmware files.

@@ -78,6 +78,11 @@ void ESP32SvelteKit::begin()
     ESP_LOGV(SVK_TAG, "Loading settings from files system");
     ESPFS.begin(true);
 
+    if (_preServiceHook)
+    {
+        _preServiceHook();
+    }
+
     _wifiSettingsService.initWiFi();
 
     // SvelteKit uses a lot of handlers, so we need to increase the max_uri_handlers

@@ -114,10 +114,4 @@ private:
 
     HttpEndpoint<AlarmPublishingSettings> _httpEndpoint;   ///< REST API endpoint handler
     FSPersistence<AlarmPublishingSettings> _fsPersistence; ///< File system persistence handler
-    FS *_fs;                                               ///< File system pointer (not owned)
-
-    // Pre-v1.3.0 the alarm-publishing keys lived in /config/mqtt-settings.json
-    // alongside the HA settings. Copy them into the new file on first boot
-    // after upgrade so the user keeps their enabled flag and topic.
-    void _migrateLegacySettings();
 };

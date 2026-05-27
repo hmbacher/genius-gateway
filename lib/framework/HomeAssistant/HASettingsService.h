@@ -102,9 +102,7 @@ public:
 private:
     HttpEndpoint<HASettings> _httpEndpoint;
     FSPersistence<HASettings> _fsPersistence;
-    FS *_fs;
     HAService *_haService;
 
     void _applyToHAService();
-    void _migrateLegacyHASettings();
 };
