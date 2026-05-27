@@ -30,7 +30,6 @@ HASettingsService::HASettingsService(PsychicHttpServer *server,
                      this,
                      fs,
                      HA_SETTINGS_FILE),
-      _fs(fs),
       _haService(haService)
 {
     addUpdateHandler([this](const String &originId)
@@ -41,57 +40,8 @@ HASettingsService::HASettingsService(PsychicHttpServer *server,
 void HASettingsService::begin()
 {
     _httpEndpoint.begin();
-    _migrateLegacyHASettings();
     _fsPersistence.readFromFS();
     _applyToHAService();
-}
-
-// Pre-v1.3.0 the HA enable flag and discovery prefix lived in the legacy
-// /config/mqtt-settings.json file under different key names. On first boot
-// after the upgrade, copy those values into the new haSettings.json so the
-// user doesn't have to re-enable HA and re-enter the discovery prefix. The
-// legacy file itself is removed later — by LegacyConfigMigration, once the
-// alarm-publishing service has also had a chance to read it (see
-// AlarmPublishingSettingsService::begin()).
-void HASettingsService::_migrateLegacyHASettings()
-{
-    constexpr const char *LEGACY_FILE = "/config/mqtt-settings.json";
-    constexpr const char *LEGACY_ENABLED_KEY = "HAIntegrationEnabled";
-    constexpr const char *LEGACY_PREFIX_KEY = "HAMQTTDiscoveryPrefix";
-
-    if (_fs->exists(HA_SETTINGS_FILE))
-        return;
-
-    if (!_fs->exists(LEGACY_FILE))
-        return;
-
-    File legacy = _fs->open(LEGACY_FILE, "r");
-    if (!legacy)
-        return;
-
-    JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, legacy);
-    legacy.close();
-    if (error != DeserializationError::Ok)
-        return;
-
-    bool hasLegacyFields = doc[LEGACY_ENABLED_KEY].is<bool>() || doc[LEGACY_PREFIX_KEY].is<String>();
-    if (!hasLegacyFields)
-        return;
-
-    _state.enabled = doc[LEGACY_ENABLED_KEY] | FACTORY_HA_ENABLED;
-    _state.discoveryPrefix = doc[LEGACY_PREFIX_KEY] | FACTORY_HA_DISCOVERY_PREFIX;
-    _state.deviceName = SettingValue::format(FACTORY_HA_DEVICE_NAME);
-    _state.manufacturer = FACTORY_HA_MANUFACTURER;
-    _state.model = FACTORY_HA_MODEL;
-
-    if (!_state.discoveryPrefix.endsWith("/"))
-        _state.discoveryPrefix += "/";
-
-    _fsPersistence.writeToFS();
-
-    ESP_LOGI(TAG, "Migrated legacy HA settings from %s (enabled=%d, prefix=%s)",
-             LEGACY_FILE, _state.enabled, _state.discoveryPrefix.c_str());
 }
 
 void HASettingsService::_applyToHAService()

@@ -40,6 +40,8 @@ Authorization: Bearer <token>
 | `/rest/cc1101/rx` | POST | 🛡️ | Force radio into RX state |
 | `/rest/wslogger` | GET, POST | 🛡️ | Configure WebSocket logger |
 | `/rest/packet-visualizer` | GET, POST | 🛡️ | Configure packet visualizer |
+| `/rest/migrations` | GET | 🔒 | List config migrations with state |
+| `/rest/migrations/retry` | POST | 🛡️ | Clear migration failure records |
 
 ### Device Management
 
@@ -348,6 +350,82 @@ Authorization: Bearer <token>
 ```
 
 **POST Response:** 200 OK with updated settings
+
+---
+
+### Migrations
+
+#### `/rest/migrations`
+- **Method:** GET
+- **Auth:** 🔒 User
+- **Description:** List every registered config migration with its resolved state. See [Migrations](../setup/system.md#migrations) for the user-facing overview.
+
+**Response:**
+```json
+{
+  "migrations": [
+    {
+      "id": "v1.3-split-mqtt-settings-ha",
+      "state": "applied",
+      "phase": "pre",
+      "order": 10,
+      "onFailure": "retryNextBoot",
+      "maxAttempts": 3,
+      "appliedAt": "1.4.0-20260527.113231"
+    },
+    {
+      "id": "v1.3-split-mqtt-settings-alarm",
+      "state": "notApplicable",
+      "phase": "pre",
+      "order": 11,
+      "onFailure": "retryNextBoot",
+      "maxAttempts": 3
+    },
+    {
+      "id": "v1.4-rewrite-devices",
+      "state": "failed",
+      "phase": "pre",
+      "order": 20,
+      "onFailure": "skipAfterRetries",
+      "maxAttempts": 3,
+      "attempts": 2,
+      "lastError": "apply returned false"
+    }
+  ]
+}
+```
+
+**State values:**
+
+- `applied` — ran successfully (`appliedAt` carries the firmware version at apply time)
+- `failed` — ran but failed (`attempts` + `lastError` populated)
+- `pending` — registered, never applied, `shouldRun` currently true (will run on next applicable trigger)
+- `notApplicable` — registered, never applied, `shouldRun` currently false (preconditions not met for this device)
+
+**Other fields:**
+
+- `phase` — `pre` (runs after FS mount, before settings services load) or `post` (runs after all services have started)
+- `order` — execution order within a phase (ascending); ties broken by registration order
+- `onFailure` — failure policy: `abortBoot` (halt boot), `retryNextBoot` (default — retry next boot), `skipAfterRetries` (give up after `maxAttempts`)
+- `maxAttempts` — only consulted for `skipAfterRetries`
+- `registered: false` — present on orphan entries (persisted as applied/failed but no longer registered in the current firmware)
+
+---
+
+#### `/rest/migrations/retry`
+- **Method:** POST
+- **Auth:** 🛡️ Admin
+- **Description:** Clear the migration failure list. Migrations recorded as given-up (`skipAfterRetries` past `maxAttempts`) become eligible to run again on the next reboot. No migrations run synchronously — the device must be rebooted for retries to take effect.
+
+**Request:** Empty body or `{}`
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Failure records cleared. Retries take effect on next reboot."
+}
+```
 
 ---
 

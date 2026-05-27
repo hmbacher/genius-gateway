@@ -1,0 +1,6 @@
+{
+	"HAIntegrationEnabled": true,
+	"HAMQTTDiscoveryPrefix": "homeassistant-fixture-mig-test",
+	"alarmEnabled": true,
+	"alarmTopic": "smarthome/genius-gateway/alarm-mig-test"
+}

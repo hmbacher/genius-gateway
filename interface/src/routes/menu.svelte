@@ -24,6 +24,7 @@
 	import NTP from '~icons/tabler/clock-check';
 	import Metrics from '~icons/tabler/report-analytics';
 	import Bug from '~icons/tabler/bug';
+	import DatabaseImport from '~icons/tabler/database-import';
 	import { page } from '$app/state';
 	import { user } from '$lib/stores/user';
 
@@ -166,6 +167,12 @@
 					icon: Bug,
 					href: '/system/coredump',
 					feature: page.data.features.coredump
+				},
+				{
+					title: 'Migrations',
+					icon: DatabaseImport,
+					href: '/system/migrations',
+					feature: $user.admin
 				},
 				{
 					title: 'Firmware Update',

@@ -46,7 +46,7 @@ nav:
     - Connections: setup/connections.md # Describes interfaces like NTP and MQTT
     - WiFi: setup/wifi.md # Instructions on how to set up WiFi connectivity
     - Users: setup/users.md # Managing users and permissions in Genius Gateway
-    - System: setup/system.md # System functions like status, metrics and firmware updates
+    - System: setup/system.md # System functions like status, metrics, migrations and firmware updates
     - Memory Considerations: setup/memory.md # PSRAM strategy, design limits, no-PSRAM compatibility
 
   - API Reference:
