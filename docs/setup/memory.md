@@ -4,9 +4,12 @@ icon: tabler/cpu-2
 
 # Memory Considerations
 
-Genius Gateway targets ESP32-S3 boards with **8 MB PSRAM** (e.g. ESP32-S3-DevKitC-1-N8R2, Seeed XIAO ESP32-S3). At the design limit of **50 smoke detectors**, the Home Assistant MQTT discovery integration alone creates **420 sub-entities** (14 per detector). The cumulative permanent heap footprint of these objects exhausts the ESP32-S3's ~400 KB usable internal RAM long before reaching 50 devices.
+Genius Gateway targets ESP32-S3 boards with **8 MB PSRAM** (e.g. Seeed XIAO ESP32-S3). At the design limit of **50 smoke detectors**, the Home Assistant MQTT discovery integration alone creates **700 sub-entities** (14 per detector). The cumulative permanent heap footprint of these objects exhausts the ESP32-S3's internal RAM long before reaching 50 devices.
 
 This page documents the layered memory strategy that keeps the device list, HA framework, and TLS handshake all working under that load, and explains what changes when running on a board without PSRAM.
+
+!!! tip "No PSRAM? It still works"
+    The project compiles and runs unchanged on no-PSRAM ESP32-S3 boards (e.g. the `esp32-s3-devkitc-1` environment). With only the ~400 KB of usable internal RAM available, the safe practical ceiling drops to about **10 smoke detectors** — enforced by a `-D GATEWAY_MAX_DEVICES=10` build flag on that environment. See [Running without PSRAM](#running-without-psram) below for the full picture.
 
 ## :tabler-target: The problem at scale
 
