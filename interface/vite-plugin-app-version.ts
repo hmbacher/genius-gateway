@@ -36,21 +36,25 @@ function writeIfChanged(path: string, content: string): boolean {
 	return true;
 }
 
+// SvelteKit + adapter-static runs Vite twice per build (server bundle for the
+// SPA fallback HTML, then the client bundle). Each invocation re-bundles
+// vite.config.ts via Vite's config loader, so the plugin function is called
+// afresh per pass — closure- and module-scoped caches both reset. process.env
+// is the only channel that survives a config re-evaluation within the same
+// Node process, so the build stamp is parked there and read back on every
+// buildStart firing.
+const ENV_BUILD_ID = '__APP_VERSION_FULL_CACHE';
+
 export default function viteAppVersion(): Plugin {
-	// SvelteKit + adapter-static invokes Vite twice per build (server bundle for
-	// the SPA fallback HTML, then the client bundle). buildStart fires on each
-	// pass, so cache the stamp on first invocation to keep server-rendered HTML
-	// and the client bundle agreeing on APP_VERSION_FULL — otherwise the
-	// stale-UI check over WS sees a phantom mismatch right after every deploy.
-	let cachedFull: string | null = null;
 	return {
 		name: 'vite-plugin-app-version',
 		apply: 'build',
 		buildStart() {
-			if (cachedFull === null) {
-				cachedFull = `${readBaseVersion()}-${makeBuildId()}`;
+			let full = process.env[ENV_BUILD_ID];
+			if (!full) {
+				full = `${readBaseVersion()}-${makeBuildId()}`;
+				process.env[ENV_BUILD_ID] = full;
 			}
-			const full = cachedFull;
 
 			const tsBody =
 				`// AUTO-GENERATED FILE — DO NOT EDIT.\n` +
