@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { onDestroy, onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { modals } from 'svelte-modals';
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
@@ -32,6 +33,8 @@
 	import IconCopy from '~icons/tabler/copy';
 	import IconSave from '~icons/tabler/device-floppy';
 	import IconLoad from '~icons/tabler/folder-open';
+	import IconExpandAll from '~icons/tabler/arrows-maximize';
+	import IconCollapseAll from '~icons/tabler/arrows-minimize';
 	import Info from '~icons/tabler/info-circle';
 
 	const OFFSET_TIMESTAMP = 0; // Offset for the timestamp in the byte array
@@ -50,6 +53,26 @@
 	});
 
 	let packets: Packet[] = $state([]);
+
+	// Per-packet byte-strip expansion state. Default: all collapsed.
+	let expandedPackets = new SvelteSet<number>();
+
+	function toggleExpand(id: number) {
+		if (expandedPackets.has(id)) {
+			expandedPackets.delete(id);
+		} else {
+			expandedPackets.add(id);
+		}
+	}
+
+	function expandAll() {
+		expandedPackets.clear();
+		for (const p of packets) expandedPackets.add(p.id);
+	}
+
+	function collapseAll() {
+		expandedPackets.clear();
+	}
 
 	function determinePacketType(data: Uint8Array): PacketType | null {
 		for (const type of PacketTypes) {
@@ -401,7 +424,7 @@
 	{/await}
 </SettingsCard>
 
-<SettingsCard collapsible={false} maxwidth="max-w-6xl">
+<SettingsCard collapsible={false} maxwidth={expandedPackets.size === 0 ? 'max-w-2xl' : 'max-w-5xl'}>
 	{#snippet icon()}
 		<IconLogs class="h-6 w-6" />
 	{/snippet}
@@ -409,31 +432,46 @@
 		<span>Genius Packets</span>
 	{/snippet}
 	{#snippet actions()}
-		<div class="tooltip tooltip-left" data-tip="Copy packet data to clipboard">
-			<button class="btn btn-primary text-primary-content btn-md" onclick={handleCopyLog} disabled={packets.length === 0}>
-				<IconCopy class="h-6 w-6" />
-			</button>
+		<div class="flex items-center gap-2">
+			<div class="tooltip tooltip-left" data-tip="Expand all packets">
+				<button class="btn btn-primary btn-md" onclick={expandAll} disabled={packets.length === 0}>
+					<IconExpandAll class="h-6 w-6" />
+				</button>
+			</div>
+			<div class="tooltip tooltip-left" data-tip="Collapse all packets">
+				<button class="btn btn-primary btn-md" onclick={collapseAll} disabled={packets.length === 0}>
+					<IconCollapseAll class="h-6 w-6" />
+				</button>
+			</div>
 		</div>
-		<div class="tooltip tooltip-left" data-tip="Clear packets log">
-			<button class="btn btn-primary text-primary-content btn-md" onclick={handleClearPacketsLog} disabled={packets.length === 0}>
-				<IconTrash class="h-6 w-6" />
-			</button>
+		<div class="flex items-center gap-2">
+			<div class="tooltip tooltip-left" data-tip="Copy packet data to clipboard">
+				<button class="btn btn-primary btn-md" onclick={handleCopyLog} disabled={packets.length === 0}>
+					<IconCopy class="h-6 w-6" />
+				</button>
+			</div>
+			<div class="tooltip tooltip-left" data-tip="Clear packets log">
+				<button class="btn btn-primary btn-md" onclick={handleClearPacketsLog} disabled={packets.length === 0}>
+					<IconTrash class="h-6 w-6" />
+				</button>
+			</div>
 		</div>
-		<div class="divider divider-horizontal my-0 -mx-1"></div>
-		<div class="tooltip tooltip-left" data-tip="Load packets log from file">
-			<label for="upload" class="btn btn-primary text-primary-content btn-md">
-				<IconLoad class="h-6 w-6" />
-			</label>
-			<input bind:files id="upload" type="file" class="hidden" />
-		</div>
-		<div class="tooltip tooltip-left" data-tip="Save packets log to file">
-			<button
-				class="btn btn-primary text-primary-content btn-md"
-				disabled={packets.length === 0}
-				onclick={() => downloadPacketAsJson(packets, 'genius-packets')}
-			>
-				<IconSave class="h-6 w-6" />
-			</button>
+		<div class="flex items-center gap-2">
+			<div class="tooltip tooltip-left" data-tip="Load packets log from file">
+				<label for="upload" class="btn btn-primary btn-md">
+					<IconLoad class="h-6 w-6" />
+				</label>
+				<input bind:files id="upload" type="file" class="hidden" />
+			</div>
+			<div class="tooltip tooltip-left" data-tip="Save packets log to file">
+				<button
+					class="btn btn-primary btn-md"
+					disabled={packets.length === 0}
+					onclick={() => downloadPacketAsJson(packets, 'genius-packets')}
+				>
+					<IconSave class="h-6 w-6" />
+				</button>
+			</div>
 		</div>
 	{/snippet}
 
@@ -446,6 +484,8 @@
 				{packet}
 				showMeta={vizSettings.showMetadata}
 				showDetails={vizSettings.showDetails}
+				expanded={expandedPackets.has(packet.id)}
+				onToggle={() => toggleExpand(packet.id)}
 			/>
 		{/each}
 
