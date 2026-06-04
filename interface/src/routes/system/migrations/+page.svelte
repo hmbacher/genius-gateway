@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { user } from '$lib/stores/user';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import Migrate from '~icons/tabler/database-import';
 	import Info from '~icons/tabler/info-circle';
 	import AlertTriangle from '~icons/tabler/alert-triangle';
@@ -144,7 +145,7 @@
 
 		{#if loading}
 			<div class="mt-4 flex justify-center">
-				<span class="loading loading-spinner loading-lg text-primary"></span>
+				<Spinner />
 			</div>
 		{:else if error}
 			<p class="text-error mt-4">{error}</p>
