@@ -51,7 +51,7 @@ Alarm line IDs are unique identifiers that group smoke detectors into logical ne
 
 For detailed information about alarm line IDs and their role in the Hekatron Genius system, see [Protocol Analysis - Base Packet Structure](../reverse-engineering/protocol-analysis.md#base-packet-structure).
 
-#### Add alarm line ID of received commissioning packets automatically
+#### Add alarm line ID of received commissioning packets automatically {#add-alarm-line-from-commissioning}
 
 **Default:** Enabled (recommended)
 
@@ -71,7 +71,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 
 **Learn more:** [Alarm Line Commissioning Packets](../reverse-engineering/protocol-analysis.md#alarm-line-commissioning)
 
-#### Add alarm line ID of received alarming/silencing packets automatically
+#### Add alarm line ID of received alarming/silencing packets automatically {#add-alarm-line-from-alarm}
 
 **Default:** Enabled (recommended)
 
@@ -90,7 +90,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 
 **Learn more:** [Alarm Packets](../reverse-engineering/protocol-analysis.md#alarming-startstop)
 
-#### Add alarm line ID of received line test packets automatically
+#### Add alarm line ID of received line test packets automatically {#add-alarm-line-from-line-test}
 
 **Default:** Enabled (recommended)
 

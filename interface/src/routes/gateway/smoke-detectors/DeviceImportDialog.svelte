@@ -67,7 +67,7 @@
 				phase = 'progress';
 				progress = Math.round((p.devicesSent / p.devicesTotal) * 100);
 				message = `Uploading ${p.devicesSent} of ${p.devicesTotal} devices`;
-				stepLabel = `Chunk ${p.chunkIndex} of ${p.totalChunks}`;
+				stepLabel = undefined;
 				break;
 			case 'committing':
 				phase = 'progress';

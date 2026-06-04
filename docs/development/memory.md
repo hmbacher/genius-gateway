@@ -167,7 +167,7 @@ build_flags =
 
 ## :tabler-bug: Diagnosing memory pressure
 
-The **System Status** page (see [System :material-arrow-right-thin:](system.md)) shows internal RAM and PSRAM usage in real time. The two numbers to watch are:
+The **System Status** page (see [System :material-arrow-right-thin:](../setup/system.md)) shows internal RAM and PSRAM usage in real time. The two numbers to watch are:
 
 - **Memory free** — total free internal RAM. Should stay above ~40 KB at the design limit.
 - **Max alloc** — largest free contiguous internal block. If this drops below ~10 KB the next TLS handshake or large JSON parse may fail even when total free still looks healthy.

@@ -37,6 +37,7 @@
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
 	import DeviceImportDialog from './DeviceImportDialog.svelte';
 	import DeviceDetailsDialog from './DeviceDetailsDialog.svelte';
+	import PdfReportDialog from './PdfReportDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
 	import { matchAcousticResult, matchAcousticUpdate } from './acousticMatch';
 	import DeleteAll from '~icons/tabler/trash-x';
@@ -736,32 +737,37 @@
 
 	let pdfGenerating = $state(false);
 
-	async function handleGenerateReport() {
+	function handleGenerateReport() {
 		pdfGenerating = true;
-		try {
-			const headers: Record<string, string> = {
-				Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-				'Content-Type': 'application/json'
-			};
-			const [reportRes, systemRes, wifiRes] = await Promise.all([
-				fetch('/rest/report-settings', { headers }),
-				fetch('/rest/systemStatus', { headers }),
-				fetch('/rest/wifiSettings', { headers })
-			]);
-			const reportSettings: ReportSettings = await reportRes.json();
-			const systemInfo: StaticSystemInformation = await systemRes.json();
-			const wifiSettings: WifiSettings = await wifiRes.json();
-			const { generateSmokeDetectorReport } = await import('./pdfReport');
-			await generateSmokeDetectorReport($state.snapshot(geniusDevices).devices, reportSettings, {
-				hostname: wifiSettings.hostname,
-				firmwareVersion: systemInfo.firmware_version
-			});
-		} catch (error) {
-			console.error('Error generating report:', error);
-			notifications.error('Failed to generate PDF report.', 3000);
-		} finally {
-			pdfGenerating = false;
-		}
+		const devices = $state.snapshot(geniusDevices).devices;
+		const headers: Record<string, string> = {
+			Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+			'Content-Type': 'application/json'
+		};
+		modals.open(PdfReportDialog, {
+			task: async (onProgress) => {
+				try {
+					onProgress('Fetching report data');
+					const [reportRes, systemRes, wifiRes] = await Promise.all([
+						fetch('/rest/report-settings', { headers }),
+						fetch('/rest/systemStatus', { headers }),
+						fetch('/rest/wifiSettings', { headers })
+					]);
+					const reportSettings: ReportSettings = await reportRes.json();
+					const systemInfo: StaticSystemInformation = await systemRes.json();
+					const wifiSettings: WifiSettings = await wifiRes.json();
+					const { generateSmokeDetectorReport } = await import('./pdfReport');
+					await generateSmokeDetectorReport(
+						devices,
+						reportSettings,
+						{ hostname: wifiSettings.hostname, firmwareVersion: systemInfo.firmware_version },
+						onProgress
+					);
+				} finally {
+					pdfGenerating = false;
+				}
+			}
+		});
 	}
 
 	let files = $state<FileList | undefined>(undefined);
