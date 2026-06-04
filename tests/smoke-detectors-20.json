@@ -31,7 +31,7 @@
         "radioNetworkFault": false
       },
       "location": "Flur EG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -118,7 +118,7 @@
         "radioNetworkFault": false
       },
       "location": "Wohnzimmer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -205,7 +205,7 @@
         "radioNetworkFault": false
       },
       "location": "Küche",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -292,7 +292,7 @@
         "radioNetworkFault": false
       },
       "location": "Schlafzimmer 1",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -379,7 +379,7 @@
         "radioNetworkFault": false
       },
       "location": "Schlafzimmer 2",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -466,7 +466,7 @@
         "radioNetworkFault": false
       },
       "location": "Kinderzimmer 1",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -553,7 +553,7 @@
         "radioNetworkFault": false
       },
       "location": "Kinderzimmer 2",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -640,7 +640,7 @@
         "radioNetworkFault": false
       },
       "location": "Bad EG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -727,7 +727,7 @@
         "radioNetworkFault": false
       },
       "location": "Bad OG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -814,7 +814,7 @@
         "radioNetworkFault": false
       },
       "location": "Büro",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -901,7 +901,7 @@
         "radioNetworkFault": false
       },
       "location": "Keller",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -988,7 +988,7 @@
         "radioNetworkFault": false
       },
       "location": "Dachboden",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1075,7 +1075,7 @@
         "radioNetworkFault": false
       },
       "location": "Garage",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1162,7 +1162,7 @@
         "radioNetworkFault": false
       },
       "location": "Technikraum",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1249,7 +1249,7 @@
         "radioNetworkFault": false
       },
       "location": "Speisekammer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1336,7 +1336,7 @@
         "radioNetworkFault": false
       },
       "location": "Esszimmer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1423,7 +1423,7 @@
         "radioNetworkFault": false
       },
       "location": "Elternschlafzimmer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1510,7 +1510,7 @@
         "radioNetworkFault": false
       },
       "location": "Gäste WC",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1597,7 +1597,7 @@
         "radioNetworkFault": false
       },
       "location": "Treppenhaus EG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1684,7 +1684,7 @@
         "radioNetworkFault": false
       },
       "location": "Treppenhaus OG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {

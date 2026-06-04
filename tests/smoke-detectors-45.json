@@ -31,7 +31,7 @@
         "radioNetworkFault": false
       },
       "location": "Flur EG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -118,7 +118,7 @@
         "radioNetworkFault": false
       },
       "location": "Wohnzimmer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -205,7 +205,7 @@
         "radioNetworkFault": false
       },
       "location": "Küche",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -292,7 +292,7 @@
         "radioNetworkFault": false
       },
       "location": "Schlafzimmer 1",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -379,7 +379,7 @@
         "radioNetworkFault": false
       },
       "location": "Schlafzimmer 2",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -466,7 +466,7 @@
         "radioNetworkFault": false
       },
       "location": "Kinderzimmer 1",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -553,7 +553,7 @@
         "radioNetworkFault": false
       },
       "location": "Kinderzimmer 2",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -640,7 +640,7 @@
         "radioNetworkFault": false
       },
       "location": "Bad EG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -727,7 +727,7 @@
         "radioNetworkFault": false
       },
       "location": "Bad OG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -814,7 +814,7 @@
         "radioNetworkFault": false
       },
       "location": "Büro",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -901,7 +901,7 @@
         "radioNetworkFault": false
       },
       "location": "Keller",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -988,7 +988,7 @@
         "radioNetworkFault": false
       },
       "location": "Dachboden",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1075,7 +1075,7 @@
         "radioNetworkFault": false
       },
       "location": "Garage",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1162,7 +1162,7 @@
         "radioNetworkFault": false
       },
       "location": "Technikraum",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1249,7 +1249,7 @@
         "radioNetworkFault": false
       },
       "location": "Speisekammer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1336,7 +1336,7 @@
         "radioNetworkFault": false
       },
       "location": "Esszimmer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1423,7 +1423,7 @@
         "radioNetworkFault": false
       },
       "location": "Elternschlafzimmer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1510,7 +1510,7 @@
         "radioNetworkFault": false
       },
       "location": "Gäste WC",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1597,7 +1597,7 @@
         "radioNetworkFault": false
       },
       "location": "Treppenhaus EG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1684,7 +1684,7 @@
         "radioNetworkFault": false
       },
       "location": "Treppenhaus OG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1771,7 +1771,7 @@
         "radioNetworkFault": false
       },
       "location": "Hauswirtschaftsraum",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1858,7 +1858,7 @@
         "radioNetworkFault": false
       },
       "location": "Hobbyraum",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -1945,7 +1945,7 @@
         "radioNetworkFault": false
       },
       "location": "Spielzimmer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2032,7 +2032,7 @@
         "radioNetworkFault": false
       },
       "location": "Ankleide",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2119,7 +2119,7 @@
         "radioNetworkFault": false
       },
       "location": "Wintergarten",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2206,7 +2206,7 @@
         "radioNetworkFault": false
       },
       "location": "Flur OG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2293,7 +2293,7 @@
         "radioNetworkFault": false
       },
       "location": "Abstellraum",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2380,7 +2380,7 @@
         "radioNetworkFault": false
       },
       "location": "Waschküche",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2467,7 +2467,7 @@
         "radioNetworkFault": false
       },
       "location": "Weinkeller",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2554,7 +2554,7 @@
         "radioNetworkFault": false
       },
       "location": "Fitnessraum",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2641,7 +2641,7 @@
         "radioNetworkFault": false
       },
       "location": "Bibliothek",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2728,7 +2728,7 @@
         "radioNetworkFault": false
       },
       "location": "Musikzimmer",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2815,7 +2815,7 @@
         "radioNetworkFault": false
       },
       "location": "Gästeappartement",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2902,7 +2902,7 @@
         "radioNetworkFault": false
       },
       "location": "Balkon",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -2989,7 +2989,7 @@
         "radioNetworkFault": false
       },
       "location": "Terrasse",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3076,7 +3076,7 @@
         "radioNetworkFault": false
       },
       "location": "Carport",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3163,7 +3163,7 @@
         "radioNetworkFault": false
       },
       "location": "Schuppen",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3250,7 +3250,7 @@
         "radioNetworkFault": false
       },
       "location": "Heizungsraum",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3337,7 +3337,7 @@
         "radioNetworkFault": false
       },
       "location": "Serverraum",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3424,7 +3424,7 @@
         "radioNetworkFault": false
       },
       "location": "Lagerraum",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3511,7 +3511,7 @@
         "radioNetworkFault": false
       },
       "location": "Flur DG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3598,7 +3598,7 @@
         "radioNetworkFault": false
       },
       "location": "Schlafzimmer 3",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3685,7 +3685,7 @@
         "radioNetworkFault": false
       },
       "location": "Schlafzimmer 4",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3772,7 +3772,7 @@
         "radioNetworkFault": false
       },
       "location": "Bad DG",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
@@ -3859,7 +3859,7 @@
         "radioNetworkFault": false
       },
       "location": "Dachstudio",
-      "registration": 1,
+      "registration": 3,
       "isAlarming": false,
       "alarms": [
         {
