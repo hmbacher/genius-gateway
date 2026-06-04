@@ -7,6 +7,8 @@
 /interface/build
 /interface/node_modules
 /interface/.eslintcache
+# Staged from node_modules by interface/scripts/stage-pdf-assets.mjs on every build.
+/interface/static/pdf
 .vscode
 .claude
 node_modules
@@ -17,6 +19,8 @@ node_modules
 /lib/framework/WWWData.h
 *WWWData.h
 lib/framework/WWWData.h
+/lib/framework/AppVersion.h
+/interface/src/lib/version.ts
 ssl_certs/cacert.pem
 /logs
 .aid

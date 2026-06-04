@@ -3,7 +3,9 @@
 	"version": "0.2.0",
 	"private": true,
 	"scripts": {
+		"predev": "node scripts/stage-pdf-assets.mjs",
 		"dev": "vite dev --host",
+		"prebuild": "node scripts/stage-pdf-assets.mjs",
 		"build": "vite build",
 		"preview": "vite preview",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

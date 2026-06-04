@@ -47,7 +47,11 @@ nav:
     - WiFi: setup/wifi.md # Instructions on how to set up WiFi connectivity
     - Users: setup/users.md # Managing users and permissions in Genius Gateway
     - System: setup/system.md # System functions like status, metrics, migrations and firmware updates
-    - Memory Considerations: setup/memory.md # PSRAM strategy, design limits, no-PSRAM compatibility
+
+  - Development Insights:
+    - development/index.md
+    - Memory Considerations: development/memory.md # PSRAM strategy, design limits, no-PSRAM compatibility
+    - Frontend Bundle Strategy: development/frontend-bundles.md # Single-bundle rationale, on-demand pdfmake loading, pattern for adding new heavy libraries
 
   - API Reference:
     - api/index.md
@@ -201,7 +205,6 @@ extra_css:
 
 extra_javascript:
   - javascripts/mathjax.js
-  - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 copyright: |

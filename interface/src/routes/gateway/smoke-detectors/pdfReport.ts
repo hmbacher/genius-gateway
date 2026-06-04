@@ -700,32 +700,68 @@ function buildOverviewPage(
 	return blocks;
 }
 
+// ─── pdfmake runtime loader ──────────────────────────────────────────────────
+
+// pdfmake lives in `static/pdf/` (staged from node_modules by the `prebuild`
+// npm script) and is fetched on demand via classic <script> tags. Going
+// through ESM `import()` would let SvelteKit's single-bundle strategy inline
+// ~1.9 MB of pdfmake + Roboto VFS into the SPA, blowing initial load up to
+// ~20 s on the ESP32. See docs/development/frontend-bundles.md.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PdfMakeGlobal = any;
+
+let pdfMakeReady: Promise<PdfMakeGlobal> | null = null;
+
+function loadScript(src: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
+		if (existing?.dataset.loaded === 'true') {
+			resolve();
+			return;
+		}
+		const s = existing ?? document.createElement('script');
+		s.src = src;
+		s.async = true;
+		s.addEventListener('load', () => {
+			s.dataset.loaded = 'true';
+			resolve();
+		});
+		s.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)));
+		if (!existing) document.head.appendChild(s);
+	});
+}
+
+async function loadPdfMake(): Promise<PdfMakeGlobal> {
+	if (pdfMakeReady) return pdfMakeReady;
+	pdfMakeReady = (async () => {
+		// pdfmake.min.js must run first — it assigns `window.pdfMake`.
+		// vfs_fonts.js then attaches the Roboto VFS via
+		// pdfMake.addVirtualFileSystem (modern builds) or pdfMake.vfs (legacy).
+		await loadScript('/pdf/pdfmake.min.js');
+		await loadScript('/pdf/vfs_fonts.js');
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const pdfMake = (window as any).pdfMake;
+		if (!pdfMake) throw new Error('pdfmake failed to initialize');
+		return pdfMake;
+	})();
+	return pdfMakeReady;
+}
+
 // ─── main export ─────────────────────────────────────────────────────────────
 
 export async function generateSmokeDetectorReport(
 	devices: GeniusDevice[],
 	reportSettings: ReportSettings,
-	gatewayInfo: GatewayInfo
+	gatewayInfo: GatewayInfo,
+	onProgress?: (step: string) => void
 ): Promise<void> {
-	const [pdfMakeModule, fontsModule] = await Promise.all([
-		import('pdfmake/build/pdfmake'),
-		import('pdfmake/build/vfs_fonts')
-	]);
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const pdfMake = (pdfMakeModule as any).default ?? pdfMakeModule;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const fm = fontsModule as any;
-	const vfs = [fm?.default, fm].find(
-		(c) => c && typeof c === 'object' && 'Roboto-Regular.ttf' in c
-	);
-	if (vfs) {
-		if (typeof pdfMake.addVirtualFileSystem === 'function') {
-			pdfMake.addVirtualFileSystem(vfs);
-		} else {
-			pdfMake.vfs = vfs;
-		}
-	}
+	// First-time load fetches ~1.9 MB of pdfmake + Roboto VFS from the ESP32,
+	// typically 5–10 s over Wi-Fi STA. Subsequent calls resolve instantly via
+	// the cached promise in loadPdfMake().
+	onProgress?.('Loading PDF library');
+	const pdfMake = await loadPdfMake();
 
+	onProgress?.('Building report layout');
 	const now = new Date();
 	const overviewBlocks = buildOverviewPage(devices, reportSettings, now);
 	const deviceBlocks: PdfContent[] = devices.flatMap((device, i) => [
@@ -772,5 +808,6 @@ export async function generateSmokeDetectorReport(
 	};
 
 	const filename = `smoke-detector-report-${formatISODate(now)}.pdf`;
+	onProgress?.('Rendering PDF');
 	pdfMake.createPdf(docDefinition).download(filename);
 }
