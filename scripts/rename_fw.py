@@ -43,16 +43,6 @@ def bin_copy(source, target, env):
     app_name = readFlag("APP_NAME")
     build_target = env.get('PIOENV')
 
-    # pioarduino #496 workaround: hybrid-compile runs this post-action
-    # twice -- once in the child `pio run` subprocess (env fully
-    # configured) and again in the outer SCons (env half-configured,
-    # APP_NAME/APP_VERSION missing from BUILD_FLAGS). The child has
-    # already produced the renamed binary + MD5, so skip silently when
-    # the outer env hits us. Remove this block once #496 ships in a release.
-    # https://github.com/pioarduino/platform-espressif32/issues/496
-    if app_version is None or app_name is None:
-        return
-
     # print information's
     print("App Version: " + app_version)
     print("App Name: " + app_name)

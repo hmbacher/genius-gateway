@@ -21,17 +21,8 @@ def readFlag(flag):
 
 def merge_bin(source, target, env):
 
-    # pioarduino #496 workaround: hybrid-compile runs this post-action
-    # twice -- once in the child `pio run` subprocess (env fully
-    # configured) and again in the outer SCons (env half-configured,
-    # APP_NAME/APP_VERSION missing from BUILD_FLAGS). The child has
-    # already produced the correct files, so skip silently when the
-    # outer env hits us. Remove this block once #496 ships in a release.
-    # https://github.com/pioarduino/platform-espressif32/issues/496
     app_name = readFlag("APP_NAME")
     app_version = readFlag("APP_VERSION")
-    if app_name is None or app_version is None:
-        return
 
     # check if output directories exist and create if necessary
     if not os.path.isdir("build"):

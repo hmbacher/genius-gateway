@@ -22,8 +22,9 @@
 	import type { Battery } from '$lib/types/models';
 	import type { OTAStatus } from '$lib/types/models';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
+	import { cc1101Status } from '$lib/stores/cc1101.svelte';
 	import { jsonDateReviver } from '$lib/utils/misc';
-	import type { GeniusDevices, AlarmState } from '$lib/types/models';
+	import type { GeniusDevices, AlarmState, CC1101Status } from '$lib/types/models';
 
 	interface Props {
 		data: LayoutData;
@@ -41,6 +42,8 @@
 
 			// Fetch Genius devices on page load
 			await getGeniusDevices();
+			// Fetch initial CC1101 radio status
+			await getCC1101Status();
 		}
 	});
 
@@ -69,6 +72,8 @@
 		if (page.data.features.download_firmware) socket.on('otastatus', handleOTA);
 		// Genius Gateway: Listen for alarm state changes
 		socket.on<AlarmState>('alarm', handleAlarm);
+		// Genius Gateway: Listen for CC1101 radio lifecycle state
+		socket.on<CC1101Status>('cc1101_status', handleCC1101Status);
 	};
 
 	const removeEventListeners = () => {
@@ -81,6 +86,7 @@
 		socket.off('otastatus', handleOTA);
 		// Genius Gateway: Stop listening for alarm state changes
 		socket.off('alarm', handleAlarm);
+		socket.off('cc1101_status', handleCC1101Status);
 	};
 
 	async function validateUser(userdata: userProfile) {
@@ -169,6 +175,27 @@
 		return;
 	}
 
+	const handleCC1101Status = (status: CC1101Status) => cc1101Status.set(status);
+
+	/* Fetches the initial CC1101 radio lifecycle state (subsequent updates arrive via the
+	 * cc1101_status socket event). */
+	async function getCC1101Status() {
+		try {
+			const response = await fetch('/rest/cc1101/status', {
+				method: 'GET',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+			if (response.status === 200) {
+				cc1101Status.set(await response.json());
+			}
+		} catch (error) {
+			console.error('Error fetching CC1101 status:', error);
+		}
+	}
+
 	const handleAlarm = async (data: AlarmState) => {
 		if (geniusDevices.isAlarming === false && data.isAlarming === true) {
 			notifications.error('Smoke detected!', 5000);
@@ -183,6 +210,7 @@
 	const handleSignIn = async () => {
 		initSocket();
 		await getGeniusDevices();
+		await getCC1101Status();
 	};
 
 	let menuOpen = $state(false);

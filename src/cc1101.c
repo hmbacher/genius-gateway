@@ -35,25 +35,58 @@
 #include <esp_timer.h> // Required for esp_timer_get_time (ISR-safe timing)
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "esp_log.h"
+#include "esp32-hal-log.h" // Remap ESP_LOGx to the Arduino log format so cc1101 logs match the rest of the project
 #include "cc1101.h"
 
 static const char *TAG = "cc1101";
 
-// SPI Stuff
-#if CONFIG_SPI2_HOST
-#define HOST_ID SPI2_HOST
-#elif CONFIG_SPI3_HOST
-#define HOST_ID SPI3_HOST
+/*
+ * BOARD PIN PROFILE — single source of truth for per-board CC1101 pin presets.
+ *
+ * Hand-maintained authoring point: the GG board defines -D BOARD_GG_V1 in platformio.ini; any
+ * other build falls through to the generic (Custom-only) profile. A profile bundles named presets
+ * (known-good pin sets); free "Custom" selection and the chip's assignable-pin set are handled at
+ * runtime by the pins service. Serialized to JSON over REST via cc1101_active_profile().
+ *
+ * Lives in this C translation unit because the designated initializers below are not valid in
+ * strict C++ (the types cc1101_preset_t / cc1101_pin_profile_t are declared in cc1101.h so C++
+ * consumers can still read a profile).
+ */
+#define CC1101_PRESET_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+#if defined(BOARD_GG_V1)
+// Genius Gateway PCB 1.0 (Seeed XIAO ESP32-S3). The CC1101 is soldered to fixed pins; the
+// "GG v1.0" preset is the known-good default. Custom remains available for rewired hardware.
+static const cc1101_preset_t PROFILE_PRESETS[] = {
+    {.name = "GG v1.0", .pins = {.csn = 5, .miso = 8, .mosi = 9, .sck = 7, .gdo0 = 6, .spi_host = SPI2_HOST}},
+};
+static const cc1101_pin_profile_t CC1101_PIN_PROFILE = {
+    .presets = PROFILE_PRESETS,
+    .preset_count = CC1101_PRESET_COUNT(PROFILE_PRESETS),
+};
+#else
+// Generic ESP32-S3 target (dev boards / undocumented clones) — the default for any build that
+// doesn't define BOARD_GG_V1. No presets: boots unconfigured and the user assigns pins via the
+// Custom picker (any valid GPIO; flash/PSRAM/USB hard-blocked, strapping warned).
+static const cc1101_pin_profile_t CC1101_PIN_PROFILE = {
+    .presets = NULL,
+    .preset_count = 0,
+};
 #endif
+
+/* Active runtime pin assignment. Initialized to an invalid sentinel until cc1101_init()
+ * copies in the configured pins. */
+static cc1101_pins_t _pins = {.csn = -1, .miso = -1, .mosi = -1, .sck = -1, .gdo0 = -1, .spi_host = -1};
 
 /*
  * MACROS
  */
 /* Select CC1101 (via CSn to low) */
-#define CC1101_SELECT() gpio_set_level(CONFIG_CSN_GPIO, 0)
+#define CC1101_SELECT() gpio_set_level((gpio_num_t)_pins.csn, 0)
 /* Deselect CC1101 (via CSn to high) */
-#define CC1101_DESELECT() gpio_set_level(CONFIG_CSN_GPIO, 1)
+#define CC1101_DESELECT() gpio_set_level((gpio_num_t)_pins.csn, 1)
 
 /* Timeout values as loop counters */
 #define CC1101_MISO_TIMEOUT_LOOPS 10000     // ~1-2ms at typical CPU speeds
@@ -66,7 +99,7 @@ static const char *TAG = "cc1101";
 static inline bool wait_miso_low(void)
 {
     uint32_t timeout_counter = 0;
-    while (gpio_get_level(CONFIG_MISO_GPIO) > 0) {
+    while (gpio_get_level((gpio_num_t)_pins.miso) > 0) {
         if (++timeout_counter > CC1101_MISO_TIMEOUT_LOOPS) {
             ESP_LOGE(TAG, "MISO timeout: line did not go low");
             return false;
@@ -82,7 +115,7 @@ static inline bool wait_miso_low(void)
 static inline bool wait_gdo0_high(void)
 {
     uint32_t timeout_counter = 0;
-    while (!gpio_get_level(CONFIG_GDO0_GPIO)) {
+    while (!gpio_get_level((gpio_num_t)_pins.gdo0)) {
         if (++timeout_counter > CC1101_GDO0_TIMEOUT_LOOPS) {
             ESP_LOGE(TAG, "GDO0 timeout: line did not go high");
             return false;
@@ -98,7 +131,7 @@ static inline bool wait_gdo0_high(void)
 static inline bool wait_gdo0_low(void)
 {
     uint32_t timeout_counter = 0;
-    while (gpio_get_level(CONFIG_GDO0_GPIO)) {
+    while (gpio_get_level((gpio_num_t)_pins.gdo0)) {
         if (++timeout_counter > CC1101_GDO0_TIMEOUT_LOOPS) {
             ESP_LOGE(TAG, "GDO0 timeout: line did not go low");
             return false;
@@ -116,12 +149,32 @@ static inline bool wait_gdo0_low(void)
 
 static cc1101_mode_t _mode = CCM_IDLE;
 
-static spi_device_handle_t _handle;
+static spi_device_handle_t _handle;          // SPI device handle; NULL when no device is added
+static bool _bus_initialized = false;        // true while the SPI bus is owned (for teardown)
+static bool _isr_service_installed = false;  // true once the shared GPIO ISR service is installed
 
 static void (*_rx_callback)() = NULL;
 
 static uint32_t _last_rising_edge = 0; // Last rising edge timestamp for GDO0 in milliseconds
 static uint32_t _last_falling_edge = 0; // Last falling edge timestamp for GDO0 in milliseconds
+
+/* Recursive mutex serializing all coarse radio operations, so live re-init/teardown
+ * (cc1101_init/deinit/probe) cannot race with RX/TX (cc1101_receive_data/send_data) or the
+ * monitoring loop running on other tasks. Created lazily on first use; the first call happens
+ * during single-threaded startup (or a probe while RX is idle), so creation is race-free. */
+static SemaphoreHandle_t _lock = NULL;
+
+static inline void cc1101_lock(void)
+{
+    if (_lock == NULL)
+        _lock = xSemaphoreCreateRecursiveMutex();
+    xSemaphoreTakeRecursive(_lock, portMAX_DELAY);
+}
+
+static inline void cc1101_unlock(void)
+{
+    xSemaphoreGiveRecursive(_lock);
+}
 
 static const uint8_t defaultCfg[] = {
     CC1101_DEFVAL_IOCFG2,
@@ -253,7 +306,7 @@ static void IRAM_ATTR _rxtx_finish_isr(void *arg)
     // Get current time using ISR-safe function (microseconds since boot)
     uint32_t current_time_ms = (unsigned long)(esp_timer_get_time() / 1000ULL);
     // Read current GPIO level to determine edge type
-    int gpio_level = gpio_get_level(CONFIG_GDO0_GPIO);
+    int gpio_level = gpio_get_level((gpio_num_t)_pins.gdo0);
     
     if (gpio_level == 1) {  // Rising edge detected
         _last_rising_edge = current_time_ms;
@@ -271,23 +324,24 @@ static void IRAM_ATTR _rxtx_finish_isr(void *arg)
 static esp_err_t cc1101_spi_init()
 {
     // Configure CSn pin as GPIO for manual CSn-control
-    gpio_reset_pin(CONFIG_CSN_GPIO);
-    gpio_set_direction(CONFIG_CSN_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(CONFIG_CSN_GPIO, 1);
+    gpio_reset_pin((gpio_num_t)_pins.csn);
+    gpio_set_direction((gpio_num_t)_pins.csn, GPIO_MODE_OUTPUT);
+    gpio_set_level((gpio_num_t)_pins.csn, 1);
 
     spi_bus_config_t buscfg;
     memset(&buscfg, 0, sizeof(buscfg));
-    buscfg.sclk_io_num = CONFIG_SCK_GPIO;
-    buscfg.mosi_io_num = CONFIG_MOSI_GPIO;
-    buscfg.miso_io_num = CONFIG_MISO_GPIO;
+    buscfg.sclk_io_num = _pins.sck;
+    buscfg.mosi_io_num = _pins.mosi;
+    buscfg.miso_io_num = _pins.miso;
     buscfg.quadwp_io_num = -1;
     buscfg.quadhd_io_num = -1;
 
-    if (spi_bus_initialize(HOST_ID, &buscfg, SPI_DMA_DISABLED) != ESP_OK) // Not using DMA is faster, but limits the size of transactions
+    if (spi_bus_initialize((spi_host_device_t)_pins.spi_host, &buscfg, SPI_DMA_DISABLED) != ESP_OK) // Not using DMA is faster, but limits the size of transactions
     {
         ESP_LOGE(TAG, "SPI bus initialization failed.");
         return ESP_FAIL;
     }
+    _bus_initialized = true;
     ESP_LOGI(TAG, "SPI bus initialized.");
 
     spi_device_interface_config_t devcfg;
@@ -298,7 +352,7 @@ static esp_err_t cc1101_spi_init()
     devcfg.spics_io_num = -1; // we will use manual CS control
     devcfg.flags = SPI_DEVICE_NO_DUMMY;
 
-    if (spi_bus_add_device(HOST_ID, &devcfg, &_handle) != ESP_OK)
+    if (spi_bus_add_device((spi_host_device_t)_pins.spi_host, &devcfg, &_handle) != ESP_OK)
     {
         ESP_LOGE(TAG, "SPI device could not be added.");
         return ESP_FAIL;
@@ -310,6 +364,9 @@ static esp_err_t cc1101_spi_init()
 
 static esp_err_t cc1101_cmd_strobe(uint8_t cmd)
 {
+    if (_handle == NULL)
+        return ESP_ERR_INVALID_STATE;
+
     CC1101_SELECT();
     if (!wait_miso_low()) {
         CC1101_DESELECT();
@@ -333,6 +390,9 @@ static esp_err_t cc1101_cmd_strobe(uint8_t cmd)
 
 static esp_err_t cc1101_write_reg(uint8_t regAddr, uint8_t value)
 {
+    if (_handle == NULL)
+        return ESP_ERR_INVALID_STATE;
+
     CC1101_SELECT();
     if (!wait_miso_low()) {
         CC1101_DESELECT();
@@ -357,6 +417,9 @@ static esp_err_t cc1101_write_reg(uint8_t regAddr, uint8_t value)
 
 static esp_err_t cc1101_write_burst_reg(uint8_t regAddr, uint8_t *buffer, uint8_t len)
 {
+    if (_handle == NULL)
+        return ESP_ERR_INVALID_STATE;
+
     CC1101_SELECT();
     if (!wait_miso_low()) {
         CC1101_DESELECT();
@@ -382,6 +445,9 @@ static esp_err_t cc1101_write_burst_reg(uint8_t regAddr, uint8_t *buffer, uint8_
 
 static esp_err_t cc1101_read_reg(uint8_t regAddr, uint8_t regType, uint8_t *result)
 {
+    if (_handle == NULL)
+        return ESP_ERR_INVALID_STATE;
+
     CC1101_SELECT();
     if (!wait_miso_low()) {
         CC1101_DESELECT();
@@ -411,6 +477,9 @@ static esp_err_t cc1101_read_reg(uint8_t regAddr, uint8_t regType, uint8_t *resu
 
 static esp_err_t cc1101_read_burst_reg(uint8_t *buffer, uint8_t regAddr, uint8_t len)
 {
+    if (_handle == NULL)
+        return ESP_ERR_INVALID_STATE;
+
     CC1101_SELECT();
     if (!wait_miso_low()) {
         CC1101_DESELECT();
@@ -470,12 +539,47 @@ static esp_err_t cc1101_reset(void)
     return ret;
 }
 
-esp_err_t cc1101_init(void (*rx_callback)())
+/* Verify GDO0 connectivity: command GDO0 to a constant 0 then 1 via IOCFG0 and confirm the
+ * input pin follows, then restore the operational GDO0 configuration. Must be called with the
+ * radio configured (IOCFG0 writable). Returns true only if GDO0 toggled as commanded. */
+static bool cc1101_gdo0_responds(void)
 {
+    bool low_ok = false, high_ok = false;
+    if (cc1101_write_reg(CC1101_IOCFG0, 0x2F) == ESP_OK) // GDOx_CFG = HW to 0
+    {
+        esp_rom_delay_us(50);
+        low_ok = (gpio_get_level((gpio_num_t)_pins.gdo0) == 0);
+    }
+    if (cc1101_write_reg(CC1101_IOCFG0, 0x6F) == ESP_OK) // 0x40 (GDOx_INV) | 0x2F = HW to 1
+    {
+        esp_rom_delay_us(50);
+        high_ok = (gpio_get_level((gpio_num_t)_pins.gdo0) == 1);
+    }
+    // Restore operational GDO0 behavior (asserts on sync word / end of packet)
+    cc1101_write_reg(CC1101_IOCFG0, CC1101_DEFVAL_IOCFG0);
+    return low_ok && high_ok;
+}
+
+static esp_err_t cc1101_init_impl(const cc1101_pins_t *pins, void (*rx_callback)())
+{
+    if (pins == NULL)
+    {
+        ESP_LOGE(TAG, "cc1101_init called with NULL pins.");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    /* Start from a clean slate so init is safe to call repeatedly (re-init / retry).
+     * Safe no-op on the first call. */
+    cc1101_deinit();
+
+    /* Adopt the supplied pin assignment for all subsequent SPI/GDO0 access */
+    _pins = *pins;
+
     /* Configuring/initializing SPI */
     if (cc1101_spi_init() == ESP_FAIL)
     {
         ESP_LOGE(TAG, "SPI could not be configured.");
+        cc1101_deinit();
         return ESP_FAIL;
     }
 
@@ -483,6 +587,7 @@ esp_err_t cc1101_init(void (*rx_callback)())
     if (cc1101_reset() != ESP_OK)
     {
         ESP_LOGE(TAG, "CC1101 could not be reset.");
+        cc1101_deinit();
         return ESP_FAIL;
     }
 
@@ -496,6 +601,7 @@ esp_err_t cc1101_init(void (*rx_callback)())
     if (chip_partnum != 0 || chip_version != 20)
     {
         ESP_LOGE(TAG, "CC1101 not installed.");
+        cc1101_deinit();
         return ESP_FAIL;
     }
 
@@ -503,6 +609,7 @@ esp_err_t cc1101_init(void (*rx_callback)())
     if (cc1101_write_burst_reg(0x00, (uint8_t *)defaultCfg, sizeof(defaultCfg)) != ESP_OK)
     {
         ESP_LOGE(TAG, "CC1101 could not be configured.");
+        cc1101_deinit();
         return ESP_FAIL;
     }
 
@@ -510,22 +617,150 @@ esp_err_t cc1101_init(void (*rx_callback)())
     _rx_callback = rx_callback;
     gpio_config_t io_conf = {
         .intr_type = GPIO_INTR_ANYEDGE, // GPIO interrupt type : both rising and falling edges
-        .pin_bit_mask = 1ULL << CONFIG_GDO0_GPIO,
+        .pin_bit_mask = 1ULL << _pins.gdo0,
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = 1,
         .pull_down_en = 0};
     gpio_config(&io_conf);
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add(CONFIG_GDO0_GPIO, _rxtx_finish_isr, NULL);
+    // Install the shared GPIO ISR service once. Re-installing logs a driver-level error, so a
+    // live re-init / probe-restore must not call it again.
+    if (!_isr_service_installed)
+    {
+        esp_err_t isr_ret = gpio_install_isr_service(0);
+        _isr_service_installed = (isr_ret == ESP_OK || isr_ret == ESP_ERR_INVALID_STATE);
+    }
+    gpio_isr_handler_add((gpio_num_t)_pins.gdo0, _rxtx_finish_isr, NULL);
+
+    /* Verify GDO0 is actually wired. A mis-wired GDO0 leaves the radio unable to receive (the
+     * ISR never fires) even though SPI works, so treat it as a bring-up failure rather than
+     * reporting a "working" radio. */
+    if (!cc1101_gdo0_responds())
+    {
+        ESP_LOGE(TAG, "GDO0 did not respond to the connectivity check — check the GDO0 wiring.");
+        cc1101_deinit();
+        return ESP_FAIL;
+    }
 
     /* Setting to RX state */
     if (cc1101_set_rx_state() != ESP_OK)
     {
         ESP_LOGE(TAG, "CC1101 could not be set to RX state.");
+        cc1101_deinit();
         return ESP_FAIL;
     }
 
     return ESP_OK;
+}
+
+esp_err_t cc1101_init(const cc1101_pins_t *pins, void (*rx_callback)())
+{
+    cc1101_lock();
+    esp_err_t ret = cc1101_init_impl(pins, rx_callback);
+    cc1101_unlock();
+    return ret;
+}
+
+void cc1101_deinit(void)
+{
+    cc1101_lock();
+    /* Best-effort: strobe the radio to IDLE while the SPI link is still up */
+    if (_handle != NULL)
+    {
+        cc1101_cmd_strobe(CC1101_SIDLE);
+    }
+
+    /* Detach the GDO0 interrupt and return the pin to its default state. The process-shared
+     * GPIO ISR service is intentionally left installed (other peripherals may use it). */
+    if (_pins.gdo0 >= 0)
+    {
+        gpio_isr_handler_remove((gpio_num_t)_pins.gdo0);
+        gpio_reset_pin((gpio_num_t)_pins.gdo0);
+    }
+
+    /* Release the SPI device, then the bus (order matters) */
+    if (_handle != NULL)
+    {
+        spi_bus_remove_device(_handle);
+        _handle = NULL;
+    }
+    if (_bus_initialized)
+    {
+        spi_bus_free((spi_host_device_t)_pins.spi_host);
+        _bus_initialized = false;
+    }
+
+    /* Return CSn to its default state */
+    if (_pins.csn >= 0)
+    {
+        gpio_reset_pin((gpio_num_t)_pins.csn);
+    }
+
+    /* Reset driver state; restore the invalid-pin sentinel */
+    _rx_callback = NULL;
+    _mode = CCM_IDLE;
+    _last_rising_edge = 0;
+    _last_falling_edge = 0;
+    _pins = (cc1101_pins_t){.csn = -1, .miso = -1, .mosi = -1, .sck = -1, .gdo0 = -1, .spi_host = -1};
+
+    cc1101_unlock();
+}
+
+static esp_err_t cc1101_probe_impl(const cc1101_pins_t *pins, cc1101_probe_result_t *result)
+{
+    if (pins == NULL || result == NULL)
+        return ESP_ERR_INVALID_ARG;
+
+    result->spi_ok = false;
+    result->chip_detected = false;
+    result->gdo0_ok = false;
+    result->partnum = 0;
+    result->version = 0;
+
+    /* Clean slate, then adopt the candidate pins. The caller guarantees the radio is not
+     * actively running and is responsible for restoring any prior state afterwards. */
+    cc1101_deinit();
+    _pins = *pins;
+
+    if (cc1101_spi_init() != ESP_OK)
+    {
+        cc1101_deinit();
+        return ESP_OK; // result->spi_ok stays false
+    }
+    result->spi_ok = true;
+
+    /* Reset and read the chip ID — this proves the SCK/MOSI/MISO/CSn wiring is correct. */
+    if (cc1101_reset() == ESP_OK)
+    {
+        READ_STATUS_REG(CC1101_PARTNUM, &result->partnum);
+        READ_STATUS_REG(CC1101_VERSION, &result->version);
+        result->chip_detected = (result->partnum == 0 && result->version == 20);
+    }
+
+    /* GDO0 connectivity test (only meaningful once the chip responds): command GDO0 to a
+     * constant 0 then 1 via IOCFG0 and confirm the input pin follows. */
+    if (result->chip_detected)
+    {
+        gpio_config_t gdo0_conf = {
+            .pin_bit_mask = 1ULL << _pins.gdo0,
+            .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&gdo0_conf);
+        result->gdo0_ok = cc1101_gdo0_responds();
+    }
+
+    cc1101_deinit();
+    return ESP_OK;
+}
+
+esp_err_t cc1101_probe(const cc1101_pins_t *pins, cc1101_probe_result_t *result)
+{
+    cc1101_lock();
+    esp_err_t ret = cc1101_probe_impl(pins, result);
+    cc1101_unlock();
+    return ret;
 }
 
 /**
@@ -548,30 +783,36 @@ static inline esp_err_t get_system_time_us(uint64_t *time_us)
 
 esp_err_t cc1101_set_rx_state(void)
 {
+    cc1101_lock();
     esp_err_t ret = cc1101_cmd_strobe(CC1101_SRX);
 
     if (ret == ESP_OK)
         _mode = CCM_RX;
 
+    cc1101_unlock();
     return ret;
 }
 
 esp_err_t cc1101_set_tx_state(void)
 {
+    cc1101_lock();
     esp_err_t ret = cc1101_cmd_strobe(CC1101_STX);
 
     if (ret == ESP_OK)
         _mode = CCM_TX;
 
+    cc1101_unlock();
     return ret;
 }
 
 esp_err_t cc1101_flush_rx_fifo(void)
 {
+    cc1101_lock();
     esp_err_t ret;
     ret = cc1101_cmd_strobe(CC1101_SIDLE);
     ret &= cc1101_cmd_strobe(CC1101_SFRX);
 
+    cc1101_unlock();
     return ret;
 }
 
@@ -682,6 +923,7 @@ static inline esp_err_t cc1101_write_tx_fifo(unsigned char *tx_data, size_t leng
 
 esp_err_t cc1101_receive_data(cc1101_packet_t *packet)
 {
+    cc1101_lock();
     esp_err_t ret = cc1101_read_rx_fifo(packet);
 
     if (ret != ESP_OK)
@@ -690,35 +932,48 @@ esp_err_t cc1101_receive_data(cc1101_packet_t *packet)
         cc1101_set_rx_state();
     }
 
+    cc1101_unlock();
     return ret;
 }
 
 esp_err_t cc1101_send_data(unsigned char *tx_data, size_t length)
 {
-    esp_err_t ret = cc1101_write_tx_fifo(tx_data, length);
+    cc1101_lock();
+    esp_err_t ret;
 
-    if (ret != ESP_OK)
-        cc1101_flush_tx_fifo();
+    if (_handle == NULL)
+    {
+        ret = ESP_ERR_INVALID_STATE;
+    }
+    else
+    {
+        ret = cc1101_write_tx_fifo(tx_data, length);
+        if (ret != ESP_OK)
+            cc1101_flush_tx_fifo();
+    }
 
+    cc1101_unlock();
     return ret;
 }
 
 esp_err_t cc1101_check_rx_fifo(bool reset_on_any_data)
 {
+    cc1101_lock();
+    esp_err_t ret = ESP_OK;
     uint8_t rxBytes = 0x00;
     if (READ_STATUS_REG(CC1101_RXBYTES, &rxBytes) != ESP_OK)
     {
         ESP_LOGD(TAG, "Could not obtain available data.");
-        return ESP_FAIL;
+        ret = ESP_FAIL;
     }
-
-    if (rxBytes & RXFIFO_OVERFLOW || (reset_on_any_data & rxBytes > 0))
-    { 
+    else if (rxBytes & RXFIFO_OVERFLOW || (reset_on_any_data & rxBytes > 0))
+    {
         cc1101_cmd_strobe(CC1101_SFRX);
         cc1101_set_rx_state();
     }
 
-    return ESP_OK;
+    cc1101_unlock();
+    return ret;
 }
 
 cc1101_mode_t cc1101_get_mode(void)
@@ -728,7 +983,10 @@ cc1101_mode_t cc1101_get_mode(void)
 
 esp_err_t cc1101_get_state(uint8_t *state)
 {
-    return READ_STATUS_REG(CC1101_MARCSTATE, state);
+    cc1101_lock();
+    esp_err_t ret = READ_STATUS_REG(CC1101_MARCSTATE, state);
+    cc1101_unlock();
+    return ret;
 }
 
 /**
@@ -747,4 +1005,23 @@ uint32_t cc1101_get_last_rising_edge(void)
 uint32_t cc1101_get_last_falling_edge(void)
 {
     return _last_falling_edge;
+}
+
+const cc1101_pins_t *cc1101_default_pins(void)
+{
+    // A target with a preset boots from preset[0]; a preset-less target boots unconfigured.
+    static const cc1101_pins_t invalid = {.csn = -1, .miso = -1, .mosi = -1, .sck = -1, .gdo0 = -1, .spi_host = -1};
+    if (CC1101_PIN_PROFILE.preset_count > 0)
+        return &CC1101_PIN_PROFILE.presets[0].pins;
+    return &invalid;
+}
+
+const cc1101_pin_profile_t *cc1101_active_profile(void)
+{
+    return &CC1101_PIN_PROFILE;
+}
+
+int cc1101_get_gdo0_pin(void)
+{
+    return _pins.gdo0;
 }

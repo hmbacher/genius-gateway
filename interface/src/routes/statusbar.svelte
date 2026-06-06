@@ -15,6 +15,7 @@
 	import PlugConnectedX from '~icons/tabler/plug-connected-x';
 	import AlarmStatus from '$lib/components/AlarmStatus.svelte';
 	import AlarmBlockingTimer from '$lib/components/AlarmBlockingTimer.svelte';
+	import RadioIndicator from '$lib/components/RadioIndicator.svelte';
 
 	async function postSleep() {
 		const response = await fetch('/rest/sleep', {
@@ -57,6 +58,9 @@
 	</div>
 	<div class="flex flex-none">
 		<AlarmStatus />
+	</div>
+	<div class="flex flex-none px-1">
+		<RadioIndicator />
 	</div>
 	<div class="flex flex-none">
 		{#if $telemetry.rssi.disconnected}

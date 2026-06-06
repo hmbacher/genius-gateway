@@ -61,9 +61,9 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
                                                           _wsLogger(sveltekit),
                                                           _visualizerSettingsService(sveltekit),
                                                           _cc1101Controller(sveltekit),
+                                                          _cc1101PinsService(sveltekit),
                                                           _alarmBlocker(sveltekit),
                                                           _eventSocket(sveltekit->getSocket()),
-                                                          _featureService(sveltekit->getFeatureService()),
                                                           _lastPacketHash(0),
                                                           _hasLastPacketHash(false)
 {
@@ -71,19 +71,6 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
 
 void GeniusGateway::begin()
 {
-    /* TEMPORARY: Configure helper GPIO to measure packet handlig time
-     * from GDO0 interrupt to full packet read */
-    gpio_config_t io_conf1 = {
-        .pin_bit_mask = (1ULL << GPIO_TEST1 | 1ULL << GPIO_TEST2),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE};
-    gpio_config(&io_conf1);
-    gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 0);
-    gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0);
-    /* END TEMPORARY */
-
     /* Create packet handling task — stack forced to internal DRAM so ISR-driven
      * task notifications and real-time CC1101 reads are not slowed by PSRAM latency.
      * CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=128 would otherwise route this stack to PSRAM. */
@@ -101,13 +88,8 @@ void GeniusGateway::begin()
     if (xReturned == pdPASS)
     {
         ESP_LOGI(TAG, "RX task created (%p).", GeniusGateway::xRxTaskHandle);
-
-        // Initialize CC1101
-        esp_err_t ret = cc1101_init(nofifyReceivedPacket);
-        if (ret != ESP_OK)
-            ESP_LOGE(TAG, "CC1101 could not be set up.");
-        else
-            ESP_LOGI(TAG, "CC1101 set up successfully.");
+        // Radio bring-up happens below, from the persisted pin configuration, once the
+        // CC1101PinsService has loaded (see _cc1101Controller.bringUp()).
     }
     else
     {
@@ -130,15 +112,22 @@ void GeniusGateway::begin()
     _wsLogger.begin();
     /* Initialize Packet Vizualizer Settings */
     _visualizerSettingsService.begin();
+    /* Initialize CC1101 runtime pin configuration service */
+    _cc1101PinsService.begin();
 
-#if FT_ENABLED(FT_CC1101_CONTROLLER)
-    _featureService->addFeature("cc1101_controller", true);
-    /* Initialize CC1101Controller */
+    /* Initialize CC1101Controller and bring up the radio from the persisted pin configuration.
+     * Stays UNCONFIGURED if no valid pins are set; RX monitoring is enabled only on success. */
     _cc1101Controller.begin();
-    _cc1101Controller.enableRXMonitoring();
-#else
-    _featureService->addFeature("cc1101_controller", false);
-#endif
+    if (GeniusGateway::xRxTaskHandle != nullptr)
+    {
+        _cc1101Controller.bringUp(&_cc1101PinsService, nofifyReceivedPacket);
+        // Re-initialize the radio live whenever the pin configuration changes (no reboot).
+        _cc1101PinsService.addUpdateHandler([this](const String & /*originId*/)
+                                            { _cc1101Controller.reconfigure(); },
+                                            false);
+    }
+    else
+        ESP_LOGE(TAG, "Skipping CC1101 bring-up: RX task not available.");
 
     /* Perform a full publish (all devices and states), if MQTT client connects.
      * The actual work runs in a persistent task (_mqttPublishTask) that blocks on
@@ -334,8 +323,6 @@ void GeniusGateway::_rx_packets()
            value act like a binary semaphore. */
         if (ulTaskNotifyTakeIndexed(RX_TASK_NOTIFICATION_INDEX, pdTRUE, RX_TASK_MAX_WAITING_TICKS) == 1)
         {
-            gpio_set_level((gpio_num_t)GPIO_TEST1, 1); // Temporary: Measuring execution time
-
             // Temprarily disable RX Monitoring
             _cc1101Controller.disableRXMonitoring();
 
@@ -443,15 +430,11 @@ void GeniusGateway::_rx_packets()
                 } // End of !isDuplicate check
 
                 /* Send data to WebSocket logger - log ALL packets including duplicates */
-                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 1); // Temporary: Measuring execution time
                 _wsLogger.logPacket(&packet);
-                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0); // Temporary: Measuring execution time
             }
 
             // Re-enable RX Monitoring
             _cc1101Controller.enableRXMonitoring();
-
-            gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 0); // Temporary: Measuring execution time
         }
         else
         {
