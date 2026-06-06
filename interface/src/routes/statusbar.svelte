@@ -50,19 +50,19 @@
 		>
 		<span class="px-2 text-xl font-bold lg:text-2xl">{page.data.title}</span>
 	</div>
-	<div class="flex flex-none px-2">
+	<div class="flex flex-none px-1">
 		<AlarmBlockingTimer />
 	</div>
-	<div class="indicator flex flex-none">
+	<div class="indicator flex flex-none px-1">
 		<UpdateIndicator />
 	</div>
-	<div class="flex flex-none">
+	<div class="flex flex-none px-1">
 		<AlarmStatus />
 	</div>
 	<div class="flex flex-none px-1">
 		<RadioIndicator />
 	</div>
-	<div class="flex flex-none">
+	<div class="flex flex-none px-1">
 		{#if $telemetry.rssi.disconnected}
 			<WiFiOff class="h-7 w-7" />
 		{:else}
@@ -76,7 +76,7 @@
 	</div>
 
 	{#if page.data.features.battery}
-		<div class="flex flex-none">
+		<div class="flex flex-none px-1">
 			<BatteryIndicator
 				charging={$telemetry.battery.charging}
 				soc={$telemetry.battery.soc}
@@ -86,7 +86,7 @@
 	{/if}
 
 	{#if page.data.features.sleep}
-		<div class="flex flex-none">
+		<div class="flex flex-none px-1">
 			<button class="btn btn-square btn-ghost h-9 w-10" onclick={confirmSleep}>
 				<Power class="h-9 w-9" />
 			</button>

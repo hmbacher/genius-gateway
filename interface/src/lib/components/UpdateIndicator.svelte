@@ -9,6 +9,7 @@
 	import Cancel from '~icons/tabler/x';
 	import CloudDown from '~icons/tabler/cloud-download';
 	import CloudOff from '~icons/tabler/cloud-off';
+	import CloudCheck from '~icons/tabler/cloud-check';
 	import Loader from '~icons/tabler/loader-2';
 	import FirmwareUpdateDialog from '$lib/components/FirmwareUpdateDialog.svelte';
 	import { firmware } from '$lib/stores/firmware';
@@ -25,7 +26,7 @@
 	let githubError: boolean = $state(false);
 	let loading: boolean = $state(true);
 
-	async function getGithubAPI() {
+	async function getGithubAPI(manual = false) {
 		// Use backend endpoint instead of direct GitHub API call
 		const githubUrl = `/rest/github-release`;
 		loading = true;
@@ -68,6 +69,9 @@
 				firmwareVersion = results.tag_name;
 				firmwareDownloadLink = results.download_url;
 				notifications.info('Firmware update available.', 5000);
+			} else if (manual) {
+				// Only acknowledge with a toast on a user-initiated re-check, not the hourly poll
+				notifications.success('Firmware is up to date.', 4000);
 			}
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -144,8 +148,16 @@
 	<button
 		class="btn btn-square btn-ghost h-9 w-9 tooltip tooltip-left"
 		data-tip="Cannot reach GitHub - check your internet connection"
-		onclick={() => getGithubAPI()}
+		onclick={() => getGithubAPI(true)}
 	>
 		<CloudOff class="text-warning h-7 w-7" />
+	</button>
+{:else}
+	<button
+		class="btn btn-square btn-ghost h-9 w-9 tooltip tooltip-left"
+		data-tip="Firmware up to date — click to check again"
+		onclick={() => getGithubAPI(true)}
+	>
+		<CloudCheck class="h-7 w-7" />
 	</button>
 {/if}
