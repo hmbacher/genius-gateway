@@ -151,10 +151,10 @@
 					feature: true
 				},
 				{
-					title: 'CC1101 Status',
+					title: 'Radio (CC1101)',
 					icon: CPU,
 					href: '/system/cc1101',
-					feature: page.data.features.cc1101_controller && $user.admin
+					feature: $user.admin
 				},
 				{
 					title: 'System Metrics',

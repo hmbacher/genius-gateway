@@ -31,6 +31,9 @@
 
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -246,6 +249,45 @@ typedef enum cc1101_mode {
 } cc1101_mode_t;
 
 /**
+ * @brief Runtime CC1101 SPI/GDO pin assignment.
+ *
+ * Replaces the former compile-time CONFIG_*_GPIO / HOST_ID macros so the wiring can be
+ * configured at runtime. Field order is part of the ABI used by the profile initializers
+ * (the board pin-profile table in cc1101.c) — do not reorder.
+ */
+typedef struct cc1101_pins {
+	int csn;      ///< Chip select (CSn), output
+	int miso;     ///< SPI MISO, input
+	int mosi;     ///< SPI MOSI, output
+	int sck;      ///< SPI clock, output
+	int gdo0;     ///< GDO0 interrupt line, input
+	int spi_host; ///< spi_host_device_t value (e.g. SPI2_HOST)
+} cc1101_pins_t;
+
+/**
+ * @brief A named, known-good pin set offered as a one-click preset (e.g. a soldered PCB).
+ *
+ * Profile data lives in cc1101.c (C-only, designated initializers); these types live here so
+ * C++ consumers (REST endpoints) can read a profile via cc1101_active_profile().
+ */
+typedef struct cc1101_preset {
+	const char *name;   ///< Preset name shown in the UI (e.g. "GG v1.0")
+	cc1101_pins_t pins; ///< Fixed pin set for this preset
+} cc1101_preset_t;
+
+/**
+ * @brief Per-build-target CC1101 pin profile (single source of truth).
+ *
+ * A target offers zero or more named presets plus, always, free "Custom" selection in the UI
+ * (any valid GPIO, via the runtime-derived valid-pins endpoint). A board with at least one
+ * preset boots from preset[0]; a preset-less target boots unconfigured.
+ */
+typedef struct cc1101_pin_profile {
+	const cc1101_preset_t *presets; ///< Named presets; NULL/0 = Custom-only target
+	size_t preset_count;            ///< Number of presets
+} cc1101_pin_profile_t;
+
+/**
  * CC1101 data packet class
  */
 typedef struct cc1101_packet {
@@ -262,12 +304,76 @@ typedef struct cc1101_packet {
 
 /**
  * @brief Initialize CC1101 radio controller
- * 
- * Initialize CC1101 radio and received packet notification (via ISR and task notification)
  *
- * @param gpio_isr_handler ISR handler to be executed on a fully received packet
+ * Initialize CC1101 radio and received packet notification (via ISR and task notification)
+ * using the supplied SPI/GDO pin assignment. The pins are copied into the driver and used
+ * for all subsequent SPI transactions and GDO0 interrupt handling.
+ *
+ * @param pins Pin assignment to use (must not be NULL). Typically cc1101_default_pins() or a
+ *             user-configured set.
+ * @param rx_callback Callback to be executed on a fully received packet
+ * @return ESP_OK on success, ESP_ERR_INVALID_ARG if pins is NULL, ESP_FAIL otherwise
  */
-esp_err_t cc1101_init(void (*rx_callback)());
+esp_err_t cc1101_init(const cc1101_pins_t *pins, void (*rx_callback)());
+
+/**
+ * @brief Tear down the CC1101 driver and release all hardware resources.
+ *
+ * Strobes the radio to IDLE (if reachable), removes the GDO0 interrupt handler, removes the
+ * SPI device, frees the SPI bus, and resets the CSn/GDO0 GPIOs. Safe to call repeatedly and
+ * on a never- or partially-initialized driver (idempotent). The process-shared GPIO ISR
+ * service is intentionally left installed, as other peripherals may rely on it.
+ *
+ * After deinit the driver is ready for a fresh cc1101_init() with a new pin assignment.
+ */
+void cc1101_deinit(void);
+
+/// Result of a CC1101 wiring self-test (cc1101_probe).
+typedef struct cc1101_probe_result {
+	bool spi_ok;        ///< SPI bus/device initialized on the candidate pins
+	bool chip_detected; ///< Chip responded with expected PARTNUM/VERSION (SCK/MOSI/MISO/CSn wiring OK)
+	bool gdo0_ok;       ///< GDO0 line followed commanded levels (GDO0 wiring OK)
+	uint8_t partnum;    ///< Raw PARTNUM register value (for display)
+	uint8_t version;    ///< Raw VERSION register value (for display)
+} cc1101_probe_result_t;
+
+/**
+ * @brief Self-test a candidate pin set without disturbing persisted configuration.
+ *
+ * Transiently initializes SPI on @p pins, reads the chip ID (proving SCK/MOSI/MISO/CSn wiring),
+ * toggles GDO0 via IOCFG0 to verify that line, then fully tears down (cc1101_deinit). The radio
+ * is left DEINITIALIZED afterwards — the caller is responsible for restoring any prior state.
+ *
+ * Must only be called when the radio is not actively running (no concurrent RX/TX), since it
+ * tears down and rebuilds the SPI bus.
+ *
+ * @param pins Candidate pin set to test (must be a valid, distinct set)
+ * @param result Out: per-function test outcome
+ * @return ESP_OK if the probe ran (inspect @p result for findings), ESP_ERR_INVALID_ARG on NULL
+ */
+esp_err_t cc1101_probe(const cc1101_pins_t *pins, cc1101_probe_result_t *result);
+
+/**
+ * @brief Get the default pin assignment for the active board profile.
+ *
+ * Returns the compiled-in defaults from the board pin-profile table in cc1101.c (single source
+ * of truth), used as the seed for the runtime pin configuration.
+ *
+ * @return Pointer to the default pins (never NULL)
+ */
+const cc1101_pins_t *cc1101_default_pins(void);
+
+/**
+ * @brief Get the active board pin profile (single source of truth for the UI/validation).
+ * @return Pointer to the compiled-in profile (never NULL)
+ */
+const cc1101_pin_profile_t *cc1101_active_profile(void);
+
+/**
+ * @brief Get the GDO0 GPIO of the currently active pin configuration.
+ * @return GDO0 GPIO number, or -1 if the radio has not been initialized yet
+ */
+int cc1101_get_gdo0_pin(void);
 
 
 /**

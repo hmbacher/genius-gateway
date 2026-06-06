@@ -21,6 +21,18 @@ export enum Cc1101Mode {
   Tx,
 }
 
+// From CC1101Controller.h
+export enum Cc1101RadioState {
+  /** /< No valid pin configuration; radio not brought up */
+  Cc1101RadioUnconfigured = 0,
+  /** /< Bring-up in progress */
+  Cc1101RadioInitializing,
+  /** /< Radio initialized and operating */
+  Cc1101RadioOk,
+  /** /< Bring-up failed (e.g. chip not found on configured pins) */
+  Cc1101RadioError,
+}
+
 // From GeniusDevicesService.h
 export enum GeniusAlarmEnding {
   /** /< Alarm is currently active */

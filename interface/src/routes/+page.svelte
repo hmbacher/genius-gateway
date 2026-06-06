@@ -5,6 +5,7 @@
 	import { user } from '$lib/stores/user';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
+	import RadioSetupBanner from '$lib/components/RadioSetupBanner.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import AlarmEndingDialog from './AlarmEndingDialog.svelte';
 	import Info from '~icons/tabler/info-circle';
@@ -51,6 +52,7 @@
 </script>
 
 <div>
+	<RadioSetupBanner />
 	<div class="flex justify-center px-6 py-10">
 		<div
 			class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-10 justify-items-center"
