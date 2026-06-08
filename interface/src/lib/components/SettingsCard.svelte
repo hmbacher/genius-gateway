@@ -2,7 +2,7 @@
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import Down from '~icons/tabler/chevron-down';
-	import Alert from '~icons/tabler/alert-hexagon';
+	import IconRevert from '~icons/tabler/arrow-back-up';
 
 	interface Props {
 		open?: boolean;
@@ -13,6 +13,8 @@
 		children?: import('svelte').Snippet;
 		maxwidth?: string;
 		isDirty?: boolean;
+		/** When set, the dirty indicator becomes a clickable button that reverts all changes. */
+		onRevert?: () => void;
 		overflowX?: 'hidden' | 'visible' | 'auto' | 'scroll' | 'clip';
 		overflowY?: 'hidden' | 'visible' | 'auto' | 'scroll' | 'clip';
 	}
@@ -26,6 +28,7 @@
 		children,
 		maxwidth = 'max-w-2xl',
 		isDirty = false,
+		onRevert,
 		overflowX = 'hidden',
 		overflowY = 'hidden'
 	}: Props = $props();
@@ -42,6 +45,26 @@
 	const overflowClass = $derived(`${overflowXClass[overflowX]} ${overflowYClass[overflowY]}`);
 </script>
 
+{#snippet dirtyIndicator()}
+	{#if isDirty}
+		{#if onRevert}
+			<button
+				type="button"
+				data-tip="Revert all changes"
+				aria-label="Revert all changes"
+				class="tooltip tooltip-right text-error self-center ml-2 flex shrink-0 cursor-pointer items-center"
+				onclick={() => onRevert?.()}
+			>
+				<IconRevert class="h-6 w-6" />
+			</button>
+		{:else}
+			<div data-tip="There are unsaved changes." class="tooltip tooltip-right tooltip-error">
+				<IconRevert class="text-error flex-shrink-0 ml-2 h-6 w-6 self-center cursor-help" />
+			</div>
+		{/if}
+	{/if}
+{/snippet}
+
 {#if collapsible}
 	<div
 		class="bg-base-200 rounded-box shadow-primary/50 relative grid w-full {maxwidth} self-center {overflowClass} shadow-lg m-10"
@@ -55,11 +78,7 @@
 			<span class="inline-flex items-start gap-2">
 				<span class="shrink-0 inline-flex mt-0.5">{@render icon?.()}</span>
 				{@render title?.()}
-				{#if isDirty}
-					<div data-tip="There are unsaved changes." class="tooltip tooltip-right tooltip-error">
-						<Alert class="text-error flex-shrink-0 ml-2 h-6 w-6 self-center cursor-help" />
-					</div>
-				{/if}
+				{@render dirtyIndicator()}
 			</span>
 			<button
 				class="btn btn-circle btn-ghost btn-sm self-start"
@@ -94,11 +113,7 @@
 			<span class="inline-flex grow items-start gap-2">
 				<span class="shrink-0 inline-flex mt-0.5">{@render icon?.()}</span>
 				{@render title?.()}
-				{#if isDirty}
-					<div data-tip="There are unsaved changes." class="tooltip tooltip-right tooltip-error">
-						<Alert class="text-error flex-shrink-0 ml-2 h-6 w-6 self-center cursor-help" />
-					</div>
-				{/if}
+				{@render dirtyIndicator()}
 			</span>
 			{#if actions}
 				<span class="flex flex-wrap ml-auto items-center justify-end gap-2">

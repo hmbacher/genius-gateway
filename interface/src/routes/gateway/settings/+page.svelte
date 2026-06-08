@@ -8,6 +8,9 @@
 	import type { ReportSettings } from '$lib/types/models';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
+	import DirtyField from '$lib/components/DirtyField.svelte';
+	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
 	import IconSettings from '~icons/tabler/adjustments';
 	import IconAlarm from '~icons/tabler/alert-hexagon';
 	import IconAlarmLine from '~icons/tabler/topology-ring-2';
@@ -28,10 +31,7 @@
 		add_alarm_line_from_line_test_packet: false
 	};
 
-	let gatewaySettings: GatewaySettings = $state(defaultSettings);
-	let strSettings: string = $state(JSON.stringify(defaultSettings)); // to recognize changes
-
-	let isSettingsDirty: boolean = $derived(JSON.stringify(gatewaySettings) !== strSettings);
+	const f = createDirtyState<GatewaySettings>({ ...defaultSettings });
 
 	async function getGatewaySettings() {
 		try {
@@ -42,9 +42,7 @@
 					'Content-Type': 'application/json'
 				}
 			});
-
-			gatewaySettings = await response.json();
-			strSettings = JSON.stringify(gatewaySettings); // Store the recently loaded settings in a string variable
+			f.reset(await response.json());
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -59,13 +57,11 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(gatewaySettings)
+				body: JSON.stringify(f.current)
 			});
-
 			if (response.status == 200) {
 				notifications.success('Gateway settings updated.', 3000);
-				gatewaySettings = await response.json();
-				strSettings = JSON.stringify(gatewaySettings); // Store the recently loaded settings in a string variable
+				f.reset(await response.json());
 			} else {
 				notifications.error('Updating Gateway settings failed.', 3000);
 			}
@@ -83,12 +79,7 @@
 		customerName: ''
 	};
 
-	let reportSettings: ReportSettings = $state({ ...defaultReportSettings });
-	let strReportSettings: string = $state(JSON.stringify(defaultReportSettings));
-
-	let isReportSettingsDirty: boolean = $derived(
-		JSON.stringify(reportSettings) !== strReportSettings
-	);
+	const r = createDirtyState<ReportSettings>({ ...defaultReportSettings });
 
 	async function getReportSettings() {
 		try {
@@ -99,8 +90,7 @@
 					'Content-Type': 'application/json'
 				}
 			});
-			reportSettings = await response.json();
-			strReportSettings = JSON.stringify(reportSettings);
+			r.reset(await response.json());
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -114,12 +104,11 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(reportSettings)
+				body: JSON.stringify(r.current)
 			});
 			if (response.status === 200) {
 				notifications.success('Report settings updated.', 3000);
-				reportSettings = await response.json();
-				strReportSettings = JSON.stringify(reportSettings);
+				r.reset(await response.json());
 			} else {
 				notifications.error('Updating report settings failed.', 3000);
 			}
@@ -131,15 +120,10 @@
 	// WebSocket synchronization for real-time updates from backend (e.g., MQTT changes)
 	onMount(() => {
 		const unsubscribe = socket.on<GatewaySettings>('gateway-settings', (data) => {
-			if (data) {
-				// Only update if settings are not currently being edited locally
-				if (!isSettingsDirty) {
-					gatewaySettings = data;
-					strSettings = JSON.stringify(data);
-				}
+			if (data && !f.anyDirty) {
+				f.reset(data);
 			}
 		});
-
 		return () => {
 			unsubscribe();
 		};
@@ -151,7 +135,7 @@
 		class="mx-0 my-1 flex flex-col space-y-4
      sm:mx-8 sm:my-8"
 	>
-		<SettingsCard collapsible={false} isDirty={isSettingsDirty}>
+		<SettingsCard collapsible={false} isDirty={f.anyDirty} onRevert={() => f.revertAll()}>
 			{#snippet icon()}
 				<IconSettings class="h-6 w-6" />
 			{/snippet}
@@ -168,14 +152,14 @@
 							<span class="font-medium">Alarming</span>
 						</span>
 					</div>
-					<div>
-						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
-							<span class="min-w-0 mr-4">Process alerts from unknown smoke detectors</span>
-							<input
-								type="checkbox"
-								class="toggle toggle-primary"
-								bind:checked={gatewaySettings.alert_on_unknown_detectors}
-							/>
+					<div class="flex items-center w-full">
+						<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('alert_on_unknown_detectors') ? 'w-1 mr-2' : 'w-0'}"></div>
+						<label class="label cursor-pointer flex-1 justify-between items-center whitespace-normal">
+							<div class="flex items-center gap-1 min-w-0 mr-4">
+								<span>Process alerts from unknown smoke detectors</span>
+								<DirtyMarker dirty={f.isDirty('alert_on_unknown_detectors')} onrevert={() => f.revert('alert_on_unknown_detectors')} />
+							</div>
+							<input type="checkbox" class="toggle toggle-primary shrink-0" bind:checked={f.current.alert_on_unknown_detectors} />
 						</label>
 					</div>
 					<div class="divider my-2"></div>
@@ -187,36 +171,34 @@
 							<span class="font-medium">Alarm lines</span>
 						</span>
 					</div>
-					<div>
-						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
-							<span class="min-w-0 mr-4">Add alarm line ID of received <em>comissioning</em> packets automatically</span
-							>
-							<input
-								type="checkbox"
-								class="toggle toggle-primary"
-								bind:checked={gatewaySettings.add_alarm_line_from_commissioning_packet}
-							/>
+					<div class="flex items-center w-full">
+						<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('add_alarm_line_from_commissioning_packet') ? 'w-1 mr-2' : 'w-0'}"></div>
+						<label class="label cursor-pointer flex-1 justify-between items-center whitespace-normal">
+							<div class="flex items-center gap-1 min-w-0 mr-4">
+								<span>Add alarm line ID of received <em>comissioning</em> packets automatically</span>
+								<DirtyMarker dirty={f.isDirty('add_alarm_line_from_commissioning_packet')} onrevert={() => f.revert('add_alarm_line_from_commissioning_packet')} />
+							</div>
+							<input type="checkbox" class="toggle toggle-primary shrink-0" bind:checked={f.current.add_alarm_line_from_commissioning_packet} />
 						</label>
 					</div>
-					<div>
-						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
-							<span class="min-w-0 mr-4">Add alarm line ID of received <em>alarming/silencing</em> packets automatically</span
-							>
-							<input
-								type="checkbox"
-								class="toggle toggle-primary"
-								bind:checked={gatewaySettings.add_alarm_line_from_alarm_packet}
-							/>
+					<div class="flex items-center w-full">
+						<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('add_alarm_line_from_alarm_packet') ? 'w-1 mr-2' : 'w-0'}"></div>
+						<label class="label cursor-pointer flex-1 justify-between items-center whitespace-normal">
+							<div class="flex items-center gap-1 min-w-0 mr-4">
+								<span>Add alarm line ID of received <em>alarming/silencing</em> packets automatically</span>
+								<DirtyMarker dirty={f.isDirty('add_alarm_line_from_alarm_packet')} onrevert={() => f.revert('add_alarm_line_from_alarm_packet')} />
+							</div>
+							<input type="checkbox" class="toggle toggle-primary shrink-0" bind:checked={f.current.add_alarm_line_from_alarm_packet} />
 						</label>
 					</div>
-					<div>
-						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
-							<span class="min-w-0 mr-4">Add alarm line ID of received <em>line test</em> packets automatically</span>
-							<input
-								type="checkbox"
-								class="toggle toggle-primary"
-								bind:checked={gatewaySettings.add_alarm_line_from_line_test_packet}
-							/>
+					<div class="flex items-center w-full">
+						<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('add_alarm_line_from_line_test_packet') ? 'w-1 mr-2' : 'w-0'}"></div>
+						<label class="label cursor-pointer flex-1 justify-between items-center whitespace-normal">
+							<div class="flex items-center gap-1 min-w-0 mr-4">
+								<span>Add alarm line ID of received <em>line test</em> packets automatically</span>
+								<DirtyMarker dirty={f.isDirty('add_alarm_line_from_line_test_packet')} onrevert={() => f.revert('add_alarm_line_from_line_test_packet')} />
+							</div>
+							<input type="checkbox" class="toggle toggle-primary shrink-0" bind:checked={f.current.add_alarm_line_from_line_test_packet} />
 						</label>
 					</div>
 				</div>
@@ -226,10 +208,8 @@
 						<button
 							class="btn btn-primary"
 							type="button"
-							disabled={!isSettingsDirty}
-							onclick={() => {
-								postGatewaySettings();
-							}}
+							disabled={!f.anyDirty}
+							onclick={postGatewaySettings}
 						>
 							<IconSave class="h-6 w-6" />
 							Save
@@ -239,7 +219,7 @@
 			{/await}
 		</SettingsCard>
 
-		<SettingsCard collapsible={false} isDirty={isReportSettingsDirty}>
+		<SettingsCard collapsible={false} isDirty={r.anyDirty} onRevert={() => r.revertAll()}>
 			{#snippet icon()}
 				<IconReport class="h-6 w-6" />
 			{/snippet}
@@ -257,37 +237,43 @@
 						<div class="label">
 							<span class="label-text">Property Name</span>
 						</div>
-						<input
-							type="text"
-							class="input input-bordered w-full"
-							placeholder="e.g. Mustermann House"
-							maxlength="256"
-							bind:value={reportSettings.propertyName}
-						/>
+						<DirtyField dirty={r.isDirty('propertyName')} onrevert={() => r.revert('propertyName')}>
+							<input
+								type="text"
+								class="input input-bordered w-full pr-10"
+								placeholder="e.g. Mustermann House"
+								maxlength="256"
+								bind:value={r.current.propertyName}
+							/>
+						</DirtyField>
 					</label>
 					<label class="form-control w-full">
 						<div class="label">
 							<span class="label-text">Property Address</span>
 						</div>
-						<textarea
-							class="textarea textarea-bordered w-full"
-							placeholder={"e.g. Musterstraße 1\n12345 Berlin"}
-							maxlength="256"
-							rows="3"
-							bind:value={reportSettings.propertyAddress}
-						></textarea>
+						<DirtyField dirty={r.isDirty('propertyAddress')} onrevert={() => r.revert('propertyAddress')}>
+							<textarea
+								class="textarea textarea-bordered w-full pr-10"
+								placeholder={"e.g. Musterstraße 1\n12345 Berlin"}
+								maxlength="256"
+								rows="3"
+								bind:value={r.current.propertyAddress}
+							></textarea>
+						</DirtyField>
 					</label>
 					<label class="form-control w-full">
 						<div class="label">
 							<span class="label-text">Customer / Owner</span>
 						</div>
-						<input
-							type="text"
-							class="input input-bordered w-full"
-							placeholder="e.g. Max Mustermann"
-							maxlength="256"
-							bind:value={reportSettings.customerName}
-						/>
+						<DirtyField dirty={r.isDirty('customerName')} onrevert={() => r.revert('customerName')}>
+							<input
+								type="text"
+								class="input input-bordered w-full pr-10"
+								placeholder="e.g. Max Mustermann"
+								maxlength="256"
+								bind:value={r.current.customerName}
+							/>
+						</DirtyField>
 					</label>
 				</div>
 				<div class="divider my-2"></div>
@@ -296,7 +282,7 @@
 						<button
 							class="btn btn-primary"
 							type="button"
-							disabled={!isReportSettingsDirty}
+							disabled={!r.anyDirty}
 							onclick={postReportSettings}
 						>
 							<IconSave class="h-6 w-6" />

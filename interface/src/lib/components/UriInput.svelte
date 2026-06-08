@@ -5,6 +5,8 @@
 <script lang="ts">
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
+	import DirtyMarker from './DirtyMarker.svelte';
+	import DirtyField from './DirtyField.svelte';
 
 	interface Props {
 		value?: string;
@@ -57,8 +59,6 @@
 		};
 	}
 
-	// Extract initial field values from the seed so we can initialize both the
-	// reactive fields and `lastSyncedAssembled` from the same plain consts.
 	const seed = parseUri(value);
 	const initialScheme = seed?.scheme ?? defaultProtocol;
 	const initialHost = seed?.host ?? '';
@@ -68,25 +68,37 @@
 	let host = $state(initialHost);
 	let port = $state<number>(initialPort);
 
-	// `lastSyncedAssembled` is the assembled URI at the last point where internal
-	// state was in sync with the external value (initial load, external update, or
-	// successful write-back). Used to compute `dirty`.
-	let lastSyncedAssembled = $state(`${initialScheme}://${initialHost}:${initialPort}`);
+	// Per-sub-field baseline = the saved/loaded value each field is compared against (for its own
+	// dirty marker) and restored to on its own revert. Plus the raw string so a full revert can
+	// restore an empty/invalid saved value the write-back can't emit.
+	let baseScheme = $state(initialScheme);
+	let baseHost = $state(initialHost);
+	let basePort = $state<number>(initialPort);
+	let baselineValue = $state(value);
 
-	// Track the last externally-observed value so we only re-parse on genuine
-	// external changes, not on our own write-backs.
+	// Track the last externally-observed value so we only re-baseline on genuine external changes,
+	// not on our own write-backs.
 	let lastExternalValue = $state(value);
 
 	$effect(() => {
 		const v = value;
 		if (v === lastExternalValue) return;
 		lastExternalValue = v;
+		baselineValue = v;
 		const parsed = parseUri(v);
 		if (parsed) {
 			scheme = parsed.scheme;
 			host = parsed.host;
 			if (fixedPort === undefined) port = parsed.port;
-			lastSyncedAssembled = v;
+			baseScheme = parsed.scheme;
+			baseHost = parsed.host;
+			if (fixedPort === undefined) basePort = parsed.port;
+		} else {
+			// Unparseable external value (e.g. ""): keep the displayed fields and adopt them as the
+			// baseline so an untouched form is not reported dirty.
+			baseScheme = scheme;
+			baseHost = host;
+			if (fixedPort === undefined) basePort = port;
 		}
 	});
 
@@ -104,25 +116,63 @@
 		return '';
 	});
 
-	// Write-back: publishes a valid assembled URI to the bound `value` and advances
-	// `lastSyncedAssembled` so the dirty flag resets after a valid change.
+	// Write-back: publish a valid assembled URI to the bound `value`. Never advances the baseline.
 	$effect(() => {
 		error = !!errorMessage;
 		if (errorMessage) return;
 		const assembled = `${scheme}://${host}:${fixedPort ?? port}`;
-		lastSyncedAssembled = assembled;
 		if (assembled !== value) {
 			lastExternalValue = assembled;
 			value = assembled;
 		}
 	});
 
-	// Dirty: true whenever the internal field state has diverged from the last
-	// sync point, regardless of validity. Declared after write-back so Svelte
-	// runs write-back first within the same reactive batch.
+	// Per-sub-field dirty: each field is its own form control with its own marker + revert.
+	const schemeDirty = $derived(scheme !== baseScheme);
+	const hostDirty = $derived(host !== baseHost);
+	const portDirty = $derived(fixedPort === undefined && Number(port) !== Number(basePort));
+	const dirtyNow = $derived(schemeDirty || hostDirty || portDirty);
 	$effect(() => {
-		dirty = `${scheme}://${host}:${fixedPort ?? port}` !== lastSyncedAssembled;
+		dirty = dirtyNow;
 	});
+
+	// Inset box-shadow (not a border) so the dirty accent does not shift the field's content.
+	const accent = 'shadow-[inset_4px_0_0_0_var(--color-red-300)]';
+
+	function revertScheme() {
+		scheme = baseScheme;
+	}
+	function revertHost() {
+		host = baseHost;
+	}
+	function revertPort() {
+		if (fixedPort === undefined) port = basePort;
+	}
+
+	/**
+	 * Reset every sub-field to the saved baseline. Exposed so the containing card can revert this
+	 * field uniformly, like a simple field. Restores `value` explicitly because the write-back only
+	 * publishes *valid* assemblies and could not otherwise restore an empty/invalid saved value.
+	 */
+	export function revert() {
+		scheme = baseScheme;
+		host = baseHost;
+		if (fixedPort === undefined) port = basePort;
+		lastExternalValue = baselineValue;
+		value = baselineValue;
+	}
+
+	/**
+	 * Adopt the current field values as the new baseline. The card calls this after a successful
+	 * save so the sub-fields clear their dirty state even when the saved value equals what the
+	 * component already wrote back (in which case no external `value` change would re-baseline it).
+	 */
+	export function commit() {
+		baseScheme = scheme;
+		baseHost = host;
+		if (fixedPort === undefined) basePort = port;
+		baselineValue = value;
+	}
 
 	function onSchemeChange(e: Event) {
 		const newScheme = (e.currentTarget as HTMLSelectElement).value;
@@ -132,91 +182,112 @@
 		}
 		scheme = newScheme;
 	}
-
-	// Grid columns: only include protocol col when interactive, port cols when variable
-	// All four strings must be complete literals for Tailwind JIT to pick them up:
-	// 'grid-cols-[auto_1fr_auto_auto]'  'grid-cols-[auto_1fr]'
-	// 'grid-cols-[1fr_auto_auto]'       'grid-cols-1'
-	const gridCols = $derived(
-		!singleProtocol && fixedPort === undefined
-			? 'grid-cols-[auto_1fr_auto_auto]'
-			: !singleProtocol
-				? 'grid-cols-[auto_1fr]'
-				: fixedPort === undefined
-					? 'grid-cols-[1fr_auto_auto]'
-					: 'grid-cols-1'
-	);
-	const hostCol = $derived(!singleProtocol ? 'col-start-2' : 'col-start-1');
-	const colonCol = $derived(!singleProtocol ? 'col-start-3' : 'col-start-2');
-	const portCol = $derived(!singleProtocol ? 'col-start-4' : 'col-start-3');
 </script>
 
 <div>
-	<div class="grid w-full {gridCols} gap-x-1">
-		<!-- Label row -->
+	<div class="flex flex-wrap items-start gap-x-1 gap-y-2">
+		<!-- Protocol: native <select> can't host child elements, so we wrap it in a label.input
+		     container to get the same visual appearance as other fields with an inner revert button. -->
 		{#if !singleProtocol}
-			<label class="label col-start-1 row-start-1 py-0" for="{id}-scheme">{labelProtocol}</label>
-		{/if}
-		<label class="label {hostCol} row-start-1 py-0" for={id}>{labelHost}</label>
-		{#if fixedPort === undefined}
-			<label class="label {portCol} row-start-1 py-0" for="{id}-port">{labelPort}</label>
+			<div class="flex grow flex-col">
+				<label class="label py-0" for="{id}-scheme">{labelProtocol}</label>
+				<label
+					class="input w-full pl-0 {schemeInvalid
+						? 'border-error border-2'
+						: schemeDirty
+							? accent
+							: ''}"
+					for="{id}-scheme"
+				>
+					<select
+						class="h-full border-none bg-transparent ps-3 pe-2 outline-none"
+						id="{id}-scheme"
+						value={scheme}
+						oninput={onSchemeChange}
+					>
+						{#each protocols as p}
+							<option value={p.scheme}>{p.scheme}://</option>
+						{/each}
+					</select>
+					<DirtyMarker dirty={schemeDirty} onrevert={revertScheme} />
+				</label>
+			</div>
 		{/if}
 
-		<!-- Field row -->
-		{#if !singleProtocol}
-			<select
-				class="select col-start-1 row-start-2 w-auto shrink-0 ps-3 pe-6 {schemeInvalid
-					? 'border-error border-2'
-					: ''}"
-				id="{id}-scheme"
-				value={scheme}
-				oninput={onSchemeChange}
->
-				{#each protocols as p}
-					<option value={p.scheme}>{p.scheme}://</option>
-				{/each}
-			</select>
-		{/if}
-
-		<!-- Host: daisyUI label-as-input wrapper with optional fixed prefix/suffix inside -->
-		<label
-			class="input {hostCol} row-start-2 w-full min-w-0 {hostInvalid
-				? 'border-error border-2'
-				: ''}"
-			for={id}
-		>
-			{#if singleProtocol}
-				<span class="text-base-content/60 select-none">{protocols[0].scheme}://</span>
+		<!-- Host: the primary field. With a scheme prefix / fixed-port suffix it needs the daisyUI
+		     label-as-input wrapper; otherwise it's a plain input with an overlay revert, identical
+		     to a simple text field elsewhere on the page. -->
+		<div class="flex min-w-[10rem] grow-[99] flex-col">
+			<label class="label py-0" for={id}>{labelHost}</label>
+			{#if singleProtocol || fixedPort !== undefined}
+				<label
+					class="input w-full min-w-0 {hostInvalid
+						? 'border-error border-2'
+						: hostDirty
+							? accent
+							: ''}"
+					for={id}
+				>
+					{#if singleProtocol}
+						<span class="text-base-content/60 select-none">{protocols[0].scheme}://</span>
+					{/if}
+					<input
+						type="text"
+						class="min-w-0 grow"
+						{id}
+						bind:value={host}
+						placeholder={hostPlaceholder}
+						required
+					/>
+					{#if fixedPort !== undefined}
+						<span class="text-base-content/60 select-none">:{fixedPort}</span>
+					{/if}
+					<DirtyMarker dirty={hostDirty} onrevert={revertHost} />
+				</label>
+			{:else}
+				<DirtyField dirty={hostDirty} onrevert={revertHost} class="w-full">
+					<input
+						type="text"
+						class="input w-full pr-9 {hostInvalid
+							? 'border-error border-2'
+							: hostDirty
+								? accent
+								: ''}"
+						{id}
+						bind:value={host}
+						placeholder={hostPlaceholder}
+						required
+					/>
+				</DirtyField>
 			{/if}
-			<input
-				type="text"
-				class="min-w-0 grow"
-				{id}
-				bind:value={host}
-				placeholder={hostPlaceholder}
-				required
-/>
-			{#if fixedPort !== undefined}
-				<span class="text-base-content/60 select-none">:{fixedPort}</span>
-			{/if}
-		</label>
+		</div>
 
+		<!-- Port: same pattern as Keep Alive — input fills space, DirtyMarker inside the border. -->
 		{#if fixedPort === undefined}
-			<span class="text-base-content/60 {colonCol} row-start-2 flex items-center select-none"
-				>:</span
-			>
-			<input
-				type="number"
-				class="input {portCol} row-start-2 w-20 shrink-0 {portInvalid
-					? 'border-error border-2'
-					: ''}"
-				id="{id}-port"
-				bind:value={port}
-				min={portMin}
-				max={portMax}
-				step="1"
-				required
-/>
+			<div class="flex grow flex-col">
+				<label class="label py-0" for="{id}-port">{labelPort}</label>
+				<label
+					for="{id}-port"
+					class="input w-full {portInvalid
+						? 'border-error border-2'
+						: portDirty
+							? accent
+							: ''}"
+				>
+					<span class="text-base-content/60 select-none">:</span>
+					<input
+						type="number"
+						class=""
+						min={portMin}
+						max={portMax}
+						step="1"
+						bind:value={port}
+						id="{id}-port"
+						required
+					/>
+					<DirtyMarker dirty={portDirty} onrevert={revertPort} />
+				</label>
+			</div>
 		{/if}
 	</div>
 	{#if errorMessage}

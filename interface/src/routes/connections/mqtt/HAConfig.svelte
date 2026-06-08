@@ -5,11 +5,15 @@
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import Collapsible from '$lib/components/Collapsible.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
+	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
+	import DirtyField from '$lib/components/DirtyField.svelte';
+	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
 	import HomeAssistant from '~icons/tabler/smart-home';
 	import Info from '~icons/tabler/info-circle';
 	import type { HASettings } from '$lib/types/models';
 
-	let haSettings: HASettings = $state({
+	const f = createDirtyState<HASettings>({
 		enabled: false,
 		discovery_prefix: 'homeassistant/',
 		device_name: '',
@@ -26,21 +30,17 @@
 					'Content-Type': 'application/json'
 				}
 			});
-			haSettings = await response.json();
-			strSettings = JSON.stringify(haSettings);
+			f.reset(await response.json());
 		} catch (error) {
 			console.error('Error:', error);
 		}
 		return;
 	}
 
-	let strSettings: string = $state('{}');
-	let isSettingsDirty: boolean = $derived(JSON.stringify(haSettings) !== strSettings);
-
-	const discoveryPrefixError = $derived(!isValidDiscoveryPrefix(haSettings.discovery_prefix ?? ''));
-	const deviceNameError = $derived((haSettings.device_name ?? '').length > 64);
-	const manufacturerError = $derived((haSettings.manufacturer ?? '').length > 64);
-	const modelError = $derived((haSettings.model ?? '').length > 64);
+	const discoveryPrefixError = $derived(!isValidDiscoveryPrefix(f.current.discovery_prefix ?? ''));
+	const deviceNameError = $derived((f.current.device_name ?? '').length > 64);
+	const manufacturerError = $derived((f.current.manufacturer ?? '').length > 64);
+	const modelError = $derived((f.current.model ?? '').length > 64);
 	const hasError = $derived(discoveryPrefixError || deviceNameError || manufacturerError || modelError);
 
 	async function postHASettings() {
@@ -51,12 +51,11 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(haSettings)
+				body: JSON.stringify(f.current)
 			});
 			if (response.status == 200) {
 				notifications.success('Home Assistant settings updated.', 3000);
-				haSettings = await response.json();
-				strSettings = JSON.stringify(haSettings);
+				f.reset(await response.json());
 			} else {
 				notifications.error('Updating Home Assistant settings failed.', 3000);
 			}
@@ -83,8 +82,10 @@
 	}
 </script>
 
-{#await getHASettings() then _}
-	<Collapsible open={false} class="shadow-lg" isDirty={isSettingsDirty}>
+{#await getHASettings()}
+	<Spinner />
+{:then _}
+	<Collapsible open={false} class="shadow-lg" isDirty={f.anyDirty} onRevert={() => f.revertAll()}>
 		{#snippet icon()}
 			<HomeAssistant class="h-6 w-6" />
 		{/snippet}
@@ -108,101 +109,95 @@
 				>
 			</div>
 			<div class="grid w-full grid-cols-1 content-center gap-x-4 gap-y-2 px-4">
-				<label class="label inline-flex cursor-pointer content-end justify-start gap-4 text-base">
-					<input type="checkbox" bind:checked={haSettings.enabled} class="toggle toggle-primary" />
-					Enable Home Assistant Integration
-				</label>
+				<div class="flex items-center w-full mt-2">
+					<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('enabled') ? 'w-1 mr-2' : 'w-0'}"></div>
+					<label class="label cursor-pointer justify-start gap-2 items-center">
+						<input type="checkbox" class="toggle toggle-primary shrink-0" bind:checked={f.current.enabled} />
+						<div class="flex items-center gap-2">
+							<span>Enable Home Assistant Integration</span>
+							<DirtyMarker dirty={f.isDirty('enabled')} onrevert={() => f.revert('enabled')} />
+						</div>
+					</label>
+				</div>
 
 				<div>
 					<label class="label" for="discovery_prefix">Discovery Prefix</label>
-					<input
-						type="text"
-						class="input w-full invalid:border-error invalid:border-2 {discoveryPrefixError
-							? 'border-error border-2'
-							: ''}"
-						bind:value={haSettings.discovery_prefix}
-						id="discovery_prefix"
-						minlength="1"
-						maxlength="64"
-						required
-					/>
+					<DirtyField dirty={f.isDirty('discovery_prefix')} onrevert={() => f.revert('discovery_prefix')}>
+						<input
+							type="text"
+							class="input w-full pr-10 {discoveryPrefixError ? 'border-error border-2' : ''}"
+							bind:value={f.current.discovery_prefix}
+							id="discovery_prefix"
+							minlength="1"
+							maxlength="64"
+							required
+						/>
+					</DirtyField>
 					{#if discoveryPrefixError}
 						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<label class="label" for="discovery_prefix">
-								<span class="text-error"
-									>Must be 1–64 characters (a–z, A–Z, 0–9, -, _, ., /). No leading slash or double slashes.</span
-								>
-							</label>
+							<span class="text-error text-xs">Must be 1–64 characters (a–z, A–Z, 0–9, -, _, ., /). No leading slash or double slashes.</span>
 						</div>
 					{/if}
 				</div>
 
 				<div>
 					<label class="label" for="device_name">Device Name</label>
-					<input
-						type="text"
-						class="input w-full {deviceNameError
-							? 'border-error border-2'
-							: ''}"
-						bind:value={haSettings.device_name}
-						id="device_name"
-						maxlength="64"
-						placeholder="(empty falls back to firmware name: {page.data.appName})"
-					/>
+					<DirtyField dirty={f.isDirty('device_name')} onrevert={() => f.revert('device_name')}>
+						<input
+							type="text"
+							class="input w-full pr-10 {deviceNameError ? 'border-error border-2' : ''}"
+							bind:value={f.current.device_name}
+							id="device_name"
+							maxlength="64"
+							placeholder="(empty falls back to firmware name: {page.data.appName})"
+						/>
+					</DirtyField>
 					{#if deviceNameError}
 						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<label class="label" for="device_name">
-								<span class="text-error"
-									>Device name is limited to 64 characters</span
-								>
-							</label>
+							<span class="text-error text-xs">Device name is limited to 64 characters</span>
 						</div>
 					{/if}
 				</div>
 
 				<div>
 					<label class="label" for="manufacturer">Manufacturer</label>
-					<input
-						type="text"
-						class="input w-full {manufacturerError
-							? 'border-error border-2'
-							: ''}"
-						bind:value={haSettings.manufacturer}
-						id="manufacturer"
-						maxlength="64"
-					/>
+					<DirtyField dirty={f.isDirty('manufacturer')} onrevert={() => f.revert('manufacturer')}>
+						<input
+							type="text"
+							class="input w-full pr-10 {manufacturerError ? 'border-error border-2' : ''}"
+							bind:value={f.current.manufacturer}
+							id="manufacturer"
+							maxlength="64"
+						/>
+					</DirtyField>
 					{#if manufacturerError}
 						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<label class="label" for="manufacturer">
-								<span class="text-error"
-									>Manufacturer is limited to 64 characters</span
-								>
-							</label>
+							<span class="text-error text-xs">Manufacturer is limited to 64 characters</span>
 						</div>
 					{/if}
 				</div>
 
 				<div>
 					<label class="label" for="model">Model</label>
-					<input
-						type="text"
-						class="input w-full {modelError ? 'border-error border-2' : ''}"
-						bind:value={haSettings.model}
-						id="model"
-						maxlength="64"
-					/>
+					<DirtyField dirty={f.isDirty('model')} onrevert={() => f.revert('model')}>
+						<input
+							type="text"
+							class="input w-full pr-10 {modelError ? 'border-error border-2' : ''}"
+							bind:value={f.current.model}
+							id="model"
+							maxlength="64"
+						/>
+					</DirtyField>
 					{#if modelError}
 						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<label class="label" for="model">
-								<span class="text-error">Model is limited to 64 characters</span>
-							</label>
+							<span class="text-error text-xs">Model is limited to 64 characters</span>
 						</div>
 					{/if}
 				</div>
 			</div>
 			<div class="divider mb-2 mt-0"></div>
 			<div class="mx-4 flex flex-wrap justify-end gap-2">
-				<button class="btn btn-primary" disabled={!isSettingsDirty || hasError} type="submit"
+				<button class="btn btn-primary" disabled={!f.anyDirty || hasError} type="submit"
 					>Apply Settings</button
 				>
 			</div>

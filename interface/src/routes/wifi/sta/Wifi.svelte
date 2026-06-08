@@ -13,6 +13,9 @@
 	import Collapsible from '$lib/components/Collapsible.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
+	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
+	import DirtyField from '$lib/components/DirtyField.svelte';
+	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
 	import type { KnownNetworkItem, WifiSettings, WifiStatus } from '$lib/types/models';
 	import ScanNetworks from './Scan.svelte';
 	import EditNetwork from './EditNetwork.svelte';
@@ -59,35 +62,25 @@
 		connected: false
 	});
 
-	let wifiSettings: WifiSettings = $state({
+	// Per-field dirty tracking for scalar settings; wifi_networks tracked separately via JSON baseline.
+	const f = createDirtyState<{ hostname: string; connection_mode: number }>({
 		hostname: '',
-		connection_mode: 1,
-		wifi_networks: [] as KnownNetworkItem[]
+		connection_mode: 1
 	});
+	let wifi_networks = $state<KnownNetworkItem[]>([]);
+	let strNetworks = $state('[]');
+	let networksAreDirty = $derived(JSON.stringify(wifi_networks) !== strNetworks);
+	let isSettingsDirty = $derived(f.anyDirty || networksAreDirty);
 
-	// Stringify to recognize changes
-	// svelte-ignore state_referenced_locally
-	let strWifiSettings: string = $state(JSON.stringify(wifiSettings));
-	// Recognize changes in settings
-	let isSettingsDirty: boolean = $derived(JSON.stringify(wifiSettings) !== strWifiSettings);
+	const accent = 'shadow-[inset_4px_0_0_0_var(--color-red-300)]';
 
 	let showWifiDetails = $state(false);
-
 	let formErrorhostname = $state(false);
 
 	let connectionMode = [
-		{
-			id: 0,
-			text: `Offline`
-		},
-		{
-			id: 1,
-			text: `Signal Strength`
-		},
-		{
-			id: 2,
-			text: `Priority (Sequence)`
-		}
+		{ id: 0, text: `Offline` },
+		{ id: 1, text: `Signal Strength` },
+		{ id: 2, text: `Priority (Sequence)` }
 	];
 
 	async function getWifiStatus() {
@@ -114,8 +107,10 @@
 					'Content-Type': 'application/json'
 				}
 			});
-			wifiSettings = await response.json();
-			strWifiSettings = JSON.stringify(wifiSettings); // Store the recently loaded settings in a string variable
+			const data: WifiSettings = await response.json();
+			f.reset({ hostname: data.hostname, connection_mode: data.connection_mode });
+			wifi_networks = data.wifi_networks;
+			strNetworks = JSON.stringify(data.wifi_networks);
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -129,12 +124,14 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(wifiSettings)
+				body: JSON.stringify({ ...f.current, wifi_networks })
 			});
 			if (response.status == 200) {
 				notifications.success('Wi-Fi settings updated.', 3000);
-				wifiSettings = await response.json();
-				strWifiSettings = JSON.stringify(wifiSettings); // Store the recently loaded settings in a string variable
+				const data: WifiSettings = await response.json();
+				f.reset({ hostname: data.hostname, connection_mode: data.connection_mode });
+				wifi_networks = data.wifi_networks;
+				strNetworks = JSON.stringify(data.wifi_networks);
 			} else {
 				notifications.error('Failed to update Wi-Fi settings.', 5000);
 			}
@@ -162,12 +159,11 @@
 	});
 
 	function checkHostname() {
-		if (wifiSettings.hostname.length < 3 || wifiSettings.hostname.length > 32) {
+		if (f.current.hostname.length < 3 || f.current.hostname.length > 32) {
 			formErrorhostname = true;
 		} else {
 			formErrorhostname = false;
 		}
-
 		return !formErrorhostname;
 	}
 
@@ -201,7 +197,7 @@
 				dns_ip_2: undefined
 			},
 			onSaveNetwork: async (newNetwork: KnownNetworkItem) => {
-				wifiSettings.wifi_networks = [...wifiSettings.wifi_networks, newNetwork];
+				wifi_networks = [...wifi_networks, newNetwork];
 				modals.close();
 			}
 		});
@@ -210,9 +206,9 @@
 	function handleEdit(index: number) {
 		modals.open(EditNetwork, {
 			title: 'Edit network',
-			networkEditable: $state.snapshot(wifiSettings.wifi_networks[index]), // Deep copy
+			networkEditable: $state.snapshot(wifi_networks[index]),
 			onSaveNetwork: async (editedNetwork: KnownNetworkItem) => {
-				wifiSettings.wifi_networks[index] = editedNetwork;
+				wifi_networks[index] = editedNetwork;
 				modals.close();
 			}
 		});
@@ -221,20 +217,20 @@
 	function confirmDelete(index: number) {
 		modals.open(ConfirmDialog, {
 			title: 'Delete Network?',
-			message: `Are you sure you want to delete network \'${wifiSettings.wifi_networks[index].ssid}\'?`,
+			message: `Are you sure you want to delete network \'${wifi_networks[index].ssid}\'?`,
 			labels: {
 				cancel: { label: 'Cancel', icon: Cancel },
 				confirm: { label: 'Delete', icon: Delete }
 			},
 			onConfirm: () => {
-				wifiSettings.wifi_networks.splice(index, 1);
+				wifi_networks.splice(index, 1);
 				modals.close();
 			}
 		});
 	}
 
 	function isNetworkListTooLong() {
-		if (wifiSettings.wifi_networks.length >= 5) {
+		if (wifi_networks.length >= 5) {
 			modals.open(InfoDialog, {
 				title: 'Reached Maximum Networks',
 				message:
@@ -251,11 +247,7 @@
 	}
 
 	function handleNetworkReorder(reorderedNetworks: KnownNetworkItem[]) {
-		const orderChanged = reorderedNetworks.some(
-			(n, i) => n.ssid !== wifiSettings.wifi_networks[i]?.ssid
-		);
-		wifiSettings.wifi_networks = reorderedNetworks;
-		if (orderChanged) postWiFiSettings();
+		wifi_networks = reorderedNetworks;
 	}
 
 	async function getWifiData() {
@@ -420,7 +412,15 @@
 		</div>
 
 		{#if !page.data.features.security || $user.admin}
-			<Collapsible open={true} class="shadow-lg" isDirty={isSettingsDirty}>
+			<Collapsible
+				open={true}
+				class="shadow-lg"
+				isDirty={isSettingsDirty}
+				onRevert={() => {
+					f.revertAll();
+					wifi_networks = JSON.parse(strNetworks);
+				}}
+			>
 				{#snippet icon()}
 					<Settings class="h-6 w-6" />
 				{/snippet}
@@ -431,37 +431,42 @@
 					<div class="grid w-full grid-cols-1 content-center gap-4 sm:grid-cols-2">
 						<div>
 							<label class="label" for="hostname">Host Name (mDNS)</label>
-							<input
-								type="text"
-								min="3"
-								max="32"
-								class="input input-bordered invalid:border-error w-full invalid:border-2 {formErrorhostname
-									? 'border-error border-2'
-									: ''}"
-								bind:value={wifiSettings.hostname}
-								id="hostname"
-								required
-							/>
+							<DirtyField dirty={f.isDirty('hostname')} onrevert={() => f.revert('hostname')}>
+								<input
+									type="text"
+									min="3"
+									max="32"
+									class="input input-bordered w-full pr-10 {formErrorhostname ? 'border-error border-2' : ''}"
+									bind:value={f.current.hostname}
+									id="hostname"
+									required
+								/>
+							</DirtyField>
 							{#if formErrorhostname}
 								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="hostname" class="label">
-										<span class="text-error">
-											Host name must be between 3 and 32 characters long.
-										</span>
-									</label>
+									<span class="text-error text-xs">
+										Host name must be between 3 and 32 characters long.
+									</span>
 								</div>
 							{/if}
 						</div>
 
 						<div>
 							<label class="label" for="apmode">WiFi Connection Mode</label>
-							<select class="select w-full" id="apmode" bind:value={wifiSettings.connection_mode}>
-								{#each connectionMode as mode}
-									<option value={mode.id}>
-										{mode.text}
-									</option>
-								{/each}
-							</select>
+							<div class="flex items-center gap-2">
+								<select
+									class="select w-full {f.isDirty('connection_mode') ? accent : ''}"
+									id="apmode"
+									bind:value={f.current.connection_mode}
+								>
+									{#each connectionMode as mode}
+										<option value={mode.id}>
+											{mode.text}
+										</option>
+									{/each}
+								</select>
+								<DirtyMarker dirty={f.isDirty('connection_mode')} onrevert={() => f.revert('connection_mode')} />
+							</div>
 						</div>
 					</div>
 				</div>
@@ -490,14 +495,14 @@
 				</div>
 
 				<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-					{#if wifiSettings.wifi_networks.length === 0}
+					{#if wifi_networks.length === 0}
 						<div class="text-center text-base-content/50 mt-2">
 							No WiFi networks configured yet.<br />
 							Scan for available networks or add one manually.
 						</div>
 					{:else}
 						<DraggableList
-							items={wifiSettings.wifi_networks}
+							items={wifi_networks}
 							onReorder={handleNetworkReorder}
 							useHandleMode={true}
 							class="space-y-2"
@@ -533,7 +538,7 @@
 										<button
 											class="btn btn-ghost btn-sm"
 											onclick={() => {
-												const actualIndex = wifiSettings.wifi_networks.findIndex(
+												const actualIndex = wifi_networks.findIndex(
 													(n) => n.ssid === network.ssid
 												);
 												handleEdit(actualIndex);
@@ -544,7 +549,7 @@
 										<button
 											class="btn btn-ghost btn-sm"
 											onclick={() => {
-												const actualIndex = wifiSettings.wifi_networks.findIndex(
+												const actualIndex = wifi_networks.findIndex(
 													(n) => n.ssid === network.ssid
 												);
 												confirmDelete(actualIndex);
@@ -558,7 +563,7 @@
 						</DraggableList>
 					{/if}
 				</div>
-				{#if wifiSettings.connection_mode === 2 && wifiSettings.wifi_networks.length > 1}
+				{#if f.current.connection_mode === 2 && wifi_networks.length > 1}
 					<div class="w-full" transition:slide|local={{ duration: 300, easing: cubicOut }}>
 						<div role="alert" class="alert bg-base-300 mt-2">
 							<Info class="h-6 w-6" />

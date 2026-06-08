@@ -14,6 +14,7 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EditUser from './EditUser.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
 	import Delete from '~icons/tabler/trash';
 	import AddUser from '~icons/tabler/user-plus';
 	import Edit from '~icons/tabler/pencil';
@@ -40,7 +41,9 @@
 		users: userSetting[];
 	};
 
-	let securitySettings: SecuritySettings = $state();
+	// jwt_secret is the only form-edited field; users are managed write-through via modals.
+	const f = createDirtyState<{ jwt_secret: string }>({ jwt_secret: '' });
+	let users = $state<userSetting[]>([]);
 
 	async function getSecuritySettings() {
 		try {
@@ -51,14 +54,16 @@
 					'Content-Type': 'application/json'
 				}
 			});
-			securitySettings = await response.json();
+			const data: SecuritySettings = await response.json();
+			f.reset({ jwt_secret: data.jwt_secret });
+			users = data.users;
 		} catch (error) {
 			console.error('Error:', error);
 		}
 		return;
 	}
 
-	async function postSecuritySettings(data: SecuritySettings) {
+	async function postSecuritySettings() {
 		try {
 			const response = await fetch('/rest/securitySettings', {
 				method: 'POST',
@@ -66,10 +71,12 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(data)
+				body: JSON.stringify({ jwt_secret: f.current.jwt_secret, users })
 			});
 
-			securitySettings = await response.json();
+			const result: SecuritySettings = await response.json();
+			users = result.users;
+			f.reset({ jwt_secret: result.jwt_secret });
 			if (response.status == 200) {
 				if (await validateUser($user)) {
 					notifications.success('Security settings updated.', 3000);
@@ -105,19 +112,15 @@
 	function confirmDelete(index: number) {
 		modals.open(ConfirmDialog, {
 			title: 'Confirm Delete User',
-			message:
-				'Are you sure you want to delete the user "' +
-				securitySettings.users[index].username +
-				'"?',
+			message: 'Are you sure you want to delete the user "' + users[index].username + '"?',
 			labels: {
 				cancel: { label: 'Abort', icon: Cancel },
 				confirm: { label: 'Yes', icon: Check }
 			},
 			onConfirm: () => {
-				securitySettings.users.splice(index, 1);
-				securitySettings = securitySettings;
+				users.splice(index, 1);
 				modals.close();
-				postSecuritySettings(securitySettings);
+				postSecuritySettings();
 			}
 		});
 	}
@@ -125,11 +128,11 @@
 	function handleEdit(index: number) {
 		modals.open(EditUser, {
 			title: 'Edit User',
-			user: { ...securitySettings.users[index] }, // Shallow Copy
+			user: { ...users[index] },
 			onSaveUser: (editedUser: userSetting) => {
-				securitySettings.users[index] = editedUser;
+				users[index] = editedUser;
 				modals.close();
-				postSecuritySettings(securitySettings);
+				postSecuritySettings();
 			}
 		});
 	}
@@ -138,12 +141,11 @@
 		modals.open(EditUser, {
 			title: 'Add User',
 			onSaveUser: (newUser: userSetting) => {
-				securitySettings.users = [...securitySettings.users, newUser];
+				users = [...users, newUser];
 				modals.close();
-				postSecuritySettings(securitySettings);
+				postSecuritySettings();
 			}
 		});
-		//
 	}
 </script>
 
@@ -152,7 +154,7 @@
 		class="mx-0 my-1 flex flex-col space-y-4
      sm:mx-8 sm:my-8"
 	>
-		<SettingsCard collapsible={false}>
+		<SettingsCard collapsible={false} isDirty={f.anyDirty} onRevert={() => f.revertAll()}>
 			{#snippet icon()}
 				<Users class="h-6 w-6" />
 			{/snippet}
@@ -180,11 +182,11 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each securitySettings.users as user, index}
+								{#each users as u, index}
 									<tr>
-										<td align="left">{user.username}</td>
+										<td align="left">{u.username}</td>
 										<td align="center">
-											{#if user.admin}
+											{#if u.admin}
 												<Admin class="text-secondary" />
 											{/if}
 										</td>
@@ -221,9 +223,14 @@
 					>
 				</div>
 				<label class="label" for="secret">JWT Secret</label>
-				<InputPassword bind:value={securitySettings.jwt_secret} id="secret" />
+				<InputPassword
+					bind:value={f.current.jwt_secret}
+					id="secret"
+					baseline={f.baseline.jwt_secret}
+					onrevert={() => f.revert('jwt_secret')}
+				/>
 				<div class="mt-6 flex justify-end">
-					<button class="btn btn-primary" onclick={() => postSecuritySettings(securitySettings)}
+					<button class="btn btn-primary" disabled={!f.anyDirty} onclick={postSecuritySettings}
 						>Apply Settings</button
 					>
 				</div>

@@ -5,6 +5,9 @@
 	import { user } from '$lib/stores/user';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
+	import IconSelect from '$lib/components/IconSelect.svelte';
+	import IconBan from '~icons/tabler/ban';
 	import PinTestDialog from './PinTestDialog.svelte';
 	import IconRoute from '~icons/tabler/route-square';
 	import IconTest from '~icons/tabler/plug-connected';
@@ -29,16 +32,16 @@
 
 	type PinKey = 'csn' | 'sck' | 'mosi' | 'miso' | 'gdo0';
 	const PIN_FIELDS: { key: PinKey; label: string; output: boolean }[] = [
-		{ key: 'csn', label: 'CSN — Chip Select', output: true },
-		{ key: 'sck', label: 'SCK — Clock', output: true },
-		{ key: 'mosi', label: 'MOSI — Data to Radio', output: true },
-		{ key: 'miso', label: 'MISO — Data from Radio', output: false },
-		{ key: 'gdo0', label: 'GDO0 — Packet Signal', output: false }
+		{ key: 'csn', label: 'CSN - Chip Select', output: true },
+		{ key: 'sck', label: 'SCK - Clock', output: true },
+		{ key: 'mosi', label: 'MOSI - Data to Radio', output: true },
+		{ key: 'miso', label: 'MISO - Data from Radio', output: false },
+		{ key: 'gdo0', label: 'GDO0 - Packet Signal', output: false }
 	];
 
+	const f = createDirtyState<CC1101Pins>({ csn: -1, miso: -1, mosi: -1, sck: -1, gdo0: -1, spi_host: 1 });
+
 	let profile = $state<CC1101PinProfile | null>(null);
-	let form = $state<CC1101Pins>({ csn: -1, miso: -1, mosi: -1, sck: -1, gdo0: -1, spi_host: 1 });
-	let saved = $state<CC1101Pins | null>(null);
 	let validPins = $state<CC1101Gpio[]>([]);
 	// Selected wiring: a preset index, or 'custom'
 	let mode = $state<number | 'custom'>('custom');
@@ -49,53 +52,58 @@
 
 	let usedCounts = $derived.by(() => {
 		const counts = new Map<number, number>();
-		for (const f of PIN_FIELDS) {
-			const v = form[f.key];
+		for (const field of PIN_FIELDS) {
+			const v = f.current[field.key];
 			if (v >= 0) counts.set(v, (counts.get(v) ?? 0) + 1);
 		}
 		return counts;
 	});
 	let hasDuplicates = $derived([...usedCounts.values()].some((c) => c > 1));
-	let allSet = $derived(PIN_FIELDS.every((f) => form[f.key] >= 0));
-	let dirty = $derived(saved !== null && PIN_FIELDS.some((f) => form[f.key] !== saved![f.key]));
-	let canApply = $derived(allSet && !hasDuplicates && dirty);
+	let allSet = $derived(PIN_FIELDS.every((field) => f.current[field.key] >= 0));
+	let canApply = $derived(allSet && !hasDuplicates && f.anyDirty);
 
 	function pinsEqual(a: CC1101Pins, b: CC1101Pins): boolean {
-		return PIN_FIELDS.every((f) => a[f.key] === b[f.key]) && a.spi_host === b.spi_host;
+		return PIN_FIELDS.every((field) => a[field.key] === b[field.key]) && a.spi_host === b.spi_host;
 	}
 
 	function gpioFor(key: PinKey): CC1101Gpio | undefined {
-		return validPins.find((g) => g.num === form[key]);
+		return validPins.find((g) => g.num === f.current[key]);
 	}
 
 	function isStrapping(key: PinKey): boolean {
 		return gpioFor(key)?.strapping === true;
 	}
 
-	function isCurrent(key: PinKey, num: number): boolean {
-		return saved !== null && saved[key] === num;
-	}
-
 	function optionDisabled(field: { output: boolean }, gpio: CC1101Gpio): boolean {
 		return gpio.reserved || (field.output && !gpio.output);
 	}
 
-	function optionLabel(gpio: CC1101Gpio): string {
-		const prefix = gpio.reserved ? '🚫 ' : gpio.strapping ? '⚠ ' : '';
-		const suffix = gpio.reserved ? ' — reserved' : gpio.strapping ? ' — strapping' : '';
-		return `${prefix}${gpio.label}${suffix}`;
+	function pinOptions(field: { key: PinKey; output: boolean }) {
+		return validPins.map((gpio) => ({
+			value: gpio.num,
+			label: gpio.label,
+			prefixIcon: gpio.reserved ? IconBan : gpio.strapping ? IconAlert : undefined,
+			prefixClass: gpio.reserved ? 'text-error-content' : gpio.strapping ? 'text-warning-content' : undefined,
+			suffix: gpio.reserved ? '- reserved' : gpio.strapping ? '- strapping' : undefined,
+			itemClass: gpio.reserved
+				? 'bg-error text-error-content hover:bg-error/80'
+				: gpio.strapping
+					? 'bg-warning text-warning-content hover:bg-warning/80'
+					: undefined,
+			disabled: optionDisabled(field, gpio)
+		}));
 	}
 
 	function selectClass(field: { key: PinKey }): string {
-		if ((usedCounts.get(form[field.key]) ?? 0) > 1) return 'select-error';
-		if (isStrapping(field.key)) return 'select-warning';
+		if ((usedCounts.get(f.current[field.key]) ?? 0) > 1) return 'border-error border-2';
+		if (isStrapping(field.key)) return 'border-warning';
 		return '';
 	}
 
 	function selectPreset(i: number) {
 		if (!profile) return;
 		mode = i;
-		form = { ...profile.presets[i].pins };
+		Object.assign(f.current, profile.presets[i].pins);
 	}
 
 	function selectCustom() {
@@ -123,17 +131,16 @@
 			profile = await pRes.json();
 			validPins = (await vRes.json()).gpios;
 			const pins: CC1101Pins = await sRes.json();
-			form = {
+			f.reset({
 				csn: pins.csn,
 				miso: pins.miso,
 				mosi: pins.mosi,
 				sck: pins.sck,
 				gdo0: pins.gdo0,
 				spi_host: validSpiHost(pins.spi_host)
-			};
-			saved = { ...form };
+			});
 
-			const presetIdx = profile?.presets.findIndex((p) => pinsEqual(p.pins, form)) ?? -1;
+			const presetIdx = profile?.presets.findIndex((p) => pinsEqual(p.pins, f.current)) ?? -1;
 			mode = presetIdx >= 0 ? presetIdx : 'custom';
 		} catch (e) {
 			console.error('Failed to load CC1101 pin configuration:', e);
@@ -145,12 +152,12 @@
 
 	function pinsBody() {
 		return JSON.stringify({
-			csn: form.csn,
-			miso: form.miso,
-			mosi: form.mosi,
-			sck: form.sck,
-			gdo0: form.gdo0,
-			spi_host: form.spi_host
+			csn: f.current.csn,
+			miso: f.current.miso,
+			mosi: f.current.mosi,
+			sck: f.current.sck,
+			gdo0: f.current.gdo0,
+			spi_host: f.current.spi_host
 		});
 	}
 
@@ -172,7 +179,7 @@
 			body: pinsBody()
 		});
 		if (!res.ok) throw new Error('Failed to save pin configuration.');
-		saved = { ...form };
+		f.commit();
 	}
 
 	function openTest() {
@@ -182,7 +189,7 @@
 	onMount(load);
 </script>
 
-<SettingsCard collapsible={false} isDirty={dirty}>
+<SettingsCard collapsible={false} isDirty={f.anyDirty} onRevert={() => f.revertAll()}>
 	{#snippet icon()}
 		<IconRoute class="h-6 w-6" />
 	{/snippet}
@@ -191,7 +198,7 @@
 	{/snippet}
 
 	{#if loading}
-		<Spinner text="Loading configuration..." />
+		<Spinner />
 	{:else if loadError || !profile}
 		<div class="flex items-center text-error">
 			<IconAlert class="mr-2 h-5 w-5" />
@@ -222,40 +229,33 @@
 			<div class="rounded-box bg-base-100 divide-y divide-base-300">
 				{#each PIN_FIELDS as field}
 					<div class="flex items-center justify-between gap-3 px-4 py-2">
-						<span>{field.label}</span>
+						<span class="flex-1">{field.label}</span>
 						{#if isCustom}
 							<div class="flex items-center gap-2">
 								{#if isStrapping(field.key)}
-									<span class="tooltip tooltip-left" data-tip="Strapping pin — use with care">
+									<span class="tooltip tooltip-left" data-tip="Strapping pin - use with care">
 										<IconAlert class="text-warning h-5 w-5" />
 									</span>
 								{/if}
-								<select
-									class="select select-bordered select-sm w-40 {selectClass(field)}"
-									bind:value={form[field.key]}
-								>
-									<option value={-1} disabled>— select GPIO —</option>
-									{#each validPins as gpio}
-										<option
-											value={gpio.num}
-											disabled={optionDisabled(field, gpio)}
-											style={gpio.reserved ? 'color:#ef4444' : gpio.strapping ? 'color:#d97706' : ''}
-										>
-											{optionLabel(gpio)}{isCurrent(field.key, gpio.num) ? ' (current)' : ''}
-										</option>
-									{/each}
-								</select>
+								<IconSelect
+									bind:value={f.current[field.key]}
+									options={pinOptions(field)}
+									placeholder="— select GPIO —"
+									class="w-30 {selectClass(field)}"
+									dirty={f.isDirty(field.key)}
+									onrevert={() => f.revert(field.key)}
+								/>
 							</div>
 						{:else}
-							<span class="font-mono">GPIO {form[field.key]}</span>
+							<span class="font-mono">GPIO {f.current[field.key]}</span>
 						{/if}
 					</div>
 				{/each}
 			</div>
 
 			{#if hasDuplicates}
-				<div class="flex items-center text-error text-sm">
-					<IconAlert class="mr-2 h-4 w-4" />
+				<div class="flex items-center text-error text-xs">
+					<IconAlert class="mr-2 h-4 w-4 shrink-0" />
 					<span>Each pin must be assigned to a single function.</span>
 				</div>
 			{/if}

@@ -4,18 +4,20 @@
 	import { cubicOut } from 'svelte/easing';
 	import InputPassword from '$lib/components/InputPassword.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
+	import DirtyField from '$lib/components/DirtyField.svelte';
+	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
+	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import Collapsible from '$lib/components/Collapsible.svelte';
 	import AP from '~icons/tabler/access-point';
 	import MAC from '~icons/tabler/dna-2';
 	import Home from '~icons/tabler/home';
 	import Devices from '~icons/tabler/devices';
 	import type { ApSettings, ApStatus } from '$lib/types/models';
 
-	let apSettings: ApSettings = $state({
+	const f = createDirtyState<ApSettings>({
 		provision_mode: 0,
 		ssid: '',
 		password: '',
@@ -58,11 +60,10 @@
 					'Content-Type': 'application/json'
 				}
 			});
-			apSettings = await response.json();
+			if (response.ok) f.reset(await response.json());
 		} catch (error) {
 			console.error('Error:', error);
 		}
-		return apSettings;
 	}
 
 	const interval = setInterval(async () => {
@@ -78,18 +79,9 @@
 	});
 
 	let provisionMode = [
-		{
-			id: 0,
-			text: `Always`
-		},
-		{
-			id: 1,
-			text: `When WiFi Disconnected`
-		},
-		{
-			id: 2,
-			text: `Never`
-		}
+		{ id: 0, text: `Always` },
+		{ id: 1, text: `When WiFi Disconnected` },
+		{ id: 2, text: `Never` }
 	];
 
 	let apStatusDescription = [
@@ -107,7 +99,7 @@
 		subnet_mask: false
 	});
 
-	async function postAPSettings(data: ApSettings) {
+	async function postAPSettings() {
 		try {
 			const response = await fetch('/rest/apSettings', {
 				method: 'POST',
@@ -115,13 +107,13 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(data)
+				body: JSON.stringify(f.current)
 			});
 			if (response.status == 200) {
 				notifications.success('Access Point settings updated.', 3000);
-				apSettings = await response.json();
+				f.reset(await response.json());
 			} else {
-				notifications.error('Updaing Access Point settings failed.', 3000);
+				notifications.error('Updating Access Point settings failed.', 3000);
 			}
 		} catch (error) {
 			console.error('Error:', error);
@@ -131,16 +123,14 @@
 	function handleSubmitAP() {
 		let valid = true;
 
-		// Validate SSID
-		if (apSettings.ssid.length < 3 || apSettings.ssid.length > 32) {
+		if (f.current.ssid.length < 3 || f.current.ssid.length > 32) {
 			valid = false;
 			formErrors.ssid = true;
 		} else {
 			formErrors.ssid = false;
 		}
 
-		// Validate Channel
-		let channel = Number(apSettings.channel);
+		let channel = Number(f.current.channel);
 		if (1 > channel || channel > 13) {
 			valid = false;
 			formErrors.channel = true;
@@ -148,8 +138,7 @@
 			formErrors.channel = false;
 		}
 
-		// Validate max_clients
-		let maxClients = Number(apSettings.max_clients);
+		let maxClients = Number(f.current.max_clients);
 		if (1 > maxClients || maxClients > 8) {
 			valid = false;
 			formErrors.max_clients = true;
@@ -157,42 +146,37 @@
 			formErrors.max_clients = false;
 		}
 
-		// RegEx for IPv4
 		const regexExp =
 			/\b(?:(?:2(?:[0-4][0-9]|5[0-5])|[0-1]?[0-9]?[0-9])\.){3}(?:(?:2([0-4][0-9]|5[0-5])|[0-1]?[0-9]?[0-9]))\b/;
 
-		// Validate gateway IP
-		if (!regexExp.test(apSettings.gateway_ip)) {
+		if (!regexExp.test(f.current.gateway_ip)) {
 			valid = false;
 			formErrors.gateway_ip = true;
 		} else {
 			formErrors.gateway_ip = false;
 		}
 
-		// Validate Subnet Mask
-		if (!regexExp.test(apSettings.subnet_mask)) {
+		if (!regexExp.test(f.current.subnet_mask)) {
 			valid = false;
 			formErrors.subnet_mask = true;
 		} else {
 			formErrors.subnet_mask = false;
 		}
 
-		// Validate local IP
-		if (!regexExp.test(apSettings.local_ip)) {
+		if (!regexExp.test(f.current.local_ip)) {
 			valid = false;
 			formErrors.local_ip = true;
 		} else {
 			formErrors.local_ip = false;
 		}
 
-		// Submit JSON to REST API
 		if (valid) {
-			postAPSettings(apSettings);
+			postAPSettings();
 		}
 	}
 </script>
 
-<SettingsCard collapsible={false}>
+<SettingsCard collapsible={false} isDirty={f.anyDirty} onRevert={() => f.revertAll()}>
 	{#snippet icon()}
 		<AP class="h-6 w-6" />
 	{/snippet}
@@ -283,147 +267,186 @@
 						}}
 						novalidate
 					>
+						<!-- Provision mode -->
 						<div>
-							<label class="label" for="apmode">Provide Access Point ... </label>
-							<select class="select w-full" id="apmode" bind:value={apSettings.provision_mode}>
-								{#each provisionMode as mode}
-									<option value={mode.id}>
-										{mode.text}
-									</option>
-								{/each}
-							</select>
+							<label class="label" for="apmode">Provide Access Point ...</label>
+							<div class="relative flex items-center gap-2">
+								{#if f.isDirty('provision_mode')}
+									<div class="pointer-events-none absolute inset-y-0 left-0 z-10 w-1 rounded-l-[var(--radius-field)] bg-red-300"></div>
+								{/if}
+								<select
+									class="select flex-1"
+									id="apmode"
+									bind:value={f.current.provision_mode}
+								>
+									{#each provisionMode as mode}
+										<option value={mode.id}>{mode.text}</option>
+									{/each}
+								</select>
+								<DirtyMarker
+									dirty={f.isDirty('provision_mode')}
+									onrevert={() => f.revert('provision_mode')}
+								/>
+							</div>
 						</div>
+
+						<!-- SSID -->
 						<div>
 							<label class="label" for="ssid">SSID</label>
-							<input
-								type="text"
-								class="input w-full invalid:border-error invalid:border-2 {formErrors.ssid
-									? 'border-error border-2'
-									: ''}"
-								bind:value={apSettings.ssid}
-								id="ssid"
-								min="2"
-								max="32"
-								required
-							/>
-							<label class="label" for="ssid">
-								<span class="text-error {formErrors.ssid ? '' : 'hidden'}"
-									>SSID must be between 2 and 32 characters long</span
-								>
-							</label>
+							<DirtyField dirty={f.isDirty('ssid')} onrevert={() => f.revert('ssid')}>
+								<input
+									type="text"
+									class="input w-full pr-10 {formErrors.ssid ? 'border-error border-2' : ''}"
+									bind:value={f.current.ssid}
+									id="ssid"
+									min="2"
+									max="32"
+									required
+								/>
+							</DirtyField>
+							{#if formErrors.ssid}
+								<p class="text-error text-xs">SSID must be between 2 and 32 characters long</p>
+							{/if}
 						</div>
 
+						<!-- Password -->
 						<div>
 							<label class="label" for="pwd">Password</label>
-							<InputPassword bind:value={apSettings.password} id="pwd" />
+							<InputPassword
+								bind:value={f.current.password}
+								id="pwd"
+								baseline={f.baseline.password}
+								onrevert={() => f.revert('password')}
+							/>
 						</div>
+
+						<!-- Channel -->
 						<div>
 							<label class="label" for="channel">Preferred Channel</label>
-							<input
-								type="number"
-								min="1"
-								max="13"
-								class="input w-full invalid:border-error invalid:border-2 {formErrors.channel
-									? 'border-error border-2'
-									: ''}"
-								bind:value={apSettings.channel}
-								id="channel"
-								required
-							/>
-							<label class="label" for="channel">
-								<span class="text-error {formErrors.channel ? '' : 'hidden'}"
-									>Must be channel 1 to 13</span
-								>
-							</label>
+							<DirtyField dirty={f.isDirty('channel')} onrevert={() => f.revert('channel')}>
+								<input
+									type="number"
+									min="1"
+									max="13"
+									class="input w-full pr-10 {formErrors.channel ? 'border-error border-2' : ''}"
+									bind:value={f.current.channel}
+									id="channel"
+									required
+								/>
+							</DirtyField>
+							{#if formErrors.channel}
+								<p class="text-error text-xs">Must be channel 1 to 13</p>
+							{/if}
 						</div>
 
+						<!-- Max clients -->
 						<div>
 							<label class="label" for="clients">Max Clients</label>
-							<input
-								type="number"
-								min="1"
-								max="8"
-								class="input w-full invalid:border-error invalid:border-2 {formErrors.max_clients
-									? 'border-error border-2'
-									: ''}"
-								bind:value={apSettings.max_clients}
-								id="clients"
-								required
-							/>
-							<label class="label" for="clients">
-								<span class="text-error {formErrors.max_clients ? '' : 'hidden'}"
-									>Maximum 8 clients allowed</span
-								>
-							</label>
+							<DirtyField dirty={f.isDirty('max_clients')} onrevert={() => f.revert('max_clients')}>
+								<input
+									type="number"
+									min="1"
+									max="8"
+									class="input w-full pr-10 {formErrors.max_clients ? 'border-error border-2' : ''}"
+									bind:value={f.current.max_clients}
+									id="clients"
+									required
+								/>
+							</DirtyField>
+							{#if formErrors.max_clients}
+								<p class="text-error text-xs">Maximum 8 clients allowed</p>
+							{/if}
 						</div>
 
+						<!-- Local IP -->
 						<div>
 							<label class="label" for="localIP">Local IP</label>
-							<input
-								type="text"
-								class="input w-full {formErrors.local_ip ? 'border-error border-2' : ''}"
-								minlength="7"
-								maxlength="15"
-								size="15"
-								bind:value={apSettings.local_ip}
-								id="localIP"
-								required
-							/>
-							<label class="label" for="localIP">
-								<span class="text-error {formErrors.local_ip ? '' : 'hidden'}"
-									>Must be a valid IPv4 address</span
-								>
-							</label>
+							<DirtyField dirty={f.isDirty('local_ip')} onrevert={() => f.revert('local_ip')}>
+								<input
+									type="text"
+									class="input w-full pr-10 {formErrors.local_ip ? 'border-error border-2' : ''}"
+									minlength="7"
+									maxlength="15"
+									size="15"
+									bind:value={f.current.local_ip}
+									id="localIP"
+									required
+								/>
+							</DirtyField>
+							{#if formErrors.local_ip}
+								<p class="text-error text-xs">Must be a valid IPv4 address</p>
+							{/if}
 						</div>
 
+						<!-- Gateway IP -->
 						<div>
 							<label class="label" for="gateway">Gateway IP</label>
-							<input
-								type="text"
-								class="input w-full {formErrors.gateway_ip ? 'border-error border-2' : ''}"
-								minlength="7"
-								maxlength="15"
-								size="15"
-								bind:value={apSettings.gateway_ip}
-								id="gateway"
-								required
-							/>
-							<label class="label" for="gateway">
-								<span class="text-error {formErrors.gateway_ip ? '' : 'hidden'}"
-									>Must be a valid IPv4 address</span
-								>
-							</label>
+							<DirtyField
+								dirty={f.isDirty('gateway_ip')}
+								onrevert={() => f.revert('gateway_ip')}
+							>
+								<input
+									type="text"
+									class="input w-full pr-10 {formErrors.gateway_ip ? 'border-error border-2' : ''}"
+									minlength="7"
+									maxlength="15"
+									size="15"
+									bind:value={f.current.gateway_ip}
+									id="gateway"
+									required
+								/>
+							</DirtyField>
+							{#if formErrors.gateway_ip}
+								<p class="text-error text-xs">Must be a valid IPv4 address</p>
+							{/if}
 						</div>
+
+						<!-- Subnet mask -->
 						<div>
 							<label class="label" for="subnet">Subnet Mask</label>
-							<input
-								type="text"
-								class="input w-full {formErrors.subnet_mask ? 'border-error border-2' : ''}"
-								minlength="7"
-								maxlength="15"
-								size="15"
-								bind:value={apSettings.subnet_mask}
-								id="subnet"
-								required
-							/>
-							<label class="label" for="subnet">
-								<span class="text-error {formErrors.subnet_mask ? '' : 'hidden'}"
-									>Must be a valid IPv4 address</span
-								>
+							<DirtyField
+								dirty={f.isDirty('subnet_mask')}
+								onrevert={() => f.revert('subnet_mask')}
+							>
+								<input
+									type="text"
+									class="input w-full pr-10 {formErrors.subnet_mask ? 'border-error border-2' : ''}"
+									minlength="7"
+									maxlength="15"
+									size="15"
+									bind:value={f.current.subnet_mask}
+									id="subnet"
+									required
+								/>
+							</DirtyField>
+							{#if formErrors.subnet_mask}
+								<p class="text-error text-xs">Must be a valid IPv4 address</p>
+							{/if}
+						</div>
+
+						<!-- Hide SSID toggle -->
+						<div class="flex items-center w-full">
+							<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('ssid_hidden') ? 'w-1 mr-2' : 'w-0'}"></div>
+							<label class="label cursor-pointer justify-start gap-2 items-center">
+								<input
+									type="checkbox"
+									bind:checked={f.current.ssid_hidden}
+									class="toggle toggle-primary shrink-0"
+								/>
+								<div class="flex items-center gap-2">
+									<span>Hide SSID</span>
+									<DirtyMarker
+										dirty={f.isDirty('ssid_hidden')}
+										onrevert={() => f.revert('ssid_hidden')}
+									/>
+								</div>
 							</label>
 						</div>
 
-						<label class="label my-auto cursor-pointer justify-start gap-4">
-							<input
-								type="checkbox"
-								bind:checked={apSettings.ssid_hidden}
-								class="checkbox checkbox-primary"
-							/>
-							<span class="">Hide SSID</span>
-						</label>
-
 						<div class="place-self-end">
-							<button class="btn btn-primary" type="submit">Apply Settings</button>
+							<button class="btn btn-primary" type="submit" disabled={!f.anyDirty}>
+								Apply Settings
+							</button>
 						</div>
 					</form>
 				</div>
