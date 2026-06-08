@@ -14,7 +14,8 @@ The health indicator icon in the navigation bar reflects the overall system stat
 
 | Icon | Meaning |
 |------|---------|
-| :tabler-heart:{ style="color: currentColor; opacity: 0.5" } | No smoke detectors configured yet |
+| :tabler-loader-2: | Connecting — device list not yet received |
+| :tabler-heart-off: | No smoke detectors configured yet |
 | :tabler-heart:{ style="color: #4caf50" } | All detectors healthy — readout present and up to date, no faults |
 | :tabler-heart-exclamation:{ style="color: #ff9800" } | At least one detector needs attention (see [warning conditions](#warning) below) |
 | :tabler-alert-hexagon-filled:{ style="color: #f44336" } | At least one detector is actively alarming |

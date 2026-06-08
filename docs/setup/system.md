@@ -92,6 +92,19 @@ If an error occurs, the state display will show:
 - **Red indicator**: Error condition detected
 - **Error message**: Description of the problem (e.g., "SPI error while obtaining state" or "Invalid state")
 
+### Top-Bar Radio Indicator
+
+The radio status is also reflected by a persistent icon in the navigation bar. It links to this CC1101 page from anywhere in the interface:
+
+| Icon | Meaning |
+|------|---------|
+| :tabler-loader-2: | Connecting — radio status not yet received |
+| :tabler-ear: | Radio listening (RX) — normal operating state |
+| :tabler-building-broadcast-tower:{ style="color: #2196f3" } | Radio transmitting (TX) |
+| :tabler-loader-2:{ style="color: #2196f3" } | Radio initializing |
+| :tabler-alert-hexagon-filled:{ style="color: #f44336" } | Radio error — check pin configuration |
+| :tabler-settings-off:{ style="color: #f44336" } | Radio not configured |
+
 ## :tabler-report-analytics: System Metrics
 
 The System Metrics page provides real-time graphical visualization of system performance over time.
@@ -192,6 +205,19 @@ The Firmware Update page provides two methods for updating the gateway firmware:
 
 !!! info "Administrator Access Required"
     Firmware update features are only accessible to users with administrator privileges.
+
+### Top-Bar Update Indicator
+
+A persistent icon in the navigation bar shows the current firmware update status. It is only displayed for administrators when the download firmware feature is enabled:
+
+| Icon | Meaning |
+|------|---------|
+| :tabler-loader-2: | Checking for updates |
+| :tabler-cloud-check: | Firmware is up to date — click to re-check |
+| :tabler-refresh-alert: | Update available — click to install |
+| :tabler-cloud-off:{ style="color: #ff9800" } | Cannot reach GitHub — check internet connection |
+
+A toast notification appears on a successful re-check only when triggered manually (not during the automatic hourly poll).
 
 ### :tabler-brand-github: GitHub Firmware Manager
 
