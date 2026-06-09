@@ -96,6 +96,14 @@ void GeniusGateway::begin()
         ESP_LOGE(TAG, "RX task creation failed.");
     }
 
+    /* Register events and start fast services BEFORE the slow FS-loading services below.
+     * A WebSocket client that auto-reconnects right after MQTT connects can subscribe
+     * before 50-device JSON loading completes; pre-registering here prevents the
+     * "unregistered event" warnings for rem-alarm-block-time / alarm / cc1101_status. */
+    _cc1101Controller.begin();
+    _alarmBlocker.begin();
+    _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
+
     /* Initialize Alarm Publishing Settings Service first - other services depend on its settings */
     _alarmPublishingSettingsService.begin();
     /* Initialize Report Settings Service */
@@ -115,9 +123,8 @@ void GeniusGateway::begin()
     /* Initialize CC1101 runtime pin configuration service */
     _cc1101PinsService.begin();
 
-    /* Initialize CC1101Controller and bring up the radio from the persisted pin configuration.
+    /* Bring up the radio from the persisted pin configuration (must follow _cc1101PinsService.begin()).
      * Stays UNCONFIGURED if no valid pins are set; RX monitoring is enabled only on success. */
-    _cc1101Controller.begin();
     if (GeniusGateway::xRxTaskHandle != nullptr)
     {
         _cc1101Controller.bringUp(&_cc1101PinsService, nofifyReceivedPacket);
@@ -139,7 +146,6 @@ void GeniusGateway::begin()
                                xTaskNotifyGive(_mqttPublishTaskHandle);
                            });
 
-    /* Start the persistent HA publish task */
     xTaskCreatePinnedToCore(
         _mqttPublishTaskImpl,
         "mqtt-ha-publish",
@@ -148,11 +154,6 @@ void GeniusGateway::begin()
         5,
         &_mqttPublishTaskHandle,
         ESP32SVELTEKIT_RUNNING_CORE);
-
-    _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
-
-    /* Initialize Alarm Blocking Service */
-    _alarmBlocker.begin();
 
     /* Register endpoint to end all alarms and block new alarms for a specified amount of time */
     _server->on(GATEWAY_SERVICE_PATH_END_ALARMS,

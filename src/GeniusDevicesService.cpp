@@ -1262,6 +1262,7 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
         {
             _addSmokeDetectorSubDevice(device);
             device.published = true;
+            vTaskDelay(pdMS_TO_TICKS(1));
         }
         else if (!device.published)
         {
@@ -1288,6 +1289,7 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
                 }
             }
             device.published = true;
+            vTaskDelay(pdMS_TO_TICKS(1));
         }
     }
 
