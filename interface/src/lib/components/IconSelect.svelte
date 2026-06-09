@@ -89,7 +89,7 @@
 
 	{#if open}
 		<ul
-			class="absolute left-0 top-full mt-1 z-50 max-h-64 min-w-full w-max overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-lg"
+			class="absolute right-0 top-full mt-1 z-50 max-h-64 min-w-full w-max overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-lg"
 			role="listbox"
 		>
 			{#each options as opt}
