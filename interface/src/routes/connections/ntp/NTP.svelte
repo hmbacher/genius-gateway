@@ -8,6 +8,8 @@
 	import DirtyField from '$lib/components/DirtyField.svelte';
 	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
 	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
+	import { isHostnameOrIP } from '$lib/utils/validators';
+	import FieldError from '$lib/components/FieldError.svelte';
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
@@ -81,9 +83,7 @@
 		}
 	});
 
-	let formErrors = $state({
-		server: false
-	});
+	const serverError = $derived(!isHostnameOrIP(f.current.server));
 
 	async function postNTPSettings() {
 		try {
@@ -108,23 +108,8 @@
 	}
 
 	function handleSubmitNTP() {
-		let valid = true;
-
-		const regexExpIPv4 =
-			/\b(?:(?:2(?:[0-4][0-9]|5[0-5])|[0-1]?[0-9]?[0-9])\.){3}(?:(?:2([0-4][0-9]|5[0-5])|[0-1]?[0-9]?[0-9]))\b/;
-		const regexExpURL =
-			/[-a-zA-Z0-9@:%_\+.~#?&//=]{2,256}\.[a-z]{2,4}\b(\/[-a-zA-Z0-9@:%_\+.~#?&//=]*)?/i;
-
-		if (!regexExpURL.test(f.current.server) && !regexExpIPv4.test(f.current.server)) {
-			valid = false;
-			formErrors.server = true;
-		} else {
-			formErrors.server = false;
-		}
-
-		f.current.tz_format = TIME_ZONES[f.current.tz_label];
-
-		if (valid) {
+		if (!serverError) {
+			f.current.tz_format = TIME_ZONES[f.current.tz_label];
 			postNTPSettings();
 		}
 	}
@@ -290,32 +275,34 @@
 							type="text"
 							min="3"
 							max="64"
-							class="input w-full pr-10 {formErrors.server ? 'border-error border-2' : ''}"
+							class="input w-full pr-10 {serverError ? 'border-error border-2' : ''}"
 							bind:value={f.current.server}
 							id="server"
 							required
 						/>
 					</DirtyField>
-					{#if formErrors.server}
-						<p class="text-error text-xs">Please enter a valid NTP server.</p>
-					{/if}
+					<FieldError show={serverError} message="Please enter a valid NTP server." />
 
 					<!-- Timezone -->
 					<label class="label" for="tz">Pick Time Zone</label>
-					<div class="relative flex items-center gap-2">
-						{#if f.isDirty('tz_label')}
-							<div class="pointer-events-none absolute inset-y-0 left-0 z-10 w-1 rounded-l-[var(--radius-field)] bg-red-300"></div>
-						{/if}
-						<select class="select flex-1" bind:value={f.current.tz_label} id="tz">
+					<label
+						class="input w-full pl-0 {f.isDirty('tz_label') ? 'shadow-[inset_4px_0_0_0_var(--color-red-300)]' : ''}"
+						for="tz"
+					>
+						<select
+							class="h-full flex-1 border-none bg-transparent ps-3 pe-2 outline-none"
+							bind:value={f.current.tz_label}
+							id="tz"
+						>
 							{#each Object.entries(TIME_ZONES) as [tz_label, tz_format]}
 								<option value={tz_label}>{tz_label}</option>
 							{/each}
 						</select>
 						<DirtyMarker dirty={f.isDirty('tz_label')} onrevert={() => f.revert('tz_label')} />
-					</div>
+					</label>
 
 					<div class="mt-4 place-self-end">
-						<button class="btn btn-primary" type="submit" disabled={!f.anyDirty}>Apply Settings</button>
+						<button class="btn btn-primary" type="submit" disabled={!f.anyDirty || serverError}>Apply Settings</button>
 					</div>
 				</form>
 			{/if}

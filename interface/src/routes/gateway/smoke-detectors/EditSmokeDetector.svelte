@@ -3,6 +3,8 @@
 	import { fly } from 'svelte/transition';
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
+	import FieldError from '$lib/components/FieldError.svelte';
+	import { inRange, hasLength } from '$lib/utils/validators';
 	import type {
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
@@ -97,11 +99,10 @@
 		{ id: GeniusRadioModule.FmProX, text: 'FM.Pro X' }
 	];
 
-	let minSN = 1;
-	let maxSN = 4294967294;
-
-	let minLocationLength = 1;
-	let maxLocationLength = 40;
+	const minSN = 1;
+	const maxSN = 4294967294;
+	const minLocationLength = 1;
+	const maxLocationLength = 40;
 
 	const isAutoDetected =
 		geniusDevice.registration === GeniusDeviceRegistration.GeniusPacket ||
@@ -109,94 +110,44 @@
 	const isAcoustic = geniusDevice.registration === GeniusDeviceRegistration.Acoustic;
 	const registrationLabel = isAcoustic ? 'acoustic readout' : 'Genius radio packet';
 
-	let formErrors = $state({
-		smokeDetector: {
-			sn: false,
-			snDuplicate: false,
-			productionDate: false
-		},
-		radioModule: {
-			sn: false,
-			snDuplicate: false
-		},
-		location: false
-	});
+	const smokeDetectorSNRangeError = $derived(
+		!isAutoDetected && !inRange(geniusDevice.smokeDetector.sn, minSN, maxSN)
+	);
+	const smokeDetectorSNDuplicateError = $derived(
+		geniusDevices.devices.some(
+			(d) => d.id !== geniusDevice.id && d.smokeDetector.sn === geniusDevice.smokeDetector.sn
+		)
+	);
+	const hasRadioModule = $derived(geniusDevice.radioModule.model !== GeniusRadioModule.None);
+	const radioModuleSNRangeError = $derived(
+		!isAutoDetected && hasRadioModule && !inRange(geniusDevice.radioModule.sn, minSN, maxSN)
+	);
+	const radioModuleSNDuplicateError = $derived(
+		hasRadioModule &&
+			geniusDevices.devices.some(
+				(d) => d.id !== geniusDevice.id && d.radioModule.sn === geniusDevice.radioModule.sn
+			)
+	);
+	const productionDateError = $derived(
+		!isAutoDetected &&
+			!!geniusDevice.smokeDetector.productionDate &&
+			isNaN(geniusDevice.smokeDetector.productionDate.getTime())
+	);
+	const locationError = $derived(!hasLength(geniusDevice.location, minLocationLength, maxLocationLength));
+	const hasErrors = $derived(
+		smokeDetectorSNRangeError ||
+			smokeDetectorSNDuplicateError ||
+			radioModuleSNRangeError ||
+			radioModuleSNDuplicateError ||
+			productionDateError ||
+			locationError
+	);
 
 	function handleSave() {
-		let valid = true;
-
-		// --- Validate Smoke Detector
-		// Validate if smoke detector SN is within range
-		if (geniusDevice.smokeDetector.sn < minSN || geniusDevice.smokeDetector.sn > maxSN) {
-			formErrors.smokeDetector.sn = true;
-			valid = false;
-		} else {
-			formErrors.smokeDetector.sn = false;
-		}
-
-		// Check for duplicate smoke detector serial number
-		const duplicateSmokeDetectorSN = geniusDevices.devices.some(
-			(device) =>
-				device.id !== geniusDevice.id && device.smokeDetector.sn === geniusDevice.smokeDetector.sn
-		);
-		if (duplicateSmokeDetectorSN) {
-			formErrors.smokeDetector.snDuplicate = true;
-			valid = false;
-		} else {
-			formErrors.smokeDetector.snDuplicate = false;
-		}
-
-		// --- Validate Radio Module
-		// Only validate radio module SN when a module is selected
-		if (geniusDevice.radioModule.model !== GeniusRadioModule.None) {
-			// Validate if radio module SN is within range
-			if (geniusDevice.radioModule.sn < minSN || geniusDevice.radioModule.sn > maxSN) {
-				formErrors.radioModule.sn = true;
-				valid = false;
-			} else {
-				formErrors.radioModule.sn = false;
+		if (!hasErrors) {
+			if (!hasRadioModule) {
+				geniusDevice.radioModule.sn = 0;
 			}
-
-			// Check for duplicate radio module serial number
-			const duplicateRadioModuleSN = geniusDevices.devices.some(
-				(device) =>
-					device.id !== geniusDevice.id && device.radioModule.sn === geniusDevice.radioModule.sn
-			);
-			if (duplicateRadioModuleSN) {
-				formErrors.radioModule.snDuplicate = true;
-				valid = false;
-			} else {
-				formErrors.radioModule.snDuplicate = false;
-			}
-		} else {
-			formErrors.radioModule.sn = false;
-			formErrors.radioModule.snDuplicate = false;
-			geniusDevice.radioModule.sn = 0;
-		}
-
-		// --- Validate Production Date
-		// Check production date (if applicable)
-		formErrors.smokeDetector.productionDate = false;
-		if (geniusDevice.smokeDetector.productionDate) {
-			if (isNaN(geniusDevice.smokeDetector.productionDate.getTime())) {
-				formErrors.smokeDetector.productionDate = true;
-				valid = false;
-			}
-		}
-
-		// Validate location
-		if (
-			geniusDevice.location.length < minLocationLength ||
-			geniusDevice.location.length > maxLocationLength
-		) {
-			formErrors.location = true;
-			valid = false;
-		} else {
-			formErrors.location = false;
-		}
-
-		// Callback on saving
-		if (valid) {
 			onSaveGeniusDevice(geniusDevice);
 		}
 	}
@@ -261,13 +212,7 @@
 								id="smokeDetectorProductionDate"
 								disabled={isAutoDetected}
 							/>
-							{#if formErrors.smokeDetector.productionDate && !isAutoDetected}
-								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="smokeDetectorProductionDate" class="label">
-										<span class="text-error text-wrap"> Please set a valid date. </span>
-									</label>
-								</div>
-							{/if}
+							<FieldError show={productionDateError} message="Please set a valid date." />
 						{:else}
 							<input
 								id="smokeDetectorProductionDate"
@@ -280,34 +225,22 @@
 
 					<div class="flex-1">
 						<label class="label" for="smokeDetectorSN">Serial Number</label>
-						<input
-							type="number"
-							min={minSN}
-							max={maxSN}
-							disabled={isAutoDetected}
-							class="input input-bordered invalid:border-error w-full invalid:border-2"
-							bind:value={geniusDevice.smokeDetector.sn}
-							id="smokeDetectorSN"
-						/>
-						{#if formErrors.smokeDetector.sn && !isAutoDetected}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="smokeDetectorSN" class="label">
-									<span class="text-error text-wrap">
-										The serial number must be a valid number between <em>{minSN}</em> and
-										<em>{maxSN}</em>.
-									</span>
-								</label>
-							</div>
-						{/if}
-						{#if formErrors.smokeDetector.snDuplicate}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="smokeDetectorSN" class="label">
-									<span class="text-error text-wrap">
-										This smoke detector serial number is already used by another device.
-									</span>
-								</label>
-							</div>
-						{/if}
+						<label
+							for="smokeDetectorSN"
+							class="input input-bordered w-full {smokeDetectorSNRangeError || smokeDetectorSNDuplicateError ? 'border-error border-2' : ''}"
+						>
+							<input
+								type="number"
+								min={minSN}
+								max={maxSN}
+								disabled={isAutoDetected}
+								class=""
+								bind:value={geniusDevice.smokeDetector.sn}
+								id="smokeDetectorSN"
+							/>
+						</label>
+						<FieldError show={smokeDetectorSNRangeError} message="The serial number must be a valid number between {minSN} and {maxSN}." />
+						<FieldError show={smokeDetectorSNDuplicateError} message="This smoke detector serial number is already used by another device." />
 						{#if !isAutoDetected}
 							<div class="alert mt-1 gap-2 p-2">
 								<IconExclamationCircle class="h-5 w-5 shrink-0 mt-0.5" />
@@ -344,34 +277,22 @@
 					{#if geniusDevice.radioModule.model !== GeniusRadioModule.None}
 						<div class="flex-1" transition:slide|local={{ duration: 300, easing: cubicOut }}>
 							<label class="label" for="radioModuleSN">Serial Number</label>
-							<input
-								type="number"
-								min={minSN}
-								max={maxSN}
-								disabled={isAutoDetected}
-								class="input input-bordered invalid:border-error w-full invalid:border-2"
-								bind:value={geniusDevice.radioModule.sn}
-								id="radioModuleSN"
-							/>
-							{#if formErrors.radioModule.sn && !isAutoDetected}
-								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="radioModuleSN" class="label">
-										<span class="text-error text-wrap">
-											The serial number must be a valid number between <em>{minSN}</em> and
-											<em>{maxSN}</em>.
-										</span>
-									</label>
-								</div>
-							{/if}
-							{#if formErrors.radioModule.snDuplicate}
-								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="radioModuleSN" class="label">
-										<span class="text-error text-wrap">
-											This radio module serial number is already used by another device.
-										</span>
-									</label>
-								</div>
-							{/if}
+							<label
+								for="radioModuleSN"
+								class="input input-bordered w-full {radioModuleSNRangeError || radioModuleSNDuplicateError ? 'border-error border-2' : ''}"
+							>
+								<input
+									type="number"
+									min={minSN}
+									max={maxSN}
+									disabled={isAutoDetected}
+									class=""
+									bind:value={geniusDevice.radioModule.sn}
+									id="radioModuleSN"
+								/>
+							</label>
+							<FieldError show={radioModuleSNRangeError} message="The serial number must be a valid number between {minSN} and {maxSN}." />
+							<FieldError show={radioModuleSNDuplicateError} message="This radio module serial number is already used by another device." />
 						</div>
 					{/if}
 				</div>
@@ -393,16 +314,7 @@
 						bind:value={geniusDevice.location}
 						id="location"
 					/>
-					{#if formErrors.location}
-						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<label for="location" class="label">
-								<span class="text-error text-wrap">
-									Please set a location of length between <em>{minLocationLength}</em> and
-									<em>{maxLocationLength}</em> characters.
-								</span>
-							</label>
-						</div>
-					{/if}
+					<FieldError show={locationError} message="Please set a location of length between {minLocationLength} and {maxLocationLength} characters." />
 				</div>
 
 				<div class="divider my-2"></div>
@@ -420,6 +332,7 @@
 					<button
 						class="btn btn-primary text-primary-content inline-flex items-center"
 						type="submit"
+						disabled={hasErrors}
 					>
 						<Save class="h-5 w-5" />
 						<span>{saveButtonLabel}</span>

@@ -8,6 +8,7 @@
 	import DirtyField from '$lib/components/DirtyField.svelte';
 	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
 	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
+	import FieldError from '$lib/components/FieldError.svelte';
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
@@ -313,11 +314,7 @@
 							<DirtyMarker dirty={f.isDirty('keep_alive')} onrevert={() => f.revert('keep_alive')} />
 						</label>
 					</div>
-						{#if keepAliveError}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<span class="text-error text-xs">Must be between 1 and 600 seconds</span>
-							</div>
-						{/if}
+						<FieldError show={keepAliveError} message="Must be between 1 and 600 seconds." />
 					</div>
 					<!-- Rate Limit -->
 					<div>
@@ -346,11 +343,7 @@
 							/>
 						</label>
 					</div>
-						{#if rateLimitError}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<span class="text-error text-xs">Must be between 0 and 1000 milliseconds</span>
-							</div>
-						{/if}
+						<FieldError show={rateLimitError} message="Must be between 0 and 1000 milliseconds." />
 					</div>
 					<!-- Clean Session -->
 					<div class="flex items-center w-full mt-2 sm:mt-4">

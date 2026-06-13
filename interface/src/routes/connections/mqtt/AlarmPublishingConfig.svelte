@@ -3,8 +3,8 @@
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
-	import { slide } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
+	import FieldError from '$lib/components/FieldError.svelte';
+	import { isMQTTTopicPath } from '$lib/utils/validators';
 	import IconAlarm from '~icons/tabler/bell';
 	import Info from '~icons/tabler/info-circle';
 	import Collapsible from '$lib/components/Collapsible.svelte';
@@ -19,7 +19,6 @@
 	};
 
 	const maxTopicPathLength = 64;
-
 	const defaultSettings: AlarmPublishingSettings = {
 		alarmEnabled: false,
 		alarmTopic: 'smarthome/genius-gateway/alarm'
@@ -27,21 +26,6 @@
 
 	const f = createDirtyState<AlarmPublishingSettings>({ ...defaultSettings });
 	let settingsLoaded = $state(false);
-
-	function isValidMQTTTopicPath(topic: string): boolean {
-		if (!topic || typeof topic !== 'string') return false;
-		if (topic.length < 1 || topic.length > 128) return false;
-		const validCharPattern = /^[a-zA-Z0-9\-_.\/]+$/;
-		if (!validCharPattern.test(topic)) return false;
-		if (topic.includes('+') || topic.includes('#') || topic.includes(' ')) return false;
-		if (topic.startsWith('/') || topic.endsWith('/')) return false;
-		if (topic.includes('//')) return false;
-		const levels = topic.split('/');
-		for (const level of levels) {
-			if (level.length === 0 || level.trim().length === 0) return false;
-		}
-		return true;
-	}
 
 	async function getAlarmPublishingSettings() {
 		try {
@@ -66,7 +50,7 @@
 		}
 	});
 
-	const alarmTopicError = $derived(!isValidMQTTTopicPath(f.current.alarmTopic));
+	const alarmTopicError = $derived(!isMQTTTopicPath(f.current.alarmTopic, maxTopicPathLength));
 
 	function handleSubmit() {
 		if (!alarmTopicError) {
@@ -141,14 +125,7 @@
 							required
 						/>
 					</DirtyField>
-					{#if alarmTopicError}
-						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<span class="text-error text-xs"
-								>Topic must be 1–{maxTopicPathLength} characters (a–z, A–Z, 0–9, -, _, ., /). No
-								leading/trailing slashes.</span
-							>
-						</div>
-					{/if}
+					<FieldError show={alarmTopicError} message="Topic must be 1–{maxTopicPathLength} characters (a–z, A–Z, 0–9, -, _, ., /). No leading/trailing slashes." />
 				</div>
 			</div>
 			<div class="divider mb-2 mt-0"></div>
