@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { modals } from 'svelte-modals';
-	import { fly } from 'svelte/transition';
-	import { slide } from 'svelte/transition';
+	import { fly, slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import type { KnownNetworkItem } from '$lib/types/models';
 	import InputPassword from '$lib/components/InputPassword.svelte';
+	import FieldError from '$lib/components/FieldError.svelte';
+	import { isIPv4, hasLength } from '$lib/utils/validators';
 	import Cancel from '~icons/tabler/x';
 	import Set from '~icons/tabler/check';
 
@@ -40,79 +41,20 @@
 
 	const titleId = `edit-network-title-${Math.random().toString(36).slice(2)}`;
 
-	let formErrors = $state({
-		ssid: false,
-		local_ip: false,
-		gateway_ip: false,
-		subnet_mask: false,
-		dns_1: false,
-		dns_2: false
-	});
+	const ssidError = $derived(!hasLength(networkEditable.ssid, 3, 32));
+	const localIPError = $derived(staticIPConfig && !isIPv4(networkEditable.local_ip ?? ''));
+	const gatewayIPError = $derived(staticIPConfig && !isIPv4(networkEditable.gateway_ip ?? ''));
+	const subnetMaskError = $derived(staticIPConfig && !isIPv4(networkEditable.subnet_mask ?? ''));
+	const dns1Error = $derived(staticIPConfig && !isIPv4(networkEditable.dns_ip_1 ?? ''));
+	const dns2Error = $derived(
+		staticIPConfig && !!networkEditable.dns_ip_2 && !isIPv4(networkEditable.dns_ip_2)
+	);
+	const hasErrors = $derived(
+		ssidError || localIPError || gatewayIPError || subnetMaskError || dns1Error || dns2Error
+	);
 
-	function validateNetworkSettings() {
-		let valid = true;
-
-		// Validate SSID
-		if (networkEditable.ssid.length < 3 || networkEditable.ssid.length > 32) {
-			valid = false;
-			formErrors.ssid = true;
-		} else {
-			formErrors.ssid = false;
-		}
-
-		if (staticIPConfig) {
-			// RegEx for IPv4
-			const regexExp =
-				/\b(?:(?:2(?:[0-4][0-9]|5[0-5])|[0-1]?[0-9]?[0-9])\.){3}(?:(?:2([0-4][0-9]|5[0-5])|[0-1]?[0-9]?[0-9]))\b/;
-
-			// Validate gateway IP
-			if (!regexExp.test(networkEditable.gateway_ip!)) {
-				valid = false;
-				formErrors.gateway_ip = true;
-			} else {
-				formErrors.gateway_ip = false;
-			}
-
-			// Validate Subnet Mask
-			if (!regexExp.test(networkEditable.subnet_mask!)) {
-				valid = false;
-				formErrors.subnet_mask = true;
-			} else {
-				formErrors.subnet_mask = false;
-			}
-
-			// Validate local IP
-			if (!regexExp.test(networkEditable.local_ip!)) {
-				valid = false;
-				formErrors.local_ip = true;
-			} else {
-				formErrors.local_ip = false;
-			}
-
-			// Validate DNS 1
-			if (!regexExp.test(networkEditable.dns_ip_1!)) {
-				valid = false;
-				formErrors.dns_1 = true;
-			} else {
-				formErrors.dns_1 = false;
-			}
-
-			// Validate DNS 2
-			if (!regexExp.test(networkEditable.dns_ip_2!)) {
-				valid = false;
-				formErrors.dns_2 = true;
-			} else {
-				formErrors.dns_2 = false;
-			}
-		} else {
-			formErrors.local_ip = false;
-			formErrors.subnet_mask = false;
-			formErrors.gateway_ip = false;
-			formErrors.dns_1 = false;
-			formErrors.dns_2 = false;
-		}
-
-		if (valid) {
+	function handleSubmit() {
+		if (!hasErrors) {
 			networkEditable.static_ip_config = staticIPConfig;
 			onSaveNetwork(networkEditable);
 		}
@@ -136,7 +78,7 @@
 				class="fieldset"
 				onsubmit={(e) => {
 					e.preventDefault();
-					validateNetworkSettings();
+					handleSubmit();
 				}}
 				novalidate
 			>
@@ -148,22 +90,14 @@
 						<label class="label" for="ssid">SSID</label>
 						<input
 							type="text"
-							class="input input-bordered invalid:border-error w-full invalid:border-2 {formErrors.ssid
-								? 'border-error border-2'
-								: ''}"
+							class="input input-bordered invalid:border-error w-full invalid:border-2 {ssidError ? 'border-error border-2' : ''}"
 							bind:value={networkEditable.ssid}
 							id="ssid"
 							minlength="3"
 							maxlength="32"
 							required
 						/>
-						{#if formErrors.ssid}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="ssid" class="label">
-									<span class="text-error"> SSID must be between 3 and 32 characters long. </span>
-								</label>
-							</div>
-						{/if}
+						<FieldError show={ssidError} message="SSID must be between 3 and 32 characters long." />
 					</div>
 					<div>
 						<label class="label" for="pwd">Password</label>
@@ -190,9 +124,7 @@
 							<label class="label" for="localIP">Local IP</label>
 							<input
 								type="text"
-								class="input input-bordered w-full {formErrors.local_ip
-									? 'border-error border-2'
-									: ''}"
+								class="input input-bordered w-full {localIPError ? 'border-error border-2' : ''}"
 								minlength="7"
 								maxlength="15"
 								size="15"
@@ -200,22 +132,14 @@
 								id="localIP"
 								required
 							/>
-							{#if formErrors.local_ip}
-								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="localIP" class="label">
-										<span class="text-error"> Local IP must be a valid IPv4 address. </span>
-									</label>
-								</div>
-							{/if}
+							<FieldError show={localIPError} message="Local IP must be a valid IPv4 address." />
 						</div>
 
 						<div>
 							<label class="label" for="gateway">Gateway IP</label>
 							<input
 								type="text"
-								class="input input-bordered w-full {formErrors.gateway_ip
-									? 'border-error border-2'
-									: ''}"
+								class="input input-bordered w-full {gatewayIPError ? 'border-error border-2' : ''}"
 								minlength="7"
 								maxlength="15"
 								size="15"
@@ -223,21 +147,13 @@
 								id="gateway"
 								required
 							/>
-							{#if formErrors.gateway_ip}
-								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="gateway" class="label">
-										<span class="text-error"> Gateway IP must be a valid IPv4 address. </span>
-									</label>
-								</div>
-							{/if}
+							<FieldError show={gatewayIPError} message="Gateway IP must be a valid IPv4 address." />
 						</div>
 						<div>
 							<label class="label" for="subnet">Subnet Mask</label>
 							<input
 								type="text"
-								class="input input-bordered w-full {formErrors.subnet_mask
-									? 'border-error border-2'
-									: ''}"
+								class="input input-bordered w-full {subnetMaskError ? 'border-error border-2' : ''}"
 								minlength="7"
 								maxlength="15"
 								size="15"
@@ -245,21 +161,13 @@
 								id="subnet"
 								required
 							/>
-							{#if formErrors.subnet_mask}
-								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="subnet" class="label">
-										<span class="text-error"> Subnet Mask must be a valid IPv4 subnet mask. </span>
-									</label>
-								</div>
-							{/if}
+							<FieldError show={subnetMaskError} message="Subnet Mask must be a valid IPv4 address." />
 						</div>
 						<div>
 							<label class="label" for="dns_1">DNS 1</label>
 							<input
 								type="text"
-								class="input input-bordered w-full {formErrors.dns_1
-									? 'border-error border-2'
-									: ''}"
+								class="input input-bordered w-full {dns1Error ? 'border-error border-2' : ''}"
 								minlength="7"
 								maxlength="15"
 								size="15"
@@ -267,21 +175,13 @@
 								id="dns_1"
 								required
 							/>
-							{#if formErrors.dns_1}
-								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="dns_1" class="label">
-										<span class="text-error"> DNS 1 must be a valid IPv4 address. </span>
-									</label>
-								</div>
-							{/if}
+							<FieldError show={dns1Error} message="DNS 1 must be a valid IPv4 address." />
 						</div>
 						<div>
 							<label class="label" for="dns_2">DNS 2</label>
 							<input
 								type="text"
-								class="input input-bordered w-full {formErrors.dns_2
-									? 'border-error border-2'
-									: ''}"
+								class="input input-bordered w-full {dns2Error ? 'border-error border-2' : ''}"
 								minlength="7"
 								maxlength="15"
 								size="15"
@@ -289,13 +189,7 @@
 								id="dns_2"
 								required
 							/>
-							{#if formErrors.dns_2}
-								<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-									<label for="dns_2" class="label">
-										<span class="text-error"> DNS 2 must be a valid IPv4 address. </span>
-									</label>
-								</div>
-							{/if}
+							<FieldError show={dns2Error} message="DNS 2 must be a valid IPv4 address." />
 						</div>
 					</div>
 				{/if}
@@ -316,6 +210,7 @@
 					<button
 						class="btn btn-primary text-primary-content inline-flex items-center"
 						type="submit"
+						disabled={hasErrors}
 					>
 						<Set class="mr-2 h-5 w-5" />
 						<span>Set</span>

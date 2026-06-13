@@ -3,6 +3,8 @@
 	import { modals } from 'svelte-modals';
 	import { fly } from 'svelte/transition';
 	import InputPassword from '$lib/components/InputPassword.svelte';
+	import FieldError from '$lib/components/FieldError.svelte';
+	import { hasLength } from '$lib/utils/validators';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
 
@@ -30,8 +32,6 @@
 	// https://github.com/sveltejs/svelte/issues/12320
 	let user = $state(_user);
 
-	let errorUsername = $state(false);
-
 	let usernameEditable = $state(false);
 
 	onMount(() => {
@@ -40,13 +40,10 @@
 		}
 	});
 
+	const usernameError = $derived(!hasLength(user.username, 3, 32));
+
 	function handleSave() {
-		// Validate if username is within range
-		if (user.username.length < 3 || user.username.length > 32) {
-			errorUsername = true;
-		} else {
-			errorUsername = false;
-			// Callback on saving
+		if (!usernameError) {
 			onSaveUser(user);
 		}
 	}
@@ -85,11 +82,7 @@
 					id="username"
 					disabled={!usernameEditable}
 				/>
-				<label for="username" class="label"
-					><span class="text-error {errorUsername ? '' : 'hidden'}"
-						>Username must be between 3 and 32 characters long</span
-					></label
-				>
+				<FieldError show={usernameError} message="Username must be between 3 and 32 characters long." />
 				<label class="label" for="pwd">Password </label>
 				<InputPassword bind:value={user.password} id="pwd" />
 				<label class="label my-auto cursor-pointer justify-start gap-4 mt-4">
@@ -109,6 +102,7 @@
 					>
 					<button
 						class="btn btn-primary text-primary-content inline-flex items-center"
+						disabled={usernameError}
 						type="submit"><Save class="mr-2 h-5 w-5" /><span>Save</span></button
 					>
 				</div>

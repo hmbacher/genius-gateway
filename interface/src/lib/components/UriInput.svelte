@@ -3,10 +3,9 @@
 </script>
 
 <script lang="ts">
-	import { slide } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
 	import DirtyMarker from './DirtyMarker.svelte';
 	import DirtyField from './DirtyField.svelte';
+	import FieldError from './FieldError.svelte';
 
 	interface Props {
 		value?: string;
@@ -290,9 +289,5 @@
 			</div>
 		{/if}
 	</div>
-	{#if errorMessage}
-		<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-			<span class="text-error text-sm">{errorMessage}</span>
-		</div>
-	{/if}
+	<FieldError show={!!errorMessage} message={errorMessage} />
 </div>

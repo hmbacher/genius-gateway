@@ -9,6 +9,8 @@
 	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
 	import DirtyField from '$lib/components/DirtyField.svelte';
 	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
+	import { isDiscoveryPrefix } from '$lib/utils/validators';
+	import FieldError from '$lib/components/FieldError.svelte';
 	import HomeAssistant from '~icons/tabler/smart-home';
 	import Info from '~icons/tabler/info-circle';
 	import type { HASettings } from '$lib/types/models';
@@ -37,7 +39,7 @@
 		return;
 	}
 
-	const discoveryPrefixError = $derived(!isValidDiscoveryPrefix(f.current.discovery_prefix ?? ''));
+	const discoveryPrefixError = $derived(!isDiscoveryPrefix(f.current.discovery_prefix ?? ''));
 	const deviceNameError = $derived((f.current.device_name ?? '').length > 64);
 	const manufacturerError = $derived((f.current.manufacturer ?? '').length > 64);
 	const modelError = $derived((f.current.model ?? '').length > 64);
@@ -63,16 +65,6 @@
 			console.error('Error:', error);
 		}
 		return;
-	}
-
-	function isValidDiscoveryPrefix(prefix: string): boolean {
-		if (!prefix || prefix.length > 64) return false;
-		if (prefix.includes('//')) return false;
-		const path = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
-		if (path.length === 0) return false;
-		if (!/^[a-zA-Z0-9\-_.\/]+$/.test(path)) return false;
-		if (path.startsWith('/')) return false;
-		return true;
 	}
 
 	function handleSubmit() {
@@ -133,11 +125,7 @@
 							required
 						/>
 					</DirtyField>
-					{#if discoveryPrefixError}
-						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<span class="text-error text-xs">Must be 1–64 characters (a–z, A–Z, 0–9, -, _, ., /). No leading slash or double slashes.</span>
-						</div>
-					{/if}
+					<FieldError show={discoveryPrefixError} message="Must be 1–64 characters (a–z, A–Z, 0–9, -, _, ., /). No leading slash or double slashes." />
 				</div>
 
 				<div>
@@ -152,11 +140,7 @@
 							placeholder="(empty falls back to firmware name: {page.data.appName})"
 						/>
 					</DirtyField>
-					{#if deviceNameError}
-						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<span class="text-error text-xs">Device name is limited to 64 characters</span>
-						</div>
-					{/if}
+					<FieldError show={deviceNameError} message="Device name is limited to 64 characters." />
 				</div>
 
 				<div>
@@ -170,11 +154,7 @@
 							maxlength="64"
 						/>
 					</DirtyField>
-					{#if manufacturerError}
-						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<span class="text-error text-xs">Manufacturer is limited to 64 characters</span>
-						</div>
-					{/if}
+					<FieldError show={manufacturerError} message="Manufacturer is limited to 64 characters." />
 				</div>
 
 				<div>
@@ -188,11 +168,7 @@
 							maxlength="64"
 						/>
 					</DirtyField>
-					{#if modelError}
-						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<span class="text-error text-xs">Model is limited to 64 characters</span>
-						</div>
-					{/if}
+					<FieldError show={modelError} message="Model is limited to 64 characters." />
 				</div>
 			</div>
 			<div class="divider mb-2 mt-0"></div>
