@@ -743,6 +743,16 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
         JsonObject radioModuleJson = jsonDeviceArrItem["radioModule"].as<JsonObject>();
 
         uint32_t deviceId = jsonDeviceArrItem["id"].as<uint32_t>();
+
+        // Skip duplicate IDs in the input JSON — without this, two entries with the same id
+        // both pass the "not in existing state" check below (state is empty at startup) and
+        // both land in newDevicesVector, perpetuating the corruption on every restart.
+        if (std::find(processedDeviceIds.begin(), processedDeviceIds.end(), deviceId) != processedDeviceIds.end())
+        {
+            ESP_LOGW(GeniusDevices::TAG, "Duplicate device ID %lu in input JSON, skipping.", deviceId);
+            hasChanges = true; // force a clean re-write so the duplicate is purged from the file
+            continue;
+        }
         processedDeviceIds.push_back(deviceId);
 
         // Check if device exists by ID

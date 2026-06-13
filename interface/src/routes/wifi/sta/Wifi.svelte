@@ -13,8 +13,8 @@
 	import Collapsible from '$lib/components/Collapsible.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
-	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
 	import DirtyField from '$lib/components/DirtyField.svelte';
+	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
 	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
 	import type { KnownNetworkItem, WifiSettings, WifiStatus } from '$lib/types/models';
 	import ScanNetworks from './Scan.svelte';
@@ -71,8 +71,6 @@
 	let strNetworks = $state('[]');
 	let networksAreDirty = $derived(JSON.stringify(wifi_networks) !== strNetworks);
 	let isSettingsDirty = $derived(f.anyDirty || networksAreDirty);
-
-	const accent = 'shadow-[inset_4px_0_0_0_var(--color-red-300)]';
 
 	let showWifiDetails = $state(false);
 	let formErrorhostname = $state(false);
@@ -453,9 +451,12 @@
 
 						<div>
 							<label class="label" for="apmode">WiFi Connection Mode</label>
-							<div class="flex items-center gap-2">
+							<label
+								class="input w-full pl-0 {f.isDirty('connection_mode') ? 'shadow-[inset_4px_0_0_0_var(--color-red-300)]' : ''}"
+								for="apmode"
+							>
 								<select
-									class="select w-full {f.isDirty('connection_mode') ? accent : ''}"
+									class="h-full flex-1 border-none bg-transparent ps-3 pe-2 outline-none"
 									id="apmode"
 									bind:value={f.current.connection_mode}
 								>
@@ -466,7 +467,7 @@
 									{/each}
 								</select>
 								<DirtyMarker dirty={f.isDirty('connection_mode')} onrevert={() => f.revert('connection_mode')} />
-							</div>
+							</label>
 						</div>
 					</div>
 				</div>

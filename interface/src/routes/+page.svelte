@@ -72,7 +72,7 @@
 						</div>
 					</div>
 				{/if}
-				{#each geniusDevices.devices as device}
+				{#each geniusDevices.devices as device (device.id)}
 					<a
 						href="/gateway/smoke-detectors"
 						aria-label="Open smoke detectors page"

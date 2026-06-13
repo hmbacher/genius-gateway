@@ -36,7 +36,8 @@
 #define REPORT_SETTINGS_FILE "/config/report-settings.json" ///< Configuration file path
 #define REPORT_SETTINGS_PATH "/rest/report-settings"        ///< REST API service endpoint path
 
-#define REPORT_SETTINGS_MAX_FIELD_LEN 256 ///< Maximum length for any single report field
+#define REPORT_SETTINGS_MAX_NAME_LEN    80  ///< Maximum length for single-line name fields
+#define REPORT_SETTINGS_MAX_ADDRESS_LEN 200 ///< Maximum length for the multi-line address field
 
 /// Report header settings data model
 class ReportSettings
@@ -64,11 +65,11 @@ public:
     {
         bool changed = false;
 
-        auto updateField = [&](const char *key, String &field) {
+        auto updateField = [&](const char *key, String &field, size_t maxLen) {
             if (root[key].is<String>())
             {
                 String newVal = root[key].as<String>();
-                newVal = newVal.substring(0, REPORT_SETTINGS_MAX_FIELD_LEN);
+                newVal = newVal.substring(0, maxLen);
                 if (field != newVal)
                 {
                     field = newVal;
@@ -77,9 +78,9 @@ public:
             }
         };
 
-        updateField("propertyName", settings.propertyName);
-        updateField("propertyAddress", settings.propertyAddress);
-        updateField("customerName", settings.customerName);
+        updateField("propertyName", settings.propertyName, REPORT_SETTINGS_MAX_NAME_LEN);
+        updateField("propertyAddress", settings.propertyAddress, REPORT_SETTINGS_MAX_ADDRESS_LEN);
+        updateField("customerName", settings.customerName, REPORT_SETTINGS_MAX_NAME_LEN);
 
         return changed ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
     }

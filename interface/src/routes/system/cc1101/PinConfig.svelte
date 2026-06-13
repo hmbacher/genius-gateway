@@ -241,7 +241,7 @@
 									bind:value={f.current[field.key]}
 									options={pinOptions(field)}
 									placeholder="— select GPIO —"
-									class="w-30 {selectClass(field)}"
+									class="w-34 {selectClass(field)}"
 									dirty={f.isDirty(field.key)}
 									onrevert={() => f.revert(field.key)}
 								/>

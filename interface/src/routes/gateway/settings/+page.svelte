@@ -6,6 +6,7 @@
 	import { socket } from '$lib/stores/socket';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { ReportSettings } from '$lib/types/models';
+	import FieldError from '$lib/components/FieldError.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
@@ -95,6 +96,14 @@
 			console.error('Error:', error);
 		}
 	}
+
+	const MAX_NAME_LEN = 80;
+	const MAX_ADDRESS_LEN = 200;
+
+	const propertyNameError = $derived(r.current.propertyName.length > MAX_NAME_LEN);
+	const propertyAddressError = $derived(r.current.propertyAddress.length > MAX_ADDRESS_LEN);
+	const customerNameError = $derived(r.current.customerName.length > MAX_NAME_LEN);
+	const reportHasErrors = $derived(propertyNameError || propertyAddressError || customerNameError);
 
 	async function postReportSettings() {
 		try {
@@ -242,10 +251,11 @@
 								type="text"
 								class="input input-bordered w-full pr-10"
 								placeholder="e.g. Mustermann House"
-								maxlength="256"
+								maxlength={MAX_NAME_LEN}
 								bind:value={r.current.propertyName}
 							/>
 						</DirtyField>
+						<FieldError show={propertyNameError} message="Property name must not exceed {MAX_NAME_LEN} characters." />
 					</label>
 					<label class="form-control w-full">
 						<div class="label">
@@ -255,11 +265,12 @@
 							<textarea
 								class="textarea textarea-bordered w-full pr-10"
 								placeholder={"e.g. Musterstraße 1\n12345 Berlin"}
-								maxlength="256"
+								maxlength={MAX_ADDRESS_LEN}
 								rows="3"
 								bind:value={r.current.propertyAddress}
 							></textarea>
 						</DirtyField>
+						<FieldError show={propertyAddressError} message="Address must not exceed {MAX_ADDRESS_LEN} characters." />
 					</label>
 					<label class="form-control w-full">
 						<div class="label">
@@ -270,10 +281,11 @@
 								type="text"
 								class="input input-bordered w-full pr-10"
 								placeholder="e.g. Max Mustermann"
-								maxlength="256"
+								maxlength={MAX_NAME_LEN}
 								bind:value={r.current.customerName}
 							/>
 						</DirtyField>
+						<FieldError show={customerNameError} message="Customer name must not exceed {MAX_NAME_LEN} characters." />
 					</label>
 				</div>
 				<div class="divider my-2"></div>
@@ -282,7 +294,7 @@
 						<button
 							class="btn btn-primary"
 							type="button"
-							disabled={!r.anyDirty}
+							disabled={!r.anyDirty || reportHasErrors}
 							onclick={postReportSettings}
 						>
 							<IconSave class="h-6 w-6" />
