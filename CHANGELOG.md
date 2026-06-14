@@ -3,6 +3,7 @@
 ## Bugfixes
 - **Update indicator no longer shows incompatible releases**: the topbar firmware-update badge now only lights up when a newer release includes an asset that matches the current build target. Previously, any newer release triggered the indicator regardless of hardware compatibility, and clicking it immediately offered to install a binary that would fail or brick the device
 - **GitHub OTA download no longer sends an empty URL to the device**: when no compatible binary was found for the build target, the backend returned an empty `download_url`. The device then attempted an OTA connection to an empty hostname, failing with a DNS error. The `update_available` flag is now only set when a matching binary exists, and the UI adds a defensive guard as a belt-and-suspenders check
+- **Re-selecting the same firmware file now re-triggers the upload**: after clicking Abort on the confirmation dialog, the file input was not cleared. Because the browser suppresses `change` events when the same file is picked again, the upload could not be restarted without first picking a different file. The input is now reset on Abort so any file — including the same one — opens a fresh confirmation
 
 # v1.4.0
 
