@@ -272,10 +272,36 @@ You can import a previously exported device configuration:
 4. If any device in the file is marked as alarming, a dialog asks how to handle the alarm state:
     - **Keep Alarm State** — imports as-is; connected integrations (e.g. Home Assistant) may trigger automations (useful for testing)
     - **Clear Alarm State** — resets the alarm flag on all affected devices and closes open alarm log entries with a `Cleared by import` ending reason
-5. All existing devices are replaced with the imported configuration
+5. A progress dialog shows the import status. For larger files the upload is split into chunks automatically and may take several seconds — a progress bar shows how many chunks have been sent. Wait for the *Finalizing* step to complete before navigating away
+6. All existing devices are replaced with the imported configuration once the gateway confirms the commit
+
+## Generating a PDF Report
+
+Click the :tabler-file-type-pdf: **Generate PDF Report** button in the toolbar to produce a printable audit document. A progress dialog steps through fetching data and building the file; the PDF downloads automatically when complete.
+
+The property name, address, and customer name printed on the cover page are configured in [Gateway Settings → Report Settings](gateway-settings.md#report-settings). Leaving those fields blank generates a report without a property header.
+
+### Cover Page
+
+- Gateway identification
+- Property name, address, and customer name
+- Generation timestamp
+- Summary table of all registered smoke detectors (location, model, serial number, last acoustic readout date)
+
+### Per-Device Pages
+
+One page per registered smoke detector:
+
+- **Identity**: location, model, registration type, smoke detector and radio module serial numbers, production date and device age
+- **Diagnostic data** (only if an acoustic readout has been performed):
+    - Smoke chamber: sensor status, drift value, contamination forecast, warranty flags
+    - Battery: voltage and state
+    - Statistics: alarm count, last alarm date, last self-test date, deinstallation count, storage hours
+- **Radio module**: line ID, radio state and switch masks, interference level, DIP switch configuration
+- **Alarm history**: full log of recorded alarm events with start time, end time, and ending reason
 
 ## Related Documentation
 
-- [Gateway Settings](gateway-settings.md) - Configure alarming behavior and alarm line topology
-- [MQTT Integration](../setup/connections.md#mqtt) - Monitor device status and alarms via MQTT
-- [System Status](../setup/system.md) - View overall gateway health and connectivity
+- [Gateway Settings](gateway-settings.md) — Configure alarming behavior, alarm line topology, and report header fields
+- [MQTT Integration](../setup/connections.md#mqtt) — Monitor device status and alarms via MQTT
+- [System Status](../setup/system.md) — View overall gateway health and connectivity

@@ -36,74 +36,48 @@ Resets all settings to factory defaults, including:
 !!! danger "Permanent Action"
     Factory reset cannot be undone. All configuration data will be permanently erased. The device will restart with default system settings (from `factory_settings.ini`) and not Genius PLus X related configuration.
 
-## :tabler-cpu: CC1101
+## :tabler-cpu: Radio (CC1101)
 
-The CC1101 page displays the current state of the CC1101 radio transceiver chip used for communication with smoke detectors. This page is only accessible to administrators and only available if the CC1101 controller feature is enabled.
-
-![CC1101 Status](../assets/images/software/gg-system-cc1101.png)
-
-### Main Radio Control State Machine State (MARCSTATE)
-
-The CC1101 chip operates in various states during normal operation. The page displays the current state in the format `STATE / NAME`, where STATE represents the functional state group and NAME represents the specific MARCSTATE value.
-
-- **SLEEP / SLEEP**: Low-power sleep mode
-- **IDLE / IDLE**: Radio is idle and ready
-- **XOFF / XOFF**: Crystal oscillator off
-- **MANCAL / VCOON_MC**: Voltage-controlled oscillator on (manual calibration)
-- **MANCAL / REGON_MC**: Regulator on (manual calibration)
-- **MANCAL / MANCAL**: Manual calibration in progress
-- **FS_WAKEUP / VCOON**: Voltage-controlled oscillator on
-- **FS_WAKEUP / REGON**: Regulator on
-- **CALIBRATE / STARTCAL**: Starting calibration
-- **SETTLING / BWBOOST**: Bandwidth boost during settling
-- **SETTLING / FS_LOCK**: Frequency synthesizer lock
-- **SETTLING / IFADCON**: IF ADC on during settling
-- **CALIBRATE / ENDCAL**: Ending calibration
-- **RX / RX**: Receiving mode (normal listening state)
-- **RX / RX_END**: End of receive
-- **RX / RX_RST**: Receive reset
-- **TXRX_SETTLING / TXRX_SWITCH**: Switching from transmit to receive
-- **RXFIFO_OVERFLOW / RXFIFO_OVERFLOW**: Receive buffer overflow (data loss)
-- **FSTXON / FSTXON**: Frequency synthesizer ready for transmission
-- **TX / TX**: Transmitting mode
-- **TX / TX_END**: End of transmit
-- **RXTX_SETTLING / RXTX_SWITCH**: Switching from receive to transmit
-- **TXFIFO_UNDERFLOW / TXFIFO_UNDERFLOW**: Transmit buffer underflow
-
-### Actions
-
-#### :tabler-reload: Update CC1101 State
-
-Click the :tabler-reload: **Update** button to refresh the current CC1101 state from the chip.
-
-#### :tabler-ear: Set CC1101 to RX State
-
-Click the :tabler-ear: **Listen** button to command the CC1101 chip to enter receive (RX) mode. This button is disabled if:
-- The chip is already in RX state
-- An SPI communication error occurred
-
-!!! warning "Not for regular use"
-    The CC1101 chip should typically be in RX state (`RX/RX`) during normal operation to receive packets from smoke detectors. If the chip is in an unexpected state, you can try to return to RX mode.
-
-### Error Conditions
-
-If an error occurs, the state display will show:
-
-- **Red indicator**: Error condition detected
-- **Error message**: Description of the problem (e.g., "SPI error while obtaining state" or "Invalid state")
+The CC1101 page provides runtime SPI pin configuration for the CC1101 radio transceiver. This page is only accessible to administrators.
 
 ### Top-Bar Radio Indicator
 
-The radio status is also reflected by a persistent icon in the navigation bar. It links to this CC1101 page from anywhere in the interface:
+The radio status is reflected by a persistent icon in the navigation bar that links to this page from anywhere in the interface:
 
 | Icon | Meaning |
 |------|---------|
-| :tabler-loader-2: | Connecting — radio status not yet received |
+| :tabler-loader-2: | Loading — radio status not yet received |
 | :tabler-ear: | Radio listening (RX) — normal operating state |
 | :tabler-building-broadcast-tower:{ style="color: #2196f3" } | Radio transmitting (TX) |
 | :tabler-loader-2:{ style="color: #2196f3" } | Radio initializing |
 | :tabler-alert-hexagon-filled:{ style="color: #f44336" } | Radio error — check pin configuration |
 | :tabler-settings-off:{ style="color: #f44336" } | Radio not configured |
+
+### Pin Configuration
+
+The SPI bus and GDO signal pins used by the CC1101 transceiver can be changed at runtime without reflashing the firmware. Pin settings are persisted on the gateway and survive reboots.
+
+If the board has predefined wiring presets, a **Wiring** dropdown lets you select one and fills in all pins automatically. Select **Custom** to configure each pin individually.
+
+| Pin | Role |
+|-----|------|
+| **CSN** | SPI chip select (active low) |
+| **SCK** | SPI clock |
+| **MOSI** | SPI data from ESP32 to CC1101 |
+| **MISO** | SPI data from CC1101 to ESP32 |
+| **GDO0** | Packet signal — asserted when a packet has been received |
+
+To change pins:
+
+1. Select a wiring preset or choose **Custom** and pick a GPIO for each pin. Reserved GPIOs are highlighted in red and cannot be selected; strapping pins are highlighted in orange as a caution
+2. Click **Test & Save** — the gateway probes the CC1101 over the new pin assignment and saves the configuration if the self-test passes
+3. The top-bar radio indicator updates to reflect the new state
+
+!!! warning "Pin conflicts rejected"
+    Assigning the same GPIO to two different pins is blocked before any change is applied.
+
+!!! info "Existing installations unaffected (Genius Gateway hardware only)"
+    If no pin configuration has been saved, the firmware uses the compile-time defaults from `platformio.ini`. Upgrading from an older firmware leaves pin assignments unchanged until you explicitly apply new ones via this page.
 
 ## :tabler-report-analytics: System Metrics
 
