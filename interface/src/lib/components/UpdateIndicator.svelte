@@ -64,7 +64,7 @@
 			// Populate shared firmware store for other components
 			firmware.setFromGithubRelease(results);
 
-			if (results.update_available) {
+			if (results.update_available && results.download_url) {
 				update = true;
 				firmwareVersion = results.tag_name;
 				firmwareDownloadLink = results.download_url;

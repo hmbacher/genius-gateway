@@ -157,11 +157,10 @@ esp_err_t GitHubReleaseEndpoint::handleGitHubRelease(PsychicRequest *request)
             doc["current_version"] = String(APP_VERSION);
             doc["build_target"] = String(BUILD_TARGET);
         
-            // Check if update is available
-            doc["update_available"] = GitHubReleaseService::isNewerVersion(
-                String(APP_VERSION), 
-                releaseInfo.version
-            );
+            // Only flag an update if a compatible binary exists for this build target.
+            // An empty downloadUrl means no asset matched BUILD_TARGET.
+            doc["update_available"] = !releaseInfo.downloadUrl.isEmpty() &&
+                GitHubReleaseService::isNewerVersion(String(APP_VERSION), releaseInfo.version);
         
             ESP_LOGI(SVK_TAG, "GitHub query successful - Latest: %s, Current: %s", 
                      releaseInfo.version.c_str(), APP_VERSION);

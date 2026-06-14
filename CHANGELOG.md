@@ -1,3 +1,9 @@
+# v1.4.1
+
+## Bugfixes
+- **Update indicator no longer shows incompatible releases**: the topbar firmware-update badge now only lights up when a newer release includes an asset that matches the current build target. Previously, any newer release triggered the indicator regardless of hardware compatibility, and clicking it immediately offered to install a binary that would fail or brick the device
+- **GitHub OTA download no longer sends an empty URL to the device**: when no compatible binary was found for the build target, the backend returned an empty `download_url`. The device then attempted an OTA connection to an empty hostname, failing with a DNS error. The `update_available` flag is now only set when a matching binary exists, and the UI adds a defensive guard as a belt-and-suspenders check
+
 # v1.4.0
 
 ## Frontend / Firmware Version Sync
