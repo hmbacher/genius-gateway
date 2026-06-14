@@ -60,8 +60,10 @@ void CC1101Controller::begin()
                 _securityManager->wrapRequest(std::bind(&CC1101Controller::_handlerSetRxState, this, std::placeholders::_1),
                                               AuthenticationPredicates::IS_ADMIN));
 
-    // Radio lifecycle status: live event + REST snapshot
+    // Radio lifecycle status: live event + REST snapshot.
+    // Push current state to each new subscriber so reconnecting clients don't show stale status.
     _eventSocket->registerEvent(CC1101_STATUS_EVENT);
+    _eventSocket->onSubscribe(CC1101_STATUS_EVENT, [this](const String &originId) { _emitStatus(originId); });
     _server->on(CC1101CONTROLLER_SERVICE_PATH "/status",
                 HTTP_GET,
                 _securityManager->wrapRequest(std::bind(&CC1101Controller::_handlerGetRadioStatus, this, std::placeholders::_1),
@@ -220,7 +222,7 @@ const char *CC1101Controller::_stateName(cc1101_radio_state_t state)
     }
 }
 
-void CC1101Controller::_emitStatus()
+void CC1101Controller::_emitStatus(const String &originId)
 {
     JsonDocument doc;
     JsonObject root = doc.to<JsonObject>();
@@ -228,7 +230,8 @@ void CC1101Controller::_emitStatus()
     // When OK, the radio is listening (RX) unless the TX path has flagged a send in progress.
     root["mode"] = _transmitting ? "tx" : "rx";
     root["configured"] = (_pinsService != nullptr && _pinsService->isConfigured());
-    _eventSocket->emitEvent(CC1101_STATUS_EVENT, root);
+    bool toOne = originId.length() > 0;
+    _eventSocket->emitEvent(CC1101_STATUS_EVENT, root, toOne ? originId.c_str() : "", toOne);
 }
 
 void CC1101Controller::setTransmitting(bool transmitting)

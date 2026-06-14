@@ -125,8 +125,9 @@ private:
     /// Update the lifecycle state and emit it to the Web UI
     void _setRadioState(cc1101_radio_state_t state);
 
-    /// Emit the current radio lifecycle state over the EventSocket
-    void _emitStatus();
+    /// Emit the current radio lifecycle state over the EventSocket.
+    /// Pass an originId to send only to that subscriber; omit to broadcast.
+    void _emitStatus(const String &originId = "");
 
     /// String name for a radio lifecycle state (UI-facing)
     static const char *_stateName(cc1101_radio_state_t state);
