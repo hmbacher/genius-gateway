@@ -36,61 +36,48 @@ Resets all settings to factory defaults, including:
 !!! danger "Permanent Action"
     Factory reset cannot be undone. All configuration data will be permanently erased. The device will restart with default system settings (from `factory_settings.ini`) and not Genius PLus X related configuration.
 
-## :tabler-cpu: CC1101
+## :tabler-cpu: Radio (CC1101)
 
-The CC1101 page displays the current state of the CC1101 radio transceiver chip used for communication with smoke detectors. This page is only accessible to administrators and only available if the CC1101 controller feature is enabled.
+The CC1101 page provides runtime SPI pin configuration for the CC1101 radio transceiver. This page is only accessible to administrators.
 
-![CC1101 Status](../assets/images/software/gg-system-cc1101.png)
+### Top-Bar Radio Indicator
 
-### Main Radio Control State Machine State (MARCSTATE)
+The radio status is reflected by a persistent icon in the navigation bar that links to this page from anywhere in the interface:
 
-The CC1101 chip operates in various states during normal operation. The page displays the current state in the format `STATE / NAME`, where STATE represents the functional state group and NAME represents the specific MARCSTATE value.
+| Icon | Meaning |
+|------|---------|
+| :tabler-loader-2: | Loading — radio status not yet received |
+| :tabler-ear: | Radio listening (RX) — normal operating state |
+| :tabler-building-broadcast-tower:{ style="color: #2196f3" } | Radio transmitting (TX) |
+| :tabler-loader-2:{ style="color: #2196f3" } | Radio initializing |
+| :tabler-alert-hexagon-filled:{ style="color: #f44336" } | Radio error — check pin configuration |
+| :tabler-settings-off:{ style="color: #f44336" } | Radio not configured |
 
-- **SLEEP / SLEEP**: Low-power sleep mode
-- **IDLE / IDLE**: Radio is idle and ready
-- **XOFF / XOFF**: Crystal oscillator off
-- **MANCAL / VCOON_MC**: Voltage-controlled oscillator on (manual calibration)
-- **MANCAL / REGON_MC**: Regulator on (manual calibration)
-- **MANCAL / MANCAL**: Manual calibration in progress
-- **FS_WAKEUP / VCOON**: Voltage-controlled oscillator on
-- **FS_WAKEUP / REGON**: Regulator on
-- **CALIBRATE / STARTCAL**: Starting calibration
-- **SETTLING / BWBOOST**: Bandwidth boost during settling
-- **SETTLING / FS_LOCK**: Frequency synthesizer lock
-- **SETTLING / IFADCON**: IF ADC on during settling
-- **CALIBRATE / ENDCAL**: Ending calibration
-- **RX / RX**: Receiving mode (normal listening state)
-- **RX / RX_END**: End of receive
-- **RX / RX_RST**: Receive reset
-- **TXRX_SETTLING / TXRX_SWITCH**: Switching from transmit to receive
-- **RXFIFO_OVERFLOW / RXFIFO_OVERFLOW**: Receive buffer overflow (data loss)
-- **FSTXON / FSTXON**: Frequency synthesizer ready for transmission
-- **TX / TX**: Transmitting mode
-- **TX / TX_END**: End of transmit
-- **RXTX_SETTLING / RXTX_SWITCH**: Switching from receive to transmit
-- **TXFIFO_UNDERFLOW / TXFIFO_UNDERFLOW**: Transmit buffer underflow
+### Pin Configuration
 
-### Actions
+The SPI bus and GDO signal pins used by the CC1101 transceiver can be changed at runtime without reflashing the firmware. Pin settings are persisted on the gateway and survive reboots.
 
-#### :tabler-reload: Update CC1101 State
+If the board has predefined wiring presets, a **Wiring** dropdown lets you select one and fills in all pins automatically. Select **Custom** to configure each pin individually.
 
-Click the :tabler-reload: **Update** button to refresh the current CC1101 state from the chip.
+| Pin | Role |
+|-----|------|
+| **CSN** | SPI chip select (active low) |
+| **SCK** | SPI clock |
+| **MOSI** | SPI data from ESP32 to CC1101 |
+| **MISO** | SPI data from CC1101 to ESP32 |
+| **GDO0** | Packet signal — asserted when a packet has been received |
 
-#### :tabler-ear: Set CC1101 to RX State
+To change pins:
 
-Click the :tabler-ear: **Listen** button to command the CC1101 chip to enter receive (RX) mode. This button is disabled if:
-- The chip is already in RX state
-- An SPI communication error occurred
+1. Select a wiring preset or choose **Custom** and pick a GPIO for each pin. Reserved GPIOs are highlighted in red and cannot be selected; strapping pins are highlighted in orange as a caution
+2. Click **Test & Save** — the gateway probes the CC1101 over the new pin assignment and saves the configuration if the self-test passes
+3. The top-bar radio indicator updates to reflect the new state
 
-!!! warning "Not for regular use"
-    The CC1101 chip should typically be in RX state (`RX/RX`) during normal operation to receive packets from smoke detectors. If the chip is in an unexpected state, you can try to return to RX mode.
+!!! warning "Pin conflicts rejected"
+    Assigning the same GPIO to two different pins is blocked before any change is applied.
 
-### Error Conditions
-
-If an error occurs, the state display will show:
-
-- **Red indicator**: Error condition detected
-- **Error message**: Description of the problem (e.g., "SPI error while obtaining state" or "Invalid state")
+!!! info "Existing installations unaffected (Genius Gateway hardware only)"
+    If no pin configuration has been saved, the firmware uses the compile-time defaults from `platformio.ini`. Upgrading from an older firmware leaves pin assignments unchanged until you explicitly apply new ones via this page.
 
 ## :tabler-report-analytics: System Metrics
 
@@ -152,6 +139,38 @@ If a core dump is available:
 !!! info
     If no core dump is available, the message "No core dump available." is displayed.
 
+## :tabler-database-import: Migrations
+
+The Migrations page shows what automatic config upgrades the gateway has performed across firmware versions. When you flash a new firmware, the gateway may need to transform older config files into the shape the new firmware expects — for example, splitting one combined file into two dedicated ones — and it does so without you having to re-enter anything in the UI.
+
+![Migrations](../assets/images/software/gg-system-migrations.png)
+
+!!! info "Administrator Access Required"
+    The Migrations page is only accessible to users with administrator privileges.
+
+### What you see
+
+Every migration the firmware knows about appears on the page in one of four states:
+
+| State | What it means |
+|---|---|
+| :tabler-circle-check:{ style="color: #4caf50" } **Applied** | The migration ran successfully and is recorded. It will never run again on this device. |
+| :tabler-circle-x:{ style="color: #f44336" } **Failed** | Something went wrong while applying. The gateway will normally try again on the next reboot. |
+| :tabler-clock:{ style="color: #ff9800" } **Pending** | The migration hasn't run yet but should — it will be applied on the next reboot. |
+| :tabler-circle-minus:{ style="color: currentColor; opacity: 0.5" } **Not applicable** | The migration doesn't apply to this device. Typically the old config file it would transform doesn't exist here (e.g. on a fresh install). |
+
+On a device upgraded from an older firmware that needed migration work, you will see Applied rows for the migrations that completed. On a fresh install of the same firmware, those same migrations show as Not applicable instead — there was nothing on disk to convert.
+
+A small **critical** badge appears next to the state when a migration is essential for the gateway to start up safely.
+
+### If something failed
+
+If any migration shows as Failed, a warning banner appears at the top of the page. The gateway normally retries failed migrations automatically on the next reboot. If a migration fails several times in a row, the gateway records it as given up to avoid an infinite retry loop. The **Retry on next reboot** button at the top of the page clears that marker so the gateway will try again after you reboot the device.
+
+Pressing Retry does **not** apply migrations immediately — it only clears the give-up marker. You still need to reboot the device. Migrations are designed so that re-running them after a partial failure is safe.
+
+In the rare case that a *critical* migration fails, the gateway will refuse to boot rather than run with inconsistent configuration. You will see this in the serial log. Recovery typically requires a factory reset or a fresh firmware flash.
+
 ## :tabler-refresh-alert: Firmware Update
 
 The Firmware Update page provides two methods for updating the gateway firmware: downloading releases from GitHub or manually uploading firmware files.
@@ -160,6 +179,19 @@ The Firmware Update page provides two methods for updating the gateway firmware:
 
 !!! info "Administrator Access Required"
     Firmware update features are only accessible to users with administrator privileges.
+
+### Top-Bar Update Indicator
+
+A persistent icon in the navigation bar shows the current firmware update status. It is only displayed for administrators when the download firmware feature is enabled:
+
+| Icon | Meaning |
+|------|---------|
+| :tabler-loader-2: | Checking for updates |
+| :tabler-cloud-check: | Firmware is up to date — click to re-check |
+| :tabler-refresh-alert: | Update available — click to install |
+| :tabler-cloud-off:{ style="color: #ff9800" } | Cannot reach GitHub — check internet connection |
+
+A toast notification appears on a successful re-check only when triggered manually (not during the automatic hourly poll).
 
 ### :tabler-brand-github: GitHub Firmware Manager
 

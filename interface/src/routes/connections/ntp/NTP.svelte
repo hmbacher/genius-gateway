@@ -5,6 +5,11 @@
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Collapsible from '$lib/components/Collapsible.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import DirtyField from '$lib/components/DirtyField.svelte';
+	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
+	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
+	import { isHostnameOrIP } from '$lib/utils/validators';
+	import FieldError from '$lib/components/FieldError.svelte';
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
@@ -16,12 +21,13 @@
 	import Stopwatch from '~icons/tabler/24-hours';
 	import type { NTPSettings, NTPStatus } from '$lib/types/models';
 
-	let ntpSettings: NTPSettings = $state({
+	const f = createDirtyState<NTPSettings>({
 		enabled: false,
 		server: '',
 		tz_label: '',
 		tz_format: ''
 	});
+	let settingsLoaded = $state(false);
 	let ntpStatus: NTPStatus = $state({
 		status: 0,
 		utc_time: '',
@@ -55,7 +61,10 @@
 					'Content-Type': 'application/json'
 				}
 			});
-			ntpSettings = await response.json();
+			if (response.ok) {
+				f.reset(await response.json());
+				settingsLoaded = true;
+			}
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -74,11 +83,9 @@
 		}
 	});
 
-	let formErrors = $state({
-		server: false
-	});
+	const serverError = $derived(!isHostnameOrIP(f.current.server));
 
-	async function postNTPSettings(data: NTPSettings) {
+	async function postNTPSettings() {
 		try {
 			const response = await fetch('/rest/ntpSettings', {
 				method: 'POST',
@@ -86,14 +93,14 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(data)
+				body: JSON.stringify(f.current)
 			});
 
 			if (response.status == 200) {
-				notifications.success('Security settings updated.', 3000);
-				ntpSettings = await response.json();
+				notifications.success('NTP settings updated.', 3000);
+				f.reset(await response.json());
 			} else {
-				notifications.error('User not authorized.', 3000);
+				notifications.error('Updating NTP settings failed.', 3000);
 			}
 		} catch (error) {
 			console.error('Error:', error);
@@ -101,43 +108,21 @@
 	}
 
 	function handleSubmitNTP() {
-		let valid = true;
-
-		// Validate Server
-		// RegEx for IPv4
-		const regexExpIPv4 =
-			/\b(?:(?:2(?:[0-4][0-9]|5[0-5])|[0-1]?[0-9]?[0-9])\.){3}(?:(?:2([0-4][0-9]|5[0-5])|[0-1]?[0-9]?[0-9]))\b/;
-		const regexExpURL =
-			/[-a-zA-Z0-9@:%_\+.~#?&//=]{2,256}\.[a-z]{2,4}\b(\/[-a-zA-Z0-9@:%_\+.~#?&//=]*)?/i;
-
-		if (!regexExpURL.test(ntpSettings.server) && !regexExpIPv4.test(ntpSettings.server)) {
-			valid = false;
-			formErrors.server = true;
-		} else {
-			formErrors.server = false;
-		}
-
-		ntpSettings.tz_format = TIME_ZONES[ntpSettings.tz_label];
-
-		// Submit JSON to REST API
-		if (valid) {
-			postNTPSettings(ntpSettings);
-			//alert('Form Valid');
+		if (!serverError) {
+			f.current.tz_format = TIME_ZONES[f.current.tz_label];
+			postNTPSettings();
 		}
 	}
 
 	function convertSeconds(seconds: number) {
-		// Calculate the number of seconds, minutes, hours, and days
 		let minutes = Math.floor(seconds / 60);
 		let hours = Math.floor(minutes / 60);
 		let days = Math.floor(hours / 24);
 
-		// Calculate the remaining hours, minutes, and seconds
 		hours = hours % 24;
 		minutes = minutes % 60;
 		seconds = seconds % 60;
 
-		// Create the formatted string
 		let result = '';
 		if (days > 0) {
 			result += days + ' day' + (days > 1 ? 's' : '') + ' ';
@@ -248,53 +233,79 @@
 	</div>
 
 	{#if !page.data.features.security || $user.admin}
-		<Collapsible open={false} class="shadow-lg" icon={null} opened={() => {}} closed={() => {}}>
+		<Collapsible
+			open={false}
+			class="shadow-lg"
+			icon={null}
+			opened={() => {}}
+			closed={() => {}}
+			isDirty={f.anyDirty}
+			onRevert={() => f.revertAll()}
+		>
 			{#snippet title()}
 				<span>Change NTP Settings</span>
 			{/snippet}
-			<form
-				class="fieldset"
-				onsubmit={(e) => {
-					e.preventDefault();
-					handleSubmitNTP();
-				}}
-				novalidate
-			>
-				<label class="label text-base inline-flex cursor-pointer content-end justify-start gap-4">
-					<input
-						type="checkbox"
-						bind:checked={ntpSettings.enabled}
-						class="checkbox checkbox-primary"
-					/>Enable NTP
-				</label>
+			{#if !settingsLoaded}
+				<Spinner />
+			{:else}
+				<form
+					class="fieldset"
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleSubmitNTP();
+					}}
+					novalidate
+				>
+					<!-- Enable NTP -->
+					<div class="flex items-center w-full">
+						<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('enabled') ? 'w-1 mr-2' : 'w-0'}"></div>
+						<label class="label cursor-pointer justify-start gap-2 items-center">
+							<input type="checkbox" class="toggle toggle-primary shrink-0" bind:checked={f.current.enabled} />
+							<div class="flex items-center gap-2">
+								<span>Enable NTP</span>
+								<DirtyMarker dirty={f.isDirty('enabled')} onrevert={() => f.revert('enabled')} />
+							</div>
+						</label>
+					</div>
 
-				<label class="label" for="server">Server</label>
-				<input
-					type="text"
-					min="3"
-					max="64"
-					class="input w-full invalid:border-error invalid:border-2 {formErrors.server
-						? 'border-error border-2'
-						: ''}"
-					bind:value={ntpSettings.server}
-					id="server"
-					required
-				/>
-				{#if formErrors.server}
-					<p class="text-error text-sm">Please enter a valid NTP server.</p>
-				{/if}
+					<!-- Server -->
+					<label class="label" for="server">Server</label>
+					<DirtyField dirty={f.isDirty('server')} onrevert={() => f.revert('server')}>
+						<input
+							type="text"
+							min="3"
+							max="64"
+							class="input w-full pr-10 {serverError ? 'border-error border-2' : ''}"
+							bind:value={f.current.server}
+							id="server"
+							required
+						/>
+					</DirtyField>
+					<FieldError show={serverError} message="Please enter a valid NTP server." />
 
-				<label class="label" for="tz">Pick Time Zone</label>
-				<select class="select w-full" bind:value={ntpSettings.tz_label} id="tz">
-					{#each Object.entries(TIME_ZONES) as [tz_label, tz_format]}
-						<option value={tz_label}>{tz_label}</option>
-					{/each}
-				</select>
+					<!-- Timezone -->
+					<label class="label" for="tz">Pick Time Zone</label>
+					<label
+						class="input w-full pl-0 {f.isDirty('tz_label') ? 'shadow-[inset_4px_0_0_0_var(--color-red-300)]' : ''}"
+						for="tz"
+					>
+						<select
+							class="h-full flex-1 border-none bg-transparent ps-3 pe-2 outline-none"
+							bind:value={f.current.tz_label}
+							id="tz"
+						>
+							{#each Object.entries(TIME_ZONES) as [tz_label, tz_format]}
+								<option value={tz_label}>{tz_label}</option>
+							{/each}
+						</select>
+						<DirtyMarker dirty={f.isDirty('tz_label')} onrevert={() => f.revert('tz_label')} />
+					</label>
 
-				<div class="mt-4 place-self-end">
-					<button class="btn btn-primary" type="submit">Apply Settings</button>
-				</div>
-			</form>
+					<div class="mt-4 place-self-end">
+						<button class="btn btn-primary" type="submit" disabled={!f.anyDirty || serverError}>Apply Settings</button>
+					</div>
+				</form>
+			{/if}
 		</Collapsible>
 	{/if}
 </SettingsCard>

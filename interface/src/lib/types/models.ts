@@ -354,6 +354,59 @@ export type CC1101State = {
 	state: number;
 }
 
+export type CC1101RadioState = 'unconfigured' | 'initializing' | 'ok' | 'error';
+
+export type CC1101RadioMode = 'idle' | 'rx' | 'tx';
+
+export type CC1101Status = {
+	state: CC1101RadioState;
+	mode?: CC1101RadioMode;
+	configured: boolean;
+};
+
+export type CC1101Pins = {
+	csn: number;
+	miso: number;
+	mosi: number;
+	sck: number;
+	gdo0: number;
+	spi_host: number;
+	configured?: boolean;
+};
+
+export type CC1101Gpio = {
+	num: number;
+	label: string;
+	input: boolean;
+	output: boolean;
+	reserved: boolean;
+	strapping?: boolean;
+};
+
+export type CC1101Preset = {
+	name: string;
+	pins: CC1101Pins;
+};
+
+export type CC1101PinProfile = {
+	label: string;
+	presets: CC1101Preset[];
+};
+
+export type CC1101ValidPins = {
+	gpios: CC1101Gpio[];
+};
+
+export type CC1101ProbeResult = {
+	success: boolean;
+	spi_ok: boolean;
+	chip_detected: boolean;
+	gdo0_ok: boolean;
+	partnum: number;
+	version: number;
+	reason?: string;
+};
+
 export type WSLoggerSettings = {
 	wsLoggerEnabled: boolean;
 };
@@ -364,4 +417,10 @@ export type HASettings = {
 	device_name: string;
 	manufacturer: string;
 	model: string;
+};
+
+export type ReportSettings = {
+	propertyName: string;
+	propertyAddress: string;
+	customerName: string;
 };

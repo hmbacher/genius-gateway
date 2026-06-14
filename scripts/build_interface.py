@@ -86,11 +86,39 @@ def get_package_manager():
         return "npm"
 
 
+def get_app_version():
+    for define in buildFlags.get("CPPDEFINES"):
+        if isinstance(define, list) and define[0] == "APP_VERSION":
+            return str(define[1]).strip('"')
+    return "0.0.0"
+
+
 def build_webapp():
     package_manager = get_package_manager()
     print(f"Building interface with {package_manager}")
+    # @sveltejs/adapter-static only cleans the files it emits, so a previous
+    # build with a different bundle naming scheme (e.g. before/after toggling
+    # kit.output.bundleStrategy or upgrading Vite) leaves stale .js orphans
+    # in build/_app/immutable that build_progmem() then blindly embeds into
+    # WWWData.h -- silently inflating the firmware by ~1 MB per orphan. Wipe
+    # build/ first so every rebuild starts clean. Do NOT wipe .svelte-kit/ --
+    # it's metadata SvelteKit regenerates on demand and tsconfig.json extends
+    # from it, so wiping it produces a noisy "cannot find base config" warning
+    # until svelte-kit sync re-creates it mid-build.
+    if exists(build_dir):
+        rmtree(build_dir)
     os.chdir(interface_dir)
     env.Execute(f"{package_manager} install")
+    # Pass APP_VERSION to the Vite plugin so it can stamp the combined
+    # APP_VERSION_FULL into version.ts (frontend) and AppVersion.h (firmware).
+    os.environ["APP_VERSION"] = get_app_version()
+    # Tell vite-plugin-littlefs to keep Rollup's content hashes when the bundle
+    # is going into PROGMEM — there is no 32-char filename limit there, and the
+    # firmware's "Cache-Control: immutable" header on /_app/immutable/* is only
+    # safe when filenames actually change with their contents.
+    if flag_exists("EMBED_WWW"):
+        os.environ["EMBED_WWW"] = "1"
+    print(f"Building with APP_VERSION={os.environ['APP_VERSION']}")
     env.Execute(f"{package_manager} run build")
     os.chdir("..")
 

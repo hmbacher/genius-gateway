@@ -13,7 +13,10 @@
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
 		AlarmLines,
-		AlarmLine
+		AlarmLine,
+		ReportSettings,
+		StaticSystemInformation,
+		WifiSettings
 	} from '$lib/types/models';
 	import {
 		GeniusDeviceRegistration,
@@ -32,13 +35,16 @@
 	import EditSmokeDetector from './EditSmokeDetector.svelte';
 	import AlarmLog from './AlarmLog.svelte';
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
+	import DeviceImportDialog from './DeviceImportDialog.svelte';
 	import DeviceDetailsDialog from './DeviceDetailsDialog.svelte';
+	import PdfReportDialog from './PdfReportDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
 	import { matchAcousticResult, matchAcousticUpdate } from './acousticMatch';
 	import DeleteAll from '~icons/tabler/trash-x';
 	import Add from '~icons/tabler/circle-plus';
 	import SmokeDetector from '~icons/custom-icons/smoke-detector-m';
 	import Cancel from '~icons/tabler/x';
+	import ClipboardList from '~icons/tabler/clipboard-list';
 	import Check from '~icons/tabler/check';
 	import Save from '~icons/tabler/device-floppy';
 	import Load from '~icons/tabler/folder-open';
@@ -52,35 +58,223 @@
 
 	const GENIUS_DEVICE_DEFAULT_LOCATION = 'Unknown location';
 
+	// Backend rejects request bodies > 16 KB (PsychicHttp MAX_REQUEST_BODY_SIZE).
+	// Budget set well below the hard limit because larger chunks have been observed to
+	// stall the HTTP task before our handler runs (likely body-read / JsonDocument
+	// memory pressure under WS keepalive load — TBC via server-side log).
+	// 6 KB ≈ 3 fully-populated devices per chunk; 50-device imports = ~17 round-trips,
+	// well within an acceptable interactive latency budget.
+	const IMPORT_CHUNK_BYTE_BUDGET = 6000;
+
 	let { data }: Props = $props();
 
 	$effect(() => {
 		if (!$user.admin) goto('/');
 	});
 
-	async function postGeniusDevices() {
-		try {
-			const response = await fetch('/rest/gateway-devices', {
-				method: 'POST',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ devices: geniusDevices.devices } as GeniusDevices)
-			});
+	function authHeaders(): Record<string, string> {
+		return {
+			Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+			'Content-Type': 'application/json'
+		};
+	}
 
-			if (response.status == 200) {
-				notifications.success('Smoke detectors updated.', 3000);
-				geniusDevices.devices = (
-					JSON.parse(await response.text(), jsonDateReviver) as GeniusDevices
-				).devices;
-			} else {
-				notifications.error('Updating smoke detectors failed.', 3000);
+	/** Upsert a single device. Server returns the canonical device on success; the local store
+	 *  entry is replaced so anything the server normalized propagates back into the UI. */
+	async function apiPutDevice(device: GeniusDevice): Promise<boolean> {
+		try {
+			const response = await fetch('/rest/gateway-devices/device', {
+				method: 'PUT',
+				headers: authHeaders(),
+				body: JSON.stringify(device)
+			});
+			if (response.status === 200) {
+				const saved = JSON.parse(await response.text(), jsonDateReviver) as GeniusDevice;
+				const idx = geniusDevices.devices.findIndex((d) => d.id === saved.id);
+				if (idx >= 0) geniusDevices.devices[idx] = saved;
+				else geniusDevices.devices = [...geniusDevices.devices, saved];
+				notifications.success('Smoke detector saved.', 3000);
+				return true;
 			}
+			notifications.error('Saving smoke detector failed.', 3000);
+			return false;
 		} catch (error) {
 			console.error('Error:', error);
+			notifications.error('Saving smoke detector failed.', 3000);
+			return false;
 		}
-		return;
+	}
+
+	async function apiDeleteDevice(id: number): Promise<boolean> {
+		try {
+			const response = await fetch('/rest/gateway-devices/device/delete', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ id })
+			});
+			if (response.status === 200) {
+				geniusDevices.devices = geniusDevices.devices.filter((d) => d.id !== id);
+				notifications.success('Smoke detector deleted.', 3000);
+				return true;
+			}
+			notifications.error('Deleting smoke detector failed.', 3000);
+			return false;
+		} catch (error) {
+			console.error('Error:', error);
+			notifications.error('Deleting smoke detector failed.', 3000);
+			return false;
+		}
+	}
+
+	async function apiReorderDevices(order: number[]): Promise<boolean> {
+		try {
+			const response = await fetch('/rest/gateway-devices/reorder', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ order })
+			});
+			if (response.status === 200) return true;
+			notifications.error('Reordering failed.', 3000);
+			return false;
+		} catch (error) {
+			console.error('Error:', error);
+			notifications.error('Reordering failed.', 3000);
+			return false;
+		}
+	}
+
+	/** Group devices into chunks whose serialized JSON byte size stays under the budget.
+	 *  Each chunk always contains at least one device — a device larger than the budget
+	 *  is sent on its own and the server may reject it (surfaced as an error). */
+	function chunkByBytes(devices: GeniusDevice[]): GeniusDevice[][] {
+		const encoder = new TextEncoder();
+		const chunks: GeniusDevice[][] = [];
+		let current: GeniusDevice[] = [];
+		let currentBytes = 2; // outer "[]"
+		for (const d of devices) {
+			const devBytes = encoder.encode(JSON.stringify(d)).length;
+			const separatorBytes = current.length > 0 ? 1 : 0; // comma between elements
+			if (current.length > 0 && currentBytes + separatorBytes + devBytes > IMPORT_CHUNK_BYTE_BUDGET) {
+				chunks.push(current);
+				current = [];
+				currentBytes = 2;
+			}
+			current.push(d);
+			currentBytes += (current.length > 1 ? 1 : 0) + devBytes;
+		}
+		if (current.length > 0) chunks.push(current);
+		return chunks;
+	}
+
+	/** Atomically replace the full device list using the chunked-import protocol.
+	 *  Used for file import and for "delete all" — both cases where holding the whole
+	 *  payload in one HTTP body would exceed the backend's body-size limit.
+	 *
+	 *  `onProgress` lets a progress dialog drive its UI from the chunk loop.
+	 *  `signal` cancels in-flight fetches and breaks out of the chunk loop; on user
+	 *  abort the function still POSTs /import/abort with an UNbound fetch so the
+	 *  server-side session slot is freed even after the signal has fired. */
+	async function replaceAllDevices(
+		devices: GeniusDevice[],
+		onProgress?: (p: import('./DeviceImportDialog.svelte').ImportProgress) => void,
+		signal?: AbortSignal
+	): Promise<{ ok: boolean; error?: string; aborted?: boolean }> {
+		let sessionId = '';
+		// Cleanup uses a fresh fetch (no signal) so it completes even after the caller
+		// aborted the controller — otherwise we'd leave the server-side session slot held.
+		const cleanupSession = async () => {
+			if (!sessionId) return;
+			await fetch('/rest/gateway-devices/import/abort', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ sessionId })
+			}).catch(() => {});
+			sessionId = '';
+		};
+		const isAborted = () => signal?.aborted === true;
+		try {
+			onProgress?.({ phase: 'starting' });
+			const beginRes = await fetch('/rest/gateway-devices/import/begin', {
+				method: 'POST',
+				headers: authHeaders(),
+				signal
+			});
+			if (beginRes.status !== 200) {
+				const msg = beginRes.status === 409
+					? 'Another import is in progress. Please try again in a minute.'
+					: 'Could not start import.';
+				return { ok: false, error: msg };
+			}
+			sessionId = (await beginRes.json()).sessionId as string;
+
+			const chunks = chunkByBytes(devices);
+			let devicesSent = 0;
+			for (let i = 0; i < chunks.length; i++) {
+				if (isAborted()) {
+					await cleanupSession();
+					return { ok: false, aborted: true };
+				}
+				const chunk = chunks[i];
+				const chunkRes = await fetch('/rest/gateway-devices/import/chunk', {
+					method: 'POST',
+					headers: authHeaders(),
+					body: JSON.stringify({ sessionId, devices: chunk }),
+					signal
+				});
+				if (chunkRes.status !== 200) {
+					const detail = await chunkRes.text().catch(() => '');
+					await cleanupSession();
+					return {
+						ok: false,
+						error: `Chunk rejected (${chunkRes.status})` + (detail ? `: ${detail}` : '')
+					};
+				}
+				devicesSent += chunk.length;
+				onProgress?.({
+					phase: 'uploading',
+					chunkIndex: i + 1,
+					totalChunks: chunks.length,
+					devicesSent,
+					devicesTotal: devices.length
+				});
+			}
+
+			if (isAborted()) {
+				await cleanupSession();
+				return { ok: false, aborted: true };
+			}
+
+			onProgress?.({ phase: 'committing' });
+			const commitRes = await fetch('/rest/gateway-devices/import/commit', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ sessionId }),
+				signal
+			});
+			if (commitRes.status !== 200) {
+				await cleanupSession();
+				return { ok: false, error: 'Commit failed.' };
+			}
+			sessionId = ''; // committed — no abort needed
+
+			// Server is now authoritative — adopt the submitted list locally.
+			geniusDevices.devices = devices;
+			return { ok: true };
+		} catch (error) {
+			// AbortController.abort() causes fetch to throw a DOMException with name 'AbortError'.
+			const aborted = isAborted() || (error instanceof DOMException && error.name === 'AbortError');
+			if (!aborted) console.error('Error:', error);
+			await cleanupSession();
+			if (aborted) return { ok: false, aborted: true };
+			return { ok: false, error: error instanceof Error ? error.message : String(error) };
+		}
+	}
+
+	/** Thin wrapper for callers that don't want the progress dialog (delete-all). */
+	async function replaceAllDevicesQuiet(devices: GeniusDevice[]): Promise<boolean> {
+		const result = await replaceAllDevices(devices);
+		if (!result.ok) notifications.error(result.error ?? 'Import failed.', 4000);
+		return result.ok;
 	}
 
 	function confirmDeleteAll() {
@@ -97,9 +291,8 @@
 			},
 			confirmClass: 'btn-error',
 			onConfirm: async () => {
-				geniusDevices.devices = [];
 				modals.close();
-				await postGeniusDevices();
+				await replaceAllDevicesQuiet([]);
 			}
 		});
 	}
@@ -118,9 +311,9 @@
 				confirm: { label: 'Yes', icon: Check }
 			},
 			onConfirm: async () => {
-				geniusDevices.devices.splice(index, 1);
+				const id = geniusDevices.devices[index].id;
 				modals.close();
-				await postGeniusDevices();
+				await apiDeleteDevice(id);
 			}
 		});
 	}
@@ -131,8 +324,7 @@
 			//geniusDevice: { ...geniusDevices.devices[index] }, // Shallow Copy
 			geniusDevice: $state.snapshot(geniusDevices.devices[index]), // Deep copy
 			onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
-				geniusDevices.devices[index] = editedGeniusDevice;
-				await postGeniusDevices();
+				await apiPutDevice(editedGeniusDevice);
 				modals.close();
 			}
 		});
@@ -142,8 +334,7 @@
 		modals.open(EditSmokeDetector, {
 			title: 'Add smoke detector',
 			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				geniusDevices.devices = [...geniusDevices.devices, newGeniusDevice];
-				await postGeniusDevices();
+				await apiPutDevice(newGeniusDevice);
 				modals.close();
 			}
 		});
@@ -162,7 +353,7 @@
 			(d, i) => d.smokeDetector.sn !== geniusDevices.devices[i]?.smokeDetector.sn
 		);
 		geniusDevices.devices = reorderedDevices;
-		if (orderChanged) postGeniusDevices();
+		if (orderChanged) apiReorderDevices(reorderedDevices.map((d) => d.id));
 	}
 
 	function handleAcousticDetection() {
@@ -282,9 +473,8 @@
 		newDevice.location = existing.location;
 		newDevice.alarms = existing.alarms;
 		newDevice.isAlarming = existing.isAlarming;
-		geniusDevices.devices[index] = newDevice;
-		await postGeniusDevices();
-		notifications.success('Readout data updated successfully.', 3000);
+		const ok = await apiPutDevice(newDevice);
+		if (ok) notifications.success('Readout data updated successfully.', 3000);
 		checkAndWarnDiagnostics(newDevice, () => checkAndOfferAlarmLine(newDevice));
 	}
 
@@ -339,8 +529,7 @@
 							geniusDevice: newDevice,
 							saveButtonLabel: 'Replace',
 							onSaveGeniusDevice: async (editedDevice: GeniusDevice) => {
-								geniusDevices.devices[match.fmIndex] = editedDevice;
-								await postGeniusDevices();
+								await apiPutDevice(editedDevice);
 								modals.close();
 								checkAndWarnDiagnostics(editedDevice, () => checkAndOfferAlarmLine(editedDevice));
 							}
@@ -353,6 +542,7 @@
 			case 'cross-match': {
 				const deviceA = geniusDevices.devices[match.rwmIndex];
 				const deviceB = geniusDevices.devices[match.fmIndex];
+				const idsToDelete = [deviceA.id, deviceB.id];
 				modals.open(ConfirmDialog, {
 					title: 'Components found in different devices',
 					message:
@@ -365,12 +555,8 @@
 						confirm: { label: 'Continue', icon: Check }
 					},
 					onConfirm: () => {
-						// Remove both old devices
-						geniusDevices.devices = geniusDevices.devices.filter(
-							(d) => d.smokeDetector.sn !== rwmSN && d.radioModule.sn !== fmSN
-						);
 						modals.close();
-						acousticAddNew(newDevice, 'Delete previous & add device');
+						acousticAddNew(newDevice, 'Delete previous & add device', idsToDelete);
 					}
 				});
 				return;
@@ -378,14 +564,16 @@
 		}
 	}
 
-	function acousticAddNew(device: GeniusDevice, saveButtonLabel: string = 'Add') {
+	function acousticAddNew(device: GeniusDevice, saveButtonLabel: string = 'Add', idsToDeleteFirst: number[] = []) {
 		modals.open(EditSmokeDetector, {
 			title: 'Add smoke detector',
 			geniusDevice: device,
 			saveButtonLabel,
 			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				geniusDevices.devices = [...geniusDevices.devices, newGeniusDevice];
-				await postGeniusDevices();
+				// Cross-match path: clean up superseded devices first. Not atomic across requests —
+				// if a delete fails mid-flight the user sees the error and can retry.
+				for (const id of idsToDeleteFirst) await apiDeleteDevice(id);
+				await apiPutDevice(newGeniusDevice);
 				modals.close();
 				checkAndWarnDiagnostics(newGeniusDevice, () => checkAndOfferAlarmLine(newGeniusDevice));
 			}
@@ -547,6 +735,41 @@
 		});
 	}
 
+	let pdfGenerating = $state(false);
+
+	function handleGenerateReport() {
+		pdfGenerating = true;
+		const devices = $state.snapshot(geniusDevices).devices;
+		const headers: Record<string, string> = {
+			Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+			'Content-Type': 'application/json'
+		};
+		modals.open(PdfReportDialog, {
+			task: async (onProgress) => {
+				try {
+					onProgress('Fetching report data');
+					const [reportRes, systemRes, wifiRes] = await Promise.all([
+						fetch('/rest/report-settings', { headers }),
+						fetch('/rest/systemStatus', { headers }),
+						fetch('/rest/wifiSettings', { headers })
+					]);
+					const reportSettings: ReportSettings = await reportRes.json();
+					const systemInfo: StaticSystemInformation = await systemRes.json();
+					const wifiSettings: WifiSettings = await wifiRes.json();
+					const { generateSmokeDetectorReport } = await import('./pdfReport');
+					await generateSmokeDetectorReport(
+						devices,
+						reportSettings,
+						{ hostname: wifiSettings.hostname, firmwareVersion: systemInfo.firmware_version },
+						onProgress
+					);
+				} finally {
+					pdfGenerating = false;
+				}
+			}
+		});
+	}
+
 	let files = $state<FileList | undefined>(undefined);
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 
@@ -613,23 +836,28 @@
 						migrateGeniusDevices(importedGeniusDevices, fileVersion);
 					}
 
-					const finishImport = async () => {
-						geniusDevices.devices = importedGeniusDevices.devices;
-						await postGeniusDevices();
-						if (fileVersion < CURRENT_VERSION) {
-							modals.open(InfoDialog, {
-								title: 'Migration Successful',
-								message: `The file was from an older backup (v${fileVersion}) and has been automatically migrated to the current format (v${CURRENT_VERSION}).<br><br>Please verify your smoke detector configuration and export a fresh backup.`,
-								variant: 'info',
-								onDismiss: () => {
-									modals.close();
+					const finishImport = () => {
+						modals.open(DeviceImportDialog, {
+							totalDevices: importedGeniusDevices.devices.length,
+							task: (onProgress, signal) =>
+								replaceAllDevices(importedGeniusDevices.devices, onProgress, signal),
+							onSuccess: () => {
+								if (fileVersion < CURRENT_VERSION) {
+									modals.open(InfoDialog, {
+										title: 'Migration Successful',
+										message: `The file was from an older backup (v${fileVersion}) and has been automatically migrated to the current format (v${CURRENT_VERSION}).<br><br>Please verify your smoke detector configuration and export a fresh backup.`,
+										variant: 'info',
+										onDismiss: () => {
+											modals.close();
+											checkImportedDeviceFaults(importedGeniusDevices.devices);
+										}
+									});
+								} else {
+									notifications.success('Smoke detectors imported.', 3000);
 									checkImportedDeviceFaults(importedGeniusDevices.devices);
 								}
-							});
-						} else {
-							notifications.success('Smoke detectors imported.', 3000);
-							checkImportedDeviceFaults(importedGeniusDevices.devices);
-						}
+							}
+						});
 					};
 
 					const alarmingCount = importedGeniusDevices.devices.filter((d) => d.isAlarming).length;
@@ -643,26 +871,18 @@
 							},
 							confirmClass: 'btn-success',
 							cancelClass: 'btn-warning',
-							onCancel: async () => {
+							onCancel: () => {
 								modals.close();
-								try {
-									await finishImport();
-								} catch {
-									notifications.error('Error importing smoke detectors.', 3000);
-								}
+								finishImport();
 							},
-							onConfirm: async () => {
+							onConfirm: () => {
 								modals.close();
 								clearAlarmingDevices(importedGeniusDevices.devices);
-								try {
-									await finishImport();
-								} catch {
-									notifications.error('Error importing smoke detectors.', 3000);
-								}
+								finishImport();
 							}
 						});
 					} else {
-						await finishImport();
+						finishImport();
 					}
 				}
 			} catch (error) {
@@ -710,8 +930,9 @@
 			{#snippet actions()}
 				<div class="tooltip tooltip-bottom" data-tip="Add smoke detector">
 					<button
-						class="btn btn-primary text-primary-content btn-md"
+						class="btn btn-primary btn-md"
 						aria-label="Add smoke detector"
+						disabled={!geniusDevices.isLoaded}
 						onclick={handleNewGeniusDevice}
 					>
 						<Add class="h-6 w-6" />
@@ -725,11 +946,12 @@
 				>
 					<button
 						class={isSecureContext
-							? 'btn btn-primary text-primary-content btn-md'
-							: 'btn btn-warning text-warning-content btn-md'}
+							? 'btn btn-primary btn-md'
+							: 'btn btn-warning btn-md'}
 						aria-label={isSecureContext
 							? 'Add smoke detector via acoustic detection'
 							: 'Acoustic device detection requires a secure (HTTPS) connection'}
+						disabled={!geniusDevices.isLoaded}
 						onclick={handleAcousticDetection}
 					>
 						<span class="relative inline-flex">
@@ -745,17 +967,26 @@
 				<div class="tooltip tooltip-left" data-tip="Load smoke detector configuration from file">
 					<label
 						for="upload"
-						class="btn btn-primary text-primary-content btn-md"
+						class="btn btn-primary btn-md"
+						class:btn-disabled={!geniusDevices.isLoaded}
 						aria-label="Load smoke detector configuration from file"
 					>
 						<Load class="h-6 w-6" />
 					</label>
-					<input bind:files bind:this={fileInput} id="upload" type="file" class="hidden" />
+					<input
+						bind:files
+						bind:this={fileInput}
+						id="upload"
+						type="file"
+						class="hidden"
+						disabled={!geniusDevices.isLoaded}
+					/>
 				</div>
 				<div class="tooltip tooltip-left" data-tip="Save smoke detector configuration to file">
 					<button
-						class="btn btn-primary text-primary-content btn-md"
+						class="btn btn-primary btn-md"
 						aria-label="Save smoke detector configuration to file"
+						disabled={!geniusDevices.isLoaded}
 						onclick={() =>
 							downloadObjectAsJson(
 								{ version: 1, devices: geniusDevices.devices },
@@ -765,9 +996,25 @@
 						<Save class="h-6 w-6" />
 					</button>
 				</div>
+				<div class="tooltip tooltip-left" data-tip="Generate PDF report">
+					<button
+						class="btn btn-primary btn-md"
+						aria-label="Generate PDF report"
+						disabled={!geniusDevices.isLoaded ||
+							geniusDevices.devices.length === 0 ||
+							pdfGenerating}
+						onclick={handleGenerateReport}
+					>
+						{#if pdfGenerating}
+							<span class="loading loading-spinner loading-sm"></span>
+						{:else}
+							<ClipboardList class="h-6 w-6" />
+						{/if}
+					</button>
+				</div>
 				<div class="tooltip tooltip-left" data-tip="Delete all smoke detectors">
 					<button
-						class="btn btn-error text-error-content btn-md"
+						class="btn btn-error btn-md"
 						aria-label="Delete all smoke detectors"
 						disabled={!geniusDevices.isLoaded || geniusDevices.devices.length === 0}
 						onclick={confirmDeleteAll}

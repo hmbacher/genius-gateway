@@ -9,6 +9,8 @@
 	import type { WSLoggerSettings } from '$lib/types/models';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import DirtyMarker from '$lib/components/DirtyMarker.svelte';
+	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
 	import IconSettings from '~icons/tabler/adjustments';
 	import IconSave from '~icons/tabler/device-floppy';
 	import IconInfo from '~icons/tabler/info-circle';
@@ -18,10 +20,7 @@
 		wsLoggerEnabled: false
 	};
 
-	let loggerSettings: WSLoggerSettings = $state(defaultSettings);
-	let strSettings: string = $state(JSON.stringify(defaultSettings)); // to recognize changes
-
-	let isSettingsDirty: boolean = $derived(JSON.stringify(loggerSettings) !== strSettings);
+	const f = createDirtyState<WSLoggerSettings>({ ...defaultSettings });
 
 	async function getWSLoggerSettings() {
 		try {
@@ -33,8 +32,7 @@
 				}
 			});
 
-			loggerSettings = await response.json();
-			strSettings = JSON.stringify(loggerSettings); // Store the recently loaded settings in a string variable
+			f.reset(await response.json());
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -49,13 +47,12 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(loggerSettings)
+				body: JSON.stringify(f.current)
 			});
 
 			if (response.status == 200) {
 				notifications.success('WebSocket Logger settings updated.', 3000);
-				loggerSettings = await response.json();
-				strSettings = JSON.stringify(loggerSettings); // Store the recently loaded settings in a string variable
+				f.reset(await response.json());
 			} else {
 				notifications.error('Error on updating WebSocket Logger settings.', 3000);
 			}
@@ -71,7 +68,7 @@
 		class="mx-0 my-1 flex flex-col space-y-4
      sm:mx-8 sm:my-8"
 	>
-		<SettingsCard collapsible={false} isDirty={isSettingsDirty}>
+		<SettingsCard collapsible={false} isDirty={f.anyDirty} onRevert={() => f.revertAll()}>
 			{#snippet icon()}
 				<IconSettings class="h-6 w-6" />
 			{/snippet}
@@ -81,19 +78,26 @@
 			{#await getWSLoggerSettings()}
 				<Spinner />
 			{:then nothing}
-				<div class="flex w-full flex-col gap-2 px-2">
-					<div>
-						<label class="label cursor-pointer w-full justify-between items-start whitespace-normal">
-							<span class="min-w-0 mr-4">Enable WebSocket Logger</span>
+				<div class="flex w-full flex-col gap-2">
+					<div class="flex items-center w-full">
+						<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('wsLoggerEnabled') ? 'w-1 mr-2' : 'w-0'}"></div>
+						<label class="label cursor-pointer flex-1 justify-between items-center whitespace-normal">
+							<div class="flex items-center gap-1 min-w-0 mr-4">
+								<span>Enable WebSocket Logger</span>
+								<DirtyMarker
+									dirty={f.isDirty('wsLoggerEnabled')}
+									onrevert={() => f.revert('wsLoggerEnabled')}
+								/>
+							</div>
 							<input
 								type="checkbox"
-								class="toggle toggle-primary"
-								bind:checked={loggerSettings.wsLoggerEnabled}
+								class="toggle toggle-primary shrink-0"
+								bind:checked={f.current.wsLoggerEnabled}
 							/>
 						</label>
 					</div>
 				</div>
-				{#if loggerSettings.wsLoggerEnabled}
+				{#if f.current.wsLoggerEnabled}
 					<div
 						class="alert alert-info shadow-md mt-1"
 						transition:slide|local={{ duration: 300, easing: cubicOut }}
@@ -126,7 +130,7 @@
 						<button
 							class="btn btn-primary"
 							type="button"
-							disabled={!isSettingsDirty}
+							disabled={!f.anyDirty}
 							onclick={() => {
 								postWSLoggerSettings();
 							}}

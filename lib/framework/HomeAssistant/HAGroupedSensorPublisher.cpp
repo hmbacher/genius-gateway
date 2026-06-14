@@ -70,6 +70,7 @@ void HAGroupedSensorPublisher::publishAll()
     for (const auto &sensor : _sensors)
     {
         _publishSensorConfig(sensor);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     publishState();

@@ -2,7 +2,7 @@
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import Down from '~icons/tabler/chevron-down';
-	import Alert from '~icons/tabler/alert-hexagon';
+	import IconRevert from '~icons/tabler/arrow-back-up';
 
 	interface Props {
 		open?: boolean;
@@ -14,6 +14,8 @@
 		children?: import('svelte').Snippet;
 		class?: string;
 		isDirty?: boolean;
+		/** When set, the dirty indicator becomes a clickable button that reverts all changes. */
+		onRevert?: () => void;
 	}
 
 	let {
@@ -24,7 +26,8 @@
 		title,
 		children,
 		class: className = '',
-		isDirty = false
+		isDirty = false,
+		onRevert
 	}: Props = $props();
 
 	function openCollapsible() {
@@ -46,9 +49,21 @@
 			<span class="shrink-0 inline-flex mt-0.5">{@render icon?.()}</span>
 			{@render title?.()}
 			{#if isDirty}
-				<div data-tip="There are unsaved changes." class="tooltip tooltip-right tooltip-error">
-					<Alert class="text-error flex-shrink-0 ml-2 h-6 w-6 self-center cursor-help" />
-				</div>
+				{#if onRevert}
+					<button
+						type="button"
+						data-tip="Revert all changes"
+						aria-label="Revert all changes"
+						class="tooltip tooltip-right text-error self-center ml-2 flex shrink-0 cursor-pointer items-center"
+						onclick={() => onRevert?.()}
+					>
+						<IconRevert class="h-6 w-6" />
+					</button>
+				{:else}
+					<div data-tip="There are unsaved changes." class="tooltip tooltip-right tooltip-error">
+						<IconRevert class="text-error flex-shrink-0 ml-2 h-6 w-6 self-center cursor-help" />
+					</div>
+				{/if}
 			{/if}
 		</span>
 		<button class="btn btn-circle btn-ghost btn-sm self-start" onclick={() => openCollapsible()}>

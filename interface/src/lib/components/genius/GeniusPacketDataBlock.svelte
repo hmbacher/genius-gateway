@@ -20,7 +20,7 @@
 
 </script>
 
-<div class="grid items-center gap-1 text-sm" data-type={showDetails && details && details.type ? details.type : ''} style="grid-template-columns: repeat({data.length}, minmax(0, 1fr));">
+<div class="grid items-center gap-1 text-sm" data-type={showDetails && details && details.type ? details.type : undefined} style="grid-template-columns: repeat({data.length}, minmax(0, 1fr));">
 	{#each data as byte}
 		<div class="packet-data-1">{byte.toString(16).padStart(2, '0').toUpperCase()}</div>
 	{/each}

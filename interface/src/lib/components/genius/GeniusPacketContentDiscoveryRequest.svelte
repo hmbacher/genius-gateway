@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Packet } from '$lib/types/models';
 	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
+	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
 	import IconWifi from '~icons/tabler/wifi';
 	import IconRing from '~icons/tabler/topology-ring-2';
 	import IconHops from '~icons/tabler/arrow-forward-up';
@@ -24,7 +25,7 @@
 		type: 'counter'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(3, 9)} />
+<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(3, 9)} />
 <GeniusPacketDataBlock
 	{showDetails}
 	data={packet.data.subarray(9, 13)}
@@ -79,4 +80,4 @@
 		type: 'sequence-nr'
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(24, 28)} />
+<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(24, 28)} />

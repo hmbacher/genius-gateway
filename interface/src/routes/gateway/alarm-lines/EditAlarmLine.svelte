@@ -2,10 +2,10 @@
 	import { modals } from 'svelte-modals';
 	import type { Action } from 'svelte/action';
 	import { fly } from 'svelte/transition';
-	import { slide } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
 	import type { AlarmLine } from '$lib/types/models';
 	import { AlarmLineAcquisition } from '$lib/types/enums';
+	import FieldError from '$lib/components/FieldError.svelte';
+	import { inRange, hasLength } from '$lib/utils/validators';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
 
@@ -36,27 +36,19 @@
 	// https://github.com/sveltejs/svelte/issues/12320
 	let alarmLine = $state(_alarmLine);
 
-	let _orgID = $state.snapshot(alarmLine.id); // Store the original ID to check for duplicates
+	const _orgID = $state.snapshot(alarmLine.id);
 
-	let minID = 0x00000001;
-	let maxID = 0xfffffffe;
+	const minID = 0x00000001;
+	const maxID = 0xfffffffe;
+	const minNameLength = 1;
+	const maxNameLength = 100;
 
-	let minNameLength = 1;
-	let maxNameLength = 100;
-
-	let formErrors = $state({
-		id: {
-			range: alarmLine.id < minID || alarmLine.id > maxID,
-			exists: idExists(alarmLine.id)
-		},
-		name: alarmLine.name.length < minNameLength || alarmLine.name.length > maxNameLength
-	});
-
-	let hasformErrors = $derived(formErrors.id.range || formErrors.id.exists || formErrors.name);
-
-	function idExists(id: number) {
-		return existingAlarmLines.some((line) => line.id === id) && id !== _orgID;
-	}
+	const idRangeError = $derived(!inRange(alarmLine.id, minID, maxID));
+	const idExistsError = $derived(
+		existingAlarmLines.some((line) => line.id === alarmLine.id) && alarmLine.id !== _orgID
+	);
+	const nameError = $derived(!hasLength(alarmLine.name, minNameLength, maxNameLength));
+	const hasErrors = $derived(idRangeError || idExistsError || nameError);
 
 	const focus: Action = (node) => {
 		// the node has been mounted in the DOM
@@ -90,54 +82,33 @@
 				<div class="flex flex-col gap-2">
 					<div class="flex-1">
 						<label class="label" for="AlarmLineID">ID</label>
-						<input
-							type="number"
-							placeholder="Provide a unique ID for the alarm line"
-							min={minID}
-							max={maxID}
-							required
-							disabled={alarmLine.acquisition === AlarmLineAcquisition.Acoustic ||
-								alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket}
-							class="input input-bordered invalid:border-error w-full invalid:border-2 {formErrors
-								.id.range || formErrors.id.exists
-								? 'border-error border-2'
-								: ''}"
-							bind:value={alarmLine.id}
-							id="AlarmLineID"
-							oninput={() => {
-								formErrors.id.range = alarmLine.id < minID || alarmLine.id > maxID;
-								formErrors.id.exists = idExists(alarmLine.id);
-							}}
-							use:focus
-						/>
+						<label
+							for="AlarmLineID"
+							class="input input-bordered w-full {idRangeError || idExistsError ? 'border-error border-2' : ''}"
+						>
+							<input
+								type="number"
+								placeholder="Provide a unique ID for the alarm line"
+								min={minID}
+								max={maxID}
+								required
+								disabled={alarmLine.acquisition === AlarmLineAcquisition.Acoustic ||
+									alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket}
+								class=""
+								bind:value={alarmLine.id}
+								id="AlarmLineID"
+								use:focus
+							/>
+						</label>
 						{#if alarmLine.acquisition === AlarmLineAcquisition.Acoustic || alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="AlarmLineID" class="label">
-									<span class="text-wrap pl-1">
-										IDs of alarm lines discovered via {alarmLine.acquisition ===
-										AlarmLineAcquisition.Acoustic
-											? 'acoustic readout'
-											: 'Genius radio packet'} cannot be changed.
-									</span>
-								</label>
-							</div>
-						{:else if formErrors.id.range}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="AlarmLineID" class="label">
-									<span class="text-error text-wrap">
-										The alarm line ID must be a valid number between {minID} and
-										{maxID}.
-									</span>
-								</label>
-							</div>
-						{:else if formErrors.id.exists}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="AlarmLineID" class="label">
-									<span class="text-error text-wrap">
-										This alarm line ID is already registered.
-									</span>
-								</label>
-							</div>
+							<label for="AlarmLineID" class="label">
+								<span class="text-wrap pl-1">
+									IDs of alarm lines discovered via {alarmLine.acquisition === AlarmLineAcquisition.Acoustic ? 'acoustic readout' : 'Genius radio packet'} cannot be changed.
+								</span>
+							</label>
+						{:else}
+							<FieldError show={idRangeError} message="The alarm line ID must be a valid number between {minID} and {maxID}." />
+							<FieldError show={idExistsError} message="This alarm line ID is already registered." />
 						{/if}
 					</div>
 					<div class="flex-1">
@@ -151,21 +122,8 @@
 							class="input input-bordered invalid:border-error w-full invalid:border-2"
 							bind:value={alarmLine.name}
 							id="AlarmLineName"
-							oninput={() => {
-								formErrors.name =
-									alarmLine.name.length < minNameLength || alarmLine.name.length > maxNameLength;
-							}}
 						/>
-						{#if formErrors.name}
-							<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-								<label for="AlarmLineName" class="label">
-									<span class="text-error text-wrap">
-										Please set a name of length between {minNameLength} and
-										{maxNameLength} characters.
-									</span>
-								</label>
-							</div>
-						{/if}
+						<FieldError show={nameError} message="Please set a name of length between {minNameLength} and {maxNameLength} characters." />
 					</div>
 				</div>
 
@@ -184,7 +142,7 @@
 					<button
 						class="btn btn-primary text-primary-content inline-flex items-center"
 						type="submit"
-						disabled={hasformErrors}
+						disabled={hasErrors}
 					>
 						<Save class="mr-2 h-5 w-5" />
 						<span>Save</span>

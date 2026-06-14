@@ -36,8 +36,10 @@
 #include <AlarmLinesService.h>
 #include <GatewaySettingsService.h>
 #include <AlarmPublishingSettingsService.h>
+#include <ReportSettingsService.h>
 #include <GatewayDeviceMqttService.h>
 #include <CC1101Controller.h>
+#include <CC1101PinsService.h>
 #include <cc1101.h>
 #include <AlarmBlocker.h>
 
@@ -126,8 +128,8 @@ private:
   EventSocket *_eventSocket;                              ///< WebSocket event manager
   PsychicMqttClient *_mqttClient;                         ///< MQTT client instance
   ESP32SvelteKit *_sveltekit;                             ///< Framework instance (for HAService access)
-  FeaturesService *_featureService;                       ///< Feature flags service
   AlarmPublishingSettingsService _alarmPublishingSettingsService; ///< Simple alarm-publishing settings service
+  ReportSettingsService _reportSettingsService;                   ///< PDF report header settings service
   GatewaySettingsService _gatewaySettings;                ///< Gateway settings service
   GatewayDeviceMqttService _gatewayDeviceMqttService;     ///< Gateway device MQTT service
   GeniusDevicesService _geniusDevices;                  ///< Genius devices service
@@ -135,6 +137,7 @@ private:
   WSLogger _wsLogger;                                     ///< WebSocket logger service
   VisualizerSettingsService _visualizerSettingsService;   ///< Visualizer settings service
   CC1101Controller _cc1101Controller;                     ///< CC1101 radio controller
+  CC1101PinsService _cc1101PinsService;                   ///< CC1101 runtime pin configuration service
   AlarmBlocker _alarmBlocker;                             ///< Alarm blocker service
 
   uint32_t _lastPacketHash; ///< Hash of last received packet for duplicate detection

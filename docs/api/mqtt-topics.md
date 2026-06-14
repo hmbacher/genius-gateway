@@ -54,7 +54,7 @@ The Genius Gateway itself is published as a Home Assistant device with diagnosti
 
 **Requirements:**
 
-- [Home Assistant Integration must be enabled](../setup/connections.md#device-publishing)
+- [Home Assistant Integration must be enabled](../setup/connections.md#home-assistant-integration)
 - MQTT broker must be connected
 
 #### Overview
@@ -144,7 +144,7 @@ The gateway device publishes:
 - Published when MQTT connection is established
 - Re-published when MQTT settings change
 - State published immediately after config
-- Published only if [Home Assistant Integration is enabled](../setup/connections.md#device-publishing)
+- Published only if [Home Assistant Integration is enabled](../setup/connections.md#home-assistant-integration)
 
 **:material-home-assistant: Home Assistant Integration**
 
@@ -258,7 +258,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 - Published immediately after config messages (initial state)
 - Published every 60 seconds via timer
 - Re-published when MQTT connection is established
-- Published only if [Home Assistant Integration is enabled](../setup/connections.md#device-publishing)
+- Published only if [Home Assistant Integration is enabled](../setup/connections.md#home-assistant-integration)
 
 **:material-home-assistant: Home Assistant Integration**
 
@@ -556,7 +556,7 @@ Each configured smoke detector is published as an **HA sub-device** nested under
 
 **Requirements:**
 
-- [Home Assistant Integration must be enabled](../setup/connections.md#device-publishing)
+- [Home Assistant Integration must be enabled](../setup/connections.md#home-assistant-integration)
 - MQTT broker must be connected
 
 #### Overview
@@ -567,7 +567,7 @@ Each smoke detector sub-device publishes:
 - **3 binary_sensor** (Diagnostic) — battery low, smoke detector fault, radio module fault; available after acoustic readout
 - **11 sensor** (Diagnostic) — deinstallation count, last service timestamp, radio module model, alarm line ID, alarm line, production date, radio module serial, total alarm count, 3-month alarm count, radio interference; available after acoustic readout
 
-Readout-derived entities (all except the main smoke sensor) report as **unavailable** until the first acoustic readout is performed via the gateway's [SmartSonic interface](device-management.md).
+Readout-derived entities (all except the main smoke sensor) report as **unavailable** until the first acoustic readout is performed via the gateway's [SmartSonic interface](../features/device-management.md).
 
 **Topic Structure:**
 
@@ -732,7 +732,7 @@ The following topics enable remote control of alarm line actions (line tests and
 **Requirements:**
 
 - [Alarm lines must be configured](../setup/configure-gateway.md#adding-alarm-lines) in Genius Gateway
-- [Home Assistant Integration must be enabled](../setup/connections.md#device-publishing)
+- [Home Assistant Integration must be enabled](../setup/connections.md#home-assistant-integration)
 - MQTT broker must be connected
 
 #### Overview
@@ -813,7 +813,7 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/..
 
 - Published when alarm line is first created
 - Re-published on MQTT (re)connect via HA sub-device mechanism
-- Published only if [Home Assistant Integration is enabled](../setup/connections.md#device-publishing)
+- Published only if [Home Assistant Integration is enabled](../setup/connections.md#home-assistant-integration)
 
 **:material-home-assistant: Home Assistant Integration**
 
@@ -950,7 +950,7 @@ Published when two smoke detectors are alarming (example):
     Genius Gateway does not persist the active alarm state across restarts. After a restart, `isAlarming` is always `false` and `numAlarmingDevices` is always `0`, regardless of the state before the restart. The retained message on the broker is updated immediately on MQTT connect.
 
 !!! note "Independent of Home Assistant integration"
-    Simple alarm publishing works independently of the [Home Assistant integration](../features/smart-home-integration.md#home-assistant-mqtt-discovery). It is controlled solely by the **Enable simple alarm publishing** toggle and does not require `HAIntegrationEnabled`.
+    Simple alarm publishing works independently of the [Home Assistant integration](../features/smart-home-integration.md#home-assistants-mqtt-discovery). It is controlled solely by the **Enable simple alarm publishing** toggle and does not require `HAIntegrationEnabled`.
 
 - Published only if [simple alarm publishing](../setup/connections.md#simple-alarm-publishing) is enabled
 

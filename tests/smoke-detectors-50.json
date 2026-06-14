@@ -1,0 +1,4355 @@
+{
+  "version": 1,
+  "devices": [
+    {
+      "id": 1758215001,
+      "smokeDetector": {
+        "sn": 1758215001,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001001,
+        "model": 5,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Flur EG",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215002,
+      "smokeDetector": {
+        "sn": 1758215002,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001002,
+        "model": 5,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Wohnzimmer",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215003,
+      "smokeDetector": {
+        "sn": 1758215003,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001003,
+        "model": 4,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Küche",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215004,
+      "smokeDetector": {
+        "sn": 1758215004,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001004,
+        "model": 5,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Schlafzimmer 1",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215005,
+      "smokeDetector": {
+        "sn": 1758215005,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001005,
+        "model": 2,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Schlafzimmer 2",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215006,
+      "smokeDetector": {
+        "sn": 1758215006,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001006,
+        "model": 5,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Kinderzimmer 1",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215007,
+      "smokeDetector": {
+        "sn": 1758215007,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001007,
+        "model": 5,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Kinderzimmer 2",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215008,
+      "smokeDetector": {
+        "sn": 1758215008,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001008,
+        "model": 4,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Bad EG",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215009,
+      "smokeDetector": {
+        "sn": 1758215009,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001009,
+        "model": 5,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Bad OG",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215010,
+      "smokeDetector": {
+        "sn": 1758215010,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001010,
+        "model": 2,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Büro",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215011,
+      "smokeDetector": {
+        "sn": 1758215011,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001011,
+        "model": 5,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Keller",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215012,
+      "smokeDetector": {
+        "sn": 1758215012,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001012,
+        "model": 5,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Dachboden",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215013,
+      "smokeDetector": {
+        "sn": 1758215013,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001013,
+        "model": 4,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Garage",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215014,
+      "smokeDetector": {
+        "sn": 1758215014,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001014,
+        "model": 5,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Technikraum",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215015,
+      "smokeDetector": {
+        "sn": 1758215015,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001015,
+        "model": 2,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Speisekammer",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215016,
+      "smokeDetector": {
+        "sn": 1758215016,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001016,
+        "model": 5,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Esszimmer",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215017,
+      "smokeDetector": {
+        "sn": 1758215017,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001017,
+        "model": 5,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Elternschlafzimmer",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215018,
+      "smokeDetector": {
+        "sn": 1758215018,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001018,
+        "model": 4,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Gäste WC",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215019,
+      "smokeDetector": {
+        "sn": 1758215019,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001019,
+        "model": 5,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Treppenhaus EG",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215020,
+      "smokeDetector": {
+        "sn": 1758215020,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001020,
+        "model": 2,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Treppenhaus OG",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215021,
+      "smokeDetector": {
+        "sn": 1758215021,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001021,
+        "model": 5,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Hauswirtschaftsraum",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215022,
+      "smokeDetector": {
+        "sn": 1758215022,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001022,
+        "model": 5,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Hobbyraum",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215023,
+      "smokeDetector": {
+        "sn": 1758215023,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001023,
+        "model": 4,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Spielzimmer",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215024,
+      "smokeDetector": {
+        "sn": 1758215024,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001024,
+        "model": 5,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Ankleide",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215025,
+      "smokeDetector": {
+        "sn": 1758215025,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001025,
+        "model": 2,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Wintergarten",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215026,
+      "smokeDetector": {
+        "sn": 1758215026,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001026,
+        "model": 5,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Flur OG",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215027,
+      "smokeDetector": {
+        "sn": 1758215027,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001027,
+        "model": 5,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Abstellraum",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215028,
+      "smokeDetector": {
+        "sn": 1758215028,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001028,
+        "model": 4,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Waschküche",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215029,
+      "smokeDetector": {
+        "sn": 1758215029,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001029,
+        "model": 5,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Weinkeller",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215030,
+      "smokeDetector": {
+        "sn": 1758215030,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001030,
+        "model": 2,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Fitnessraum",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215031,
+      "smokeDetector": {
+        "sn": 1758215031,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001031,
+        "model": 5,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Bibliothek",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215032,
+      "smokeDetector": {
+        "sn": 1758215032,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001032,
+        "model": 5,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Musikzimmer",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215033,
+      "smokeDetector": {
+        "sn": 1758215033,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001033,
+        "model": 4,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Gästeappartement",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215034,
+      "smokeDetector": {
+        "sn": 1758215034,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001034,
+        "model": 5,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Balkon",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215035,
+      "smokeDetector": {
+        "sn": 1758215035,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001035,
+        "model": 2,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Terrasse",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215036,
+      "smokeDetector": {
+        "sn": 1758215036,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001036,
+        "model": 5,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Carport",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215037,
+      "smokeDetector": {
+        "sn": 1758215037,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001037,
+        "model": 5,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Schuppen",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215038,
+      "smokeDetector": {
+        "sn": 1758215038,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001038,
+        "model": 4,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Heizungsraum",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215039,
+      "smokeDetector": {
+        "sn": 1758215039,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001039,
+        "model": 5,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Serverraum",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215040,
+      "smokeDetector": {
+        "sn": 1758215040,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001040,
+        "model": 2,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Lagerraum",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215041,
+      "smokeDetector": {
+        "sn": 1758215041,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001041,
+        "model": 5,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Flur DG",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215042,
+      "smokeDetector": {
+        "sn": 1758215042,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001042,
+        "model": 5,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Schlafzimmer 3",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215043,
+      "smokeDetector": {
+        "sn": 1758215043,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001043,
+        "model": 4,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Schlafzimmer 4",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215044,
+      "smokeDetector": {
+        "sn": 1758215044,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001044,
+        "model": 5,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Bad DG",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215045,
+      "smokeDetector": {
+        "sn": 1758215045,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001045,
+        "model": 2,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Dachstudio",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215046,
+      "smokeDetector": {
+        "sn": 1758215046,
+        "model": 3,
+        "productionDate": "2020-03-15T00:00:00.000Z",
+        "lastSelftest": "2026-04-02T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001046,
+        "model": 5,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 3,
+        "radioInterference": 0,
+        "radioNetworkFault": false
+      },
+      "location": "Arbeitszimmer",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215047,
+      "smokeDetector": {
+        "sn": 1758215047,
+        "model": 3,
+        "productionDate": "2020-09-22T00:00:00.000Z",
+        "lastSelftest": "2026-04-08T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001047,
+        "model": 5,
+        "lineId": 3,
+        "lineCharacter": "C",
+        "lineNumber": 3,
+        "radioStateMask": 0,
+        "radioSwitchMask": 5,
+        "radioInterference": 3,
+        "radioNetworkFault": false
+      },
+      "location": "Gäste Bad",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215048,
+      "smokeDetector": {
+        "sn": 1758215048,
+        "model": 2,
+        "productionDate": "2021-04-10T00:00:00.000Z",
+        "lastSelftest": "2026-04-15T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 2,
+        "hoursInStorageMode": 24,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001048,
+        "model": 4,
+        "lineId": 4,
+        "lineCharacter": "D",
+        "lineNumber": 4,
+        "radioStateMask": 0,
+        "radioSwitchMask": 6,
+        "radioInterference": 5,
+        "radioNetworkFault": false
+      },
+      "location": "Gäste Schlafzimmer",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215049,
+      "smokeDetector": {
+        "sn": 1758215049,
+        "model": 3,
+        "productionDate": "2021-11-05T00:00:00.000Z",
+        "lastSelftest": "2026-04-22T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 0,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 1,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001049,
+        "model": 5,
+        "lineId": 1,
+        "lineCharacter": "A",
+        "lineNumber": 1,
+        "radioStateMask": 0,
+        "radioSwitchMask": 7,
+        "radioInterference": 8,
+        "radioNetworkFault": false
+      },
+      "location": "Abstellkammer",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    },
+    {
+      "id": 1758215050,
+      "smokeDetector": {
+        "sn": 1758215050,
+        "model": 1,
+        "productionDate": "2022-06-18T00:00:00.000Z",
+        "lastSelftest": "2026-04-29T06:00:00.000Z",
+        "lastAlarm": "2025-11-24T15:50:00.000Z",
+        "deinstallationCount": 1,
+        "alarmCountTotal": 10,
+        "alarmCountLast3Months": 0,
+        "hoursInStorageMode": 0,
+        "warrantyFlags": 0,
+        "batteryLowFault": false,
+        "deviceFault": false,
+        "driftState": 0,
+        "dirtForecastNegative": false
+      },
+      "radioModule": {
+        "sn": 2001050,
+        "model": 2,
+        "lineId": 2,
+        "lineCharacter": "B",
+        "lineNumber": 2,
+        "radioStateMask": 0,
+        "radioSwitchMask": 1,
+        "radioInterference": 12,
+        "radioNetworkFault": false
+      },
+      "location": "Vorraum",
+      "registration": 3,
+      "isAlarming": false,
+      "alarms": [
+        {
+          "startTime": "2024-06-10T08:15:00.000Z",
+          "endTime": "2024-06-10T08:37:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-07-22T14:30:00.000Z",
+          "endTime": "2024-07-22T14:52:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2024-09-05T11:10:00.000Z",
+          "endTime": "2024-09-05T11:28:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-10-18T07:45:00.000Z",
+          "endTime": "2024-10-18T08:02:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2024-11-30T16:20:00.000Z",
+          "endTime": "2024-11-30T16:41:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-01-14T09:55:00.000Z",
+          "endTime": "2025-01-14T10:15:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-03-02T13:40:00.000Z",
+          "endTime": "2025-03-02T14:00:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-05-17T18:25:00.000Z",
+          "endTime": "2025-05-17T18:47:00.000Z",
+          "endingReason": 1
+        },
+        {
+          "startTime": "2025-08-09T10:05:00.000Z",
+          "endTime": "2025-08-09T10:22:00.000Z",
+          "endingReason": 0
+        },
+        {
+          "startTime": "2025-11-24T15:50:00.000Z",
+          "endTime": "2025-11-24T16:08:00.000Z",
+          "endingReason": 0
+        }
+      ],
+      "readoutTime": "2026-05-25T08:00:00.000Z",
+      "readoutProtocolVersion": 3
+    }
+  ]
+}

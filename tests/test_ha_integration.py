@@ -154,6 +154,18 @@ def invoke_gg(method: str, path: str, body=None):
     resp.raise_for_status()
     return resp.json()
 
+def invoke_gg_raw(method: str, path: str, body=None):
+    """Like invoke_gg() but returns the raw Response without raise_for_status() so tests
+    can assert on non-2xx status codes (409 BUSY, 410 BAD_SESSION, etc.)."""
+    global _jwt
+    if _jwt is None:
+        _gg_sign_in()
+    headers = {"Authorization": f"Bearer {_jwt}"}
+    url = f"{_gg_base}{path}"
+    if body is not None:
+        return requests.request(method, url, headers=headers, json=body)
+    return requests.request(method, url, headers=headers)
+
 def get_devices() -> list:
     return invoke_gg("GET", "/rest/gateway-devices").get("devices", [])
 
@@ -1207,6 +1219,164 @@ def tc65():
     reset_test_devices()
 
 # ---------------------------------------------------------------------------
+# CATEGORY 10: Per-Device CRUD + Chunked Import endpoints
+# ---------------------------------------------------------------------------
+
+def tc70():
+    """PUT /rest/gateway-devices/device  - create new device with client-allocated id."""
+    real = get_real_devices()
+    set_devices(real)  # clean slate
+
+    new_dev = new_acoustic_device(900200, "PutCreate")
+    resp = invoke_gg_raw("PUT", "/rest/gateway-devices/device", new_dev)
+    assert_equal(resp.status_code, 200, "PUT new device returns 200")
+    assert_not_null(get_test_device(900200), "device retrievable after PUT")
+    reset_test_devices()
+
+def tc71():
+    """PUT /rest/gateway-devices/device  - update existing device in place."""
+    real = get_real_devices()
+    set_devices(real)
+
+    d = new_acoustic_device(900201, "BeforeEdit")
+    invoke_gg_raw("PUT", "/rest/gateway-devices/device", d)
+    d["location"] = "AfterEdit"
+    resp = invoke_gg_raw("PUT", "/rest/gateway-devices/device", d)
+    assert_equal(resp.status_code, 200, "PUT existing device returns 200")
+    assert_equal(get_prop(get_test_device(900201), "location"), "AfterEdit",
+                 "location updated by PUT")
+    reset_test_devices()
+
+def tc72():
+    """PUT with id=0 is rejected (clients must allocate ids)."""
+    bad = new_acoustic_device(0, "ZeroIdPut")
+    resp = invoke_gg_raw("PUT", "/rest/gateway-devices/device", bad)
+    assert_equal(resp.status_code, 400, "PUT with id=0 returns 400")
+
+def tc73():
+    """POST /rest/gateway-devices/device/delete  - delete by id."""
+    real = get_real_devices()
+    set_devices(real)
+
+    d = new_acoustic_device(900202, "ToDelete")
+    invoke_gg_raw("PUT", "/rest/gateway-devices/device", d)
+    assert_not_null(get_test_device(900202), "device present before delete")
+
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/device/delete", {"id": 900202})
+    assert_equal(resp.status_code, 200, "delete returns 200")
+    assert_null(get_test_device(900202), "device removed after delete")
+
+def tc74():
+    """Deleting a non-existent id returns 404."""
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/device/delete", {"id": 999999})
+    assert_equal(resp.status_code, 404, "delete of unknown id returns 404")
+
+def tc75():
+    """POST /rest/gateway-devices/reorder  - rearrange existing device ids."""
+    real = get_real_devices()
+    set_devices(real)
+
+    ids = [900203, 900204, 900205]
+    for id_ in ids:
+        invoke_gg_raw("PUT", "/rest/gateway-devices/device", new_acoustic_device(id_, f"Reorder {id_}"))
+
+    reversed_ids = list(reversed(ids))
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/reorder",
+                         {"order": [d["id"] for d in get_real_devices()] + reversed_ids})
+    # The reorder endpoint expects the EXACT current id set. Including real-device ids
+    # keeps the new order valid when other devices already exist.
+    assert_equal(resp.status_code, 200, "reorder returns 200")
+    returned = [d.get("id") for d in get_devices() if d.get("id") in MOCK_IDS]
+    assert_equal(returned, reversed_ids, "device order matches request")
+    reset_test_devices()
+
+def tc76():
+    """Reorder rejects an id set that doesn't match the current state."""
+    real = get_real_devices()
+    set_devices(real)
+    invoke_gg_raw("PUT", "/rest/gateway-devices/device", new_acoustic_device(900206, "ReorderBad"))
+
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/reorder", {"order": [999999, 888888]})
+    assert_equal(resp.status_code, 400, "reorder with unknown ids returns 400")
+    reset_test_devices()
+
+def tc77():
+    """Chunked import: begin -> 2 chunks -> commit replaces device list atomically."""
+    real = get_real_devices()
+    set_devices(real)
+
+    devs_a = [new_acoustic_device(900210 + i, f"Chunk1-{i}") for i in range(3)]
+    devs_b = [new_acoustic_device(900220 + i, f"Chunk2-{i}") for i in range(2)]
+
+    # begin
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/import/begin")
+    assert_equal(resp.status_code, 200, "import/begin returns 200")
+    session_id = resp.json()["sessionId"]
+    assert_true(len(session_id) > 0, "sessionId is non-empty")
+
+    # chunk 1 (devs_a)
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/import/chunk",
+                         {"sessionId": session_id, "devices": devs_a})
+    assert_equal(resp.status_code, 200, "first chunk accepted")
+
+    # chunk 2 (devs_b)
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/import/chunk",
+                         {"sessionId": session_id, "devices": devs_b})
+    assert_equal(resp.status_code, 200, "second chunk accepted")
+
+    # before commit: device list must be untouched
+    pre_commit_ids = {d.get("id") for d in get_devices() if d.get("id") in MOCK_IDS}
+    assert_equal(pre_commit_ids, set(), "no test devices visible before commit")
+
+    # commit
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/import/commit",
+                         {"sessionId": session_id})
+    assert_equal(resp.status_code, 200, "commit returns 200")
+
+    expected = {d["id"] for d in devs_a + devs_b}
+    got = {d.get("id") for d in get_devices() if d.get("id") in MOCK_IDS}
+    assert_equal(got, expected, "all staged devices present after commit")
+
+    reset_test_devices()
+
+def tc78():
+    """Chunked import: a second begin while a session is active returns 409 BUSY."""
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/import/begin")
+    assert_equal(resp.status_code, 200, "first begin returns 200")
+    session_id = resp.json()["sessionId"]
+
+    resp2 = invoke_gg_raw("POST", "/rest/gateway-devices/import/begin")
+    assert_equal(resp2.status_code, 409, "second begin returns 409")
+
+    # cleanup
+    invoke_gg_raw("POST", "/rest/gateway-devices/import/abort", {"sessionId": session_id})
+
+def tc79():
+    """Chunked import: chunk with bad sessionId is rejected with 410."""
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/import/chunk",
+                         {"sessionId": "deadbeefdeadbeef", "devices": []})
+    assert_equal(resp.status_code, 410, "bad-session chunk returns 410")
+
+def tc80():
+    """Chunked import: abort discards staging and frees the slot."""
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/import/begin")
+    session_id = resp.json()["sessionId"]
+    d = new_acoustic_device(900230, "AbortedStaging")
+    invoke_gg_raw("POST", "/rest/gateway-devices/import/chunk",
+                  {"sessionId": session_id, "devices": [d]})
+
+    resp = invoke_gg_raw("POST", "/rest/gateway-devices/import/abort",
+                         {"sessionId": session_id})
+    assert_equal(resp.status_code, 200, "abort returns 200")
+    assert_null(get_test_device(900230), "staged device NOT visible after abort")
+
+    # Slot should be free now
+    resp2 = invoke_gg_raw("POST", "/rest/gateway-devices/import/begin")
+    assert_equal(resp2.status_code, 200, "begin succeeds after abort")
+    invoke_gg_raw("POST", "/rest/gateway-devices/import/abort",
+                  {"sessionId": resp2.json()["sessionId"]})
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1373,6 +1543,19 @@ def main() -> None:
     run_test("TC63 Move device from last to first", tc63)
     run_test("TC64 Order change persisted across disconnect (simulated by double GET)", tc64)
     run_test("TC65 Reorder-only POST (no add/delete)  - only order changes, content unchanged", tc65)
+
+    write_section("CATEGORY 10 - Per-Device CRUD + Chunked Import")
+    run_test("TC70 PUT /device  - create new device",                       tc70)
+    run_test("TC71 PUT /device  - update existing device in place",         tc71)
+    run_test("TC72 PUT /device  - id=0 rejected (400)",                     tc72)
+    run_test("TC73 POST /device/delete  - removes device",                  tc73)
+    run_test("TC74 POST /device/delete  - unknown id returns 404",          tc74)
+    run_test("TC75 POST /reorder  - reorders existing devices",             tc75)
+    run_test("TC76 POST /reorder  - mismatched id set rejected (400)",      tc76)
+    run_test("TC77 Chunked import  - begin/chunk/chunk/commit replaces list", tc77)
+    run_test("TC78 Chunked import  - concurrent begin returns 409",         tc78)
+    run_test("TC79 Chunked import  - bad sessionId returns 410",            tc79)
+    run_test("TC80 Chunked import  - abort discards staging, slot freed",   tc80)
 
     # Summary
     print("\n")

@@ -1,3 +1,80 @@
+# v1.4.0
+
+## Frontend / Firmware Version Sync
+- **Version mismatch banner**: when a cached web UI is running against a newer firmware, an amber banner appears with a **Reload** button. Prevents the UI and backend from getting out of sync after an upgrade
+- **Browser cache control fixed**: `index.html` was previously cached as immutable for up to a year, meaning browsers could serve a stale UI shell long after a firmware upgrade. It is now served with `no-cache` so the shell is always revalidated
+
+## Device Details & Diagnostics
+- **Radio Status badge aligned with the Hekatron Genius Home app**: the "Radio Status: OK / Fault" badge in the Device Details dialog now uses the same source bits as the vendor app, fixing a disagreement between the badge and the per-bit flag list below it
+- **"FM Module Flags" subhead** added to visually separate the badge from the flag list beneath it
+- **`RemoteBattLow` and `RemoteError` shown as warnings, not errors**: these flags describe the state of another device on the radio line, so amber warnings are more appropriate than red fault indicators
+
+## CC1101 — Runtime SPI/GDO Pin Configuration
+
+The SPI and GDO signal pins for the CC1101 transceiver can now be changed at runtime via **System → CC1101 → Pin Configuration** — no reflashing required. The UI shows only valid GPIOs for the target board and warns about conflicts with pins claimed by other roles. Changes take effect immediately without a reboot. Existing installs without a saved config continue to use the compile-time defaults.
+
+## Smoke Detector List — Scaling to 50 Devices
+Up to 50 smoke detectors are now supported on ESP32-S3 boards with PSRAM. See the new **[Memory Considerations](https://hmbacher.github.io/genius-gateway/setup/memory/)** documentation page for details.
+
+- **Per-device REST endpoints**: add, update, delete, and reorder operations now target individual devices, avoiding the payload size limits that the previous bulk-POST approach hit at higher device counts
+- **Chunked import for bulk operations**: large device lists are uploaded in small chunks and committed in a background task, keeping the UI responsive and eliminating the 15–20 s blocking commit that previously starved the WebSocket keepalive
+- **PSRAM used for large collections**: the device list, import buffer, and HA framework data structures are allocated from PSRAM when available, freeing internal heap for the rest of the system. Boards without PSRAM continue to work; only the practical device ceiling differs (`GATEWAY_MAX_DEVICES` defaults to 10 on non-PSRAM builds)
+
+## Bulk Import Progress Dialog
+Importing a large device list now shows a progress dialog with phase labels, a percentage gauge, and a working **Cancel** button. Cancelling cleans up the server-side session so a new import can start immediately.
+
+## Packet Visualizer — Mobile-Responsive Redesign
+The Packet Visualizer previously required ~1100 px of horizontal space, making it unusable on phones and tablets. It has been fully redesigned for any screen width while preserving the protocol-analyzer layout on wide displays.
+
+- **Semantic summary header per packet**: a compact row of color-coded chips (source → destination, line, hop count, packet-type extras) gives a scannable overview without expanding the byte strip
+- **Byte strip collapsed by default**: each packet row can be expanded individually via a chevron toggle; **Expand All** / **Collapse All** toolbar buttons control all rows at once
+- **Dark-mode colors corrected**: static Tailwind palette colors that stayed as bright pastels on dark backgrounds have been replaced with proper `dark:` variants throughout
+- **Old V1 components removed**: the pre-redesign component files are gone; the new components carry the canonical names
+
+## UI Polish
+- **Toolbar buttons disabled during initial load** on the Smoke Detectors and Alarm Lines pages, preventing premature saves, adds, or deletes against an empty list that hasn't loaded yet
+- **Disabled button appearance unified**: explicit content-color overrides that caused inconsistent icon colors on disabled buttons have been removed; DaisyUI handles disabled state uniformly now
+
+## Per-Field Dirty-State Tracking
+
+Every settings form now tracks unsaved changes at the field level. Edited fields are highlighted with a red left-border accent and show an inline revert button to restore just that field. The save button is disabled when nothing has changed, and collapsible cards show a dirty indicator in the header with a one-click revert-all button.
+
+Applies to: MQTT, Home Assistant, NTP, Access Point, WiFi, Gateway Settings, Report Settings, and the Users dialog.
+
+## Form Validation
+
+All settings forms now share a single validation layer, replacing ad-hoc per-page implementations.
+
+- **Shared validators** used consistently across NTP, Access Point, WiFi STA, MQTT, Home Assistant, and all Genius-specific dialogs
+- **Single `FieldError` component** replaces ~22 copy-pasted inline error blocks; all field error text is now consistently styled
+- **Reactive validation**: the save button disables the moment input becomes invalid, rather than only on submit
+- **Fixed regex anchoring**: IPv4 and hostname patterns previously allowed substring matches (e.g. `192.168.4.1---//` passed as valid); both are now fully anchored
+- **DNS 2 correctly optional**: DNS 2 in WiFi static IP config is only validated when non-empty, matching firmware behavior
+
+## Migration Service
+The per-service migration hooks from v1.3.0 have been consolidated into a central **Migration Service** ([docs](https://hmbacher.github.io/genius-gateway/setup/system/#migrations)). Migrations are declarative records with configurable failure policies (`retryNextBoot`, `skipAfterRetries`, `abortBoot`). Upgrade behavior for existing devices is unchanged.
+
+- **System → Migrations page**: shows every migration with its current state (applied / pending / not applicable / failed), including entries from older firmware versions that are no longer registered. Failed migrations can be retried from this page
+
+## PDF Export — Smoke Detector Report
+
+A new **Generate PDF Report** button on the Smoke Detectors page generates a printable audit document with an overview page and a per-detector page for each registered device. A progress dialog shows generation steps; the PDF opens or downloads on completion.
+
+## Build
+- **Auto-generated version files gitignored**: `AppVersion.h` and `version.ts` are stamped on every build, making the working tree permanently dirty. Both files are now gitignored; a pre-build script writes a stub when they are absent
+- **Prebuild scripts skip unchanged writes**: avoids triggering unnecessary rebuilds when output would be byte-identical
+- **Stale bundles wiped before interface rebuild**: orphaned JS files from previous builds were silently embedded into `WWWData.h`, inflating firmware size by ~1 MB per orphan. The build script now clears the output directory before rebuilding
+
+## Bugfixes
+- **Startup WDT from AnalyticsService cascade**: after an MQTT reconnect, the analytics loop could fire on every tick and trigger a watchdog reset. Fixed by updating the publish timestamp at the correct point
+- **HA discovery republished on every MQTT reconnect**: the interval guard was bypassed on reconnect, compounding the above cascade. Fixed alongside the AnalyticsService patch
+- **Topbar status icons stale after reconnect**: MQTT, WiFi, and CC1101 icons could show outdated state following a reconnect; now consistently derived from live WebSocket status
+- **IconSelect dropdown clipped by viewport**: the option list overflowed off the right edge on narrow screens; now aligned to the button's right edge
+- **Report settings field length limits corrected**: name fields (80 chars) and address fields (200 chars) now have distinct limits enforced in both firmware and UI
+- **Duplicate device IDs in saved config corrupted the device list**: duplicate entries passed the startup deduplication check and both landed in the live list. Duplicates are now detected and skipped; the file is rewritten immediately to purge the corrupt entry
+- **Device list cards unkeyed in `{#each}`**: Svelte could reuse stale DOM nodes when the list changed, causing ghost-state visual artifacts. Fixed by keying on `device.id`
+- **WiFi connection mode select styled inconsistently**: the select is now wrapped consistently with the rest of the page's input fields and carries a dirty marker
+
 # v1.3.0
 ## Upgrade Notes
 When upgrading from v1.2.x, four persisted-settings files are affected. All migrations run transparently on first boot — no manual reconfiguration is required:

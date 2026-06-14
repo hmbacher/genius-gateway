@@ -12,8 +12,6 @@
 
 #include <AlarmPublishingSettingsService.h>
 
-#include <LegacyConfigMigration.h>
-
 AlarmPublishingSettingsService::AlarmPublishingSettingsService(ESP32SvelteKit *sveltekit)
     : _httpEndpoint(AlarmPublishingSettings::read,
                     AlarmPublishingSettings::update,
@@ -26,37 +24,12 @@ AlarmPublishingSettingsService::AlarmPublishingSettingsService(ESP32SvelteKit *s
                      AlarmPublishingSettings::update,
                      this,
                      sveltekit->getFS(),
-                     ALARM_PUBLISHING_SETTINGS_FILE),
-      _fs(sveltekit->getFS())
+                     ALARM_PUBLISHING_SETTINGS_FILE)
 {
 }
 
 void AlarmPublishingSettingsService::begin()
 {
     _httpEndpoint.begin();
-    _migrateLegacySettings();
     _fsPersistence.readFromFS();
-    LegacyConfigMigration::cleanupLegacyIfFullyMigrated(_fs);
-}
-
-void AlarmPublishingSettingsService::_migrateLegacySettings()
-{
-    if (_fs->exists(ALARM_PUBLISHING_SETTINGS_FILE))
-        return;
-
-    JsonDocument doc;
-    if (!LegacyConfigMigration::readLegacy(_fs, doc))
-        return;
-
-    bool hasLegacyFields = doc["alarmEnabled"].is<bool>() || doc["alarmTopic"].is<String>();
-    if (!hasLegacyFields)
-        return;
-
-    _state.alarmEnabled = doc["alarmEnabled"] | false;
-    _state.alarmTopic = doc["alarmTopic"] | String(DEFAULT_ALARM_PUBLISHING_TOPIC);
-
-    _fsPersistence.writeToFS();
-
-    ESP_LOGI(TAG, "Migrated legacy alarm-publishing settings from %s (enabled=%d, topic=%s)",
-             LegacyConfigMigration::LEGACY_FILE, _state.alarmEnabled, _state.alarmTopic.c_str());
 }

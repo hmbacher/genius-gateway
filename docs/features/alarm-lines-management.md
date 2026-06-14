@@ -23,7 +23,7 @@ Each alarm line in your system must be registered in the gateway to enable prope
 
 ### MQTT Integration
 
-When [Home Assistant Integration](../setup/connections.md#device-publishing) is enabled, each alarm line is automatically published to MQTT with:
+When [Home Assistant Integration](../setup/connections.md#home-assistant-integration) is enabled, each alarm line is automatically published to MQTT with:
 
 - **Button Controls**: Start/Stop line tests and fire alarms remotely via Home Assistant or any MQTT client
 - **:material-state-machine: State Sensor**: Monitor current transmission status in real-time
@@ -66,7 +66,7 @@ When you first access the Alarm Lines Management page with no alarm lines config
 You can proceed to [add a new alarm line](#adding-a-new-alarm-line) by either:
 
 1. **Manual Registration**: Explicitly add alarm line IDs you've configured in your smoke detectors (recommended for planned installations)
-2. **Automatic Discovery**: Enable automatic alarm line registration in [Gateway Settings](gateway-settings.md#add-alarm-line-id-of-received-line-test-packets-automatically), then trigger any smoke detector—the gateway will automatically register the alarm line when it receives the packet
+2. **Automatic Discovery**: Enable automatic alarm line registration in [Gateway Settings](gateway-settings.md#add-alarm-line-from-line-test), then trigger any smoke detector—the gateway will automatically register the alarm line when it receives the packet
 
 ## Adding a New Alarm Line
 
@@ -118,7 +118,7 @@ When [automatic alarm line registration](gateway-settings.md#alarm-lines) is ena
 You can later edit automatically discovered alarm lines to assign meaningful names.
 
 !!! tip "Discover during Commissioning"
-    Enable [automatic registration during smoke detector commissioning](gateway-settings.md#add-alarm-line-id-of-received-commissioning-packets-automatically) to quickly discover the alarm line that is currently set up in a commissioning process. After commissioning, assign meaningful names to each discovered line.
+    Enable [automatic registration during smoke detector commissioning](gateway-settings.md#add-alarm-line-from-commissioning) to quickly discover the alarm line that is currently set up in a commissioning process. After commissioning, assign meaningful names to each discovered line.
 
 ## Editing an Alarm Line
 

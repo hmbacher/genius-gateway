@@ -15,7 +15,7 @@ The Gateway Settings allow you to configure the automatic behavior of the Genius
 
 ![Gateway Settings](../assets/images/software/gg-gateway-settings.png)
 
-## Settings Categories
+## :tabler-adjustments: Gateway Settings
 
 ### :tabler-alert-hexagon: Alarming
 
@@ -51,7 +51,7 @@ Alarm line IDs are unique identifiers that group smoke detectors into logical ne
 
 For detailed information about alarm line IDs and their role in the Hekatron Genius system, see [Protocol Analysis - Base Packet Structure](../reverse-engineering/protocol-analysis.md#base-packet-structure).
 
-#### Add alarm line ID of received commissioning packets automatically
+#### Add alarm line ID of received commissioning packets automatically {#add-alarm-line-from-commissioning}
 
 **Default:** Enabled (recommended)
 
@@ -71,7 +71,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 
 **Learn more:** [Alarm Line Commissioning Packets](../reverse-engineering/protocol-analysis.md#alarm-line-commissioning)
 
-#### Add alarm line ID of received alarming/silencing packets automatically
+#### Add alarm line ID of received alarming/silencing packets automatically {#add-alarm-line-from-alarm}
 
 **Default:** Enabled (recommended)
 
@@ -90,7 +90,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 
 **Learn more:** [Alarm Packets](../reverse-engineering/protocol-analysis.md#alarming-startstop)
 
-#### Add alarm line ID of received line test packets automatically
+#### Add alarm line ID of received line test packets automatically {#add-alarm-line-from-line-test}
 
 **Default:** Enabled (recommended)
 
@@ -109,8 +109,33 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 
 **Learn more:** [Line Test Packets](../reverse-engineering/protocol-analysis.md#line-test-startstop)
 
+## :tabler-file-type-pdf: Report Settings {#report-settings}
+
+The Report Settings control the property information printed on the cover page of the PDF smoke detector report. All three fields are optional — leaving them blank generates a report without a property header.
+
+!!! info "Access Required"
+    Report Settings require **administrator** privileges to view and modify.
+
+### Property Name
+
+**Maximum length:** 80 characters
+
+The name of the property or building covered by this gateway — for example, *Mustermann House* or *Office Building A*. Appears as the primary heading on the report cover page.
+
+### Property Address
+
+**Maximum length:** 200 characters
+
+The full postal address of the property. Supports multiple lines (use line breaks as needed). Appears below the property name on the report cover page.
+
+### Customer Name
+
+**Maximum length:** 80 characters
+
+The name of the property owner or responsible person — for example, *Max Mustermann*. Appears alongside the property name and address on the report cover page.
+
 ## Related Documentation
 
-- [Device Management](device-management.md) - Managing smoke detectors
-- [Alarm Lines Management](alarm-lines-management.md) - Managing alarm line IDs and functions
-- [Protocol Analysis](../reverse-engineering/protocol-analysis.md) - Technical details about packet types
+- [Device Management](device-management.md) — Managing smoke detectors and generating the PDF report
+- [Alarm Lines Management](alarm-lines-management.md) — Managing alarm line IDs and functions
+- [Protocol Analysis](../reverse-engineering/protocol-analysis.md) — Technical details about packet types

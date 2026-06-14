@@ -53,6 +53,7 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
                                                           _mqttClient(sveltekit->getMqttClient()),
                                                           _sveltekit(sveltekit),
                                                           _alarmPublishingSettingsService(sveltekit),
+                                                          _reportSettingsService(sveltekit),
                                                           _gatewaySettings(sveltekit),
                                                           _gatewayDeviceMqttService(sveltekit->getHAService(), &_gatewaySettings),
                                                           _geniusDevices(sveltekit, _mqttClient, &_alarmPublishingSettingsService),
@@ -60,9 +61,9 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
                                                           _wsLogger(sveltekit),
                                                           _visualizerSettingsService(sveltekit),
                                                           _cc1101Controller(sveltekit),
+                                                          _cc1101PinsService(sveltekit),
                                                           _alarmBlocker(sveltekit),
                                                           _eventSocket(sveltekit->getSocket()),
-                                                          _featureService(sveltekit->getFeatureService()),
                                                           _lastPacketHash(0),
                                                           _hasLastPacketHash(false)
 {
@@ -70,48 +71,43 @@ GeniusGateway::GeniusGateway(ESP32SvelteKit *sveltekit) : _server(sveltekit->get
 
 void GeniusGateway::begin()
 {
-    /* TEMPORARY: Configure helper GPIO to measure packet handlig time
-     * from GDO0 interrupt to full packet read */
-    gpio_config_t io_conf1 = {
-        .pin_bit_mask = (1ULL << GPIO_TEST1 | 1ULL << GPIO_TEST2),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE};
-    gpio_config(&io_conf1);
-    gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 0);
-    gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0);
-    /* END TEMPORARY */
-
-    /* Create packet handling task */
+    /* Create packet handling task — stack forced to internal DRAM so ISR-driven
+     * task notifications and real-time CC1101 reads are not slowed by PSRAM latency.
+     * CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=128 would otherwise route this stack to PSRAM. */
     BaseType_t xReturned;
-    xReturned = xTaskCreatePinnedToCore(
+    xReturned = xTaskCreatePinnedToCoreWithCaps(
         this->_rx_packetsImpl,
         RX_TASK_NAME,
         RX_TASK_STACK_SIZE,
         this,
         RX_TASK_PRIORITY,
         &GeniusGateway::xRxTaskHandle,
-        RX_TASK_CORE_AFFINITY);
+        RX_TASK_CORE_AFFINITY,
+        MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 
     if (xReturned == pdPASS)
     {
         ESP_LOGI(TAG, "RX task created (%p).", GeniusGateway::xRxTaskHandle);
-
-        // Initialize CC1101
-        esp_err_t ret = cc1101_init(nofifyReceivedPacket);
-        if (ret != ESP_OK)
-            ESP_LOGE(TAG, "CC1101 could not be set up.");
-        else
-            ESP_LOGI(TAG, "CC1101 set up successfully.");
+        // Radio bring-up happens below, from the persisted pin configuration, once the
+        // CC1101PinsService has loaded (see _cc1101Controller.bringUp()).
     }
     else
     {
         ESP_LOGE(TAG, "RX task creation failed.");
     }
 
+    /* Register events and start fast services BEFORE the slow FS-loading services below.
+     * A WebSocket client that auto-reconnects right after MQTT connects can subscribe
+     * before 50-device JSON loading completes; pre-registering here prevents the
+     * "unregistered event" warnings for rem-alarm-block-time / alarm / cc1101_status. */
+    _cc1101Controller.begin();
+    _alarmBlocker.begin();
+    _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
+
     /* Initialize Alarm Publishing Settings Service first - other services depend on its settings */
     _alarmPublishingSettingsService.begin();
+    /* Initialize Report Settings Service */
+    _reportSettingsService.begin();
     /* Initialize Gateway Settings Service - must be before Gateway Device MQTT Service */
     _gatewaySettings.begin();
     /* Initialize Gateway Device MQTT Service */
@@ -124,15 +120,21 @@ void GeniusGateway::begin()
     _wsLogger.begin();
     /* Initialize Packet Vizualizer Settings */
     _visualizerSettingsService.begin();
+    /* Initialize CC1101 runtime pin configuration service */
+    _cc1101PinsService.begin();
 
-#if FT_ENABLED(FT_CC1101_CONTROLLER)
-    _featureService->addFeature("cc1101_controller", true);
-    /* Initialize CC1101Controller */
-    _cc1101Controller.begin();
-    _cc1101Controller.enableRXMonitoring();
-#else
-    _featureService->addFeature("cc1101_controller", false);
-#endif
+    /* Bring up the radio from the persisted pin configuration (must follow _cc1101PinsService.begin()).
+     * Stays UNCONFIGURED if no valid pins are set; RX monitoring is enabled only on success. */
+    if (GeniusGateway::xRxTaskHandle != nullptr)
+    {
+        _cc1101Controller.bringUp(&_cc1101PinsService, nofifyReceivedPacket);
+        // Re-initialize the radio live whenever the pin configuration changes (no reboot).
+        _cc1101PinsService.addUpdateHandler([this](const String & /*originId*/)
+                                            { _cc1101Controller.reconfigure(); },
+                                            false);
+    }
+    else
+        ESP_LOGE(TAG, "Skipping CC1101 bring-up: RX task not available.");
 
     /* Perform a full publish (all devices and states), if MQTT client connects.
      * The actual work runs in a persistent task (_mqttPublishTask) that blocks on
@@ -144,7 +146,6 @@ void GeniusGateway::begin()
                                xTaskNotifyGive(_mqttPublishTaskHandle);
                            });
 
-    /* Start the persistent HA publish task */
     xTaskCreatePinnedToCore(
         _mqttPublishTaskImpl,
         "mqtt-ha-publish",
@@ -153,11 +154,6 @@ void GeniusGateway::begin()
         5,
         &_mqttPublishTaskHandle,
         ESP32SVELTEKIT_RUNNING_CORE);
-
-    _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
-
-    /* Initialize Alarm Blocking Service */
-    _alarmBlocker.begin();
 
     /* Register endpoint to end all alarms and block new alarms for a specified amount of time */
     _server->on(GATEWAY_SERVICE_PATH_END_ALARMS,
@@ -328,8 +324,6 @@ void GeniusGateway::_rx_packets()
            value act like a binary semaphore. */
         if (ulTaskNotifyTakeIndexed(RX_TASK_NOTIFICATION_INDEX, pdTRUE, RX_TASK_MAX_WAITING_TICKS) == 1)
         {
-            gpio_set_level((gpio_num_t)GPIO_TEST1, 1); // Temporary: Measuring execution time
-
             // Temprarily disable RX Monitoring
             _cc1101Controller.disableRXMonitoring();
 
@@ -437,15 +431,11 @@ void GeniusGateway::_rx_packets()
                 } // End of !isDuplicate check
 
                 /* Send data to WebSocket logger - log ALL packets including duplicates */
-                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 1); // Temporary: Measuring execution time
                 _wsLogger.logPacket(&packet);
-                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0); // Temporary: Measuring execution time
             }
 
             // Re-enable RX Monitoring
             _cc1101Controller.enableRXMonitoring();
-
-            gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 0); // Temporary: Measuring execution time
         }
         else
         {

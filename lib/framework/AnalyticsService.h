@@ -36,7 +36,6 @@ public:
     {
         if (millis() - lastMillis > ANALYTICS_INTERVAL)
         {
-            lastMillis = millis();
             JsonDocument doc;
             doc["uptime"] = millis() / 1000;
             doc["free_heap"] = ESP.getFreeHeap();
@@ -56,6 +55,9 @@ public:
 
             JsonObject jsonObject = doc.as<JsonObject>();
             _socket->emitEvent(EVENT_ANALYTICS, jsonObject);
+            // Set lastMillis AFTER the block so a slow usedBytes() call (>ANALYTICS_INTERVAL)
+            // never causes back-to-back re-entry that starves IDLE0 and trips the WDT.
+            lastMillis = millis();
         }
     };
 

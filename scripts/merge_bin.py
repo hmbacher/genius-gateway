@@ -21,6 +21,9 @@ def readFlag(flag):
 
 def merge_bin(source, target, env):
 
+    app_name = readFlag("APP_NAME")
+    app_version = readFlag("APP_VERSION")
+
     # check if output directories exist and create if necessary
     if not os.path.isdir("build"):
         os.mkdir("build")
@@ -28,7 +31,7 @@ def merge_bin(source, target, env):
     if not os.path.isdir(OUTPUT_DIR):
         os.mkdir(OUTPUT_DIR)
 
-    MERGED_BIN = "$PROJECT_DIR{}{}{}_{}_{}_webflash.bin".format(os.path.sep, OUTPUT_DIR, readFlag("APP_NAME"), env.get('PIOENV'), readFlag("APP_VERSION").replace(".", "-"))
+    MERGED_BIN = "$PROJECT_DIR{}{}{}_{}_{}_webflash.bin".format(os.path.sep, OUTPUT_DIR, app_name, env.get('PIOENV'), app_version.replace(".", "-"))
 
     # The list contains all extra images (bootloader, partitions, eboot) and
     # the final application binary

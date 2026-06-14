@@ -13,6 +13,7 @@
  **/
 
 #include <ESP32SvelteKit.h>
+#include <AppVersion.h>
 
 ESP32SvelteKit::ESP32SvelteKit(PsychicHttpServer *server, unsigned int numberEndpoints) : _server(server),
                                                                                           _numberEndpoints(numberEndpoints),
@@ -77,6 +78,11 @@ void ESP32SvelteKit::begin()
     ESP_LOGV(SVK_TAG, "Loading settings from files system");
     ESPFS.begin(true);
 
+    if (_preServiceHook)
+    {
+        _preServiceHook();
+    }
+
     _wifiSettingsService.initWiFi();
 
     // SvelteKit uses a lot of handlers, so we need to increase the max_uri_handlers
@@ -90,13 +96,20 @@ void ESP32SvelteKit::begin()
     WWWData::registerRoutes(
         [&](const String &uri, const String &contentType, const uint8_t *content, size_t len)
         {
-            PsychicHttpRequestCallback requestHandler = [contentType, content, len](PsychicRequest *request)
+            // SvelteKit emits content-hashed assets under /_app/immutable/.
+            // The shell (index.html) and other non-hashed assets must always
+            // revalidate, otherwise a firmware upgrade ships a new backend API
+            // while the browser still runs a year-old cached shell.
+            const char *cacheControl = uri.startsWith("/_app/immutable/")
+                                           ? "public, max-age=31536000, immutable"
+                                           : "no-cache";
+            PsychicHttpRequestCallback requestHandler = [contentType, content, len, cacheControl](PsychicRequest *request)
             {
                 PsychicResponse response(request);
                 response.setCode(200);
                 response.setContentType(contentType.c_str());
                 response.addHeader("Content-Encoding", "gzip");
-                response.addHeader("Cache-Control", "public, immutable, max-age=31536000");
+                response.addHeader("Cache-Control", cacheControl);
                 response.setContent(content, len);
                 return response.send();
             };
@@ -153,6 +166,19 @@ void ESP32SvelteKit::begin()
     // Start the services
     _apStatus.begin();
     _socket.begin();
+
+    // Announce the embedded frontend's build identifier to every connecting
+    // client so a stale cached UI (from before a firmware upgrade) can detect
+    // the mismatch and prompt the user to reload. The frontend subscribes to
+    // "app_version"; we emit once per subscriber and never again.
+    _socket.registerEvent("app_version");
+    _socket.onSubscribe("app_version", [this](const String &originId)
+                        {
+        JsonDocument doc;
+        JsonObject root = doc.to<JsonObject>();
+        root["version"] = APP_VERSION_FULL;
+        _socket.emitEvent("app_version", root, originId.c_str(), true); });
+
     _notificationService.begin();
     _apSettingsService.begin();
     _factoryResetService.begin();

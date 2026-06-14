@@ -238,8 +238,6 @@ void AlarmLinesService::begin()
 
 void AlarmLinesService::_onTimer()
 {
-    gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 0); // Temporary for testing
-
     // Signal TX task to proceed with next packet transmission
     xTaskNotifyGiveIndexed(_txTaskHandle, ALARMLINES_TX_TASK_NOTIFICATION_INDEX);
 }
@@ -254,6 +252,7 @@ void AlarmLinesService::_txLoop()
         if (xSemaphoreTake(_txSemaphore, portMAX_DELAY) == pdTRUE)
         {
             _isTransmitting = true;
+            _cc1101Ctrl->setTransmitting(true); // surface TX state to the Web UI radio indicator
 
             // Temporarily disable RX monitoring to avoid interference
             _cc1101Ctrl->disableRXMonitoring();
@@ -282,10 +281,6 @@ void AlarmLinesService::_txLoop()
                     break;
                 }
 
-                // GPIO timing markers for debug/analysis
-                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 1); // Temporary for testing
-                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST2), 1); // Temporary for testing
-
                 // Configure timer for next iteration (except for last packet)
                 if (i < _txRepeat) // Don't (re)start the timer for the last iteration
                 {
@@ -309,8 +304,6 @@ void AlarmLinesService::_txLoop()
 
                 _lastTXLoop = millis();
 
-                gpio_set_level(static_cast<gpio_num_t>(GPIO_TEST1), 0); // Temporary for testing
-
                 // Wait for timer notification before next packet (except last iteration)
                 if (i < _txRepeat) // Don't wait after the last iteration
                 {
@@ -323,6 +316,7 @@ void AlarmLinesService::_txLoop()
             }
 
             _isTransmitting = false;
+            _cc1101Ctrl->setTransmitting(false); // back to listening — update the radio indicator
 
             // Notify clients of transmission completion
             _emitActionFinishedEvent(timedOut);
