@@ -189,7 +189,7 @@
 	onMount(load);
 </script>
 
-<SettingsCard collapsible={false} isDirty={f.anyDirty} onRevert={() => f.revertAll()}>
+<SettingsCard collapsible={false} isDirty={f.anyDirty} onRevert={() => f.revertAll()} overflowX="clip" overflowY="visible">
 	{#snippet icon()}
 		<IconRoute class="h-6 w-6" />
 	{/snippet}
