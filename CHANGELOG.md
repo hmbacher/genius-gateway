@@ -1,6 +1,7 @@
 # v1.4.1
 
 ## Bugfixes
+- **Device export always includes `radioInterference` and `lineId`**: both fields were previously omitted when zero. A genuine `radioInterference` reading of 0.0% would silently disappear from the export, indistinguishable from a device that had never been read out. Similarly, a `lineId` of 0 (unassigned) would be absent. Both fields are now always written so consumers can rely on their presence
 - **SPI Pin Configuration dropdowns no longer clipped at card boundary**: the lower pin selectors in the SPI Pin Configuration dialog were cut off by the settings card's overflow boundary. The card now uses `overflow-x: clip` / `overflow-y: visible` so dropdown lists extend below the card as expected
 - **Update indicator no longer shows incompatible releases**: the topbar firmware-update badge now only lights up when a newer release includes an asset that matches the current build target. Previously, any newer release triggered the indicator regardless of hardware compatibility, and clicking it immediately offered to install a binary that would fail or brick the device
 - **GitHub OTA download no longer sends an empty URL to the device**: when no compatible binary was found for the build target, the backend returned an empty `download_url`. The device then attempted an OTA connection to an empty hostname, failing with a DNS error. The `update_available` flag is now only set when a matching binary exists, and the UI adds a defensive guard as a belt-and-suspenders check

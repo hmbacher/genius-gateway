@@ -218,12 +218,12 @@ struct GeniusRadioModuleInfo
         if (static_cast<int>(model) != -1)
             root["model"] = static_cast<int>(model);
         root["sn"] = sn;
-        if (lineId)           root["lineId"] = lineId;
+        root["lineId"] = lineId;
         if (lineCharacter)    root["lineCharacter"] = String(lineCharacter);
         root["lineNumber"] = lineNumber;
         if (radioStateMask)   root["radioStateMask"] = radioStateMask;
         if (radioSwitchMask)  root["radioSwitchMask"] = radioSwitchMask;
-        if (radioInterference > 0.0f) root["radioInterference"] = radioInterference;
+        root["radioInterference"] = radioInterference;
         if (radioNetworkFault) root["radioNetworkFault"] = radioNetworkFault;
     }
 
