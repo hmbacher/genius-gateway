@@ -645,6 +645,20 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
         changed = true;
     }
 
+    // Alarm line: merged independently of the readout-time bump below, since manual
+    // line entry (old FM modules) updates these fields without a new readout.
+    if (this->radioModule.lineId != newRM.lineId ||
+        this->radioModule.lineCharacter != newRM.lineCharacter ||
+        this->radioModule.lineNumber != newRM.lineNumber ||
+        this->radioModule.lineManual != newRM.lineManual)
+    {
+        this->radioModule.lineId = newRM.lineId;
+        this->radioModule.lineCharacter = newRM.lineCharacter;
+        this->radioModule.lineNumber = newRM.lineNumber;
+        this->radioModule.lineManual = newRM.lineManual;
+        changed = true;
+    }
+
     // Readout-time bump: replace full SD/RM structs and bump registration
     if (this->readoutTime != newReadoutTime)
     {
@@ -714,6 +728,32 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                     dev["radioModule"]["model"] = 4;
                 // Remove obsolete radioModule.productionDate field
                 dev["radioModule"].remove("productionDate");
+            }
+        }
+        hasChanges = true; // force save with new version
+    }
+
+    // Migration v1→v2: old FM modules (FM.Basis / FM.Pro) cannot expose a trustworthy
+    // alarm line. Earlier firmware copied the unreliable acoustic line onto the device;
+    // purge it unless it was entered by hand, so the UI surfaces "Line required" and
+    // prompts manual entry. lineManual=true lines are kept.
+    if (configVersion < 2 && originId == GATEWAY_DEVICES_FILE)
+    {
+        ESP_LOGI(GeniusDevices::TAG, "Migrating device config from v%d to v%d.", configVersion, GATEWAY_DEVICES_CONFIG_VERSION);
+        if (root["devices"].is<JsonArray>())
+        {
+            for (JsonVariant dev : root["devices"].as<JsonArray>())
+            {
+                JsonObject rm = dev["radioModule"].as<JsonObject>();
+                if (rm.isNull())
+                    continue;
+                int model = rm["model"].is<int>() ? rm["model"].as<int>() : GRM_UNKNOWN;
+                if (isOldFmModule(static_cast<GeniusRadioModule>(model)) && !rm["lineManual"].as<bool>())
+                {
+                    rm.remove("lineId");
+                    rm.remove("lineCharacter");
+                    rm.remove("lineNumber");
+                }
             }
         }
         hasChanges = true; // force save with new version

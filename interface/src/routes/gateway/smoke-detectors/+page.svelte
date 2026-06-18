@@ -26,6 +26,7 @@
 	import type { TunerData } from '$lib/audio/tuner-pipeline';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { getSmokeDetectorFaults, getRadioModuleFaults } from '$lib/utils/deviceStatus';
+	import { isOldFmModule } from '$lib/genius/line';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -37,6 +38,7 @@
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
 	import DeviceImportDialog from './DeviceImportDialog.svelte';
 	import DeviceDetailsDialog from './DeviceDetailsDialog.svelte';
+	import ManualLineEntry from './ManualLineEntry.svelte';
 	import PdfReportDialog from './PdfReportDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
 	import { matchAcousticResult, matchAcousticUpdate } from './acousticMatch';
@@ -326,6 +328,7 @@
 			onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
 				await apiPutDevice(editedGeniusDevice);
 				modals.close();
+				afterDeviceSaved(editedGeniusDevice);
 			}
 		});
 	}
@@ -336,6 +339,7 @@
 			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
 				await apiPutDevice(newGeniusDevice);
 				modals.close();
+				afterDeviceSaved(newGeniusDevice);
 			}
 		});
 		//
@@ -384,12 +388,16 @@
 			driftState: data.driftState,
 			dirtForecastNegative: data.dirtForecastNegative
 		};
+		// Old FM modules (FM.Basis / FM.Pro) transmit lineId == 0 and an unreliable
+		// line byte over SmartSonic — the line must be entered by hand, so we do not
+		// trust the readout's line fields for them (see lib/genius/line.ts).
+		const oldModule = isOldFmModule(data.radioProductType);
 		const rm: GeniusRadioModuleInfo = {
 			model: data.radioProductType,
 			sn: data.radioSerialNumber ?? 0,
-			lineId: data.lineId,
-			lineCharacter: data.lineCharacter,
-			lineNumber: data.lineNumber,
+			lineId: oldModule ? 0 : data.lineId,
+			lineCharacter: oldModule ? undefined : data.lineCharacter,
+			lineNumber: oldModule ? undefined : data.lineNumber,
 			radioStateMask: data.radioStateMask,
 			radioSwitchMask: data.radioSwitchMask,
 			radioInterference: data.radioInterference,
@@ -466,6 +474,61 @@
 		}
 	}
 
+	/** Old FM module that still has no manually-entered alarm line — needs attention. */
+	function needsManualLineEntry(device: GeniusDevice): boolean {
+		return isOldFmModule(device.radioModule.model) && !device.radioModule.lineCharacter;
+	}
+
+	/** Open the manual line-entry dialog for an old FM module and persist the chosen line. */
+	function offerManualLineEntry(device: GeniusDevice) {
+		modals.open(ManualLineEntry, {
+			title: 'Set alarm line',
+			geniusDevice: device,
+			saveButtonLabel: 'Save line',
+			onSave: async (updated: GeniusDevice) => {
+				const ok = await apiPutDevice(updated);
+				modals.close();
+				if (ok) notifications.success('Alarm line set.', 3000);
+			}
+		});
+	}
+
+	/**
+	 * Post-save follow-ups after a readout/add: warn on faults, then either route old
+	 * modules to manual line entry or offer to add a newly-seen alarm line.
+	 */
+	function afterDeviceSaved(device: GeniusDevice) {
+		checkAndWarnDiagnostics(device, () => {
+			if (needsManualLineEntry(device)) {
+				offerManualLineEntry(device);
+			} else {
+				checkAndOfferAlarmLine(device);
+			}
+		});
+	}
+
+	/**
+	 * Carry a previously manually-entered alarm line from `source` onto `target`'s old
+	 * FM module, but only when `source`'s radio module serial confirms it's the SAME
+	 * physical hardware. The rotary switch position is a property of the radio module,
+	 * not the smoke detector — it should follow the module (e.g. when it's matched on a
+	 * different / new device base), but must never leak onto an unrelated module just
+	 * because the serial didn't match (e.g. the module was swapped on this base).
+	 */
+	function preserveManualLineIfSameModule(target: GeniusDevice, source: GeniusDevice) {
+		if (
+			isOldFmModule(target.radioModule.model) &&
+			source.radioModule.lineManual &&
+			(source.radioModule.sn ?? 0) > 0 &&
+			source.radioModule.sn === target.radioModule.sn
+		) {
+			target.radioModule.lineId = source.radioModule.lineId;
+			target.radioModule.lineCharacter = source.radioModule.lineCharacter;
+			target.radioModule.lineNumber = source.radioModule.lineNumber;
+			target.radioModule.lineManual = source.radioModule.lineManual;
+		}
+	}
+
 	/** Silently update an existing device at the given index, preserving location, alarms, and position */
 	async function silentUpdateDevice(index: number, newDevice: GeniusDevice) {
 		const existing = geniusDevices.devices[index];
@@ -473,9 +536,10 @@
 		newDevice.location = existing.location;
 		newDevice.alarms = existing.alarms;
 		newDevice.isAlarming = existing.isAlarming;
+		preserveManualLineIfSameModule(newDevice, existing);
 		const ok = await apiPutDevice(newDevice);
 		if (ok) notifications.success('Readout data updated successfully.', 3000);
-		checkAndWarnDiagnostics(newDevice, () => checkAndOfferAlarmLine(newDevice));
+		afterDeviceSaved(newDevice);
 	}
 
 	function handleAcousticResult(data: TunerData) {
@@ -523,6 +587,10 @@
 						// Keep location and position, but reset alarms
 						newDevice.id = existing.id;
 						newDevice.location = existing.location;
+						// Same RM serial confirms this is the same physical module, just
+						// moved to a different smoke-detector base — pre-fill its known
+						// rotary line so the installer doesn't have to recall/re-enter it.
+						preserveManualLineIfSameModule(newDevice, existing);
 						modals.close();
 						modals.open(EditSmokeDetector, {
 							title: 'Replace smoke detector',
@@ -531,7 +599,7 @@
 							onSaveGeniusDevice: async (editedDevice: GeniusDevice) => {
 								await apiPutDevice(editedDevice);
 								modals.close();
-								checkAndWarnDiagnostics(editedDevice, () => checkAndOfferAlarmLine(editedDevice));
+								afterDeviceSaved(editedDevice);
 							}
 						});
 					}
@@ -555,6 +623,9 @@
 						confirm: { label: 'Continue', icon: Check }
 					},
 					onConfirm: () => {
+						// Same RM serial confirms deviceB's module is the one in this
+						// reading — carry its known rotary line into the new device.
+						preserveManualLineIfSameModule(newDevice, deviceB);
 						modals.close();
 						acousticAddNew(newDevice, 'Delete previous & add device', idsToDelete);
 					}
@@ -575,7 +646,7 @@
 				for (const id of idsToDeleteFirst) await apiDeleteDevice(id);
 				await apiPutDevice(newGeniusDevice);
 				modals.close();
-				checkAndWarnDiagnostics(newGeniusDevice, () => checkAndOfferAlarmLine(newGeniusDevice));
+				afterDeviceSaved(newGeniusDevice);
 			}
 		});
 	}
@@ -731,7 +802,8 @@
 		modals.open(DeviceDetailsDialog, {
 			title: 'Device Details',
 			device: geniusDevices.devices[index],
-			onReadout: () => handleDeviceReadout(index)
+			onReadout: () => handleDeviceReadout(index),
+			onSetLine: () => handleEdit(index)
 		});
 	}
 
@@ -792,6 +864,19 @@
 				delete dev.radioModule.productionDate;
 			}
 		}
+		if (fromVersion < 2) {
+			// Old FM modules (FM.Basis / FM.Pro) cannot expose a trustworthy line. Earlier
+			// backups stored the unreliable acoustic line; purge it unless entered by hand,
+			// so the device surfaces as "Line required".
+			for (const dev of data.devices) {
+				const rm = dev.radioModule;
+				if (isOldFmModule(rm.model) && !rm.lineManual) {
+					rm.lineId = undefined;
+					rm.lineCharacter = undefined;
+					rm.lineNumber = undefined;
+				}
+			}
+		}
 	}
 
 	function clearAlarmingDevices(devices: GeniusDevice[]): void {
@@ -816,7 +901,7 @@
 		let cancelled = false;
 		reader.onload = async () => {
 			if (cancelled) return;
-			const CURRENT_VERSION = 1;
+			const CURRENT_VERSION = 2;
 			const fileContent = reader.result as string;
 			try {
 				const importedGeniusDevices = JSON.parse(fileContent, jsonDateReviver) as GeniusDevices;
@@ -989,7 +1074,7 @@
 						disabled={!geniusDevices.isLoaded}
 						onclick={() =>
 							downloadObjectAsJson(
-								{ version: 1, devices: geniusDevices.devices },
+								{ version: 2, devices: geniusDevices.devices },
 								'genius-smoke-detectors'
 							)}
 					>

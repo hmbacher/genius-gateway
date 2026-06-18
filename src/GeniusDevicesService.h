@@ -73,7 +73,7 @@
 #define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"  ///< Event for device discovery
 #define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"  ///< Default location for new devices
 
-#define GATEWAY_DEVICES_CONFIG_VERSION 1  ///< Current config file version (for JSON migration support)
+#define GATEWAY_DEVICES_CONFIG_VERSION 2  ///< Current config file version (for JSON migration support)
 
 typedef enum genius_alarm_ending
 {
@@ -116,6 +116,20 @@ typedef enum genius_radio_module
     GRM_FM_BASIS_X = 4, ///< FM Basis X radio module
     GRM_FM_PRO_X = 5,   ///< FM Pro X radio module
 } GeniusRadioModule;
+
+/// True for the old-generation FM modules (FM.Basis / FM.Pro) that cannot expose
+/// their alarm line via the device — the line must be entered manually, mirroring
+/// the official app's SmartSonicValidationService.isOldFm().
+static inline bool isOldFmModule(GeniusRadioModule model)
+{
+    return model == GRM_FM_BASIS || model == GRM_FM_PRO;
+}
+
+/// True iff the alarm line for this module must be entered by hand (old FM modules).
+static inline bool isManualLineEntryRequired(GeniusRadioModule model)
+{
+    return isOldFmModule(model);
+}
 
 /// Maps acoustic protocol product type byte directly to GeniusSmokeDetector enum
 /// Acoustic protocol: 0=Genius H, 1=Genius Hx, 2=Genius Plus, 3=Genius Plus X
@@ -212,6 +226,7 @@ struct GeniusRadioModuleInfo
     uint8_t radioSwitchMask;  ///< Radio switch flags bitmask
     float radioInterference;  ///< Radio interference level (0.0-100.0%)
     bool radioNetworkFault;   ///< Radio network fault flag
+    bool lineManual;          ///< True if the alarm line was entered by hand (old FM modules)
 
     void toJson(JsonObject &root) const
     {
@@ -225,6 +240,7 @@ struct GeniusRadioModuleInfo
         if (radioSwitchMask)  root["radioSwitchMask"] = radioSwitchMask;
         root["radioInterference"] = radioInterference;
         if (radioNetworkFault) root["radioNetworkFault"] = radioNetworkFault;
+        if (lineManual)       root["lineManual"] = true;
     }
 
     static GeniusRadioModuleInfo fromJson(JsonObject root)
@@ -241,6 +257,7 @@ struct GeniusRadioModuleInfo
         d.radioSwitchMask = root["radioSwitchMask"].as<uint8_t>();
         d.radioInterference = max(0.0f, root["radioInterference"].as<float>());
         d.radioNetworkFault = root["radioNetworkFault"].as<bool>();
+        d.lineManual = root["lineManual"].as<bool>();
         return d;
     }
 };

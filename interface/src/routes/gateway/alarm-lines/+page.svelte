@@ -2,7 +2,7 @@
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
 	import { modals } from 'svelte-modals';
-	import { slide } from 'svelte/transition';
+	import { slide, fade } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { user } from '$lib/stores/user';
 	import { page } from '$app/state';
@@ -10,12 +10,14 @@
 	import type { AlarmLines, AlarmLine } from '$lib/types/models';
 	import { AlarmLineAcquisition, GeniusDeviceRegistration } from '$lib/types/enums';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
+	import { hasAutomaticLineDetection } from '$lib/genius/line';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { onMount, onDestroy } from 'svelte';
 	import { socket } from '$lib/stores/socket';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
+	import InfoPopover from '$lib/components/InfoPopover.svelte';
 	import EditAlarmLine from './EditAlarmLine.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Delete from '~icons/tabler/trash';
@@ -56,6 +58,12 @@
 		fireAlarmStart: [] as boolean[],
 		fireAlarmStop: [] as boolean[]
 	});
+
+	// Avoid hiding the column before devices have loaded; default to showing it.
+	let hasXSeriesHardware = $derived(
+		!geniusDevices.isLoaded ||
+			geniusDevices.devices.some((d) => hasAutomaticLineDetection(d.radioModule.model))
+	);
 
 	let isActionActive = $derived(
 		activeActions.lineTestStart.some((active) => active) ||
@@ -511,26 +519,36 @@
 												{/if}
 											{/if}
 										</div>
-										<!-- Row 2: smoke detector locations -->
-										<div class="text-base-content/70">
-											{#if !geniusDevices.isLoaded}
-												<SpinnerSmall />
-											{:else}
-												{@const locations = geniusDevices.devices
-													.filter(
-														(d) =>
-															d.registration === GeniusDeviceRegistration.Acoustic &&
-															d.radioModule.lineId === line.id
-													)
-													.map((d) => d.location)
-													.join(', ')}
-												{#if locations}
-													{locations}
+										{#if hasXSeriesHardware}
+											<!-- Row 2: smoke detector locations -->
+											<div class="text-base-content/70" transition:slide|local={{ duration: 200, easing: cubicOut }}>
+												{#if !geniusDevices.isLoaded}
+													<SpinnerSmall />
 												{:else}
-													<span class="italic text-base-content/40">No devices</span>
+													{@const locations = geniusDevices.devices
+														.filter(
+															(d) =>
+																d.registration === GeniusDeviceRegistration.Acoustic &&
+																d.radioModule.lineId === line.id
+														)
+														.map((d) => d.location)
+														.join(', ')}
+													{#if locations}
+														{locations}
+													{:else}
+														<span class="inline-flex items-center gap-1">
+															<span class="italic text-base-content/40">No devices</span>
+															<InfoPopover label="About smoke detector assignment">
+																<p>
+																	Only smoke detectors with <em>FM Basis X</em> /
+																	<em>FM Pro X</em> radio module can be referenced here.
+																</p>
+															</InfoPopover>
+														</span>
+													{/if}
 												{/if}
-											{/if}
-										</div>
+											</div>
+										{/if}
 										<!-- Row 3: action buttons -->
 										<div class="flex items-center gap-0.5 border-t border-base-200 pt-1.5">
 											<button
@@ -629,7 +647,19 @@
 									<tr class="font-bold">
 										<th align="left">ID</th>
 										<th align="left">Name</th>
-										<th align="left">Smoke Detectors</th>
+										{#if hasXSeriesHardware}
+											<th align="left" transition:fade={{ duration: 150 }}>
+												<span class="inline-flex items-center gap-1">
+													Smoke Detectors
+													<InfoPopover label="About smoke detector assignment">
+														<p>
+															Only smoke detectors with <em>FM Basis X</em> / <em>FM Pro X</em>
+															radio module can be referenced here.
+														</p>
+													</InfoPopover>
+												</span>
+											</th>
+										{/if}
 										<th align="center">Acquisition</th>
 										<th align="right" class="pr-8">Manage</th>
 									</tr>
@@ -648,23 +678,25 @@
 													class={line.id === BROADCAST_ID ? 'text-base-content/50' : ''}
 													>{line.name}</td
 												>
-												<td align="left" class="text-sm">
-													{#if !geniusDevices.isLoaded}
-														<div class="flex justify-center"><SpinnerSmall /></div>
-													{:else}
-														{@const locations = geniusDevices.devices
-															.filter(
-																(d) =>
-																	d.registration === GeniusDeviceRegistration.Acoustic &&
-																	d.radioModule.lineId === line.id
-															)
-															.map((d) => d.location)
-															.join(', ')}
-														<span class={locations ? '' : 'flex justify-center'}
-															>{locations || '-'}</span
-														>
-													{/if}
-												</td>
+												{#if hasXSeriesHardware}
+													<td align="left" class="text-sm" transition:fade={{ duration: 150 }}>
+														{#if !geniusDevices.isLoaded}
+															<div class="flex justify-center"><SpinnerSmall /></div>
+														{:else}
+															{@const locations = geniusDevices.devices
+																.filter(
+																	(d) =>
+																		d.registration === GeniusDeviceRegistration.Acoustic &&
+																		d.radioModule.lineId === line.id
+																)
+																.map((d) => d.location)
+																.join(', ')}
+															<span class={locations ? '' : 'flex justify-center'}
+																>{locations || '-'}</span
+															>
+														{/if}
+													</td>
+												{/if}
 												<td align="center">
 													{#if line.id != BROADCAST_ID}
 														{#if line.acquisition === AlarmLineAcquisition.Manual}

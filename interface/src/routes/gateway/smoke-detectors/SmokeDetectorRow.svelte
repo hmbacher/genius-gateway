@@ -7,6 +7,7 @@
 		getRadioModuleFaults
 	} from '$lib/utils/deviceStatus';
 	import { formatDate } from '$lib/utils/formatDate';
+	import { isOldFmModule } from '$lib/genius/line';
 	import { dragHandle } from 'svelte-dnd-action';
 	import DetectorStatusBadge from './DetectorStatusBadge.svelte';
 	import { GeniusSmokeDetector, GeniusRadioModule } from '$lib/types/enums';
@@ -20,6 +21,7 @@
 	import CalendarExclamation from '~icons/tabler/calendar-exclamation';
 	import MicrophoneOff from '~icons/tabler/microphone-off';
 	import AntennaOff from '~icons/tabler/antenna-off';
+	import LineAlert from '~icons/tabler/alert-triangle';
 	import DotsVertical from '~icons/tabler/dots-vertical';
 	import Flame from '~icons/tabler/flame-filled';
 
@@ -77,6 +79,10 @@
 	const stale = $derived(isStaleReadout(device));
 	const sdFaults = $derived(getSmokeDetectorFaults(device.smokeDetector));
 	const rmFaults = $derived(getRadioModuleFaults(device.radioModule));
+	// Old FM module (FM.Basis / FM.Pro) without a manually-entered alarm line.
+	const lineRequired = $derived(
+		isOldFmModule(device.radioModule.model) && !device.radioModule.lineCharacter
+	);
 
 	// Color helper for top-right service icon (resolves to text-current on
 	// alarming rows so the icon stays legible on the red bg).
@@ -209,6 +215,15 @@
 					compact
 					onclick={() => onDetails(index)}
 				/>
+				{#if lineRequired}
+					<button
+						class="btn btn-warning btn-xs gap-1"
+						title="Set the alarm line"
+						onclick={() => onEdit(index)}
+					>
+						<LineAlert class="h-3.5 w-3.5" /> Line required
+					</button>
+				{/if}
 			{/if}
 		</div>
 	</div>
@@ -280,6 +295,15 @@
 					faults={rmFaults}
 					onclick={() => onDetails(index)}
 				/>
+				{#if lineRequired}
+					<button
+						class="btn btn-warning btn-xs gap-1"
+						title="Set the alarm line"
+						onclick={() => onEdit(index)}
+					>
+						<LineAlert class="h-3.5 w-3.5" /> Line required
+					</button>
+				{/if}
 			{/if}
 		</div>
 

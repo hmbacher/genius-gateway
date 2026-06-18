@@ -512,6 +512,33 @@ const SCENARIOS = [
             warrantyFlags:          0,
             deviceStatusByte:       0x00
         }
+    },
+    {
+        // Manual line-entry test: a current-generation SD (Genius Plus X) paired with
+        // an OLD radio module (FM.Basis). Old modules always transmit lineId=0, and the
+        // line byte (29) is unreliable — deliberately set to non-zero "garbage" (F.7)
+        // here to verify the frontend ignores it and requires manual line entry
+        // regardless of what's on the wire (see old-fm-manual-line-entry.md).
+        filename: 'sd-genius-plus-x-fm-basis.wav',
+        name: 'Genius Plus X + FM.Basis (old module — line must be entered manually)',
+        opts: {
+            serialNumber:           0x12A1000C,
+            productType:            3,          // Genius Plus X
+            radioProductType:       1,          // FM.Basis (old)
+            productionAgeDays:      365,        // ~1 year
+            lastAlarmOffsetDays:    0xffff,
+            lastSelftestOffsetDays: 330,
+            alarmCountTotal:        0,
+            warrantyFlags:          0,
+            deviceStatusByte:       0x00,
+            radioStateMask:         0x00,
+            radioSerialNumber:      0xAB00100C,
+            lineId:                 0x00000000, // old modules always transmit 0
+            lineCharIdx:            5,          // 'F' — deliberately unreliable/garbage
+            lineNumber:             7,          //       to verify it's ignored, not trusted
+            radioSwitchFlags:       0x18,
+            radioInterference:      0.4
+        }
     }
 ];
 

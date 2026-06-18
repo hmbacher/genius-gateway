@@ -1,5 +1,15 @@
 # v1.4.1
 
+## Manual Alarm-Line Entry for Old FM Modules
+Old-generation radio modules (**FM.Basis** / **FM.Pro**) cannot expose a trustworthy alarm line: they transmit `lineId=0` over SmartSonic and the line byte on the wire is unreliable. The Genius Gateway now mirrors the official Hekatron app's behavior for these modules instead of silently trusting bogus readout data.
+
+- **Manual line entry required for old modules**: acoustic readout and radio-packet data for FM.Basis/FM.Pro modules no longer populate the alarm line automatically. Devices with an old module and no line yet are flagged **"Line required"** in the smoke-detector list and details dialog, with a one-click path into the new rotary-switch entry UI (major `A`–`H` / minor `0`–`9`, with `H` disabled for FM.Basis since Sammelalarm is Pro-only)
+- **Device details dialog adapted for old modules**: radio status, DIP switches, and interference are hidden for FM.Basis/FM.Pro (these modules never report them); the alarm line section shows the manually-entered rotary line or a "Set Alarm Line manually" action instead
+- **Rotary line follows the physical module on swap/replace**: when a radio module is matched by serial number across a readout/replace flow, its manually-entered line is carried over so installers don't have to re-enter it for the same hardware
+- **Config migration v1 → v2**: existing configs with an old-module device that has a (untrustworthy) line carried over from previous firmware are migrated — the stale `lineId`/`lineCharacter`/`lineNumber` are purged unless they were already flagged as manually entered
+- **"Smoke Detectors" column hidden when no compatible hardware is installed**: the Alarm Lines page's smoke-detector-assignment column (desktop table and mobile cards) is only shown when at least one device has a radio module capable of automatic line detection (FM.MCP, FM.Basis X, FM.Pro X) — installations with only old FM.Basis/FM.Pro hardware no longer see a column that's permanently empty
+- **New `InfoPopover` component**: a click-to-open, rich-HTML tooltip (supports multi-line text, links, etc.) styled to match daisyUI's tooltip look — used to explain the smoke-detector-assignment restriction inline next to the column header / "No devices" state
+
 ## Bugfixes
 - **Device export always includes `radioInterference` and `lineId`**: both fields were previously omitted when zero. A genuine `radioInterference` reading of 0.0% would silently disappear from the export, indistinguishable from a device that had never been read out. Similarly, a `lineId` of 0 (unassigned) would be absent. Both fields are now always written so consumers can rely on their presence
 - **SPI Pin Configuration dropdowns no longer clipped at card boundary**: the lower pin selectors in the SPI Pin Configuration dialog were cut off by the settings card's overflow boundary. The card now uses `overflow-x: clip` / `overflow-y: visible` so dropdown lists extend below the card as expected

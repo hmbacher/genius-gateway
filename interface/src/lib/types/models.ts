@@ -184,6 +184,8 @@ export type GeniusRadioModuleInfo = {
 	radioSwitchMask?: number;
 	radioInterference?: number;
 	radioNetworkFault?: boolean;
+	/** True if the alarm line was entered by hand (old FM.Basis / FM.Pro modules). */
+	lineManual?: boolean;
 };
 
 export type GeniusDevice = {

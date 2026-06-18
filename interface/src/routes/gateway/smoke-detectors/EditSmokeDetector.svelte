@@ -18,6 +18,16 @@
 	} from '$lib/types/enums';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import DateInput from '$lib/components/DateInput.svelte';
+	import {
+		LINE_MAJORS,
+		LINE_MINORS,
+		validMinorsFor,
+		validateLine,
+		isHMajorAllowed,
+		isOldFmModule,
+		DEFAULT_LINE_MAJOR,
+		DEFAULT_LINE_MINOR
+	} from '$lib/genius/line';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
 	import IconSmokeDetector from '~icons/custom-icons/smoke-detector-m';
@@ -119,6 +129,31 @@
 		)
 	);
 	const hasRadioModule = $derived(geniusDevice.radioModule.model !== GeniusRadioModule.None);
+
+	// Old FM modules (FM.Basis / FM.Pro) cannot expose a trustworthy alarm line; the
+	// rotary switch position must be entered by hand here, so it can also be edited later.
+	const isOldModule = $derived(hasRadioModule && isOldFmModule(geniusDevice.radioModule.model));
+
+	let lineMajor = $state(geniusDevice.radioModule.lineCharacter || DEFAULT_LINE_MAJOR);
+	let lineMinor = $state(geniusDevice.radioModule.lineNumber ?? DEFAULT_LINE_MINOR);
+
+	// Keep major/minor valid as the radio module model changes (e.g. H is Pro-only).
+	$effect(() => {
+		if (isOldModule && lineMajor === 'H' && !isHMajorAllowed(geniusDevice.radioModule.model)) {
+			lineMajor = DEFAULT_LINE_MAJOR;
+		}
+	});
+	const availableLineMinors = $derived(
+		isOldModule ? validMinorsFor(lineMajor, geniusDevice.radioModule.model) ?? [...LINE_MINORS] : [...LINE_MINORS]
+	);
+	$effect(() => {
+		if (isOldModule && !availableLineMinors.includes(lineMinor)) {
+			lineMinor = availableLineMinors[0] ?? DEFAULT_LINE_MINOR;
+		}
+	});
+	const lineError = $derived(
+		isOldModule ? validateLine(lineMajor, lineMinor, geniusDevice.radioModule.model) : null
+	);
 	const radioModuleSNRangeError = $derived(
 		!isAutoDetected && hasRadioModule && !inRange(geniusDevice.radioModule.sn, minSN, maxSN)
 	);
@@ -140,13 +175,21 @@
 			radioModuleSNRangeError ||
 			radioModuleSNDuplicateError ||
 			productionDateError ||
-			locationError
+			locationError ||
+			!!lineError
 	);
 
 	function handleSave() {
 		if (!hasErrors) {
 			if (!hasRadioModule) {
 				geniusDevice.radioModule.sn = 0;
+			}
+			if (isOldModule) {
+				geniusDevice.radioModule.lineCharacter = lineMajor;
+				geniusDevice.radioModule.lineNumber = lineMinor;
+				geniusDevice.radioModule.lineManual = true;
+				// Old modules expose no 32-bit Line-ID; the rotary switch is the only identity.
+				geniusDevice.radioModule.lineId = 0;
 			}
 			onSaveGeniusDevice(geniusDevice);
 		}
@@ -296,6 +339,44 @@
 						</div>
 					{/if}
 				</div>
+
+				{#if isOldModule}
+					<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
+						<div class="alert alert-warning mt-2 gap-2 p-2">
+							<IconWarning class="h-5 w-5 shrink-0 mt-0.5" />
+							<span class="text-sm"
+								>This radio module does not report its alarm line. Set it to match the rotary
+								switch (letter + digit) on the module.</span
+							>
+						</div>
+						<div class="flex flex-col lg:flex-row lg:gap-4 mt-2">
+							<div class="flex-1">
+								<label class="label" for="lineMajor">Rotary Switch (major)</label>
+								<select class="select select-bordered w-full pl-3" id="lineMajor" bind:value={lineMajor}>
+									{#each LINE_MAJORS as m}
+										<option value={m} disabled={m === 'H' && !isHMajorAllowed(geniusDevice.radioModule.model)}
+											>{m}</option
+										>
+									{/each}
+								</select>
+							</div>
+							<div class="flex-1">
+								<label class="label" for="lineMinor">Rotary Switch (minor)</label>
+								<select class="select select-bordered w-full pl-3" id="lineMinor" bind:value={lineMinor}>
+									{#each availableLineMinors as n}
+										<option value={n}>{n}</option>
+									{/each}
+								</select>
+							</div>
+						</div>
+						<FieldError show={!!lineError} message={lineError ?? ''} />
+						{#if geniusDevice.radioModule.model === GeniusRadioModule.FmBasis}
+							<div class="mt-1 text-sm text-base-content/60">
+								FM.Basis cannot use Sammelalarm (H) lines.
+							</div>
+						{/if}
+					</div>
+				{/if}
 
 				<div class="divider my-2"></div>
 

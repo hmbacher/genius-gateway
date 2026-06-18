@@ -10,6 +10,7 @@
 		GeniusDeviceRegistration
 	} from '$lib/types/enums';
 	import { isStaleReadout } from '$lib/utils/deviceStatus';
+	import { isOldFmModule } from '$lib/genius/line';
 	import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 	import DetailRow from './DetailRow.svelte';
 	import Cancel from '~icons/tabler/x';
@@ -26,6 +27,7 @@
 	import IconCheck from '~icons/tabler/check';
 	import IconError from '~icons/tabler/circle-x';
 	import IconWarning from '~icons/tabler/alert-triangle';
+	import IconInfo from '~icons/tabler/info-circle';
 	import IconBattery from '~icons/tabler/battery';
 	import IconBatteryOff from '~icons/tabler/battery-off';
 	import IconAlarm from '~icons/tabler/bell-ringing';
@@ -49,14 +51,21 @@
 		title: string;
 		device: GeniusDevice;
 		onReadout?: () => void;
+		onSetLine?: () => void;
 	}
 
-	let { isOpen, title, device, onReadout }: Props = $props();
+	let { isOpen, title, device, onReadout, onSetLine }: Props = $props();
 
 	const titleId = `device-details-title-${Math.random().toString(36).slice(2)}`;
 
 	let isSecureContext = $derived(page.url.protocol === 'https:');
 	let staleReadout = $derived(isStaleReadout(device));
+
+	// Old FM modules (FM.Basis / FM.Pro) transmit only type + serial over SmartSonic;
+	// radio status, DIP switches and interference are not available, and the line must
+	// be entered by hand.
+	let isOldModule = $derived(isOldFmModule(device.radioModule.model));
+	let lineRequired = $derived(isOldModule && !device.radioModule.lineCharacter);
 
 	const smokeDetectorModelName: Record<number, string> = {
 		[GeniusSmokeDetector.Unknown]: 'Unknown',
@@ -112,7 +121,12 @@
 		{ name: 'Range Test active', inactive: ['', 'Range Test', ' is not active'], neutral: true },
 		{ name: 'Self-Test active', inactive: ['', 'Self-Test', ' is not active'], neutral: true },
 		{ name: 'FM Battery Low', inactive: ['', 'FM Battery', ' is not low'], neutral: false },
-		{ name: 'Remote Battery Low', inactive: ['', 'Remote Battery', ' is not low'], neutral: false, warn: true },
+		{
+			name: 'Remote Battery Low',
+			inactive: ['', 'Remote Battery', ' is not low'],
+			neutral: false,
+			warn: true
+		},
 		{ name: 'Remote Error', inactive: ['No ', 'Remote Error', ''], neutral: false, warn: true },
 		{ name: 'Radio Link Error', inactive: ['No ', 'Radio Link Error', ''], neutral: false },
 		{ name: 'Remote Alarm', inactive: ['', 'Remote Alarm', ' is not active'], neutral: true }
@@ -397,7 +411,54 @@
 							/>
 							<DetailRow icon={IconNumber} label="Serial Number" value={device.radioModule.sn} />
 
-							{#if device.readoutTime}
+							{#snippet alarmLineRows()}
+								{#if device.radioModule.lineId}
+									<DetailRow icon={IconHash} label="Line ID" value={device.radioModule.lineId} />
+								{/if}
+								{#if lineRequired}
+									<DetailRow icon={IconToggleRightFilled} label="Rotary Switch">
+										{#if onSetLine}
+											<button
+												class="btn btn-sm btn-warning inline-flex items-center"
+												type="button"
+												onclick={() => {
+													modals.close();
+													onSetLine?.();
+												}}
+											>
+												<IconForms class="h-4 w-4" />
+												<span>Set Alarm Line manually</span>
+											</button>
+										{/if}
+									</DetailRow>
+								{:else if device.radioModule.lineManual}
+									<DetailRow
+										icon={IconToggleRightFilled}
+										label="Rotary Switches"
+										value={`${device.radioModule.lineCharacter ?? '?'}.${device.radioModule.lineNumber ?? '?'}`}
+									/>
+								{:else if device.radioModule.lineCharacter || device.radioModule.lineNumber != null}
+									<DetailRow
+										icon={IconLetterCase}
+										label="Line"
+										value={`${device.radioModule.lineCharacter ?? '?'}.${device.radioModule.lineNumber ?? '?'}`}
+									/>
+								{/if}
+							{/snippet}
+
+							{#if isOldModule}
+								<!-- Old FM modules expose only type + serial. Radio status, DIP and
+								     interference are unavailable, and the line is user-entered. -->
+								<div class="divider my-1 mt-3 text-sm text-base-content/40">Alarm Line</div>
+								{@render alarmLineRows()}
+								<div class="alert alert-info alert-soft mt-3 gap-2 p-3">
+									<IconInfo class="mt-0.5 h-5 w-5 shrink-0 self-start" />
+									<span class="text-sm">
+										FM.Basis / FM.Pro transmit only type and serial number - radio status, DIP
+										switches and interference are not available via acoustic readout.
+									</span>
+								</div>
+							{:else if device.readoutTime}
 								<div class="divider my-1 mt-3 text-sm text-base-content/40">Radio Status</div>
 
 								<!-- Matches Hekatron Genius Home: bit 0 (FmFault) + bit 3 (FmBatteryLowFault) -->
@@ -451,16 +512,7 @@
 
 								<div class="divider my-1 mt-3 text-sm text-base-content/40">Alarm Line</div>
 
-								{#if device.radioModule.lineId}
-									<DetailRow icon={IconHash} label="Line ID" value={device.radioModule.lineId} />
-								{/if}
-								{#if device.radioModule.lineCharacter || device.radioModule.lineNumber != null}
-									<DetailRow
-										icon={IconLetterCase}
-										label="Line"
-										value={`${device.radioModule.lineCharacter ?? '?'}.${device.radioModule.lineNumber ?? '?'}`}
-									/>
-								{/if}
+								{@render alarmLineRows()}
 
 								<DetailRow icon={IconToggleRightFilled} label="DIP Switch Config" />
 

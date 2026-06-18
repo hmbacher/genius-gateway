@@ -36,6 +36,7 @@
 
 	let open = $state(false);
 	let el = $state<HTMLElement>();
+	const listboxId = `icon-select-listbox-${Math.random().toString(36).slice(2)}`;
 
 	const selected = $derived(options.find((o) => o.value === value));
 
@@ -62,6 +63,7 @@
 	role="combobox"
 	aria-expanded={open}
 	aria-haspopup="listbox"
+	aria-controls={listboxId}
 	tabindex="0"
 	onclick={(e) => {
 		if ((e.target as HTMLElement).closest('button')) return;
@@ -89,6 +91,7 @@
 
 	{#if open}
 		<ul
+			id={listboxId}
 			class="absolute right-0 top-full mt-1 z-50 max-h-64 min-w-full w-max overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-lg"
 			role="listbox"
 		>
