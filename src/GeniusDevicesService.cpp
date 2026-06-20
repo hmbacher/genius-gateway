@@ -708,6 +708,16 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
 {
     bool hasChanges = false;
 
+    // FSPersistence::applyDefaults() calls update() with an empty JsonObject when no
+    // config file exists yet (fresh device / after a flash erase). There's nothing to
+    // migrate in that case - bail out before the version checks below mistake the
+    // default-application path for a v0 file and log a spurious migration.
+    if (!root["devices"].is<JsonArray>())
+    {
+        ESP_LOGV(GeniusDevices::TAG, "No devices array in JSON, no changes made.");
+        return StateUpdateResult::UNCHANGED;
+    }
+
     // Migration: v0 had GSD_GENIUS_PLUS_X=0 and GRM_FM_BASIS_X=0 (now 3 and 4 respectively).
     // Only migrate when loading from the config file (FSPersistence uses the file path as originId).
     // Frontend PUT requests always carry version=1 after the first migration, but we guard
@@ -757,12 +767,6 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
             }
         }
         hasChanges = true; // force save with new version
-    }
-
-    if (!root["devices"].is<JsonArray>())
-    {
-        ESP_LOGV(GeniusDevices::TAG, "No devices array in JSON, no changes made.");
-        return StateUpdateResult::UNCHANGED;
     }
 
     JsonArray jsonDevices = root["devices"].as<JsonArray>();

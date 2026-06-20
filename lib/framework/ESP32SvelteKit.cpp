@@ -76,7 +76,36 @@ ESP32SvelteKit::ESP32SvelteKit(PsychicHttpServer *server, unsigned int numberEnd
 void ESP32SvelteKit::begin()
 {
     ESP_LOGV(SVK_TAG, "Loading settings from files system");
-    ESPFS.begin(true);
+    // A fresh/erased LittleFS partition always fails its first mount attempt
+    // (the joltwallet littlefs component logs this as a scary "Corrupted dir
+    // pair" error), then ESPFS.begin(true) silently reformats and remounts.
+    // Suppress that internal noise and report the outcome in one clear line.
+    esp_log_level_t previousLittleFsLogLevel = esp_log_level_get("esp_littlefs");
+    esp_log_level_set("esp_littlefs", ESP_LOG_NONE);
+    bool fsMounted = ESPFS.begin(true);
+    esp_log_level_set("esp_littlefs", previousLittleFsLogLevel);
+
+    if (!fsMounted)
+    {
+        ESP_LOGE(SVK_TAG, "LittleFS mount failed even after reformatting - filesystem is unusable");
+    }
+    else
+    {
+        const char *firstBootMarker = "/.fs_initialized";
+        if (!ESPFS.exists(firstBootMarker))
+        {
+            ESP_LOGW(SVK_TAG, "LittleFS was empty (new device or flash erase) or corrupted and has been reformatted.");
+            File marker = ESPFS.open(firstBootMarker, "w");
+            if (marker)
+            {
+                marker.close();
+            }
+        }
+        else
+        {
+            ESP_LOGV(SVK_TAG, "LittleFS mounted successfully");
+        }
+    }
 
     if (_preServiceHook)
     {
