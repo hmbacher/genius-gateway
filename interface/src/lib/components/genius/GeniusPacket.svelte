@@ -2,6 +2,8 @@
 	import type { Packet } from '$lib/types/models';
 	import { PacketTypeNames } from '$lib/types/models';
 	import GeniusPacketDataBlock from '$lib/components/genius/GeniusPacketDataBlock.svelte';
+	import GeniusPacketContentHeader from './GeniusPacketContentHeader.svelte';
+	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
 	import GeniusPacketSummary from './GeniusPacketSummary.svelte';
 	import GeniusPacketContentComissioning from './GeniusPacketContentComissioning.svelte';
 	import GeniusPacketContentLineTestStart from './GeniusPacketContentLineTestStart.svelte';
@@ -87,6 +89,9 @@
 				<GeniusPacketContentAlarmStart {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.StopAlarm}
 				<GeniusPacketContentAlarmStop {packet} {showDetails} />
+			{:else if packet.generalInfo && packet.data.length >= 24}
+				<GeniusPacketContentHeader {packet} {showDetails} />
+				<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(24)} />
 			{:else}
 				{#each packet.data as byte}
 					<GeniusPacketDataBlock {showDetails} data={new Uint8Array([byte])} />

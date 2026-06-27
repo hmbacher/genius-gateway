@@ -1,11 +1,8 @@
 <script lang="ts">
 	import type { Packet } from '$lib/types/models';
+	import GeniusPacketContentHeader from './GeniusPacketContentHeader.svelte';
 	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
 	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
-	import IconWifi from '~icons/tabler/wifi';
-	import IconRing from '~icons/tabler/topology-ring-2';
-	import IconHops from '~icons/tabler/arrow-forward-up';
-	import IconHash from '~icons/tabler/hash';
 	import IconStart from '~icons/tabler/player-play';
 
 	interface Props {
@@ -16,71 +13,7 @@
 	let { packet, showDetails = true }: Props = $props();
 </script>
 
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(0, 1)} />
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(1, 3)}
-	endianess="little"
-	details={{
-		text: 'Counter',
-		type: 'counter'
-	}}
-/>
-<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(3, 9)} />
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(9, 13)}
-	endianess="big"
-	details={{
-		icon: IconWifi,
-		text: packet.generalInfo?.firstLocation,
-		type: 'serialnumber-radiomodule'.concat(
-			packet.generalInfo?.firstLocation === 'Unknown' ? '-unknown' : ''
-		)
-	}}
-/>
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(13, 14)} />
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(14, 18)}
-	endianess="big"
-	details={{
-		icon: IconWifi,
-		text: packet.generalInfo?.secondLocation,
-		type: 'serialnumber-radiomodule'.concat(
-			packet.generalInfo?.secondLocation === 'Unknown' ? '-unknown' : ''
-		)
-	}}
-/>
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(18, 22)}
-	endianess="big"
-	details={{
-		icon: IconRing,
-		text: packet.generalInfo?.lineName,
-		type: 'line'.concat(
-			packet.generalInfo?.lineName === 'Unknown' ? '-unknown' : ''
-		)
-	}}
-/>
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(22, 23)}
-	details={{
-		icon: IconHops,
-		text: packet.generalInfo?.hops.toString(),
-		type: 'hops'
-	}}
-/>
-<GeniusPacketDataBlock
-	{showDetails}
-	data={packet.data.subarray(23, 24)}
-	details={{
-		icon: IconHash,
-		type: 'sequence-nr'
-	}}
-/>
+<GeniusPacketContentHeader {packet} {showDetails} />
 <GeniusPacketRawBytes {showDetails} data={packet.data.subarray(24, 28)} />
 <GeniusPacketDataBlock
 	{showDetails}
