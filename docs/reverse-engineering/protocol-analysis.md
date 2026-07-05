@@ -79,7 +79,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | 0 | 1 | `0x02` | | Unknown, seems to be constant |
 | 1-2 | 2 | `CC18 - 0000`<br>(`6.348 - 0`)<br>*little endian* | Pkt-# | A *packet repetition counter* that decreases with each packet repetition. It is not entirely clear how the decrementation occurs (see [Repetition](#repetition) for details). |
-| 3 | 1 | `0x00` | | Unknown, seems to be constant |
+| 3 | 1 | `0x00` / `0xFF` | | Address mode: `0x00` in normal (line-addressed) packets; `0xFF` marks a wildcard/broadcast packet such as the [SilentPing request](#silentping-linienabschlusstest). |
 | 4 | 1 | `0xFF` | | Unknown, seems to be constant |
 | 5 | 1 | `0xFF` | | Unknown, seems to be constant |
 | 6 | 1 | `0xFF` | | Unknown, seems to be constant |
@@ -90,8 +90,8 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | 14-17 | 4 | `XX XX XX XX`<br>*big endian* | Fwd-SN | Serial number[^2] of the FM Basis X radio module *forwarding* this packet.<br>The *first* packet has identical Org-SN and Fwd-SN fields. If other FM Basis X radio modules forward the packet (acting as routers), they insert their own serial number.
 | 18-21 | 4 | `XX XX XX XX`<br>*big endian* | Line-ID | The alarm line ID that this packet should affect.<br>Special IDs:<br>- `00 00 00 00 (0)`: The radio module is not (yet) assigned to any alarm line.<br>- `FF FF FF FF` (4294967295): Broadcast (all alarm lines) |
 | 22 | 1 | `0x0F - 0x00`<br>(`15 - 0`) | Hops | This appears to be a hop counter for forwarded packets, tracking the number of times the packet has been retransmitted. The original packet always contains `0x0F`, which is reduced to `0x0E` after the first forwarding. This suggests that the field is decremented by one with each subsequent forwarding. |
-| 23 | 1 | `XX` | | Unknown |
-| 24 | 1 | `XX` | | Unknown |
+| 23 | 1 | `XX` | | Sequence number — changes from one originated packet to the next. |
+| 24 | 1 | `XX` | | Flags. |
 | 25 | 1 | `0x00` | | Unknown, seems to be constant |
 | 26 | 1 | `XX` | | First byte of the message body. For the SilentPing family it is a constant marker `0x55`; the [message type](#message-type-byte) follows at offset 27. |
 
@@ -129,6 +129,24 @@ constant"*).
 
     The SilentPing request (`0x06`), response (`0x08`) and the `0x55` family marker at
     offset 26 were observed in an over-the-air capture of a *Linienabschlusstest*.
+
+### Forwarding (Repeater Function)
+
+Radio modules act as **repeaters**: a module that receives a packet may re-broadcast it so
+that packets can reach modules outside the originator's direct range. Forwarding is visible
+on the air through two fields of the [common part](#base-packet-structure):
+
+- **`Hops` (offset 22)** starts at `0x0F` on the original transmission and is decremented by
+  one on each retransmission, limiting how far a packet propagates.
+- **`Fwd-SN` (offset 14–17)** is rewritten to the serial number of the forwarding module,
+  while **`Org-SN` (offset 9–12)** keeps the original sender. A forwarded copy can therefore
+  be told apart from the original: `Fwd-SN != Org-SN` and `Hops < 0x0F`.
+
+A packet is only forwarded when it targets the module's own line or the broadcast line
+(`Line-ID` matches, or is `FF FF FF FF`) and the hop limit is not yet exhausted. Not every
+packet type is relayed: the [SilentPing / Linienabschlusstest](#silentping-linienabschlusstest)
+and [Discovery](#discovery-request) exchanges are **direct-range only** (never forwarded,
+always `Hops = 0`), whereas alarms, line tests and commissioning propagate across the line.
 
 ### Repetition
 
