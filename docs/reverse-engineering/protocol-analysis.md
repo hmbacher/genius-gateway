@@ -93,9 +93,42 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | 23 | 1 | `XX` | | Unknown |
 | 24 | 1 | `XX` | | Unknown |
 | 25 | 1 | `0x00` | | Unknown, seems to be constant |
-| 26 | 1 | `XX` | | Unknown |
+| 26 | 1 | `XX` | | First byte of the message body. For the SilentPing family it is a constant marker `0x55`; the [message type](#message-type-byte) follows at offset 27. |
 
 </div>
+
+### Message Type Byte
+
+The byte at **offset 27** — the first byte after the common part — is the packet's
+**message type**. Every packet type carries a constant, distinct value here, so this byte
+(together with the packet length) identifies the packet type. In the per-packet detail
+tables below it is the offset-27 row (previously annotated *"Unknown, seems to be
+constant"*).
+
+<div class="pckt-table" markdown>
+
+| `data[27]` | Length | Packet type |
+|:----------:|:------:|:------------|
+| `0x00` | 28 B | [Discovery Request](#discovery-request) |
+| `0x00` | 36 B | [Alarming (Start/Stop)](#alarming-startstop) |
+| `0x01` | 32 B | [Discovery Response](#discovery-response) |
+| `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
+| `0x04` | 29 B | [Line Test (Start/Stop)](#line-test-startstop) |
+| `0x05` | 29 B | SilentPing probe *(tentative; not yet observed in a capture)* |
+| `0x06` | 28 B | [SilentPing / Linienabschlusstest **request**](#silentping-linienabschlusstest) |
+| `0x08` | 36 B | [SilentPing / Linienabschlusstest **response**](#silentping-linienabschlusstest) |
+
+</div>
+
+!!! note "Why the type byte matters for classification"
+    Packet length alone is ambiguous: message type `0x00` is shared by **Alarming (36 B)**
+    and the **Discovery Request (28 B)**, and a **36-byte** frame is either an **alarm
+    (`0x00`)** or a **SilentPing response (`0x08`)** — so classifying purely by length can
+    misread a SilentPing response as an alarm-stop. The gateway therefore classifies on
+    `data[27]` with length as a validator (since v1.5.0).
+
+    The SilentPing request (`0x06`), response (`0x08`) and the `0x55` family marker at
+    offset 26 were observed in an over-the-air capture of a *Linienabschlusstest*.
 
 ### Repetition
 
@@ -153,7 +186,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x03` | | Unknown, seems to be constant |
+| 27 | 1 | `0x03` | Type | Message type — see [Message Type Byte](#message-type-byte). |
 | 28-31 | 4 | `XX XX XX XX`<br>*big endian* | New Line-ID | The alarm line ID to be assigned during commissioning.<br><ul><li>When initiated by an already commissioned device: Contains the existing alarm line ID (same as `Line-ID`).</li><li>When initiated by a new device: Contains a newly generated alarm line ID (while `Line-ID` is `00 00 00 00`).</li></ul>See [Observations](#observations) for more details. |
 | 32 | 1 | `XX` | Ho(urs) | Hour of the smoke detector's current time in format `0-23`h |
 | 33 | 1 | `XX` | Mi(nutes) | Minute of the smoke detector's current time in format `0-59`min |
@@ -231,7 +264,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x00` | | Unknown, seems to be constant |
+| 27 | 1 | `0x00` | Type | Message type — see [Message Type Byte](#message-type-byte). |
 | 28 | 1 | `XX` | Start | Start flag<br><br>`0x01`: Starting fire alarm<br>`0x00`: Otherwise |
 | 29 | 1 | `0x00` | | Unknown, seems to be constant |
 | 30 | 1 | `XX` | Stop | Stop flag<br><br>`0x01`: Stopping or silencing alarming<br>`0x00`: Otherwise |
@@ -270,7 +303,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x04` | | Unknown, seems to be constant |
+| 27 | 1 | `0x04` | Type | Message type — see [Message Type Byte](#message-type-byte). |
 | 28 | 1 | `XX` | Start/Stop | `0x06`: Start/Perform line test<br>`0x00`: Stop line test |
 
 </div>
@@ -315,7 +348,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x00` | | Unknown, seems to be constant |
+| 27 | 1 | `0x00` | Type | Message type — see [Message Type Byte](#message-type-byte). |
 
 </div>
 
@@ -350,8 +383,73 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x01` | | Unknown, seems to be constant |
+| 27 | 1 | `0x01` | Type | Message type — see [Message Type Byte](#message-type-byte). |
 | 28-31 | 4 | `XX XX XX XX`<br>*big endian* | Req-SN | Serial number of the radio module that sent the original [Discovery Request](#discovery-request).<br><br>This field allows the requesting module to identify that this response is directed to its specific request, enabling proper association between requests and responses in environments with multiple simultaneous discovery operations. |
+
+</div>
+
+#### SilentPing / Linienabschlusstest
+
+A silent, direct-range reachability exchange, observed over the air during a
+*Linienabschlusstest*. Unlike the [Discovery Request/Response](#discovery-request) the
+request is **wildcard-addressed** (byte 3 = `0xFF` instead of the usual `0x00`, `Line-ID` =
+`FF FF FF FF`) and the exchange is **not forwarded** — every frame stays at `Hops = 0`.
+
+##### Observations
+
+- The request is broadcast repeatedly; each directly reachable detector answers once per
+  sweep with a 36-byte response carrying its **own** `Org-SN`/`Line-ID` and a small
+  status + group/line payload — it is *not* back-addressed to the requester like the
+  [Discovery Response](#discovery-response).
+- In one capture a single request sweep drew responses from ~15 distinct radio modules,
+  including modules on other `Line-ID`s (neighbouring installations in direct range).
+- Both request and response share the constant family marker `0x55` at offset 26, followed
+  by the [message type](#message-type-byte) at offset 27 (`0x06` request, `0x08` response).
+
+##### Request
+
+- Overall packet length: **28 bytes**
+- Forwarded within network: **no**
+
+```
+Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |
+Value (hex) | 02 | XX XX | FF | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | FF FF FF FF |  0F  | XX | XX | 00 | 55 | 06 |
+Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   | Ty |
+```
+
+<div class="pckt-table" markdown>
+
+| Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
+|:------:|:-----------------:|:-----:|:------|:--------------------|
+| *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure). Note byte 3 is `0xFF` (wildcard, not the usual `0x00`), `Line-ID` is broadcast, and byte 26 is the `0x55` family marker.* |
+| 27 | 1 | `0x06` | Type | [Message type](#message-type-byte) — SilentPing request |
+
+</div>
+
+##### Response
+
+- Overall packet length: **36 bytes**
+- Forwarded within network: **no**
+
+```
+Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 |
+Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  0F  | XX | XX | 00 | 55 | 08 | 00 | XX | XX | 00 | 60 | 00 | 00 | XX |
+Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   | Ty |    | St | GL |    |    |    |    | Ck |
+```
+
+<div class="pckt-table" markdown>
+
+| Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
+|:------:|:-----------------:|:-----:|:------|:--------------------|
+| *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure). Byte 26 is the `0x55` family marker; `Org-SN` / `Line-ID` are the **responder's own**.* |
+| 27 | 1 | `0x08` | Type | [Message type](#message-type-byte) — SilentPing response |
+| 28 | 1 | `0x00` | | Constant |
+| 29 | 1 | `XX` | Status | Per-device status/capability flag (`0x00` or `0x40` observed) |
+| 30 | 1 | `XX` | Group/Line | Responder group/line: high nibble = group `A–H`, low nibble = line `0–9` |
+| 31 | 1 | `0x00` | | Constant |
+| 32 | 1 | `0x60` | | Constant |
+| 33-34 | 2 | `00 00` | | Constant |
+| 35 | 1 | `XX` | | Trailing byte, varies per frame (checksum or metric — not confirmed) |
 
 </div>
 
