@@ -241,14 +241,14 @@ export const PacketTypeNames = {
 	StopLineTest: 'Stop Line Test',
 	StartAlarm: 'Start Alarm',
 	StopAlarm: 'Stop Alarm',
-	SilentPingRequest: 'SilentPing Request',
-	SilentPingResponse: 'SilentPing Response'
+	NeighborProbeRequest: 'NeighborProbe Request',
+	NeighborProbeResponse: 'NeighborProbe Response'
 } as const;
 
 // Classification keys on the message-type byte (offset 27) with packetLength as a validator —
 // the same discrimination the radio module uses. Length alone is ambiguous: typeByte 0x00 is
 // shared by Alarming (36 B) and the commissioning Discovery Request (28 B), and a 36-byte frame
-// is either Alarming (0x00) or a SilentPing response (0x08). `identifiers` carry sub-variant
+// is either Alarming (0x00) or a NeighborProbe response (0x08). `identifiers` carry sub-variant
 // bytes only (start/stop).
 export const PacketTypes: PacketType[] = [
 	{
@@ -316,21 +316,21 @@ export const PacketTypes: PacketType[] = [
 		]
 	},
 	{
-		name: PacketTypeNames.SilentPingRequest,
-		cssClass: 'type-silentping-request',
+		name: PacketTypeNames.NeighborProbeRequest,
+		cssClass: 'type-neighborprobe-request',
 		typeByte: 0x06,
 		packetLength: 28,
 		description:
-			'Linienabschlusstest / SilentPing request — a silent, direct-range reachability probe (not forwarded). Directly reachable detectors answer with a SilentPing Response.',
+			'NeighborProbe request — a silent, direct-range reachability probe (not forwarded). Directly reachable detectors answer with a NeighborProbe Response.',
 		identifiers: []
 	},
 	{
-		name: PacketTypeNames.SilentPingResponse,
-		cssClass: 'type-silentping-response',
+		name: PacketTypeNames.NeighborProbeResponse,
+		cssClass: 'type-neighborprobe-response',
 		typeByte: 0x08,
 		packetLength: 36,
 		description:
-			'Linienabschlusstest / SilentPing response — a directly reachable detector reports its presence, group/line and status (not forwarded).',
+			'NeighborProbe response — a directly reachable detector reports its presence, group/line and status (not forwarded).',
 		identifiers: []
 	}
 ];

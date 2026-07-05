@@ -14,13 +14,6 @@ export enum AlarmLineAcquisition {
   Acoustic,
 }
 
-// From cc1101.h
-export enum Cc1101Mode {
-  Idle = 0,
-  Rx,
-  Tx,
-}
-
 // From CC1101Controller.h
 export enum Cc1101RadioState {
   /** /< No valid pin configuration; radio not brought up */
@@ -107,4 +100,15 @@ export enum GeniusPacketType {
   LineTestStart,
   /** /< Line test stop packet (line test completion) */
   LineTestStop,
+  /** /< NeighborProbe request (radio module 0x55-family, subtype 0x06; direct-range probe) */
+  NeighborProbeRequest,
+  /** /< NeighborProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status) */
+  NeighborProbeResponse,
+}
+
+// From cc1101.h
+export enum Cc1101Mode {
+  Idle = 0,
+  Rx,
+  Tx,
 }
