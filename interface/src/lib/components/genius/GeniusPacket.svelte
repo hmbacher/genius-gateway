@@ -12,6 +12,7 @@
 	import GeniusPacketContentDiscoveryResponse from './GeniusPacketContentDiscoveryResponse.svelte';
 	import GeniusPacketContentAlarmStart from './GeniusPacketContentAlarmStart.svelte';
 	import GeniusPacketContentAlarmStop from './GeniusPacketContentAlarmStop.svelte';
+	import GeniusPacketContentSilentPingResponse from './GeniusPacketContentSilentPingResponse.svelte';
 	import IconChevronDown from '~icons/tabler/chevron-down';
 
 	interface Props {
@@ -89,6 +90,8 @@
 				<GeniusPacketContentAlarmStart {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.StopAlarm}
 				<GeniusPacketContentAlarmStop {packet} {showDetails} />
+			{:else if packet.type?.name === PacketTypeNames.SilentPingResponse}
+				<GeniusPacketContentSilentPingResponse {packet} {showDetails} />
 			{:else if packet.generalInfo && packet.data.length >= 24}
 				<GeniusPacketContentHeader {packet} {showDetails} />
 				<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(24)} />
@@ -151,6 +154,14 @@
 
 	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-alarm-stop) {
 		@apply bg-green-500 dark:bg-green-700 font-normal;
+	}
+
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-silentping-request) {
+		@apply bg-violet-400 dark:bg-violet-700 font-normal;
+	}
+
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-silentping-response) {
+		@apply bg-violet-700 font-normal text-white;
 	}
 
 	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-unknown) {

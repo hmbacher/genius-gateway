@@ -222,10 +222,16 @@ export type PacketIdentifier = {
 export type PacketType = {
 	name: string;
 	cssClass: string;
+	/** On-air message-type byte at offset 27 — the radio module's primary type discriminator. */
+	typeByte: number;
 	packetLength: number;
 	description: string;
+	/** Extra byte matches for sub-variants (e.g. alarm start/stop, line-test start/stop). */
 	identifiers: PacketIdentifier[];
 };
+
+/** Offset of the message-type byte in a Genius frame (matches backend DATAPOS_MSG_TYPE). */
+export const MSG_TYPE_POS = 27;
 
 export const PacketTypeNames = {
 	Comissioning: 'Commissioning',
@@ -234,13 +240,21 @@ export const PacketTypeNames = {
 	StartLineTest: 'Start Line Test',
 	StopLineTest: 'Stop Line Test',
 	StartAlarm: 'Start Alarm',
-	StopAlarm: 'Stop Alarm'
+	StopAlarm: 'Stop Alarm',
+	SilentPingRequest: 'SilentPing Request',
+	SilentPingResponse: 'SilentPing Response'
 } as const;
 
+// Classification keys on the message-type byte (offset 27) with packetLength as a validator —
+// the same discrimination the radio module uses. Length alone is ambiguous: typeByte 0x00 is
+// shared by Alarming (36 B) and the commissioning Discovery Request (28 B), and a 36-byte frame
+// is either Alarming (0x00) or a SilentPing response (0x08). `identifiers` carry sub-variant
+// bytes only (start/stop).
 export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.Comissioning,
 		cssClass: 'type-comissioning',
+		typeByte: 0x03,
 		packetLength: 37,
 		description: 'Commissioning of new alarm line.',
 		identifiers: []
@@ -248,20 +262,23 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.DiscoveryRequest,
 		cssClass: 'type-discovery-request',
+		typeByte: 0x00,
 		packetLength: 28,
-		description: 'Purpose unknown, possibly a device discovery request.',
+		description: 'Discovery request seen in the commissioning context (not forwarded).',
 		identifiers: []
 	},
 	{
 		name: PacketTypeNames.DiscoveryResponse,
 		cssClass: 'type-discovery-response',
+		typeByte: 0x01,
 		packetLength: 32,
-		description: 'Purpose unknown, possibly a device discovery response.',
+		description: 'Discovery response carrying the requester serial (Req-SN); not forwarded.',
 		identifiers: []
 	},
 	{
 		name: PacketTypeNames.StartLineTest,
 		cssClass: 'type-linetest-start',
+		typeByte: 0x04,
 		packetLength: 29,
 		description: 'Packets sent to initiate line test function.',
 		identifiers: [
@@ -271,6 +288,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.StopLineTest,
 		cssClass: 'type-linetest-stop',
+		typeByte: 0x04,
 		packetLength: 29,
 		description: 'Packets sent to end line test function.',
 		identifiers: [
@@ -280,6 +298,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.StartAlarm,
 		cssClass: 'type-alarm-start',
+		typeByte: 0x00,
 		packetLength: 36,
 		description: 'Packet sent to start/distribute an alarm.',
 		identifiers: [
@@ -289,11 +308,30 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.StopAlarm,
 		cssClass: 'type-alarm-stop',
+		typeByte: 0x00,
 		packetLength: 36,
 		description: 'Packet sent to stop/silence an alarm.',
 		identifiers: [
 			{ byteNr: 30, value: 0x01 }, // Identifier for Alarm Stop
 		]
+	},
+	{
+		name: PacketTypeNames.SilentPingRequest,
+		cssClass: 'type-silentping-request',
+		typeByte: 0x06,
+		packetLength: 28,
+		description:
+			'Linienabschlusstest / SilentPing request — a silent, direct-range reachability probe (not forwarded). Directly reachable detectors answer with a SilentPing Response.',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.SilentPingResponse,
+		cssClass: 'type-silentping-response',
+		typeByte: 0x08,
+		packetLength: 36,
+		description:
+			'Linienabschlusstest / SilentPing response — a directly reachable detector reports its presence, group/line and status (not forwarded).',
+		identifiers: []
 	}
 ];
 

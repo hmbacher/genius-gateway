@@ -248,35 +248,64 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
     /* Clear analyzed packet */
     memset(analyzed_packet, 0, sizeof(genius_packet_t));
 
-    /* Determine type of Genius packet */
-    switch (data_length)
+    /* A frame must be long enough to carry the message-type byte before we can classify it. */
+    if (data_length <= DATAPOS_MSG_TYPE)
     {
+        analyzed_packet->type = HPT_UNKNOWN;
+        return ESP_OK;
+    }
 
-    case LEN_COMMISSIONING_PACKET:
-        analyzed_packet->type = HPT_COMMISSIONING;
+    /* Determine the Genius packet type from its on-air message-type byte (offset 27), using
+     * length as a validator. This mirrors how the genuine radio module routes a received
+     * frame: on the type-specific tail byte plus an exact per-type length. Length ALONE is
+     * ambiguous — message-type 0x00 is both Alarming (36 B) and the commissioning Discovery
+     * Request (28 B), and a 36-byte frame is either Alarming (0x00) or a SilentPing response
+     * (0x08); classifying 36 B as an alarm can misread a SilentPing response as ALARM_STOP. */
+    switch (packet_data[DATAPOS_MSG_TYPE])
+    {
+    case MSGTYPE_COMMISSIONING: // 0x03  (firmware: commissioning_sm)
+        analyzed_packet->type = (data_length == LEN_COMMISSIONING_PACKET) ? HPT_COMMISSIONING : HPT_UNKNOWN;
         break;
-    case LEN_DISCOVERY_REQUEST_PACKET:
-        analyzed_packet->type = HPT_DISCOVERY_REQUEST;
+
+    case MSGTYPE_DISCOVERY_RESPONSE: // 0x01  (commissioning-context, carries Req-SN)
+        analyzed_packet->type = (data_length == LEN_DISCOVERY_RESPONSE_PACKET) ? HPT_DISCOVERY_RESPONSE : HPT_UNKNOWN;
         break;
-    case LEN_DISCOVERY_RESPONSE_PACKET:
-        analyzed_packet->type = HPT_DISCOVERY_RESPONSE;
-        break;
-    case LEN_ALARM_PACKET:
-        if (packet_data[DATAPOS_ALARM_ACTIVE_FLAG] == 1)
-            analyzed_packet->type = HPT_ALARM_START;
-        else if (packet_data[DATAPOS_ALARM_SILENCE_FLAG] == 1)
-            analyzed_packet->type = HPT_ALARM_STOP;
-        else
+
+    case MSGTYPE_LINE_TEST: // 0x04  (firmware: line_state_processor, event 3)
+        if (data_length != LEN_LINE_TEST_PACKET)
             analyzed_packet->type = HPT_UNKNOWN;
-        break;
-    case LEN_LINE_TEST_PACKET:
-        if (packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] == 0) // 0 indicates END/STOP of line test
+        else if (packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] == 0) // 0x00 = END/STOP of line test
             analyzed_packet->type = HPT_LINE_TEST_STOP;
-        else if ((packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] & 0x04) > 0) // 0x04 and 0x06 are known indicators for START of line test (0x04 includes 0x06)
+        else if ((packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] & 0x04) > 0) // 0x04/0x06 = START
             analyzed_packet->type = HPT_LINE_TEST_START;
         else
             analyzed_packet->type = HPT_UNKNOWN;
         break;
+
+    case MSGTYPE_SILENTPING_REQUEST: // 0x06  (Linienabschlusstest, wildcard direct-range probe)
+        analyzed_packet->type = (data_length == LEN_SILENTPING_REQUEST_PACKET) ? HPT_SILENTPING_REQUEST : HPT_UNKNOWN;
+        break;
+
+    case MSGTYPE_SILENTPING_RESPONSE: // 0x08  (36 B — kept out of the alarm branch by the type byte)
+        analyzed_packet->type = (data_length == LEN_SILENTPING_RESPONSE_PACKET) ? HPT_SILENTPING_RESPONSE : HPT_UNKNOWN;
+        break;
+
+    case MSGTYPE_ALARM_OR_DISCOVERY_REQ: // 0x00  — shared value, split by length
+        if (data_length == LEN_ALARM_PACKET) // Alarming
+        {
+            if (packet_data[DATAPOS_ALARM_ACTIVE_FLAG] == 1)
+                analyzed_packet->type = HPT_ALARM_START;
+            else if (packet_data[DATAPOS_ALARM_SILENCE_FLAG] == 1)
+                analyzed_packet->type = HPT_ALARM_STOP;
+            else
+                analyzed_packet->type = HPT_UNKNOWN;
+        }
+        else if (data_length == LEN_DISCOVERY_REQUEST_PACKET) // commissioning Discovery Request
+            analyzed_packet->type = HPT_DISCOVERY_REQUEST;
+        else
+            analyzed_packet->type = HPT_UNKNOWN;
+        break;
+
     default:
         analyzed_packet->type = HPT_UNKNOWN;
         break;

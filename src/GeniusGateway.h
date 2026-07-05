@@ -58,6 +58,8 @@
 #define LEN_DISCOVERY_RESPONSE_PACKET 32 ///< Discovery response packet length
 #define LEN_ALARM_PACKET 36              ///< Alarm packet length
 #define LEN_LINE_TEST_PACKET 29          ///< Line test packet length
+#define LEN_SILENTPING_REQUEST_PACKET 28 ///< SilentPing/Linienabschlusstest request length (same wire length as Discovery Request; distinguished by the message-type byte)
+#define LEN_SILENTPING_RESPONSE_PACKET 36 ///< SilentPing/Linienabschlusstest response length (same wire length as Alarming; distinguished by the message-type byte)
 
 #define DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID 9  ///< Origin radio module ID position
 #define DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID 14 ///< Sender radio module ID position
@@ -71,6 +73,19 @@
 #define DATAPOS_ALARM_SILENCE_FLAG 30             ///< Alarm silence flag position
 #define DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID 32    ///< Source smoke alarm ID position
 #define DATAPOS_LINE_TEST_START_STOP_FLAG 28      ///< Line test start/stop flag position
+#define DATAPOS_MSG_TYPE 27                       ///< Message-type discriminator byte (constant per packet type — how the radio module routes a received frame)
+#define DATAPOS_SILENTPING_STATUS 29              ///< SilentPing response: per-device status/capability flag
+#define DATAPOS_SILENTPING_GROUPLINE 30           ///< SilentPing response: detector group/line (hi nibble = group A-H, lo nibble = line 0-9)
+
+/* Message-type byte values (data[DATAPOS_MSG_TYPE]) — the on-air type discriminator the
+ * genuine radio module routes on. Length disambiguates the single shared value (0x00). */
+#define MSGTYPE_ALARM_OR_DISCOVERY_REQ 0x00 ///< Alarming (36 B) OR commissioning Discovery Request (28 B)
+#define MSGTYPE_DISCOVERY_RESPONSE 0x01     ///< Discovery Response (32 B, carries Req-SN)
+#define MSGTYPE_COMMISSIONING 0x03          ///< Alarm-line commissioning (37 B)
+#define MSGTYPE_LINE_TEST 0x04              ///< Line test start/stop (29 B)
+#define MSGTYPE_SILENTPING_PROBE 0x05       ///< SilentPing probe (29 B) — firmware-derived, provisional (not yet capture-confirmed)
+#define MSGTYPE_SILENTPING_REQUEST 0x06     ///< SilentPing/Linienabschlusstest request (28 B)
+#define MSGTYPE_SILENTPING_RESPONSE 0x08    ///< SilentPing/Linienabschlusstest response (36 B)
 
 #define EXTRACT32(buffer, pos) (__ntohl(*(uint32_t *)&buffer[pos])) ///< Extract 32-bit value with network byte order conversion
 #define EXTRACT32_REV(buffer, pos) (*(uint32_t *)&buffer[pos])      ///< Extract 32-bit value without byte order conversion
@@ -97,7 +112,9 @@ typedef enum genius_packet_type
   HPT_ALARM_START,        ///< Alarm start packet (smoke detection notification)
   HPT_ALARM_STOP,         ///< Alarm stop packet (smoke cleared or alarm silenced)
   HPT_LINE_TEST_START,    ///< Line test start packet (line test initiation)
-  HPT_LINE_TEST_STOP      ///< Line test stop packet (line test completion)
+  HPT_LINE_TEST_STOP,     ///< Line test stop packet (line test completion)
+  HPT_SILENTPING_REQUEST, ///< SilentPing/Linienabschlusstest request (radio module 0x55-family, subtype 0x06; direct-range probe)
+  HPT_SILENTPING_RESPONSE ///< SilentPing/Linienabschlusstest response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
 } genius_packet_type_t;
 
 typedef struct genius_packet_t

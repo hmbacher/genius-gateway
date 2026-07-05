@@ -18,7 +18,7 @@
 		WSLoggerSettings
 	} from '$lib/types/models';
 	import {geniusDevices} from '$lib/stores/geniusDevices.svelte';
-	import { PacketTypes, PacketTypeNames } from '$lib/types/models';
+	import { PacketTypes, PacketTypeNames, MSG_TYPE_POS } from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils/misc';
 	import { deserializePacket, downloadPacketAsJson } from '$lib/utils/serialization';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -77,6 +77,8 @@
 	function determinePacketType(data: Uint8Array): PacketType | null {
 		for (const type of PacketTypes) {
 			if (data.length !== type.packetLength) continue;
+			// Primary discriminator: the on-air message-type byte (offset 27), like the radio module.
+			if (data.length <= MSG_TYPE_POS || data[MSG_TYPE_POS] !== type.typeByte) continue;
 			let identifiersMatch = true;
 			if (type.identifiers && Array.isArray(type.identifiers)) {
 				for (const { byteNr, value } of type.identifiers) {
