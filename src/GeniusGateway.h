@@ -58,8 +58,8 @@
 #define LEN_COMMISSIONING_PROBE_RESPONSE_PACKET 32 ///< CommissioningProbe response packet length
 #define LEN_ALARM_PACKET 36              ///< Alarm packet length
 #define LEN_LINE_TEST_PACKET 29          ///< Line test packet length
-#define LEN_NEIGHBOR_PROBE_REQUEST_PACKET 28 ///< NeighborProbe request length (same wire length as CommissioningProbe Request; distinguished by the message-type byte)
-#define LEN_NEIGHBOR_PROBE_RESPONSE_PACKET 36 ///< NeighborProbe response length (same wire length as Alarming; distinguished by the message-type byte)
+#define LEN_CONFIG_CHECK_PROBE_REQUEST_PACKET 28 ///< ConfigCheckProbe request length (same wire length as CommissioningProbe Request; distinguished by the message-type byte)
+#define LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET 36 ///< ConfigCheckProbe response length (same wire length as Alarming; distinguished by the message-type byte)
 
 #define DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID 9  ///< Origin radio module ID position
 #define DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID 14 ///< Sender radio module ID position
@@ -74,8 +74,8 @@
 #define DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID 32    ///< Source smoke alarm ID position
 #define DATAPOS_LINE_TEST_START_STOP_FLAG 28      ///< Line test start/stop flag position
 #define DATAPOS_MSG_TYPE 27                       ///< Message-type discriminator byte (constant per packet type — how the radio module routes a received frame)
-#define DATAPOS_NEIGHBOR_PROBE_STATUS 29              ///< NeighborProbe response: per-device status/capability flag
-#define DATAPOS_NEIGHBOR_PROBE_GROUPLINE 30           ///< NeighborProbe response: detector group/line (hi nibble = group A-H, lo nibble = line 0-9)
+#define DATAPOS_CONFIG_CHECK_PROBE_STATUS 29              ///< ConfigCheckProbe response: per-device status/capability flag
+#define DATAPOS_CONFIG_CHECK_PROBE_GROUPLINE 30           ///< ConfigCheckProbe response: detector group/line (hi nibble = group A-H, lo nibble = line 0-9)
 
 /* Message-type byte values (data[DATAPOS_MSG_TYPE]) — the on-air type discriminator the
  * genuine radio module routes on. Length disambiguates the single shared value (0x00). */
@@ -83,9 +83,9 @@
 #define MSGTYPE_COMMISSIONING_PROBE_RESPONSE 0x01     ///< CommissioningProbe Response (32 B, carries Req-SN)
 #define MSGTYPE_COMMISSIONING 0x03          ///< Alarm-line commissioning (37 B)
 #define MSGTYPE_LINE_TEST 0x04              ///< Line test start/stop (29 B)
-#define MSGTYPE_NEIGHBOR_PROBE_PROBE 0x05       ///< NeighborProbe probe (29 B) — firmware-derived, provisional (not yet capture-confirmed)
-#define MSGTYPE_NEIGHBOR_PROBE_REQUEST 0x06     ///< NeighborProbe request (28 B)
-#define MSGTYPE_NEIGHBOR_PROBE_RESPONSE 0x08    ///< NeighborProbe response (36 B)
+#define MSGTYPE_CONFIG_CHECK_PROBE_05 0x05       ///< ConfigCheckProbe probe (29 B) — firmware-derived, provisional (not yet capture-confirmed)
+#define MSGTYPE_CONFIG_CHECK_PROBE_REQUEST 0x06     ///< ConfigCheckProbe request (28 B)
+#define MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE 0x08    ///< ConfigCheckProbe response (36 B)
 
 #define EXTRACT32(buffer, pos) (__ntohl(*(uint32_t *)&buffer[pos])) ///< Extract 32-bit value with network byte order conversion
 #define EXTRACT32_REV(buffer, pos) (*(uint32_t *)&buffer[pos])      ///< Extract 32-bit value without byte order conversion
@@ -113,8 +113,8 @@ typedef enum genius_packet_type
   HPT_ALARM_STOP,         ///< Alarm stop packet (smoke cleared or alarm silenced)
   HPT_LINE_TEST_START,    ///< Line test start packet (line test initiation)
   HPT_LINE_TEST_STOP,     ///< Line test stop packet (line test completion)
-  HPT_NEIGHBOR_PROBE_REQUEST, ///< NeighborProbe request (radio module 0x55-family, subtype 0x06; direct-range probe)
-  HPT_NEIGHBOR_PROBE_RESPONSE ///< NeighborProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
+  HPT_CONFIG_CHECK_PROBE_REQUEST, ///< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe)
+  HPT_CONFIG_CHECK_PROBE_RESPONSE ///< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
 } genius_packet_type_t;
 
 typedef struct genius_packet_t

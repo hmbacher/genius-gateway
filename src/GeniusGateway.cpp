@@ -259,8 +259,8 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
      * length as a validator. This mirrors how the genuine radio module routes a received
      * frame: on the type-specific tail byte plus an exact per-type length. Length ALONE is
      * ambiguous — message-type 0x00 is both Alarming (36 B) and the CommissioningProbe
-     * Request (28 B), and a 36-byte frame is either Alarming (0x00) or a NeighborProbe response
-     * (0x08); classifying 36 B as an alarm can misread a NeighborProbe response as ALARM_STOP. */
+     * Request (28 B), and a 36-byte frame is either Alarming (0x00) or a ConfigCheckProbe response
+     * (0x08); classifying 36 B as an alarm can misread a ConfigCheckProbe response as ALARM_STOP. */
     switch (packet_data[DATAPOS_MSG_TYPE])
     {
     case MSGTYPE_COMMISSIONING: // 0x03  (firmware: commissioning_sm)
@@ -282,12 +282,12 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
             analyzed_packet->type = HPT_UNKNOWN;
         break;
 
-    case MSGTYPE_NEIGHBOR_PROBE_REQUEST: // 0x06  (NeighborProbe, wildcard direct-range probe)
-        analyzed_packet->type = (data_length == LEN_NEIGHBOR_PROBE_REQUEST_PACKET) ? HPT_NEIGHBOR_PROBE_REQUEST : HPT_UNKNOWN;
+    case MSGTYPE_CONFIG_CHECK_PROBE_REQUEST: // 0x06  (ConfigCheckProbe, wildcard direct-range probe)
+        analyzed_packet->type = (data_length == LEN_CONFIG_CHECK_PROBE_REQUEST_PACKET) ? HPT_CONFIG_CHECK_PROBE_REQUEST : HPT_UNKNOWN;
         break;
 
-    case MSGTYPE_NEIGHBOR_PROBE_RESPONSE: // 0x08  (36 B — kept out of the alarm branch by the type byte)
-        analyzed_packet->type = (data_length == LEN_NEIGHBOR_PROBE_RESPONSE_PACKET) ? HPT_NEIGHBOR_PROBE_RESPONSE : HPT_UNKNOWN;
+    case MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE: // 0x08  (36 B — kept out of the alarm branch by the type byte)
+        analyzed_packet->type = (data_length == LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET) ? HPT_CONFIG_CHECK_PROBE_RESPONSE : HPT_UNKNOWN;
         break;
 
     case MSGTYPE_ALARM_OR_COMMISSIONING_PROBE_REQ: // 0x00  — shared value, split by length

@@ -100,10 +100,10 @@ export enum GeniusPacketType {
   LineTestStart,
   /** /< Line test stop packet (line test completion) */
   LineTestStop,
-  /** /< NeighborProbe request (radio module 0x55-family, subtype 0x06; direct-range probe) */
-  NeighborProbeRequest,
-  /** /< NeighborProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status) */
-  NeighborProbeResponse,
+  /** /< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe) */
+  ConfigCheckProbeRequest,
+  /** /< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status) */
+  ConfigCheckProbeResponse,
 }
 
 // From cc1101.h

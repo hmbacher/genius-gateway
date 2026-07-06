@@ -12,7 +12,7 @@
 	import GeniusPacketContentCommissioningProbeResponse from './GeniusPacketContentCommissioningProbeResponse.svelte';
 	import GeniusPacketContentAlarmStart from './GeniusPacketContentAlarmStart.svelte';
 	import GeniusPacketContentAlarmStop from './GeniusPacketContentAlarmStop.svelte';
-	import GeniusPacketContentNeighborProbeResponse from './GeniusPacketContentNeighborProbeResponse.svelte';
+	import GeniusPacketContentConfigCheckProbeResponse from './GeniusPacketContentConfigCheckProbeResponse.svelte';
 	import IconChevronDown from '~icons/tabler/chevron-down';
 
 	interface Props {
@@ -90,8 +90,8 @@
 				<GeniusPacketContentAlarmStart {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.StopAlarm}
 				<GeniusPacketContentAlarmStop {packet} {showDetails} />
-			{:else if packet.type?.name === PacketTypeNames.NeighborProbeResponse}
-				<GeniusPacketContentNeighborProbeResponse {packet} {showDetails} />
+			{:else if packet.type?.name === PacketTypeNames.ConfigCheckProbeResponse}
+				<GeniusPacketContentConfigCheckProbeResponse {packet} {showDetails} />
 			{:else if packet.generalInfo && packet.data.length >= 24}
 				<GeniusPacketContentHeader {packet} {showDetails} />
 				<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(24)} />
@@ -156,11 +156,11 @@
 		@apply bg-green-500 dark:bg-green-700 font-normal;
 	}
 
-	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-neighborprobe-request) {
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-configcheckprobe-request) {
 		@apply bg-violet-400 dark:bg-violet-700 font-normal;
 	}
 
-	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-neighborprobe-response) {
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-configcheckprobe-response) {
 		@apply bg-violet-700 font-normal text-white;
 	}
 

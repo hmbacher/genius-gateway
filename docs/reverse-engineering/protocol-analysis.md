@@ -79,7 +79,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | 0 | 1 | `0x02` | | Unknown, seems to be constant |
 | 1-2 | 2 | `CC18 - 0000`<br>(`6.348 - 0`)<br>*little endian* | Pkt-# | A *packet repetition counter* that decreases with each packet repetition. It is not entirely clear how the decrementation occurs (see [Repetition](#repetition) for details). |
-| 3 | 1 | `0x00` / `0xFF` | | Address mode: `0x00` in normal (line-addressed) packets; `0xFF` marks a wildcard/broadcast packet such as the [NeighborProbe request](#neighborprobe). |
+| 3 | 1 | `0x00` / `0xFF` | | Address mode: `0x00` in normal (line-addressed) packets; `0xFF` marks a wildcard/broadcast packet such as the [ConfigCheckProbe request](#configcheckprobe). |
 | 4 | 1 | `0xFF` | | Unknown, seems to be constant |
 | 5 | 1 | `0xFF` | | Unknown, seems to be constant |
 | 6 | 1 | `0xFF` | | Unknown, seems to be constant |
@@ -93,7 +93,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | 23 | 1 | `XX` | | Sequence number — changes from one originated packet to the next. |
 | 24 | 1 | `XX` | | Flags. |
 | 25 | 1 | `0x00` | | Unknown, seems to be constant |
-| 26 | 1 | `XX` | | First byte of the message body — a **family marker**: `0x55` = NeighborProbe, `0x66` = CommissioningProbe / Line test, `0x00` = alarm. The [message‑type](#message-type-byte) subtype follows at offset 27. |
+| 26 | 1 | `XX` | | First byte of the message body — a **family marker**: `0x55` = ConfigCheckProbe, `0x66` = CommissioningProbe / Line test, `0x00` = alarm. The [message‑type](#message-type-byte) subtype follows at offset 27. |
 
 </div>
 
@@ -114,20 +114,20 @@ constant"*).
 | `0x01` | 32 B | [CommissioningProbe Response](#commissioningprobe-response) |
 | `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
 | `0x04` | 29 B | [Line Test (Start/Stop)](#line-test-startstop) |
-| `0x05` | 29 B | NeighborProbe probe *(tentative; not yet observed in a capture)* |
-| `0x06` | 28 B | [NeighborProbe **request**](#neighborprobe) |
-| `0x08` | 36 B | [NeighborProbe **response**](#neighborprobe) |
+| `0x05` | 29 B | ConfigCheckProbe probe *(tentative; not yet observed in a capture)* |
+| `0x06` | 28 B | [ConfigCheckProbe **request**](#configcheckprobe) |
+| `0x08` | 36 B | [ConfigCheckProbe **response**](#configcheckprobe) |
 
 </div>
 
 !!! note "Why the type byte matters for classification"
     Packet length alone is ambiguous: message type `0x00` is shared by **Alarming (36 B)**
     and the **CommissioningProbe Request (28 B)**, and a **36-byte** frame is either an **alarm
-    (`0x00`)** or a **NeighborProbe response (`0x08`)** — so classifying purely by length can
-    misread a NeighborProbe response as an alarm-stop. The gateway therefore classifies on
+    (`0x00`)** or a **ConfigCheckProbe response (`0x08`)** — so classifying purely by length can
+    misread a ConfigCheckProbe response as an alarm-stop. The gateway therefore classifies on
     `data[27]` with length as a validator (since v1.5.0).
 
-    The NeighborProbe request (`0x06`), response (`0x08`) and the `0x55` family marker at
+    The ConfigCheckProbe request (`0x06`), response (`0x08`) and the `0x55` family marker at
     offset 26 were observed in an over-the-air capture of a *Linienabschlusstest*.
 
 ### Forwarding (Repeater Function)
@@ -144,7 +144,7 @@ on the air through two fields of the [common part](#base-packet-structure):
 
 A packet is only forwarded when it targets the module's own line or the broadcast line
 (`Line-ID` matches, or is `FF FF FF FF`) and the hop limit is not yet exhausted. Not every
-packet type is relayed: the [NeighborProbe](#neighborprobe)
+packet type is relayed: the [ConfigCheckProbe](#configcheckprobe)
 and [CommissioningProbe](#commissioningprobe-request) exchanges are **direct-range only** (never forwarded,
 always `Hops = 0`), whereas alarms, line tests and commissioning propagate across the line.
 
@@ -406,7 +406,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 </div>
 
-#### NeighborProbe
+#### ConfigCheckProbe
 
 A silent, direct-range reachability exchange, observed over the air during a
 *Linienabschlusstest*. Unlike the [CommissioningProbe Request/Response](#commissioningprobe-request) the
@@ -440,7 +440,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure). Note byte 3 is `0xFF` (wildcard, not the usual `0x00`), `Line-ID` is broadcast, and byte 26 is the `0x55` family marker.* |
-| 27 | 1 | `0x06` | Type | [Message type](#message-type-byte) — NeighborProbe request |
+| 27 | 1 | `0x06` | Type | [Message type](#message-type-byte) — ConfigCheckProbe request |
 
 </div>
 
@@ -460,7 +460,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure). Byte 26 is the `0x55` family marker; `Org-SN` / `Line-ID` are the **responder's own**.* |
-| 27 | 1 | `0x08` | Type | [Message type](#message-type-byte) — NeighborProbe response |
+| 27 | 1 | `0x08` | Type | [Message type](#message-type-byte) — ConfigCheckProbe response |
 | 28 | 1 | `0x00` | | Constant |
 | 29 | 1 | `XX` | Status | Per-device status/capability flag (`0x00` or `0x40` observed) |
 | 30 | 1 | `XX` | Group/Line | Responder group/line: high nibble = group `A–H`, low nibble = line `0–9` |
