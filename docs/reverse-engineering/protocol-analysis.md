@@ -93,7 +93,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | 23 | 1 | `XX` | | Sequence number — changes from one originated packet to the next. |
 | 24 | 1 | `XX` | | Flags. |
 | 25 | 1 | `0x00` | | Unknown, seems to be constant |
-| 26 | 1 | `XX` | | First byte of the message body. For the NeighborProbe family it is a constant marker `0x55`; the [message type](#message-type-byte) follows at offset 27. |
+| 26 | 1 | `XX` | | First byte of the message body — a **family marker**: `0x55` = NeighborProbe, `0x66` = CommissioningProbe / Line test, `0x00` = alarm. The [message‑type](#message-type-byte) subtype follows at offset 27. |
 
 </div>
 
@@ -328,7 +328,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 #### CommissioningProbe Request
 
-It is not confirmed that this packet is actually a request for discovering smoke detectors. Rather, this designation was chosen based on conclusions drawn from the observed packets and protocol behavior.
+This exchange runs **during commissioning**. After the initiating module broadcasts the [Alarm Line Commissioning](#alarm-line-commissioning) packet (the line assignment), it — and other involved modules — broadcast a **CommissioningProbe Request**, and every **directly reachable** module replies with a back-addressed [CommissioningProbe Response](#commissioningprobe-response) (`Req-SN` = the requester). It is a **direct-range reachability enumeration** (not forwarded, `Hops = 0`) — a broadcast *"who is reachable?"* — rather than a targeted request/response. (The name reflects this observed role.)
 
 ##### Observations
 
