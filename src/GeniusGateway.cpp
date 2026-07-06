@@ -258,7 +258,7 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
     /* Determine the Genius packet type from its on-air message-type byte (offset 27), using
      * length as a validator. This mirrors how the genuine radio module routes a received
      * frame: on the type-specific tail byte plus an exact per-type length. Length ALONE is
-     * ambiguous — message-type 0x00 is both Alarming (36 B) and the commissioning Discovery
+     * ambiguous — message-type 0x00 is both Alarming (36 B) and the CommissioningProbe
      * Request (28 B), and a 36-byte frame is either Alarming (0x00) or a NeighborProbe response
      * (0x08); classifying 36 B as an alarm can misread a NeighborProbe response as ALARM_STOP. */
     switch (packet_data[DATAPOS_MSG_TYPE])
@@ -267,8 +267,8 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
         analyzed_packet->type = (data_length == LEN_COMMISSIONING_PACKET) ? HPT_COMMISSIONING : HPT_UNKNOWN;
         break;
 
-    case MSGTYPE_DISCOVERY_RESPONSE: // 0x01  (commissioning-context, carries Req-SN)
-        analyzed_packet->type = (data_length == LEN_DISCOVERY_RESPONSE_PACKET) ? HPT_DISCOVERY_RESPONSE : HPT_UNKNOWN;
+    case MSGTYPE_COMMISSIONING_PROBE_RESPONSE: // 0x01  (commissioning-context, carries Req-SN)
+        analyzed_packet->type = (data_length == LEN_COMMISSIONING_PROBE_RESPONSE_PACKET) ? HPT_COMMISSIONING_PROBE_RESPONSE : HPT_UNKNOWN;
         break;
 
     case MSGTYPE_LINE_TEST: // 0x04  (firmware: line_state_processor, event 3)
@@ -290,7 +290,7 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
         analyzed_packet->type = (data_length == LEN_NEIGHBOR_PROBE_RESPONSE_PACKET) ? HPT_NEIGHBOR_PROBE_RESPONSE : HPT_UNKNOWN;
         break;
 
-    case MSGTYPE_ALARM_OR_DISCOVERY_REQ: // 0x00  — shared value, split by length
+    case MSGTYPE_ALARM_OR_COMMISSIONING_PROBE_REQ: // 0x00  — shared value, split by length
         if (data_length == LEN_ALARM_PACKET) // Alarming
         {
             if (packet_data[DATAPOS_ALARM_ACTIVE_FLAG] == 1)
@@ -300,8 +300,8 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
             else
                 analyzed_packet->type = HPT_UNKNOWN;
         }
-        else if (data_length == LEN_DISCOVERY_REQUEST_PACKET) // commissioning Discovery Request
-            analyzed_packet->type = HPT_DISCOVERY_REQUEST;
+        else if (data_length == LEN_COMMISSIONING_PROBE_REQUEST_PACKET) // CommissioningProbe Request
+            analyzed_packet->type = HPT_COMMISSIONING_PROBE_REQUEST;
         else
             analyzed_packet->type = HPT_UNKNOWN;
         break;

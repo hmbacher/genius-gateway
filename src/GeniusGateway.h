@@ -54,11 +54,11 @@
 #define MIN_GENIUS_PACKET_LENGTH LEN_UNKNOWN_PURPOSE_1_PACKET ///< Minimum valid packet length
 
 #define LEN_COMMISSIONING_PACKET 37      ///< Commissioning packet length
-#define LEN_DISCOVERY_REQUEST_PACKET 28  ///< Discovery request packet length
-#define LEN_DISCOVERY_RESPONSE_PACKET 32 ///< Discovery response packet length
+#define LEN_COMMISSIONING_PROBE_REQUEST_PACKET 28  ///< CommissioningProbe request packet length
+#define LEN_COMMISSIONING_PROBE_RESPONSE_PACKET 32 ///< CommissioningProbe response packet length
 #define LEN_ALARM_PACKET 36              ///< Alarm packet length
 #define LEN_LINE_TEST_PACKET 29          ///< Line test packet length
-#define LEN_NEIGHBOR_PROBE_REQUEST_PACKET 28 ///< NeighborProbe request length (same wire length as Discovery Request; distinguished by the message-type byte)
+#define LEN_NEIGHBOR_PROBE_REQUEST_PACKET 28 ///< NeighborProbe request length (same wire length as CommissioningProbe Request; distinguished by the message-type byte)
 #define LEN_NEIGHBOR_PROBE_RESPONSE_PACKET 36 ///< NeighborProbe response length (same wire length as Alarming; distinguished by the message-type byte)
 
 #define DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID 9  ///< Origin radio module ID position
@@ -79,8 +79,8 @@
 
 /* Message-type byte values (data[DATAPOS_MSG_TYPE]) — the on-air type discriminator the
  * genuine radio module routes on. Length disambiguates the single shared value (0x00). */
-#define MSGTYPE_ALARM_OR_DISCOVERY_REQ 0x00 ///< Alarming (36 B) OR commissioning Discovery Request (28 B)
-#define MSGTYPE_DISCOVERY_RESPONSE 0x01     ///< Discovery Response (32 B, carries Req-SN)
+#define MSGTYPE_ALARM_OR_COMMISSIONING_PROBE_REQ 0x00 ///< Alarming (36 B) OR CommissioningProbe Request (28 B)
+#define MSGTYPE_COMMISSIONING_PROBE_RESPONSE 0x01     ///< CommissioningProbe Response (32 B, carries Req-SN)
 #define MSGTYPE_COMMISSIONING 0x03          ///< Alarm-line commissioning (37 B)
 #define MSGTYPE_LINE_TEST 0x04              ///< Line test start/stop (29 B)
 #define MSGTYPE_NEIGHBOR_PROBE_PROBE 0x05       ///< NeighborProbe probe (29 B) — firmware-derived, provisional (not yet capture-confirmed)
@@ -107,8 +107,8 @@ typedef enum genius_packet_type
 {
   HPT_UNKNOWN = -1,       ///< Unknown packet type
   HPT_COMMISSIONING = 0,  ///< Commissioning packet (smoke detector assignment to alarm line)
-  HPT_DISCOVERY_REQUEST,  ///< Discovery request packet (request for smoke detectors to identify)
-  HPT_DISCOVERY_RESPONSE, ///< Discovery response packet (smoke detector identification response)
+  HPT_COMMISSIONING_PROBE_REQUEST,  ///< CommissioningProbe request packet (request for smoke detectors to identify)
+  HPT_COMMISSIONING_PROBE_RESPONSE, ///< CommissioningProbe response packet (smoke detector identification response)
   HPT_ALARM_START,        ///< Alarm start packet (smoke detection notification)
   HPT_ALARM_STOP,         ///< Alarm stop packet (smoke cleared or alarm silenced)
   HPT_LINE_TEST_START,    ///< Line test start packet (line test initiation)
@@ -174,7 +174,7 @@ private:
   /// Static wrapper for packet reception task
   static void _rx_packetsImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_rx_packets(); }
 
-  /// HA discovery publish loop (persistent task, woken by onConnect notification)
+  /// HA commissioningprobe publish loop (persistent task, woken by onConnect notification)
   void _mqttPublishTask();
 
   /// Static wrapper for HA publish task

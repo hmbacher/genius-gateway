@@ -109,9 +109,9 @@ constant"*).
 
 | `data[27]` | Length | Packet type |
 |:----------:|:------:|:------------|
-| `0x00` | 28 B | [Discovery Request](#discovery-request) |
+| `0x00` | 28 B | [CommissioningProbe Request](#commissioningprobe-request) |
 | `0x00` | 36 B | [Alarming (Start/Stop)](#alarming-startstop) |
-| `0x01` | 32 B | [Discovery Response](#discovery-response) |
+| `0x01` | 32 B | [CommissioningProbe Response](#commissioningprobe-response) |
 | `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
 | `0x04` | 29 B | [Line Test (Start/Stop)](#line-test-startstop) |
 | `0x05` | 29 B | NeighborProbe probe *(tentative; not yet observed in a capture)* |
@@ -122,7 +122,7 @@ constant"*).
 
 !!! note "Why the type byte matters for classification"
     Packet length alone is ambiguous: message type `0x00` is shared by **Alarming (36 B)**
-    and the **Discovery Request (28 B)**, and a **36-byte** frame is either an **alarm
+    and the **CommissioningProbe Request (28 B)**, and a **36-byte** frame is either an **alarm
     (`0x00`)** or a **NeighborProbe response (`0x08`)** — so classifying purely by length can
     misread a NeighborProbe response as an alarm-stop. The gateway therefore classifies on
     `data[27]` with length as a validator (since v1.5.0).
@@ -145,7 +145,7 @@ on the air through two fields of the [common part](#base-packet-structure):
 A packet is only forwarded when it targets the module's own line or the broadcast line
 (`Line-ID` matches, or is `FF FF FF FF`) and the hop limit is not yet exhausted. Not every
 packet type is relayed: the [NeighborProbe](#neighborprobe)
-and [Discovery](#discovery-request) exchanges are **direct-range only** (never forwarded,
+and [CommissioningProbe](#commissioningprobe-request) exchanges are **direct-range only** (never forwarded,
 always `Hops = 0`), whereas alarms, line tests and commissioning propagate across the line.
 
 ### Repetition
@@ -159,8 +159,8 @@ The number of repetitions, the exact period for packet repetitions, as well as t
 | [Alarm Line Commissioning](#alarm-line-commissioning) | 309 x | ~10.06 ms | 6.348 (CC 18) | ~20,6 |
 | [Alarming (Start/Stop)](#alarming-startstop) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
 | [Line Test (Start/Stop)](#line-test-startstop) | 370 x | ~8,40 ms | 6.348 (CC 18) | ~17,2 |
-| [Discovery Request](#discovery-request) | 26 x | ~8,19 ms | 427 (AB 01) | ~17,1 |
-| [Discovery Response](#discovery-response) | 24 x| ~9,02 ms | 427 (AB 01) | ~18,6 |
+| [CommissioningProbe Request](#commissioningprobe-request) | 26 x | ~8,19 ms | 427 (AB 01) | ~17,1 |
+| [CommissioningProbe Response](#commissioningprobe-response) | 24 x| ~9,02 ms | 427 (AB 01) | ~18,6 |
 
 !!! note "Pkt-# decrement"
     It can be observed that the decrement is not constant across packet repetitions but exhibits a certain amount of jitter. This is likely caused by a higher-resolution underlying counter whose value may vary slightly with each iteration and is then rounded and stored as an unsigned integer in the `Pkt-#` field.
@@ -326,17 +326,17 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 </div>
 
-#### Discovery Request
+#### CommissioningProbe Request
 
 It is not confirmed that this packet is actually a request for discovering smoke detectors. Rather, this designation was chosen based on conclusions drawn from the observed packets and protocol behavior.
 
 ##### Observations
 
-These packets occur in connection with commissioning. Once the initiating radio module has sent the [Alarm Line Commissioning Packet](#alarm-line-commissioning), these Discovery Requests are *sometimes* (the exact conditions are not known) additionally transmitted. In my experiments, these requests were answered with [Discovery Response Packets](#discovery-response). The radio module serial numbers contained in them did not belong to my own radio modules and were unknown to me.
+These packets occur in connection with commissioning. Once the initiating radio module has sent the [Alarm Line Commissioning Packet](#alarm-line-commissioning), these CommissioningProbe Requests are *sometimes* (the exact conditions are not known) additionally transmitted. In my experiments, these requests were answered with [CommissioningProbe Response Packets](#commissioningprobe-response). The radio module serial numbers contained in them did not belong to my own radio modules and were unknown to me.
 
-Since many residential units in my apartment complex are equipped with smoke detectors from the [Hekatron Genius Plus X :material-open-in-new:](https://www.hekatron-brandschutz.de/produkte/rauchmelder/produkte/genius-plus-x){ target=_blank} system, my current assumption is that the [Discovery Response Packets](#discovery-response) could originate from smoke detectors (i.e. their radio modules) belonging to my neighbors. It may also specifically be their *unnetworked* smoke detectors, i.e., those that are installed in the base but for which commissioning (to register them in an alarm line) has not been performed.
+Since many residential units in my apartment complex are equipped with smoke detectors from the [Hekatron Genius Plus X :material-open-in-new:](https://www.hekatron-brandschutz.de/produkte/rauchmelder/produkte/genius-plus-x){ target=_blank} system, my current assumption is that the [CommissioningProbe Response Packets](#commissioningprobe-response) could originate from smoke detectors (i.e. their radio modules) belonging to my neighbors. It may also specifically be their *unnetworked* smoke detectors, i.e., those that are installed in the base but for which commissioning (to register them in an alarm line) has not been performed.
 
-Furthermore, it appears that each radio module (in its own smoke detector network) that either receives the Discovery Request or is involved in the ongoing commissioning also sends the Discovery Request itself (not forwarding it, but initiating it with its own serial number). Each radio module that sent a Discovery Request itself responded to the other requests with its own [Discovery Response](#discovery-response).
+Furthermore, it appears that each radio module (in its own smoke detector network) that either receives the CommissioningProbe Request or is involved in the ongoing commissioning also sends the CommissioningProbe Request itself (not forwarding it, but initiating it with its own serial number). Each radio module that sent a CommissioningProbe Request itself responded to the other requests with its own [CommissioningProbe Response](#commissioningprobe-response).
 
 !!! tip "Hypothesis"
     Since this packet type is not forwarded by other radio modules, only smoke detectors within direct transmission/reception range of the initiating module can respond. Thus, this part of the protocol could serve to allow smoke detectors to detect all other directly reachable smoke detectors in their vicinity.
@@ -370,15 +370,15 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 
 </div>
 
-#### Discovery Response
+#### CommissioningProbe Response
 
-Like [Discovery Requests](#discovery-request) it is not confirmed that this packet is actually the response to a previous request for discovering smoke detectors. Rather, this designation was chosen based on conclusions drawn from the observed packets and protocol behavior.
+Like [CommissioningProbe Requests](#commissioningprobe-request) it is not confirmed that this packet is actually the response to a previous request for discovering smoke detectors. Rather, this designation was chosen based on conclusions drawn from the observed packets and protocol behavior.
 
 ##### Observations
 
-Radio modules seem to respond with this packet to a previous [Discovery Request](#discovery-request). The `Org-SN` and `Fwd-SN` fields are populated with the serial number of the responding radio module. Additionally, the `Req-SN` field contains the serial number of the requesting radio module. This makes it possible to identify which requesting radio module the response is intended for.
+Radio modules seem to respond with this packet to a previous [CommissioningProbe Request](#commissioningprobe-request). The `Org-SN` and `Fwd-SN` fields are populated with the serial number of the responding radio module. Additionally, the `Req-SN` field contains the serial number of the requesting radio module. This makes it possible to identify which requesting radio module the response is intended for.
 
-Further details are described in the [Discovery Request](#discovery-request) section.
+Further details are described in the [CommissioningProbe Request](#commissioningprobe-request) section.
 
 ##### Basic properties
 
@@ -402,14 +402,14 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x01` | Type | Message type — see [Message Type Byte](#message-type-byte). |
-| 28-31 | 4 | `XX XX XX XX`<br>*big endian* | Req-SN | Serial number of the radio module that sent the original [Discovery Request](#discovery-request).<br><br>This field allows the requesting module to identify that this response is directed to its specific request, enabling proper association between requests and responses in environments with multiple simultaneous discovery operations. |
+| 28-31 | 4 | `XX XX XX XX`<br>*big endian* | Req-SN | Serial number of the radio module that sent the original [CommissioningProbe Request](#commissioningprobe-request).<br><br>This field allows the requesting module to identify that this response is directed to its specific request, enabling proper association between requests and responses in environments with multiple simultaneous discovery operations. |
 
 </div>
 
 #### NeighborProbe
 
 A silent, direct-range reachability exchange, observed over the air during a
-*Linienabschlusstest*. Unlike the [Discovery Request/Response](#discovery-request) the
+*Linienabschlusstest*. Unlike the [CommissioningProbe Request/Response](#commissioningprobe-request) the
 request is **wildcard-addressed** (byte 3 = `0xFF` instead of the usual `0x00`, `Line-ID` =
 `FF FF FF FF`) and the exchange is **not forwarded** — every frame stays at `Hops = 0`.
 
@@ -418,7 +418,7 @@ request is **wildcard-addressed** (byte 3 = `0xFF` instead of the usual `0x00`, 
 - The request is broadcast repeatedly; each directly reachable detector answers once per
   sweep with a 36-byte response carrying its **own** `Org-SN`/`Line-ID` and a small
   status + group/line payload — it is *not* back-addressed to the requester like the
-  [Discovery Response](#discovery-response).
+  [CommissioningProbe Response](#commissioningprobe-response).
 - In one capture a single request sweep drew responses from ~15 distinct radio modules,
   including modules on other `Line-ID`s (neighbouring installations in direct range).
 - Both request and response share the constant family marker `0x55` at offset 26, followed

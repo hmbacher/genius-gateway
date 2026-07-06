@@ -235,8 +235,8 @@ export const MSG_TYPE_POS = 27;
 
 export const PacketTypeNames = {
 	Comissioning: 'Commissioning',
-	DiscoveryRequest: 'Discovery Request',
-	DiscoveryResponse: 'Discovery Response',
+	CommissioningProbeRequest: 'CommissioningProbe Request',
+	CommissioningProbeResponse: 'CommissioningProbe Response',
 	StartLineTest: 'Start Line Test',
 	StopLineTest: 'Stop Line Test',
 	StartAlarm: 'Start Alarm',
@@ -247,7 +247,7 @@ export const PacketTypeNames = {
 
 // Classification keys on the message-type byte (offset 27) with packetLength as a validator —
 // the same discrimination the radio module uses. Length alone is ambiguous: typeByte 0x00 is
-// shared by Alarming (36 B) and the commissioning Discovery Request (28 B), and a 36-byte frame
+// shared by Alarming (36 B) and the CommissioningProbe request (28 B), and a 36-byte frame
 // is either Alarming (0x00) or a NeighborProbe response (0x08). `identifiers` carry sub-variant
 // bytes only (start/stop).
 export const PacketTypes: PacketType[] = [
@@ -260,19 +260,19 @@ export const PacketTypes: PacketType[] = [
 		identifiers: []
 	},
 	{
-		name: PacketTypeNames.DiscoveryRequest,
-		cssClass: 'type-discovery-request',
+		name: PacketTypeNames.CommissioningProbeRequest,
+		cssClass: 'type-commissioningprobe-request',
 		typeByte: 0x00,
 		packetLength: 28,
-		description: 'Discovery request seen in the commissioning context (not forwarded).',
+		description: 'CommissioningProbe request seen in the commissioning context (not forwarded).',
 		identifiers: []
 	},
 	{
-		name: PacketTypeNames.DiscoveryResponse,
-		cssClass: 'type-discovery-response',
+		name: PacketTypeNames.CommissioningProbeResponse,
+		cssClass: 'type-commissioningprobe-response',
 		typeByte: 0x01,
 		packetLength: 32,
-		description: 'Discovery response carrying the requester serial (Req-SN); not forwarded.',
+		description: 'CommissioningProbe response carrying the requester serial (Req-SN); not forwarded.',
 		identifiers: []
 	},
 	{
@@ -351,7 +351,7 @@ export type CommissioningInfo = {
 	timeStr: string;
 };
 
-export type DiscoveryResponseInfo = {
+export type CommissioningProbeResponseInfo = {
 	requestingRadioModule: number;
 	requestingLocation: string;
 };
@@ -375,7 +375,7 @@ export type Packet = {
 	counter: number;
 	hash: number;
 	generalInfo: GeneralInfo | null;
-	specificInfo: CommissioningInfo | DiscoveryResponseInfo | AlarmStartInfo | AlarmStopInfo | null;
+	specificInfo: CommissioningInfo | CommissioningProbeResponseInfo | AlarmStartInfo | AlarmStopInfo | null;
 };
 
 export type AlarmLine = {
@@ -453,7 +453,7 @@ export type WSLoggerSettings = {
 
 export type HASettings = {
 	enabled: boolean;
-	discovery_prefix: string;
+	commissioningprobe_prefix: string;
 	device_name: string;
 	manufacturer: string;
 	model: string;

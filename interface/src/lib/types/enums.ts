@@ -88,10 +88,10 @@ export enum GeniusPacketType {
   Unknown = -1,
   /** /< Commissioning packet (smoke detector assignment to alarm line) */
   Commissioning = 0,
-  /** /< Discovery request packet (request for smoke detectors to identify) */
-  DiscoveryRequest,
-  /** /< Discovery response packet (smoke detector identification response) */
-  DiscoveryResponse,
+  /** /< CommissioningProbe request packet (request for smoke detectors to identify) */
+  CommissioningProbeRequest,
+  /** /< CommissioningProbe response packet (smoke detector identification response) */
+  CommissioningProbeResponse,
   /** /< Alarm start packet (smoke detection notification) */
   AlarmStart,
   /** /< Alarm stop packet (smoke cleared or alarm silenced) */

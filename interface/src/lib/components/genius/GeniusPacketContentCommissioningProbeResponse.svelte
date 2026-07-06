@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Packet, DiscoveryResponseInfo } from '$lib/types/models';
+	import type { Packet, CommissioningProbeResponseInfo } from '$lib/types/models';
 	import GeniusPacketContentHeader from './GeniusPacketContentHeader.svelte';
 	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
 	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
@@ -21,9 +21,9 @@
 	endianess="big"
 	details={{
 		icon: IconWifi,
-		text: (packet.specificInfo as DiscoveryResponseInfo)?.requestingLocation,
+		text: (packet.specificInfo as CommissioningProbeResponseInfo)?.requestingLocation,
 		type: 'serialnumber-radiomodule'.concat(
-			(packet.specificInfo as DiscoveryResponseInfo)?.requestingLocation === 'Unknown' ? '-unknown' : ''
+			(packet.specificInfo as CommissioningProbeResponseInfo)?.requestingLocation === 'Unknown' ? '-unknown' : ''
 		)
 	}}
 />

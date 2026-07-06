@@ -11,7 +11,7 @@
 		PacketType,
 		Packet,
 		CommissioningInfo,
-		DiscoveryResponseInfo,
+		CommissioningProbeResponseInfo,
 		AlarmLines,
 		AlarmStartInfo,
 		AlarmStopInfo,
@@ -118,12 +118,12 @@
 				newLineID: dv.getUint32(28),
 				timeStr: `${dv.getUint8(32).toString().padStart(2, '0')}:${dv.getUint8(33).toString().padStart(2, '0')}:${dv.getUint8(34).toString().padStart(2, '0')}`
 			} as CommissioningInfo;
-		} else if (packet.type?.name === PacketTypeNames.DiscoveryResponse) {
-			// Device Discovery Response
+		} else if (packet.type?.name === PacketTypeNames.CommissioningProbeResponse) {
+			// Device CommissioningProbe Response
 			packet.specificInfo = {
 				requestingRadioModule: dv.getUint32(28),
 				requestingLocation: getDetectorLocationByRadioModuleSN(dv.getUint32(28))
-			} as DiscoveryResponseInfo;
+			} as CommissioningProbeResponseInfo;
 		} else if (packet.type?.name === PacketTypeNames.StartAlarm) {
 			// Alarm Start
 			packet.specificInfo = {

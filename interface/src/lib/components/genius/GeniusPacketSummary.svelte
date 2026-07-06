@@ -2,7 +2,7 @@
 	import type {
 		Packet,
 		CommissioningInfo,
-		DiscoveryResponseInfo,
+		CommissioningProbeResponseInfo,
 		AlarmStartInfo,
 		AlarmStopInfo
 	} from '$lib/types/models';
@@ -67,16 +67,16 @@
 				<IconClock class="h-4 w-4 shrink-0" />
 				<span>{(packet.specificInfo as CommissioningInfo).timeStr}</span>
 			</span>
-		{:else if typeName === PacketTypeNames.DiscoveryResponse && packet.specificInfo}
+		{:else if typeName === PacketTypeNames.CommissioningProbeResponse && packet.specificInfo}
 			<span
 				class={chipClass(
-					(packet.specificInfo as DiscoveryResponseInfo).requestingLocation,
+					(packet.specificInfo as CommissioningProbeResponseInfo).requestingLocation,
 					'chip-radio'
 				)}
 			>
 				<span class="chip-prefix">to</span>
 				<IconWifi class="h-4 w-4 shrink-0" />
-				<span class="truncate">{(packet.specificInfo as DiscoveryResponseInfo).requestingLocation}</span>
+				<span class="truncate">{(packet.specificInfo as CommissioningProbeResponseInfo).requestingLocation}</span>
 			</span>
 		{/if}
 	</div>

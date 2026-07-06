@@ -8,8 +8,8 @@
 	import GeniusPacketContentComissioning from './GeniusPacketContentComissioning.svelte';
 	import GeniusPacketContentLineTestStart from './GeniusPacketContentLineTestStart.svelte';
 	import GeniusPacketContentLineTestStop from './GeniusPacketContentLineTestStop.svelte';
-	import GeniusPacketContentDiscoveryRequest from './GeniusPacketContentDiscoveryRequest.svelte';
-	import GeniusPacketContentDiscoveryResponse from './GeniusPacketContentDiscoveryResponse.svelte';
+	import GeniusPacketContentCommissioningProbeRequest from './GeniusPacketContentCommissioningProbeRequest.svelte';
+	import GeniusPacketContentCommissioningProbeResponse from './GeniusPacketContentCommissioningProbeResponse.svelte';
 	import GeniusPacketContentAlarmStart from './GeniusPacketContentAlarmStart.svelte';
 	import GeniusPacketContentAlarmStop from './GeniusPacketContentAlarmStop.svelte';
 	import GeniusPacketContentNeighborProbeResponse from './GeniusPacketContentNeighborProbeResponse.svelte';
@@ -82,10 +82,10 @@
 				<GeniusPacketContentLineTestStart {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.StopLineTest}
 				<GeniusPacketContentLineTestStop {packet} {showDetails} />
-			{:else if packet.type?.name === PacketTypeNames.DiscoveryRequest}
-				<GeniusPacketContentDiscoveryRequest {packet} {showDetails} />
-			{:else if packet.type?.name === PacketTypeNames.DiscoveryResponse}
-				<GeniusPacketContentDiscoveryResponse {packet} {showDetails} />
+			{:else if packet.type?.name === PacketTypeNames.CommissioningProbeRequest}
+				<GeniusPacketContentCommissioningProbeRequest {packet} {showDetails} />
+			{:else if packet.type?.name === PacketTypeNames.CommissioningProbeResponse}
+				<GeniusPacketContentCommissioningProbeResponse {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.StartAlarm}
 				<GeniusPacketContentAlarmStart {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.StopAlarm}
@@ -132,11 +132,11 @@
 		@apply bg-amber-500 dark:bg-amber-700 font-normal;
 	}
 
-	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-discovery-request) {
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-commissioningprobe-request) {
 		@apply bg-blue-300 dark:bg-blue-700 font-normal;
 	}
 
-	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-discovery-response) {
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-commissioningprobe-response) {
 		@apply bg-blue-700 font-normal text-white;
 	}
 
