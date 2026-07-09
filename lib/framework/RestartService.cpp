@@ -55,7 +55,7 @@ void RestartService::restartNow()
     // shutdown message to the httpd thread and then blocks waiting for
     // it to finish. If restartNow() is called from within a request
     // handler (which executes ON the httpd thread), httpd_stop() would
-    // deadlock — the handler waits for httpd to stop, but httpd can't
+    // deadlock - the handler waits for httpd to stop, but httpd can't
     // stop because the handler hasn't returned yet.
     xTaskCreate(_restartTask, "restart", 4096, nullptr, 1, nullptr);
 }
@@ -82,7 +82,7 @@ void RestartService::_restartTask(void *param)
     // httpd_stop() → httpd_sess_close_all() → httpd_sess_delete() per session:
     //   - With SO_LINGER enabled (2s), close() blocks until pcb->unsent and
     //     pcb->unacked are empty, i.e. the TCP stack has transmitted all data
-    //     AND received ACKs from the client — or the timeout expires.
+    //     AND received ACKs from the client - or the timeout expires.
     //   - This ensures WebSocket events and HTTP responses are fully delivered.
     if (_server)
     {

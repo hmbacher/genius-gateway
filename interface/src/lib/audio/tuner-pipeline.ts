@@ -1,5 +1,5 @@
 /**
- * Hekatron SmartSonic Decoder — main-thread session manager.
+ * Hekatron SmartSonic Decoder - main-thread session manager.
  *
  * The signal-processing pipeline runs in an AudioWorklet (tuner-worklet.js)
  * on the dedicated audio rendering thread; this file orchestrates the worklet
@@ -107,7 +107,7 @@ export class AcousticDetectionSession {
 
 			this.silenceTimer = setTimeout(() => {
 				if (this._state === 'waiting') {
-					this.callbacks.onError('Timeout — no signal detected');
+					this.callbacks.onError('Timeout - no signal detected');
 					this.setState('error');
 					this.stop();
 				}
@@ -138,7 +138,7 @@ export class AcousticDetectionSession {
 			case 'sync':
 				this.setState('synced');
 				this.callbacks.onSync(msg.info);
-				// Successful sync — silence timer no longer relevant; arm the
+				// Successful sync - silence timer no longer relevant; arm the
 				// stuck-decoding timer so we don't sit in 'decoding' forever.
 				this.clearSilenceTimer();
 				this.armStuckTimer();
@@ -187,7 +187,7 @@ export class AcousticDetectionSession {
 		this.clearStuckTimer();
 		this.stuckTimer = setTimeout(() => {
 			if (this._state === 'synced' || this._state === 'decoding') {
-				this.callbacks.onError('Stuck while decoding — no valid frame received.');
+				this.callbacks.onError('Stuck while decoding - no valid frame received.');
 				this.setState('error');
 				this.stop();
 			}

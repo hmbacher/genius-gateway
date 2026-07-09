@@ -70,7 +70,7 @@ esp_err_t GitHubReleaseEndpoint::handleGitHubRelease(PsychicRequest *request)
                 return errResponse.send();
             }
 
-            // Strip each release down to only .bin assets — filtering by build target
+            // Strip each release down to only .bin assets - filtering by build target
             // is done client-side in the frontend.
             JsonDocument filteredDoc;
             JsonArray filteredReleases = filteredDoc.to<JsonArray>();

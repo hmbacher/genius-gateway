@@ -276,7 +276,7 @@ def assert_ha_new(pattern: str, expected: str, label: str) -> None:
 
     if not found:
         # Final check: state may have arrived in the last second between the last poll
-        # and the deadline expiry — re-query once more before declaring failure.
+        # and the deadline expiry - re-query once more before declaring failure.
         candidates = [s for s in get_ha_states() if re.search(pattern, s.get("entity_id", ""))]
         found = next((c for c in candidates if c.get("state") == expected), None)
 
@@ -533,7 +533,7 @@ def tc11():
     save_ha_snapshot()
     d = new_acoustic_device(900011, "FaultClear", {"batteryLowFault": True})
     reset_test_devices([d])
-    # Use assert_ha_new (60s) for the initial check — entity may be retained in off state
+    # Use assert_ha_new (60s) for the initial check - entity may be retained in off state
     # from a prior run and needs the full MQTT settle window to transition to on.
     assert_ha_new(r"battery(_\d+)?$", "on", "initially on")
     # Now the entity is on; grab its ID for the cleared-state check below.

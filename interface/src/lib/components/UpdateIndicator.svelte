@@ -155,7 +155,7 @@
 {:else}
 	<button
 		class="btn btn-square btn-ghost h-9 w-9 tooltip tooltip-left"
-		data-tip="Firmware up to date — click to check again"
+		data-tip="Firmware up to date - click to check again"
 		onclick={() => getGithubAPI(true)}
 	>
 		<CloudCheck class="h-7 w-7" />

@@ -314,7 +314,7 @@ hekatron > .admonition-title {
 
 /* Second-level list items use dashes instead of circles */
 .md-typeset ul ul li::marker {
-  content: '— ';
+  content: '- ';
 }
 
 img[src*="#uart-sample"] {

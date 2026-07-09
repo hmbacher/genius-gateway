@@ -127,7 +127,7 @@ esp_err_t CC1101Controller::_handleProbe(PsychicRequest *request, JsonVariant &j
 
     if (wasOk)
     {
-        // The probe tore the running radio down — restore the previously working configuration.
+        // The probe tore the running radio down - restore the previously working configuration.
         // The "set up successfully" line that follows is this restore, NOT the test result.
         ESP_LOGI(TAG, "Restoring the previous radio configuration after the test...");
         bringUp(_pinsService, _rxCallback);

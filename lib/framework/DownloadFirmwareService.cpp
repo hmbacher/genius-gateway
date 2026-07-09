@@ -154,13 +154,13 @@ void updateTask(void *param)
     // when following a redirect to a different host, breaking the CA bundle.
     // Workaround: resolve redirects using a separate insecure client (HEAD
     // only, no data), then download from the final URL with the CA-verified
-    // client — no cross-host redirect means no stop()+reconnect.
+    // client - no cross-host redirect means no stop()+reconnect.
     // See: https://github.com/espressif/arduino-esp32/issues/12368
     // ──────────────────────────────────────────────────────────────────────
 #ifndef DOWNLOAD_OTA_SKIP_CERT_VERIFY
     {
         // Use a throwaway insecure client just for HEAD-based redirect resolution.
-        // Only HTTP headers are exchanged — no firmware data — so skipping cert
+        // Only HTTP headers are exchanged - no firmware data - so skipping cert
         // verification here is safe; the actual download uses the CA bundle.
         WiFiClientSecure resolveClient;
         resolveClient.setInsecure();
@@ -192,7 +192,7 @@ void updateTask(void *param)
                     continue;
                 }
             }
-            // Not a redirect (or missing Location) — final URL reached
+            // Not a redirect (or missing Location) - final URL reached
             http.end();
             break;
         }
@@ -200,7 +200,7 @@ void updateTask(void *param)
     ESP_LOGV(SVK_TAG, "Resolved download URL: %s", url.c_str());
 #endif
 
-    // Download from the resolved (final) URL — no redirects expected
+    // Download from the resolved (final) URL - no redirects expected
     httpUpdate.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
     httpUpdate.rebootOnUpdate(false); // Always manual reboot via RestartService
 

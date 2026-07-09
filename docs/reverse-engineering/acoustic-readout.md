@@ -18,7 +18,7 @@ Hekatron Genius Plus X smoke detectors expose their internal diagnostic snapshot
 | Frame structure | `[length:1][payload:0..39][crc:2 LE]` |
 | Typical session length | ~7–9 s (≈0.29 s sync preamble + ~6.1 s payload at 84 bit/s + silence padding) |
 
-The signal lives entirely in the audible band — there is no actual ultrasound — which is why a phone, laptop, or tablet microphone is sufficient to capture it.
+The signal lives entirely in the audible band - there is no actual ultrasound - which is why a phone, laptop, or tablet microphone is sufficient to capture it.
 
 ## Demodulation Pipeline
 
@@ -57,8 +57,8 @@ The output is clamped to ±400 (the `CLAMP` constant) and median-filtered (windo
 
 Two alternating sync preambles are searched for in parallel:
 
-- **SYNC1** — 1,576 decimated samples, segment-encoded in `buildSyncPattern1()`
-- **SYNC2** — 1,578 decimated samples, segment-encoded in `buildSyncPattern2()`
+- **SYNC1** - 1,576 decimated samples, segment-encoded in `buildSyncPattern1()`
+- **SYNC2** - 1,578 decimated samples, segment-encoded in `buildSyncPattern2()`
 
 A correlation magnitude exceeding `SYNC_THRESHOLD = 300,000` (and exceeding the opposite-polarity correlation) declares lock. The decoder reports a **sync quality** percentage:
 
@@ -76,7 +76,7 @@ across the discriminator output. The template is correlated against both polarit
 
 ### 6. Hamming(8,4) Byte Decoding
 
-Each transmitted byte is two Hamming(8,4) codewords (low nibble first, then high nibble). The codebook is the 16-entry `CODEBOOK = [0, 135, 153, 30, 170, 45, 51, 180, 75, 204, 210, 85, 225, 102, 120, 255]`. Decoding selects the codebook entry with the smallest Hamming distance from the received 8-bit codeword, allowing **1-bit error correction per nibble**. There is no rejection on Hamming distance — any closest-codeword wins.
+Each transmitted byte is two Hamming(8,4) codewords (low nibble first, then high nibble). The codebook is the 16-entry `CODEBOOK = [0, 135, 153, 30, 170, 45, 51, 180, 75, 204, 210, 85, 225, 102, 120, 255]`. Decoding selects the codebook entry with the smallest Hamming distance from the received 8-bit codeword, allowing **1-bit error correction per nibble**. There is no rejection on Hamming distance - any closest-codeword wins.
 
 ### 7. Frame Assembly
 
@@ -220,6 +220,6 @@ A set of hand-crafted WAV files lives under [`tests/`](https://github.com/hmbach
 | `sd-warranty-voided.wav` | Selected warranty flag bits set. |
 | `sd-multiple-faults-with-radio.wav` | Multiple SD + RM faults combined. |
 | `sd-no-line-id.wav` | `lineId = 0x00000000` (unassigned / no specific line configured). |
-| `sd-no-radio.wav` | TC-EC-05 — `radioProductType = 0`, 20-byte payload (no radio module bytes). Parser sets `hasRadio = false`. |
+| `sd-no-radio.wav` | TC-EC-05 - `radioProductType = 0`, 20-byte payload (no radio module bytes). Parser sets `hasRadio = false`. |
 
-The companion script [`generate-smartsonic-wav.mjs`](https://github.com/hmbacher/genius-gateway/blob/main/tests/generate-smartsonic-wav.mjs) regenerates all fixtures from in-line test specs and can be extended to produce custom payloads. It implements the full forward chain — Hamming(8,4) encode → CRC-16/IBM append → CPFSK modulate at 44.1 kHz, 16-bit mono — and is the authoritative reference for verifying the decoder against new corner cases.
+The companion script [`generate-smartsonic-wav.mjs`](https://github.com/hmbacher/genius-gateway/blob/main/tests/generate-smartsonic-wav.mjs) regenerates all fixtures from in-line test specs and can be extended to produce custom payloads. It implements the full forward chain - Hamming(8,4) encode → CRC-16/IBM append → CPFSK modulate at 44.1 kHz, 16-bit mono - and is the authoritative reference for verifying the decoder against new corner cases.

@@ -39,7 +39,7 @@
  * Four configuration switches (alert_unknown, line_commissioning, line_alarm,
  * line_test) are bound to GatewaySettings fields via HAGroupedSwitchPublisher.
  * All discovery, state publishing, and command subscriptions are handled by
- * the publisher — this class is a thin wiring layer.
+ * the publisher - this class is a thin wiring layer.
  *
  * Topic layout (relative to gateway base topic):
  *   State:   ~/gateway/state           (shared JSON for all four switches)

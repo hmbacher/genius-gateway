@@ -24,7 +24,7 @@
  *
  * Publishes a discovery config with a command_topic and subscribes to it.
  * Invokes the provided Action on every incoming MQTT message.
- * Has no state — does not publish to a state_topic.
+ * Has no state - does not publish to a state_topic.
  *
  * Entity-specific HA discovery fields (e.g. payload_press for button) are
  * passed as a ConfigBuilder lambda to the constructor. The lambda runs after

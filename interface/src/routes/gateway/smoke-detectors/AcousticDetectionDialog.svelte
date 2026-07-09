@@ -185,7 +185,7 @@
 					</div>
 				{/if}
 
-				<!-- Status message — announced via aria-live so screen readers get
+				<!-- Status message - announced via aria-live so screen readers get
 				     state changes (waiting → synced → decoding → success/error). -->
 				<p
 					role="status"
@@ -202,7 +202,7 @@
 
 				{#if tunerState === 'success' && tunerData}
 					<p class="text-sm text-base-content/50 text-center">
-						Serial: {tunerData.serialNumber} — {tunerData.product}
+						Serial: {tunerData.serialNumber} - {tunerData.product}
 					</p>
 				{/if}
 			</div>

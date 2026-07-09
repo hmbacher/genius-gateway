@@ -1,6 +1,6 @@
 /**
  * SmartSonic test WAV generator
- * Reverse-engineered from tuner-pipeline.ts — produces audio the acoustic decoder accepts.
+ * Reverse-engineered from tuner-pipeline.ts - produces audio the acoustic decoder accepts.
  *
  * Signal chain (encoder is the inverse of the decoder):
  *   payload → Hamming(8,4) encode → bit stream → BIT_PATTERN FSK symbols
@@ -22,7 +22,7 @@ const AMPLITUDE     = 0.70;     // output amplitude (0–1)
 const DELTA_F       = 250;      // FSK frequency deviation in Hz
                                 // phaseErr ≈ 2000·sin(2π·250·8/44100) ≈ 563 → clamps to 400 ✓
 
-// Hamming(8,4) codebook — CODEBOOK[nibble] = 8-bit codeword
+// Hamming(8,4) codebook - CODEBOOK[nibble] = 8-bit codeword
 const CODEBOOK = [0, 135, 153, 30, 170, 45, 51, 180, 75, 204, 210, 85, 225, 102, 120, 255];
 
 // BIT_PATTERN: 64 decimated samples  [0×3, −1×26, 0×6, +1×26, 0×3]
@@ -32,7 +32,7 @@ const BIT_PATTERN = new Array(64).fill(0);
 for (let i = 3;  i < 29; i++) BIT_PATTERN[i] = -1;
 for (let i = 35; i < 61; i++) BIT_PATTERN[i] =  1;
 
-// SYNC1 (1576 decimated samples) — segment list [length, value]
+// SYNC1 (1576 decimated samples) - segment list [length, value]
 const SYNC1_SEGS = [
     [65,1],[132,-1],[33,1],[33,-1],[163,1],[132,-1],[98,1],[66,-1],
     [33,1],[33,-1],[32,1],[33,-1],[66,1],[99,-1],[130,1],[166,-1],
@@ -47,7 +47,7 @@ function hammingEncode(nibble) {
     return CODEBOOK[nibble & 0x0f];
 }
 
-// CRC-16/IBM (poly 0x8005, init 0xFFFF) — over payload bytes only, matching the decoder:
+// CRC-16/IBM (poly 0x8005, init 0xFFFF) - over payload bytes only, matching the decoder:
 //   const computed = crc16(this.frameData, this.frameLen);
 function crc16(bytes) {
     const POLY = 0x8005;
@@ -253,7 +253,7 @@ function generate(scenario, outDir) {
     const size = ((44 + audio.length * 2) / 1024).toFixed(0);
     const hex  = payload.map(b => b.toString(16).padStart(2,'0')).join(' ');
     const crc  = crc16(payload);
-    console.log(`  ${scenario.filename}  (${dur}s, ${size} KB)  — ${scenario.name}`);
+    console.log(`  ${scenario.filename}  (${dur}s, ${size} KB)  - ${scenario.name}`);
     console.log(`    payload (${payload.length}B): ${hex}`);
     console.log(`    CRC-16: 0x${crc.toString(16).padStart(4,'0').toUpperCase()}  frame bytes: ${frame.length}`);
 }
@@ -516,11 +516,11 @@ const SCENARIOS = [
     {
         // Manual line-entry test: a current-generation SD (Genius Plus X) paired with
         // an OLD radio module (FM.Basis). Old modules always transmit lineId=0, and the
-        // line byte (29) is unreliable — deliberately set to non-zero "garbage" (F.7)
+        // line byte (29) is unreliable - deliberately set to non-zero "garbage" (F.7)
         // here to verify the frontend ignores it and requires manual line entry
         // regardless of what's on the wire (see old-fm-manual-line-entry.md).
         filename: 'sd-genius-plus-x-fm-basis.wav',
-        name: 'Genius Plus X + FM.Basis (old module — line must be entered manually)',
+        name: 'Genius Plus X + FM.Basis (old module - line must be entered manually)',
         opts: {
             serialNumber:           0x12A1000C,
             productType:            3,          // Genius Plus X
@@ -534,7 +534,7 @@ const SCENARIOS = [
             radioStateMask:         0x00,
             radioSerialNumber:      0xAB00100C,
             lineId:                 0x00000000, // old modules always transmit 0
-            lineCharIdx:            5,          // 'F' — deliberately unreliable/garbage
+            lineCharIdx:            5,          // 'F' - deliberately unreliable/garbage
             lineNumber:             7,          //       to verify it's ignored, not trusted
             radioSwitchFlags:       0x18,
             radioInterference:      0.4

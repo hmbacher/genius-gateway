@@ -3,7 +3,7 @@
  *
  * Replaces the per-form `JSON.stringify(current) !== snapshot` pattern with a small
  * reusable helper that also answers *which* field changed, so individual inputs can show
- * a dirty marker and offer a per-field revert — while the enclosing SettingsCard still
+ * a dirty marker and offer a per-field revert - while the enclosing SettingsCard still
  * gets a single rolled-up `anyDirty` flag.
  *
  * Usage:
@@ -15,7 +15,7 @@
  *   // save:  f.commit()                      (after a successful POST)
  *   // undo:  f.revert('username')            (per field) / f.revertAll()
  *
- * No app-specific dependencies — portable to the ESP32-SvelteKit base interface.
+ * No app-specific dependencies - portable to the ESP32-SvelteKit base interface.
  */
 
 function clone<T>(v: T): T {

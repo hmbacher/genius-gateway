@@ -7,7 +7,7 @@
 	import IconAlert from '~icons/tabler/alert-hexagon-filled';
 	import Loader from '~icons/tabler/loader-2';
 
-	// No device list received yet — avoid flashing the green "all good" heart on first paint
+	// No device list received yet - avoid flashing the green "all good" heart on first paint
 	let loading = $derived(!geniusDevices.isLoaded);
 
 	let hasWarning = $derived(

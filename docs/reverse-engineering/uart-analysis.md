@@ -8,7 +8,7 @@ answers each command with a response frame. Recorded UART communication is avail
 
 ## Frame format
 
-Every frame — in both directions — has the same structure:
+Every frame - in both directions - has the same structure:
 
 ```
 +--------+--------+------------------------+--------+
@@ -21,7 +21,7 @@ Every frame — in both directions — has the same structure:
 | Field | Size | Description |
 |:-----:|:----:|:------------|
 | TYPE | 1 | Frame type / purpose. Commands from the detector use low values (`0x01`–`0x13`); responses from the radio module use `0xAx`. |
-| LEN | 1 | Number of bytes that follow, *including* the checksum — so the whole frame is `LEN + 2` bytes long. |
+| LEN | 1 | Number of bytes that follow, *including* the checksum - so the whole frame is `LEN + 2` bytes long. |
 | payload | LEN-1 | Command arguments or response data. |
 | XOR | 1 | Error-detection byte: an XOR over the preceding bytes of the frame. |
 
@@ -54,14 +54,14 @@ after a range / connection test.
 
 ## Payloads
 
-- **Version (`0xA1`)** — the firmware version of the radio module.
-- **Status (`0xA2`)** — a status flag byte.
-- **Record count (`0xA7`)** — the number of commissioned peer modules stored in the
+- **Version (`0xA1`)** - the firmware version of the radio module.
+- **Status (`0xA2`)** - a status flag byte.
+- **Record count (`0xA7`)** - the number of commissioned peer modules stored in the
   module's [node database](eeprom-analysis.md).
-- **Record read (`0xA8`)** — a single node record (a peer serial number and its associated
+- **Record read (`0xA8`)** - a single node record (a peer serial number and its associated
   data) from the database, selected by the index sent with `0x0F`.
-- **Identity (`0xA9`)** — the module's own serial number.
-- **Config / EEPROM block (`0xA6` / `0xAA`)** — raw bytes from the module's
+- **Identity (`0xA9`)** - the module's own serial number.
+- **Config / EEPROM block (`0xA6` / `0xAA`)** - raw bytes from the module's
   [EEPROM](eeprom-analysis.md) configuration and storage regions.
 
 Known structures visible in the payloads include serial numbers, the current time

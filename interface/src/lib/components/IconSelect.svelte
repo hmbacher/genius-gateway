@@ -28,7 +28,7 @@
 	let {
 		value = $bindable(),
 		options,
-		placeholder = '— select —',
+		placeholder = '- select -',
 		class: cls = '',
 		dirty = false,
 		onrevert = () => {}

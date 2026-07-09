@@ -307,7 +307,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 - `command_topic` - Topic where button press commands are published
 - `payload_press` - Payload sent when button is pressed (`"PRESS"`)
 - `icon` - Restart icon for visual identification
-- No `entity_category` — Restart appears under **Controls** on the HA device page
+- No `entity_category` - Restart appears under **Controls** on the HA device page
 
 **Command Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/restart/command`
 
@@ -563,9 +563,9 @@ Each configured smoke detector is published as an **HA sub-device** nested under
 
 Each smoke detector sub-device publishes:
 
-- **1 binary_sensor** (Control) — `smoke` device class, alarm state `ON`/`OFF`
-- **3 binary_sensor** (Diagnostic) — battery low, smoke detector fault, radio module fault; available after acoustic readout
-- **11 sensor** (Diagnostic) — deinstallation count, last service timestamp, radio module model, alarm line ID, alarm line, production date, radio module serial, total alarm count, 3-month alarm count, radio interference; available after acoustic readout
+- **1 binary_sensor** (Control) - `smoke` device class, alarm state `ON`/`OFF`
+- **3 binary_sensor** (Diagnostic) - battery low, smoke detector fault, radio module fault; available after acoustic readout
+- **11 sensor** (Diagnostic) - deinstallation count, last service timestamp, radio module model, alarm line ID, alarm line, production date, radio module serial, total alarm count, 3-month alarm count, radio interference; available after acoustic readout
 
 Readout-derived entities (all except the main smoke sensor) report as **unavailable** until the first acoustic readout is performed via the gateway's [SmartSonic interface](../features/device-management.md).
 
@@ -638,8 +638,8 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-1746234159/...
 
 **:material-code-json: State Values**
 
-- `OFF` — Not alarming
-- `ON` — Actively alarming
+- `OFF` - Not alarming
+- `ON` - Actively alarming
 
 **:material-publish: Publishing Behavior**
 
@@ -650,7 +650,7 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-1746234159/...
 
 #### Readout-Derived Diagnostic Entities
 
-All 13 readout-derived diagnostic entities share a **single state topic** that carries a JSON object with all values. Availability is folded into the same JSON payload — no separate availability topic is needed.
+All 13 readout-derived diagnostic entities share a **single state topic** that carries a JSON object with all values. Availability is folded into the same JSON payload - no separate availability topic is needed.
 
 **:material-message-outline: Shared State Topic**
 ```
@@ -705,11 +705,11 @@ availability_template: "{{ 'online' if value_json.available else 'offline' }}"
 |-----------|------|-------------|-----------|
 | `deinstallation_count` | Deinstallation Count | `total_increasing` | `deinstall_count` |
 | `last_readout` | Last Service | `timestamp` | `last_readout` |
-| `radio_module_model` | Radio Module Model | — | `radio_module_model` |
-| `alarm_line_id` | Alarm Line ID | — | `alarm_line_id` |
-| `alarm_line` | Alarm Line | — | `alarm_line` |
-| `production_date` | Production Date | — | `production_date` |
-| `radio_module_serial` | Radio Module Serial | — | `radio_module_serial` |
+| `radio_module_model` | Radio Module Model | - | `radio_module_model` |
+| `alarm_line_id` | Alarm Line ID | - | `alarm_line_id` |
+| `alarm_line` | Alarm Line | - | `alarm_line` |
+| `production_date` | Production Date | - | `production_date` |
+| `radio_module_serial` | Radio Module Serial | - | `radio_module_serial` |
 | `alarm_count_total` | Alarms (Total) | `total_increasing` | `alarm_count_total` |
 | `alarm_count_3m` | Alarms (3 Months) | `measurement` | `alarm_count_3m` |
 | `radio_interference` | Radio Interference | `%` / `measurement` | `radio_interference` |
@@ -879,11 +879,11 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/..
 
 **:material-code-json: State Values**
 
-- `Nothing` — No active transmission, all buttons available
-- `Line Test Start` — Line test start transmission in progress
-- `Line Test Stop` — Line test stop transmission in progress
-- `Fire Alarm Start` — Fire alarm start transmission in progress
-- `Fire Alarm Stop` — Fire alarm stop transmission in progress
+- `Nothing` - No active transmission, all buttons available
+- `Line Test Start` - Line test start transmission in progress
+- `Line Test Stop` - Line test stop transmission in progress
+- `Fire Alarm Start` - Fire alarm start transmission in progress
+- `Fire Alarm Stop` - Fire alarm stop transmission in progress
 
 **:material-publish: Publishing Behavior**
 
@@ -944,7 +944,7 @@ Published when two smoke detectors are alarming (example):
 - Published when an alarm starts on any smoke detector
 - Published when an alarm ends on any smoke detector (silenced by detector or manually via the API)
 - Published when all alarms are reset at once (via the end alarms API)
-- Published when MQTT connection is established or re-established — overwrites any stale retained message left from before a restart
+- Published when MQTT connection is established or re-established - overwrites any stale retained message left from before a restart
 
 !!! info "Alarm state after restart"
     Genius Gateway does not persist the active alarm state across restarts. After a restart, `isAlarming` is always `false` and `numAlarmingDevices` is always `0`, regardless of the state before the restart. The retained message on the broker is updated immediately on MQTT connect.

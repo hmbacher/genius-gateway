@@ -27,7 +27,7 @@ header_path = os.path.join(project_dir, "lib", "framework", "AppVersion.h")
 
 if not os.path.exists(header_path):
     stub = (
-        '// AUTO-GENERATED FILE — DO NOT EDIT.\n'
+        '// AUTO-GENERATED FILE - DO NOT EDIT.\n'
         '// Stub written by ensure_app_version.py; overwritten by the frontend build.\n'
         '#pragma once\n'
         '#define APP_VERSION_FULL "0.0.0-00000000.000000"\n'

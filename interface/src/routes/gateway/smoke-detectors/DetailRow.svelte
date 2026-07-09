@@ -6,7 +6,7 @@
 	 *
 	 * The value can be supplied either as plain text (`value`) or as a snippet
 	 * (`children`) for richer content (e.g. a status icon + colored text). When
-	 * neither is set, the row renders just the label cell — useful as a section
+	 * neither is set, the row renders just the label cell - useful as a section
 	 * header above a group of indented sub-rows.
 	 *
 	 * `indent` shifts the icon column right for sub-rows (e.g. individual fault

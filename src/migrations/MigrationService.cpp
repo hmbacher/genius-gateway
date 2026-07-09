@@ -47,7 +47,7 @@ void MigrationService::runPhase(MigrationPhase phase)
             continue;
         if (!m.id)
         {
-            ESP_LOGW(TAG, "migration without id at slot %u — skipping", (unsigned)i);
+            ESP_LOGW(TAG, "migration without id at slot %u - skipping", (unsigned)i);
             continue;
         }
         if (_isApplied(m.id))
@@ -83,7 +83,7 @@ void MigrationService::runPhase(MigrationPhase phase)
         case OnFailure::RetryNextBoot:
             _recordFailure(m.id, "apply returned false");
             stateDirty = true;
-            ESP_LOGW(TAG, "migration %s failed — will retry next boot", m.id);
+            ESP_LOGW(TAG, "migration %s failed - will retry next boot", m.id);
             break;
         case OnFailure::SkipAfterRetries:
         {
@@ -91,10 +91,10 @@ void MigrationService::runPhase(MigrationPhase phase)
             stateDirty = true;
             uint8_t attempts = _attemptsOf(m.id);
             if (attempts >= m.maxAttempts)
-                ESP_LOGE(TAG, "migration %s reached max attempts (%u) — giving up",
+                ESP_LOGE(TAG, "migration %s reached max attempts (%u) - giving up",
                          m.id, (unsigned)m.maxAttempts);
             else
-                ESP_LOGW(TAG, "migration %s failed (attempt %u/%u) — retrying next boot",
+                ESP_LOGW(TAG, "migration %s failed (attempt %u/%u) - retrying next boot",
                          m.id, (unsigned)attempts, (unsigned)m.maxAttempts);
             break;
         }
@@ -147,7 +147,7 @@ void MigrationService::_loadState()
     in.close();
     if (err)
     {
-        ESP_LOGW(TAG, "state file %s parse error: %s — ignoring", STATE_FILE, err.c_str());
+        ESP_LOGW(TAG, "state file %s parse error: %s - ignoring", STATE_FILE, err.c_str());
         return;
     }
 
@@ -266,6 +266,6 @@ void MigrationService::_abortBoot(const char *id)
     while (true)
     {
         delay(10000);
-        ESP_LOGE(TAG, "boot halted — critical migration %s failed", id);
+        ESP_LOGE(TAG, "boot halted - critical migration %s failed", id);
     }
 }

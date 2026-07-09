@@ -111,7 +111,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 
 ## :tabler-file-type-pdf: Report Settings {#report-settings}
 
-The Report Settings control the property information printed on the cover page of the PDF smoke detector report. All three fields are optional — leaving them blank generates a report without a property header.
+The Report Settings control the property information printed on the cover page of the PDF smoke detector report. All three fields are optional - leaving them blank generates a report without a property header.
 
 !!! info "Access Required"
     Report Settings require **administrator** privileges to view and modify.
@@ -120,7 +120,7 @@ The Report Settings control the property information printed on the cover page o
 
 **Maximum length:** 80 characters
 
-The name of the property or building covered by this gateway — for example, *Mustermann House* or *Office Building A*. Appears as the primary heading on the report cover page.
+The name of the property or building covered by this gateway - for example, *Mustermann House* or *Office Building A*. Appears as the primary heading on the report cover page.
 
 ### Property Address
 
@@ -132,10 +132,10 @@ The full postal address of the property. Supports multiple lines (use line break
 
 **Maximum length:** 80 characters
 
-The name of the property owner or responsible person — for example, *Max Mustermann*. Appears alongside the property name and address on the report cover page.
+The name of the property owner or responsible person - for example, *Max Mustermann*. Appears alongside the property name and address on the report cover page.
 
 ## Related Documentation
 
-- [Device Management](device-management.md) — Managing smoke detectors and generating the PDF report
-- [Alarm Lines Management](alarm-lines-management.md) — Managing alarm line IDs and functions
-- [Protocol Analysis](../reverse-engineering/protocol-analysis.md) — Technical details about packet types
+- [Device Management](device-management.md) - Managing smoke detectors and generating the PDF report
+- [Alarm Lines Management](alarm-lines-management.md) - Managing alarm line IDs and functions
+- [Protocol Analysis](../reverse-engineering/protocol-analysis.md) - Technical details about packet types

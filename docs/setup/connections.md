@@ -35,13 +35,13 @@ The MQTT broker URI is composed of three separate fields: a **Protocol** dropdow
 
 Supported protocols and their default ports:
 
-- **`mqtt://`** — unencrypted MQTT over TCP, default port **1883**
-- **`mqtts://`** — MQTT over TLS/SSL, default port **8883**
-- **`ws://`** — MQTT over unencrypted WebSocket, default port **80**
-- **`wss://`** — MQTT over WebSocket Secure (TLS), default port **443**
+- **`mqtt://`** - unencrypted MQTT over TCP, default port **1883**
+- **`mqtts://`** - MQTT over TLS/SSL, default port **8883**
+- **`ws://`** - MQTT over unencrypted WebSocket, default port **80**
+- **`wss://`** - MQTT over WebSocket Secure (TLS), default port **443**
 
 !!! tip "Automatic Port Updates"
-    Switching the protocol updates the port field to the new protocol's default — but only if the current port still matches the previous protocol's default. Custom ports you have set are preserved across protocol changes.
+    Switching the protocol updates the port field to the new protocol's default - but only if the current port still matches the previous protocol's default. Custom ports you have set are preserved across protocol changes.
 
 **Username**
 
@@ -132,7 +132,7 @@ Optional labels shown in the Home Assistant device info panel. Useful for multi-
 
 **Applying Changes**
 
-Click **Apply Settings** to save. Changes take effect immediately — if MQTT is connected, updated discovery messages are published automatically. Disabling the integration removes the device from Home Assistant immediately (see warning above).
+Click **Apply Settings** to save. Changes take effect immediately - if MQTT is connected, updated discovery messages are published automatically. Disabling the integration removes the device from Home Assistant immediately (see warning above).
 
 !!! abstract "MQTT Topics Reference"
     See [Home Assistant Auto-Discovery](../api/mqtt-topics.md#home-assistant-auto-discovery) for topic structure and payload formats.

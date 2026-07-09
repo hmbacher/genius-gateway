@@ -22,8 +22,8 @@ class MigrationService;
 #define MIGRATIONS_RETRY_PATH "/rest/migrations/retry"
 
 /// REST endpoint pair for the migration service.
-/// - GET  /rest/migrations         : authenticated users — applied/pending/failed
-/// - POST /rest/migrations/retry   : admin — clear failure records
+/// - GET  /rest/migrations         : authenticated users - applied/pending/failed
+/// - POST /rest/migrations/retry   : admin - clear failure records
 class MigrationApi
 {
 public:

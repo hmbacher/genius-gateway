@@ -6,7 +6,7 @@
  * Source:      node_modules/pdfmake/build/{pdfmake.min.js,vfs_fonts.js}
  * Destination: static/pdf/{pdfmake.min.js,vfs_fonts.js}
  *
- * Wired in via the `prebuild` npm script. `static/pdf/` is gitignored — the
+ * Wired in via the `prebuild` npm script. `static/pdf/` is gitignored - the
  * files are produced from the pdfmake dependency on every build so upgrades
  * land automatically with `npm update pdfmake`.
  *
@@ -25,7 +25,7 @@ const FILES = ['pdfmake.min.js', 'vfs_fonts.js'];
 
 if (!existsSync(SRC_DIR)) {
 	console.error(
-		`[stage-pdf-assets] pdfmake build dir not found at ${SRC_DIR} — run npm install first.`
+		`[stage-pdf-assets] pdfmake build dir not found at ${SRC_DIR} - run npm install first.`
 	);
 	process.exit(1);
 }
@@ -39,7 +39,7 @@ for (const file of FILES) {
 		console.error(`[stage-pdf-assets] missing source ${src}`);
 		process.exit(1);
 	}
-	// Skip if destination is at least as fresh as the source — pdfmake's
+	// Skip if destination is at least as fresh as the source - pdfmake's
 	// build artifacts only change on dependency upgrade, so the same files
 	// would otherwise be re-copied on every incremental rebuild.
 	if (existsSync(dst) && statSync(dst).mtimeMs >= statSync(src).mtimeMs) {

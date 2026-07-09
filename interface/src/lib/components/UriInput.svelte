@@ -261,7 +261,7 @@
 			{/if}
 		</div>
 
-		<!-- Port: same pattern as Keep Alive — input fills space, DirtyMarker inside the border. -->
+		<!-- Port: same pattern as Keep Alive - input fills space, DirtyMarker inside the border. -->
 		{#if fixedPort === undefined}
 			<div class="flex grow flex-col">
 				<label class="label py-0" for="{id}-port">{labelPort}</label>

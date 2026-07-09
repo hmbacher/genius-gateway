@@ -28,18 +28,18 @@ class HADevice;
  * @brief Multi-sensor publisher sharing one MQTT state topic.
  *
  * A group of HA sensor entities (or binary_sensor) share a single state
- * topic — `~/<topicSuffix>/state` — that carries a JSON object with all
+ * topic - `~/<topicSuffix>/state` - that carries a JSON object with all
  * values. Each entity selects its value from the JSON via its own
  * `value_template`.
  *
  * Pull-based: the supplied StateReader lambda is invoked whenever the state
  * is published. Use this for live-measured values (heap, temperature, RSSI,
  * uptime, ...) that are read on demand. Trigger publishes via
- * publishState() — typically from a periodic timer.
+ * publishState() - typically from a periodic timer.
  *
  * Note: this does not derive from HAEntityBase because HAEntityBase models a
  * single entity (1 component / 1 objectId). A grouped publisher has N entity
- * configs over one shared state topic, so the shapes do not align — the only
+ * configs over one shared state topic, so the shapes do not align - the only
  * commonality is the HAService::onPublishAll registration, duplicated here
  * in a few lines.
  *

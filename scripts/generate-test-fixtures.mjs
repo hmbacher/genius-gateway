@@ -41,7 +41,7 @@ const ALARM_CNT_3M    = [0, 1, 2, 1, 0];
 const LINE_CHARS = ['A', 'B', 'C', 'D'];
 const LINE_IDS   = [1, 2, 3, 4];
 
-// 10 historical alarms — same set for every device
+// 10 historical alarms - same set for every device
 const ALARMS = [
   { startTime: '2024-06-10T08:15:00.000Z', endTime: '2024-06-10T08:37:00.000Z', endingReason: 0 },
   { startTime: '2024-07-22T14:30:00.000Z', endTime: '2024-07-22T14:52:00.000Z', endingReason: 1 },

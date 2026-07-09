@@ -1,4 +1,4 @@
-# Acoustic Readout — Manual Test Suite
+# Acoustic Readout - Manual Test Suite
 
 Covers all conditional paths in the acoustic device detection and per-device readout features.
 
@@ -20,22 +20,22 @@ Start each test group from a **clean device list** unless stated otherwise. Use 
 
 ---
 
-## Section 1 — Connection guard
+## Section 1 - Connection guard
 
 These tests apply to both **Acoustic Device Detection** (toolbar button) and the per-device **Readout** action button.
 
-### TC-CG-01 — Detection blocked on plain HTTP - OK
+### TC-CG-01 - Detection blocked on plain HTTP - OK
 
 **Precondition:** Access the smoke detectors page over `http://` (not HTTPS).
 
 **Steps:**
 1. Click the **Acoustic Device Detection** toolbar button.
 
-**Expected:** Error toast appears — *"Acoustic device detection requires a secure (HTTPS) connection."* No dialog opens.
+**Expected:** Error toast appears - *"Acoustic device detection requires a secure (HTTPS) connection."* No dialog opens.
 
 ---
 
-### TC-CG-02 — Readout blocked on plain HTTP - OK
+### TC-CG-02 - Readout blocked on plain HTTP - OK
 
 **Precondition:** Access the smoke detectors page over `http://`. At least one device is registered.
 
@@ -43,11 +43,11 @@ These tests apply to both **Acoustic Device Detection** (toolbar button) and the
 1. Open device details for any device.
 2. Click the **Update** (readout) button.
 
-**Expected:** Error toast appears — *"Acoustic device detection requires a secure (HTTPS) connection."* No dialog opens.
+**Expected:** Error toast appears - *"Acoustic device detection requires a secure (HTTPS) connection."* No dialog opens.
 
 ---
 
-### TC-CG-03 — Readout button style on insecure context - OK
+### TC-CG-03 - Readout button style on insecure context - OK
 
 **Precondition:** Access over `http://`.
 
@@ -58,13 +58,13 @@ These tests apply to both **Acoustic Device Detection** (toolbar button) and the
 
 ---
 
-## Section 2 — Initial Acoustic Device Detection (`handleAcousticResult`)
+## Section 2 - Initial Acoustic Device Detection (`handleAcousticResult`)
 
 Triggered via the **Acoustic Device Detection** toolbar button. The gateway has no prior knowledge of the device being detected unless stated.
 
 ---
 
-### TC-AD-F1 — Completely unknown device → Add new - OK
+### TC-AD-F1 - Completely unknown device → Add new - OK
 
 **Precondition:** Neither `SD-SN` nor `FM-SN` of the detector to be detected matches any registered device.
 
@@ -81,7 +81,7 @@ Triggered via the **Acoustic Device Detection** toolbar button. The gateway has 
 
 ---
 
-### TC-AD-F2 — Known SD, unknown FM → Update existing device (RWM match) - OK
+### TC-AD-F2 - Known SD, unknown FM → Update existing device (RWM match) - OK
 
 **Precondition:** A device is registered with `SD-SN=A`, FM either absent or set to a different SN that does **not** appear in the readout. Detect a unit whose `SD-SN=A` (same smoke detector body, FM not present or not matching any other device).
 
@@ -97,7 +97,7 @@ Triggered via the **Acoustic Device Detection** toolbar button. The gateway has 
 
 ---
 
-### TC-AD-F3 — Known SD and FM, both match the same device → Update existing (full match) - OK
+### TC-AD-F3 - Known SD and FM, both match the same device → Update existing (full match) - OK
 
 **Precondition:** A device is registered with `SD-SN=A` and `FM-SN=B`. Detect the same physical unit.
 
@@ -106,11 +106,11 @@ Triggered via the **Acoustic Device Detection** toolbar button. The gateway has 
 2. Trigger transmission from the detector with `SD-SN=A / FM-SN=B`.
 3. Click **Continue**.
 
-**Expected:** Same outcome as TC-AD-F2 — confirmation dialog to update, silent update after confirm, no EditSmokeDetector dialog.
+**Expected:** Same outcome as TC-AD-F2 - confirmation dialog to update, silent update after confirm, no EditSmokeDetector dialog.
 
 ---
 
-### TC-AD-F4 — Unknown SD, known FM → FM replacement (new smoke detector body) - OK
+### TC-AD-F4 - Unknown SD, known FM → FM replacement (new smoke detector body) - OK
 
 **Precondition:** A device is registered with `SD-SN=X` (known) and `FM-SN=B`. The physical smoke detector head has been replaced: detect a unit with a **new** `SD-SN=Y` but **same** `FM-SN=B`.
 
@@ -124,13 +124,13 @@ Triggered via the **Acoustic Device Detection** toolbar button. The gateway has 
 - After clicking **Replace**, `EditSmokeDetector` dialog opens for review; save button labelled **Replace**.
 - After saving, the existing device entry is updated with the new `SD-SN=Y`; its alarm log is cleared.
 
-**Edge — cancel at confirm:** Dismiss the ConfirmDialog → no changes made.
+**Edge - cancel at confirm:** Dismiss the ConfirmDialog → no changes made.
 
-**Edge — cancel at EditSmokeDetector:** Close the editor dialog → no changes made.
+**Edge - cancel at EditSmokeDetector:** Close the editor dialog → no changes made.
 
 ---
 
-### TC-AD-F5 — SD matches device A, FM matches device B → Cross-duplicate - OK
+### TC-AD-F5 - SD matches device A, FM matches device B → Cross-duplicate - OK
 
 **Precondition:** Two devices are registered: device A with `SD-SN=A / FM-SN=B`, device B with `SD-SN=C / FM-SN=D`. Components have been swapped; detect a unit reporting `SD-SN=A / FM-SN=D`.
 
@@ -145,11 +145,11 @@ Triggered via the **Acoustic Device Detection** toolbar button. The gateway has 
 - `EditSmokeDetector` dialog opens to add the combined device as new; save button labelled **Add**.
 - After saving, one new device entry appears with `SD-SN=A / FM-SN=D`.
 
-**Edge — cancel at confirm:** Dismiss → both original devices remain, nothing is added.
+**Edge - cancel at confirm:** Dismiss → both original devices remain, nothing is added.
 
 ---
 
-### TC-AD-F5b — Cancel during detection dialog - OK
+### TC-AD-F5b - Cancel during detection dialog - OK
 
 **Precondition:** Any device state.
 
@@ -161,13 +161,13 @@ Triggered via the **Acoustic Device Detection** toolbar button. The gateway has 
 
 ---
 
-## Section 3 — Per-device Readout (`handleDeviceReadout`)
+## Section 3 - Per-device Readout (`handleDeviceReadout`)
 
 Triggered via **Open details → Update** on a specific device card. `targetIndex` is the position of that device in the list.
 
 ---
 
-### TC-RO-A1 — SD matches target, FM matches target (or no FM) → Silent update, no dialog - OK
+### TC-RO-A1 - SD matches target, FM matches target (or no FM) → Silent update, no dialog - OK
 
 **Precondition:** Device at index 0 has `SD-SN=A` and `FM-SN=B` (or no FM module, `FM-SN=0`).
 
@@ -184,7 +184,7 @@ Triggered via **Open details → Update** on a specific device card. `targetInde
 
 ---
 
-### TC-RO-A2 — SD matches target, FM present but mismatches stored FM → Confirm FM mismatch - OK
+### TC-RO-A2 - SD matches target, FM present but mismatches stored FM → Confirm FM mismatch - OK
 
 **Precondition:** Device at index 0 has `SD-SN=A` and `FM-SN=B` (both non-zero). Detect a unit that transmits `SD-SN=A` but `FM-SN=C` (different radio module, `C ≠ B`, `C` not registered on any other device).
 
@@ -198,11 +198,11 @@ Triggered via **Open details → Update** on a specific device card. `targetInde
 - `ConfirmDialog` appears noting the radio module SN differs from the stored value and asks whether to update anyway.
 - After clicking **Update**, readout data (including new `FM-SN=C`) is applied; toast appears.
 
-**Edge — cancel:** Dismiss the ConfirmDialog → device data unchanged.
+**Edge - cancel:** Dismiss the ConfirmDialog → device data unchanged.
 
 ---
 
-### TC-RO-A2b — SD matches target, FM SN is 0 in readout (no FM detected) → Silent update - OK
+### TC-RO-A2b - SD matches target, FM SN is 0 in readout (no FM detected) → Silent update - OK
 
 **Precondition:** Device at index 0 has `SD-SN=A` and `FM-SN=B` (non-zero stored). Trigger a readout that only produces `FM-SN=0` (radio module not present or not responding).
 
@@ -215,9 +215,9 @@ Triggered via **Open details → Update** on a specific device card. `targetInde
 
 ---
 
-### TC-RO-B — Both SD and FM match a different device - OK
+### TC-RO-B - Both SD and FM match a different device - OK
 
-**Precondition:** Two devices registered — device at index 0 (`SD-SN=A / FM-SN=B`) and device at index 1 (`SD-SN=C / FM-SN=D`). Open details for device at index 0 and trigger readout for the physical unit at index 1 (`SD-SN=C / FM-SN=D`).
+**Precondition:** Two devices registered - device at index 0 (`SD-SN=A / FM-SN=B`) and device at index 1 (`SD-SN=C / FM-SN=D`). Open details for device at index 0 and trigger readout for the physical unit at index 1 (`SD-SN=C / FM-SN=D`).
 
 **Steps:**
 1. Open device details for device at **index 0**.
@@ -230,11 +230,11 @@ Triggered via **Open details → Update** on a specific device card. `targetInde
 - After confirming, device at index 1 is updated (not index 0); toast appears.
 - Device at index 0 is unchanged.
 
-**Edge — cancel:** Dismiss → neither device changed.
+**Edge - cancel:** Dismiss → neither device changed.
 
 ---
 
-### TC-RO-C — SD and FM both unknown while doing a targeted readout → Add new - OK
+### TC-RO-C - SD and FM both unknown while doing a targeted readout → Add new - OK
 
 **Precondition:** Device at index 0 has `SD-SN=A / FM-SN=B`. Trigger readout with a completely different, unregistered unit (`SD-SN=X / FM-SN=Y`).
 
@@ -249,13 +249,13 @@ Triggered via **Open details → Update** on a specific device card. `targetInde
 - After confirming, `EditSmokeDetector` dialog opens; save button labelled **Add**.
 - After saving, a new device entry is added. Device at index 0 is unchanged.
 
-**Edge — cancel at confirm:** Dismiss → nothing added, index 0 unchanged.
+**Edge - cancel at confirm:** Dismiss → nothing added, index 0 unchanged.
 
 ---
 
-### TC-RO-D — Partial / conflicting match → Delegate to initial detection flow - OK
+### TC-RO-D - Partial / conflicting match → Delegate to initial detection flow - OK
 
-**Precondition:** Device at index 0 has `SD-SN=A / FM-SN=B`, device at index 1 has `SD-SN=C / FM-SN=D`. Open details for device at index 0 and trigger a readout with `SD-SN=A / FM-SN=D` (SD matches index 0, FM matches index 1 — a conflict).
+**Precondition:** Device at index 0 has `SD-SN=A / FM-SN=B`, device at index 1 has `SD-SN=C / FM-SN=D`. Open details for device at index 0 and trigger a readout with `SD-SN=A / FM-SN=D` (SD matches index 0, FM matches index 1 - a conflict).
 
 **Steps:**
 1. Open device details for device at **index 0**.
@@ -265,17 +265,17 @@ Triggered via **Open details → Update** on a specific device card. `targetInde
 
 **Expected:**
 - `InfoDialog` (warning) appears explaining the readout does not unambiguously match the selected device.
-- After dismissing, the flow is handed off to `handleAcousticResult` — the normal acoustic detection logic runs from that point (Falls 1–5 apply based on the SN matches).
+- After dismissing, the flow is handed off to `handleAcousticResult` - the normal acoustic detection logic runs from that point (Falls 1–5 apply based on the SN matches).
 
 ---
 
-## Section 4 — Alarm line auto-add (`checkAndOfferAlarmLine`)
+## Section 4 - Alarm line auto-add (`checkAndOfferAlarmLine`)
 
 Triggered automatically after any successful acoustic update or add. Requires the detected unit to carry a `lineId` (radio module line assignment).
 
 ---
 
-### TC-AL-01 — No lineId in readout → No prompt - OK
+### TC-AL-01 - No lineId in readout → No prompt - OK
 
 **Precondition:** Detect a unit whose radio module reports no line assignment (`lineId = 0` or absent).
 
@@ -286,7 +286,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-AL-02 — lineId already configured → No prompt - OK
+### TC-AL-02 - lineId already configured → No prompt - OK
 
 **Precondition:** An alarm line matching the detected unit's `lineId` already exists in the alarm lines configuration.
 
@@ -298,7 +298,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-AL-03 — New lineId → Offer to add alarm line, confirm - OK
+### TC-AL-03 - New lineId → Offer to add alarm line, confirm - OK
 
 **Precondition:** No alarm line for the detected unit's `lineId` exists yet.
 
@@ -314,7 +314,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-AL-04 — New lineId → Offer to add alarm line, cancel - OK
+### TC-AL-04 - New lineId → Offer to add alarm line, cancel - OK
 
 **Steps:**
 1. Same as TC-AL-03 up to the ConfirmDialog.
@@ -324,7 +324,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-AL-05 — Backend rejects alarm line add - SKIPPED
+### TC-AL-05 - Backend rejects alarm line add - SKIPPED
 
 **Precondition:** Simulate or force a backend error on the alarm line POST (e.g., temporarily disconnect or reach the maximum alarm line limit).
 
@@ -335,11 +335,11 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-## Section 5 — Edge cases
+## Section 5 - Edge cases
 
 ---
 
-### TC-EC-02 — Device with no readout → status section hidden - OK
+### TC-EC-02 - Device with no readout → status section hidden - OK
 
 **Precondition:** A device has never been acoustically read out (`readoutTime = 0` / absent).
 
@@ -350,7 +350,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-EC-03 — Warranty flags set - OK
+### TC-EC-03 - Warranty flags set - OK
 
 **Precondition:** A device with one or more warranty bits set in `warrantyFlags` (requires a real detector with voided warranty, or importing a device with `warrantyFlags > 0`).
 
@@ -361,7 +361,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-EC-04 — Radio state flags set - OK
+### TC-EC-04 - Radio state flags set - OK
 
 **Precondition:** A device with non-zero `radioStateMask`.
 
@@ -372,7 +372,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-EC-05 — No radio module fitted - OK
+### TC-EC-05 - No radio module fitted - OK
 
 **Precondition:** A device whose `radioModule.model` is `GeniusRadioModule.None` (or null).
 
@@ -383,7 +383,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-EC-06 — Import v0 backup, then perform readout - OK
+### TC-EC-06 - Import v0 backup, then perform readout - OK
 
 **Precondition:** Export a v0-format backup (or manually craft one with `version` field absent). Import it via the import function (which should migrate it to v1).
 
@@ -396,7 +396,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-EC-07 — Import backup with alarm history, existing device on backend - OK
+### TC-EC-07 - Import backup with alarm history, existing device on backend - OK
 
 **Precondition:** At least one device is registered with no alarm history. Export a backup that contains the same device ID but with alarm log entries, then clear the device list and re-import.
 
@@ -410,7 +410,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-EC-08 — Cancel acoustic detection mid-transmission (synced/decoding state) - OK
+### TC-EC-08 - Cancel acoustic detection mid-transmission (synced/decoding state) - OK
 
 **Steps:**
 1. Click **Acoustic Device Detection**.
@@ -421,7 +421,7 @@ Triggered automatically after any successful acoustic update or add. Requires th
 
 ---
 
-### TC-EC-09 — Detection fails (error state) - OK
+### TC-EC-09 - Detection fails (error state) - OK
 
 **Precondition:** Trigger acoustic detection but produce an invalid or incomplete signal (e.g., hold detector too far away, let it time out).
 

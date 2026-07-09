@@ -1,12 +1,12 @@
 // ============================================================
-// Hekatron SmartSonic Decoder — AudioWorklet processor
+// Hekatron SmartSonic Decoder - AudioWorklet processor
 //
 // Runs the DSP pipeline (NCO, IIR filters, decimation, phase
 // demodulation, correlation, framing, Hamming decode, CRC16) off
 // the main thread, on the dedicated audio rendering thread.
 //
 // This file is loaded via `audioContext.audioWorklet.addModule(url)`
-// so it must be self-contained — no `import` statements, no DOM
+// so it must be self-contained - no `import` statements, no DOM
 // access. Communication with the main thread happens through
 // `this.port.postMessage(...)`.
 //
@@ -254,7 +254,7 @@ function crc16(data, len) {
 }
 
 // ========================
-// TunerPipeline — port of the main-thread class.
+// TunerPipeline - port of the main-thread class.
 //
 // Identical to interface/src/lib/audio/tuner-pipeline.ts but adapted to:
 // - run inside AudioWorkletGlobalScope (no DOM, no `Date.now()` budget)
@@ -663,7 +663,7 @@ class TunerProcessor extends AudioWorkletProcessor {
 		const channel = input[0];
 		if (!channel || channel.length === 0) return true;
 
-		// Level meter — peak over the block. Posted at ~20 Hz to keep the
+		// Level meter - peak over the block. Posted at ~20 Hz to keep the
 		// main-thread message queue light.
 		let maxAbs = 0;
 		for (let i = 0; i < channel.length; i++) {

@@ -27,7 +27,7 @@
 				"radioInterference": 0,
 				"radioNetworkFault": false
 			},
-			"location": "Test 1 — Healthy (BLUE)",
+			"location": "Test 1 - Healthy (BLUE)",
 			"registration": 3,
 			"isAlarming": false,
 			"alarms": [],
@@ -60,7 +60,7 @@
 				"radioInterference": 0,
 				"radioNetworkFault": false
 			},
-			"location": "Test 2a — No readout (YELLOW, foreign)",
+			"location": "Test 2a - No readout (YELLOW, foreign)",
 			"registration": 1,
 			"isAlarming": false,
 			"alarms": []
@@ -91,7 +91,7 @@
 				"radioInterference": 0,
 				"radioNetworkFault": false
 			},
-			"location": "Test 2b — Faults, recent readout (YELLOW + fault icon)",
+			"location": "Test 2b - Faults, recent readout (YELLOW + fault icon)",
 			"registration": 3,
 			"isAlarming": false,
 			"alarms": [
@@ -130,7 +130,7 @@
 				"radioInterference": 0,
 				"radioNetworkFault": false
 			},
-			"location": "Test 2c — Stale readout (YELLOW + stale icon)",
+			"location": "Test 2c - Stale readout (YELLOW + stale icon)",
 			"registration": 3,
 			"isAlarming": false,
 			"alarms": [],
@@ -163,7 +163,7 @@
 				"radioInterference": 0,
 				"radioNetworkFault": true
 			},
-			"location": "Test 2b+2c — Faults + stale (YELLOW + both icons)",
+			"location": "Test 2b+2c - Faults + stale (YELLOW + both icons)",
 			"registration": 3,
 			"isAlarming": false,
 			"alarms": [
@@ -202,7 +202,7 @@
 				"radioInterference": 0,
 				"radioNetworkFault": false
 			},
-			"location": "Test 3 — Alarming (RED)",
+			"location": "Test 3 - Alarming (RED)",
 			"registration": 3,
 			"isAlarming": true,
 			"alarms": [

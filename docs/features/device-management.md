@@ -23,14 +23,14 @@ The assigned location name for each detector (e.g., "Living Room", "Bedroom"). I
 Model name and status of the smoke detector component:
 
 - **Model**: The smoke detector model (e.g., "Genius Plus X"), or "Unknown model" in italics if not yet identified
-- **Status**: Shown after acoustic readout — :tabler-circle-check:{ style="color: #4caf50" } **OK** if no faults, :tabler-alert-circle:{ style="color: #f44336" } **Fault** with fault details in tooltip, or "Status not available" if no readout has been performed. The status indicator is greyed out if the last readout is more than one year old.
+- **Status**: Shown after acoustic readout - :tabler-circle-check:{ style="color: #4caf50" } **OK** if no faults, :tabler-alert-circle:{ style="color: #f44336" } **Fault** with fault details in tooltip, or "Status not available" if no readout has been performed. The status indicator is greyed out if the last readout is more than one year old.
 
 #### Radio Module
 Model name and status of the radio communication module:
 
 - **No radio module**: shown if the device has no radio module or serial number
 - **Model**: The radio module model (e.g., "FM Basis X"), or "Unknown model" in italics
-- **Status**: Same as smoke detector status — :tabler-circle-check:{ style="color: #4caf50" } OK / :tabler-alert-circle:{ style="color: #f44336" } Fault / not available, based on readout data
+- **Status**: Same as smoke detector status - :tabler-circle-check:{ style="color: #4caf50" } OK / :tabler-alert-circle:{ style="color: #f44336" } Fault / not available, based on readout data
 
 #### Alarms
 Alarm statistics for the device:
@@ -41,9 +41,9 @@ Alarm statistics for the device:
 #### Service
 Acoustic readout status icon:
 
-- :tabler-award:{ style="color: #4caf50" } — Readout performed and up to date (within the last year)
-- :tabler-calendar-exclamation:{ style="color: #f44336" } — Last readout is more than 1 year ago
-- :tabler-microphone-off:{ style="color: #f44336" } — No acoustic readout performed yet
+- :tabler-award:{ style="color: #4caf50" } - Readout performed and up to date (within the last year)
+- :tabler-calendar-exclamation:{ style="color: #f44336" } - Last readout is more than 1 year ago
+- :tabler-microphone-off:{ style="color: #f44336" } - No acoustic readout performed yet
 
 #### Manage
 Action buttons for device operations:
@@ -64,7 +64,7 @@ When you first access the Device Management page with no smoke detectors configu
 You can proceed to [add a new smoke detector](#adding-a-new-detector) by either:
 
 1. **Manual Registration**: Explicitly add smoke detectors you've configured (recommended for planned installations)
-2. **Automatic Discovery**: Enable automatic device registration in [Gateway Settings](gateway-settings.md#process-alerts-from-unknown-smoke-detectors), then trigger any smoke detector—the gateway will automatically register the device when it receives an alarm packet
+2. **Automatic Discovery**: Enable automatic device registration in [Gateway Settings](gateway-settings.md#process-alerts-from-unknown-smoke-detectors), then trigger any smoke detector-the gateway will automatically register the device when it receives an alarm packet
 
 ## Reordering Devices
 
@@ -163,7 +163,7 @@ Automatically discovered devices appear in the device list with "Unknown locatio
 
 ### Adding via Acoustic Readout
 
-The gateway can register a new smoke detector by capturing its acoustic (SmartSonic) readout directly in the browser. All device identity fields — serial numbers, model, and production date — are read from the signal automatically.
+The gateway can register a new smoke detector by capturing its acoustic (SmartSonic) readout directly in the browser. All device identity fields - serial numbers, model, and production date - are read from the signal automatically.
 
 !!! warning "HTTPS required"
     The browser's microphone API is only available over a secure (HTTPS) connection. The button is shown in warning color and disabled on plain HTTP.
@@ -177,7 +177,7 @@ To add a device via acoustic readout:
 
     | Situation | Outcome |
     |-----------|---------|
-    | Both serial numbers are new | Add dialog opens pre-filled — enter a location and save |
+    | Both serial numbers are new | Add dialog opens pre-filled - enter a location and save |
     | Smoke detector SN already exists | Confirmation to update that device's readout data (location and alarm history preserved) |
     | Radio module SN already assigned to a different device | Confirmation to replace that device (alarm history of the previous device is lost) |
     | Each SN belongs to a different existing device | Confirmation to delete both conflicting devices and create a new combined entry |
@@ -195,9 +195,9 @@ Click the :tabler-list-details: **Device Details** button in a device's row to o
 
 ![Viewing Device Details](../assets/images/software/gg-gateway-devices-details.png)
 
-- **General** — location, registration type, and last acoustic readout timestamp. If a readout exists, the age is shown alongside the date (e.g. `15.03.2026 10:00 (37d ago)`). A :tabler-award:{ style="color: #4caf50" } icon indicates a recent readout; :tabler-calendar-exclamation:{ style="color: #f44336" } indicates a stale one (> 1 year).
-- **Smoke Detector** — model, serial number, production date and age, and (after readout) full diagnostic status: detector fault, battery, dirt forecast, chamber drift, warranty flags with individual flag breakdown, plus lifetime statistics (last self-test, last alarm, alarm counts, deinstallation count, storage hours).
-- **Radio Module** — model, serial number, and (after readout) radio status with individual state flags, interference level, alarm line ID and character, and DIP switch configuration.
+- **General** - location, registration type, and last acoustic readout timestamp. If a readout exists, the age is shown alongside the date (e.g. `15.03.2026 10:00 (37d ago)`). A :tabler-award:{ style="color: #4caf50" } icon indicates a recent readout; :tabler-calendar-exclamation:{ style="color: #f44336" } indicates a stale one (> 1 year).
+- **Smoke Detector** - model, serial number, production date and age, and (after readout) full diagnostic status: detector fault, battery, dirt forecast, chamber drift, warranty flags with individual flag breakdown, plus lifetime statistics (last self-test, last alarm, alarm counts, deinstallation count, storage hours).
+- **Radio Module** - model, serial number, and (after readout) radio status with individual state flags, interference level, alarm line ID and character, and DIP switch configuration.
 
 The dialog also provides an **Update** button (:tabler-microphone:) to trigger a new acoustic readout for that device directly, without leaving the dialog.
 
@@ -270,9 +270,9 @@ You can import a previously exported device configuration:
 2. Select a valid configuration file from your computer
 3. The system validates the file format and migrates it if needed (older backup formats are automatically upgraded)
 4. If any device in the file is marked as alarming, a dialog asks how to handle the alarm state:
-    - **Keep Alarm State** — imports as-is; connected integrations (e.g. Home Assistant) may trigger automations (useful for testing)
-    - **Clear Alarm State** — resets the alarm flag on all affected devices and closes open alarm log entries with a `Cleared by import` ending reason
-5. A progress dialog shows the import status. For larger files the upload is split into chunks automatically and may take several seconds — a progress bar shows how many chunks have been sent. Wait for the *Finalizing* step to complete before navigating away
+    - **Keep Alarm State** - imports as-is; connected integrations (e.g. Home Assistant) may trigger automations (useful for testing)
+    - **Clear Alarm State** - resets the alarm flag on all affected devices and closes open alarm log entries with a `Cleared by import` ending reason
+5. A progress dialog shows the import status. For larger files the upload is split into chunks automatically and may take several seconds - a progress bar shows how many chunks have been sent. Wait for the *Finalizing* step to complete before navigating away
 6. All existing devices are replaced with the imported configuration once the gateway confirms the commit
 
 ## Generating a PDF Report
@@ -302,6 +302,6 @@ One page per registered smoke detector:
 
 ## Related Documentation
 
-- [Gateway Settings](gateway-settings.md) — Configure alarming behavior, alarm line topology, and report header fields
-- [MQTT Integration](../setup/connections.md#mqtt) — Monitor device status and alarms via MQTT
-- [System Status](../setup/system.md) — View overall gateway health and connectivity
+- [Gateway Settings](gateway-settings.md) - Configure alarming behavior, alarm line topology, and report header fields
+- [MQTT Integration](../setup/connections.md#mqtt) - Monitor device status and alarms via MQTT
+- [System Status](../setup/system.md) - View overall gateway health and connectivity

@@ -16,5 +16,5 @@ class MigrationService;
 
 /// Register every gateway-side migration with the supplied service. Call
 /// once at startup, before MigrationService::runPhase(). Migration IDs are
-/// stable — never rename, only add.
+/// stable - never rename, only add.
 void registerGatewayMigrations(MigrationService &service);

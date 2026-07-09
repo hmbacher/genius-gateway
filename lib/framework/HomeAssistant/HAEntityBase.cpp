@@ -45,7 +45,7 @@ void HAEntityBase::begin()
 
     ESP_LOGI("HAEntityBase", "Registering %s/%s with onPublishAll", _component.c_str(), _objectId.c_str());
     // Capture _alive by value so the lambda stays safe to call after this
-    // entity is destroyed — HAService has no deregistration API.
+    // entity is destroyed - HAService has no deregistration API.
     auto alive = _alive;
     _haService->onPublishAll([this, alive]()
                              { if (*alive) this->publishAll(); });
@@ -163,7 +163,7 @@ String HAEntityBase::_commandTopicAbs() const
 
 bool HAEntityBase::_publishEntityConfig(JsonDocument &config)
 {
-    // Apply typed common fields. Only write keys that are explicitly set —
+    // Apply typed common fields. Only write keys that are explicitly set -
     // an empty String / default enum means "not set" and the key is omitted.
 
     if (!_name.isEmpty())
@@ -182,7 +182,7 @@ bool HAEntityBase::_publishEntityConfig(JsonDocument &config)
         break;
     case HACategory::Control:
     default:
-        // No entity_category key — HA defaults to "Controls".
+        // No entity_category key - HA defaults to "Controls".
         break;
     }
 

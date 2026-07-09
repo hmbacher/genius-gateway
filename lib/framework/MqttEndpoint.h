@@ -174,7 +174,7 @@ public:
         _pendingCommit = true;
         if (MqttCommitHandler::getTimerInterval() == 0)
         {
-            commit(); // No throttling—send immediately
+            commit(); // No throttling-send immediately
         }
     }
 

@@ -14,9 +14,9 @@ The health indicator icon in the navigation bar reflects the overall system stat
 
 | Icon | Meaning |
 |------|---------|
-| :tabler-loader-2: | Connecting — device list not yet received |
+| :tabler-loader-2: | Connecting - device list not yet received |
 | :tabler-heart-off: | No smoke detectors configured yet |
-| :tabler-heart:{ style="color: #4caf50" } | All detectors healthy — readout present and up to date, no faults |
+| :tabler-heart:{ style="color: #4caf50" } | All detectors healthy - readout present and up to date, no faults |
 | :tabler-heart-exclamation:{ style="color: #ff9800" } | At least one detector needs attention (see [warning conditions](#warning) below) |
 | :tabler-alert-hexagon-filled:{ style="color: #f44336" } | At least one detector is actively alarming |
 
@@ -42,9 +42,9 @@ A :tabler-award:{ style="color: #4caf50" } icon appears in the top-right corner 
 
 One or more of the following apply:
 
-- **No readout data** — the device has never had an acoustic readout performed. A :tabler-microphone-off: icon is shown.
-- **Faults detected** — at least one fault condition is active (battery low, device fault, drift defect or warning, dirt forecast negative, warranty flags set, radio network fault). A :tabler-alert-circle: icon is shown.
-- **Stale readout** — the last acoustic readout is more than one year old. A :tabler-calendar-exclamation: icon is shown.
+- **No readout data** - the device has never had an acoustic readout performed. A :tabler-microphone-off: icon is shown.
+- **Faults detected** - at least one fault condition is active (battery low, device fault, drift defect or warning, dirt forecast negative, warranty flags set, radio network fault). A :tabler-alert-circle: icon is shown.
+- **Stale readout** - the last acoustic readout is more than one year old. A :tabler-calendar-exclamation: icon is shown.
 
 Multiple icons can appear together when more than one condition applies (e.g. both faults and a stale readout). A :tabler-external-link: foreign-detector indicator is appended last when applicable, independent of the health state.
 
@@ -56,10 +56,10 @@ The device has an active alarm (`isAlarming` is set). A :tabler-flame-filled: fl
 
 Each card displays:
 
-- **Location** — the assigned location name
-- :tabler-number: **Serial Number** — smoke detector unit identifier
-- :tabler-building-factory-2: **Production Date** — manufacturing date (if available)
-- :tabler-bell: **Alarm count and last alarm date** — total recorded alarms and date of the most recent event (if any)
+- **Location** - the assigned location name
+- :tabler-number: **Serial Number** - smoke detector unit identifier
+- :tabler-building-factory-2: **Production Date** - manufacturing date (if available)
+- :tabler-bell: **Alarm count and last alarm date** - total recorded alarms and date of the most recent event (if any)
 
 ### Foreign Detectors
 

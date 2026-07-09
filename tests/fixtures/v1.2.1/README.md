@@ -56,5 +56,5 @@ To test individual migrations, edit the file and remove the keys you don't
 want migrated. Each migration's `shouldRun` only checks for the existence
 of the legacy file (and absence of its successor); the apply step then
 checks for its own subset of keys. Migrations whose keys are absent log
-"legacy file lacks ... keys — nothing to migrate" and still mark themselves
+"legacy file lacks ... keys - nothing to migrate" and still mark themselves
 as applied (so they don't re-check forever).

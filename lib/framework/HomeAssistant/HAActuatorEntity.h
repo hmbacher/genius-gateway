@@ -25,7 +25,7 @@
  * @brief MQTT infrastructure base for bidirectional HA entities (switch, light, cover, ...).
  *
  * Maintains a state_topic (published on connect and on every StatefulService
- * update) and a command_topic (subscribed — incoming payloads are applied back
+ * update) and a command_topic (subscribed - incoming payloads are applied back
  * to the service).
  *
  * State serialisation and command deserialisation are fully delegated to the
@@ -121,7 +121,7 @@ private:
             return;
 
         // Capture _alive so the callback stays safe to invoke after this
-        // entity is destroyed — HAService/PsychicMqttClient have no
+        // entity is destroyed - HAService/PsychicMqttClient have no
         // unsubscribe API, so the lambda outlives the entity.
         auto alive = _alive;
         _haService->subscribe(_commandTopicAbs(),

@@ -3,7 +3,7 @@
  *
  * Old-generation modules (FM.Basis / FM.Pro) cannot expose a trustworthy alarm
  * line via the acoustic readout or radio packets, so the line must be entered by
- * hand — mirroring the official Hekatron app (SmartSonicValidationService.isOldFm /
+ * hand - mirroring the official Hekatron app (SmartSonicValidationService.isOldFm /
  * isManualLineEntryRequired, AddDeviceManualLineEntryFragment.setHLineEnabled).
  *
  * Line-validity rules come from the FM Basis X / Pro X manual (§"Linienübersicht").

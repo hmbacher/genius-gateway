@@ -6,7 +6,7 @@
 	import IconAlert from '~icons/tabler/alert-hexagon-filled';
 	import Loader from '~icons/tabler/loader-2';
 
-	// No status received yet — avoid flashing the red "not configured" icon on first paint
+	// No status received yet - avoid flashing the red "not configured" icon on first paint
 	let loading = $derived(!cc1101Status.loaded);
 	// Radio is up AND in RX mode → actively listening for packets
 	let listening = $derived(cc1101Status.state === 'ok' && cc1101Status.mode === 'rx');
@@ -25,7 +25,7 @@
 				: cc1101Status.state === 'initializing'
 					? 'Radio initializing…'
 					: cc1101Status.state === 'error'
-						? 'Radio error — check pin configuration'
+						? 'Radio error - check pin configuration'
 						: 'Radio not configured'
 	);
 </script>

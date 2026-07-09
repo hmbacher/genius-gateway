@@ -28,7 +28,7 @@
  *        command topics. Bidirectional counterpart to HAGroupedSensorPublisher.
  *
  * A group of HA switch entities is bound to N boolean fields of a single
- * StatefulService<T>. The shared state topic — `~/<topicSuffix>/state` —
+ * StatefulService<T>. The shared state topic - `~/<topicSuffix>/state` -
  * carries a JSON object with all switch states, each entity selects its
  * value via `value_template`. Commands arrive on dedicated per-switch topics
  * (`~/<topicSuffix>/<objectId>/set`) so HA can address each toggle
@@ -126,7 +126,7 @@ public:
             return;
 
         // Capture _alive by value so the lambdas stay safe to call after this
-        // publisher is destroyed — HAService has no deregistration API.
+        // publisher is destroyed - HAService has no deregistration API.
         auto alive = _alive;
         _haService->onPublishAll([this, alive]() {
             if (*alive) this->publishAll();
@@ -208,7 +208,7 @@ protected:
 
     // Liveness flag captured by the lambdas registered with HAService in begin().
     // Set to false in the destructor so post-destruction invocations bail out
-    // instead of dereferencing freed memory — HAService never deregisters its
+    // instead of dereferencing freed memory - HAService never deregisters its
     // _publishCallbacks/_unpublishCallbacks, so the lambdas can outlive us.
     std::shared_ptr<bool> _alive;
 

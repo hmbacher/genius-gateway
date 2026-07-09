@@ -59,7 +59,7 @@ bool writeHASettingsFromLegacy(FS *fs)
                      legacy["HAMQTTDiscoveryPrefix"].is<String>();
     if (!hasLegacy)
     {
-        ESP_LOGI(TAG, "legacy file lacks HA keys — nothing to migrate");
+        ESP_LOGI(TAG, "legacy file lacks HA keys - nothing to migrate");
         return true; // mark applied to avoid re-checking forever
     }
 
@@ -99,7 +99,7 @@ bool writeAlarmPublishingFromLegacy(FS *fs)
                     legacy["alarmTopic"].is<String>();
     if (!hasLegacy)
     {
-        ESP_LOGI(TAG, "legacy file lacks alarm-publishing keys — nothing to migrate");
+        ESP_LOGI(TAG, "legacy file lacks alarm-publishing keys - nothing to migrate");
         return true;
     }
 

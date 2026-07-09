@@ -95,8 +95,8 @@ public:
      * calls publishAll() when woken. Registers an MQTT onConnect handler that
      * notifies (wakes) this task on every (re)connect.
      *
-     * Routing publishAll() through a dedicated task — instead of calling it
-     * directly from the MQTT event callback — keeps the MQTT event thread free,
+     * Routing publishAll() through a dedicated task - instead of calling it
+     * directly from the MQTT event callback - keeps the MQTT event thread free,
      * which is required for synchronous (async=false) publishes during the
      * publish-all sequence to avoid deadlocking on the same thread.
      */
@@ -317,7 +317,7 @@ private:
     String _discoveryPrefix;
     bool _enabled;
 
-    // Publish / unpublish callbacks — keyed by ID for O(n) removal
+    // Publish / unpublish callbacks - keyed by ID for O(n) removal
     using CallbackEntry = std::pair<CallbackId, PublishAllCallback>;
     std::vector<CallbackEntry> _publishCallbacks;
     std::vector<CallbackEntry> _unpublishCallbacks;

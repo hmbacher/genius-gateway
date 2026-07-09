@@ -27,7 +27,7 @@
 class HAService;
 
 /**
- * @brief A Home Assistant MQTT device — owns identity + the entities under it.
+ * @brief A Home Assistant MQTT device - owns identity + the entities under it.
  *
  * HA models everything as devices, each with a set of entities grouped on the
  * device's HA page into Controls / Configuration / Diagnostic sections. This
@@ -39,7 +39,7 @@ class HAService;
  *   registerConfig(...)     → entity_category = "config"
  *   registerDiagnostic(...) → entity_category = "diagnostic"
  *
- * Entities are passed in as unique_ptr — HADevice owns them and unpublishes
+ * Entities are passed in as unique_ptr - HADevice owns them and unpublishes
  * them on destruction.
  *
  * The framework's primary device is reachable via HAService::mainDevice().
@@ -103,7 +103,7 @@ public:
     /**
      * @brief Register an entity under this device's Controls section.
      *
-     * Sets entity_category = Control (no entity_category key in payload — HA
+     * Sets entity_category = Control (no entity_category key in payload - HA
      * default), takes ownership of the entity.
      *
      * @return raw pointer valid while the HADevice owns it. Useful for
@@ -144,7 +144,7 @@ public:
     /**
      * @brief Remove this device from HA by sending empty retained payloads.
      *
-     * The destructor does NOT call this automatically — on firmware restart
+     * The destructor does NOT call this automatically - on firmware restart
      * we want HA to keep the retained device config. Call explicitly before
      * destroying a sub-device that should disappear from HA.
      */
@@ -154,7 +154,7 @@ public:
     size_t entityCount() const { return _entities.size(); }
 
     // ========================================================================
-    // MQTT helpers — used by entities owned by this device
+    // MQTT helpers - used by entities owned by this device
     // ========================================================================
 
     /**
@@ -172,7 +172,7 @@ public:
                        JsonDocument &config);
 
     /**
-     * @brief Convenience wrapper — delegates to HAService::publish().
+     * @brief Convenience wrapper - delegates to HAService::publish().
      */
     bool publish(const String &topic,
                  const String &payload,

@@ -1,4 +1,4 @@
-# HA Integration Test Suite — Detailed Reference
+# HA Integration Test Suite - Detailed Reference
 
 **Script:** `tests/test_ha_integration.py`  
 **Total automated tests:** 65 (TC01–TC65)  
@@ -32,7 +32,7 @@ python tests/test_ha_integration.py --filter "TC5[89]|TC6[0-5]"   # ordering onl
 | `--gg-password` | `admin` | Admin password |
 | `--ha-host` | `homeassistant.local` | Home Assistant hostname |
 | `--ha-port` | `8123` | Home Assistant port |
-| `--ha-token` | _(empty)_ | Long-lived HA access token — HA assertions are skipped if omitted |
+| `--ha-token` | _(empty)_ | Long-lived HA access token - HA assertions are skipped if omitted |
 | `--filter` | `.*` | Regex against test names; only matching tests execute |
 
 ## Obtaining a Home Assistant long-lived access token
@@ -45,7 +45,7 @@ A long-lived access token authorises the test script to query entity states from
 2. Click your **profile picture / username** in the bottom-left corner of the sidebar to open your profile page.
 3. Scroll to the **Long-lived access tokens** section at the bottom of the page.
 4. Click **Create token**, enter a descriptive name (e.g. `gg-integration-tests`), and confirm.
-5. Copy the token immediately — it is shown **only once** and cannot be retrieved later.
+5. Copy the token immediately - it is shown **only once** and cannot be retrieved later.
 
 **Use the token:**
 
@@ -84,15 +84,15 @@ Every test that creates devices calls `reset_test_devices()` (no arguments) at t
 
 Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ any devices are added, so no cleanup is necessary.
 
-**Result:** After every test completes (pass, fail, or exception), the gateway device list is identical to what it was before the test suite started — no test device survives into the next test.
+**Result:** After every test completes (pass, fail, or exception), the gateway device list is identical to what it was before the test suite started - no test device survives into the next test.
 
 > **Note for HA:** Device deletion triggers null-retained MQTT payloads on all discovery topics for that device. HA removes the corresponding entities automatically within seconds. There is no manual HA cleanup required between tests.
 
 ---
 
-## Category 1 — Basic CRUD
+## Category 1 - Basic CRUD
 
-### TC01 — Add acoustic device — round-trip
+### TC01 - Add acoustic device - round-trip
 
 **What is tested:** A fully-populated acoustic device (all fields set) can be added via the REST API and all fields survive the POST→GET round-trip without loss or corruption.
 
@@ -113,7 +113,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC02 — Add manual device (no readout)
+### TC02 - Add manual device (no readout)
 
 **What is tested:** A manually-created device (no SmartSonic readout) is stored correctly and `readoutTime` is absent from the response.
 
@@ -131,7 +131,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC03 — Edit location of existing device
+### TC03 - Edit location of existing device
 
 **What is tested:** Changing only the `location` field of an existing device is persisted correctly without side effects on other fields.
 
@@ -148,7 +148,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC04 — Edit readoutTime triggers full SD/RM update
+### TC04 - Edit readoutTime triggers full SD/RM update
 
 **What is tested:** Firmware only merges updated SD status fields (e.g. `driftState`) when `readoutTime` is changed. This test verifies that changing `readoutTime` together with a status field causes the new value to be persisted.
 
@@ -166,7 +166,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC05 — Delete single device
+### TC05 - Delete single device
 
 **What is tested:** Removing one device from the list causes it to disappear from the GET response and its HA entities to become unavailable.
 
@@ -184,7 +184,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC06 — Delete all test devices — state is empty
+### TC06 - Delete all test devices - state is empty
 
 **What is tested:** POSTing only the real device list (no test devices) removes all test devices in one operation.
 
@@ -199,9 +199,9 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-## Category 2 — Fault State Round-Trips
+## Category 2 - Fault State Round-Trips
 
-### TC07 — `batteryLowFault=true` round-trips and HA reflects it
+### TC07 - `batteryLowFault=true` round-trips and HA reflects it
 
 **What is tested:** Setting `smokeDetector.batteryLowFault = True` is stored and causes the corresponding HA binary sensor to report `on`.
 
@@ -218,7 +218,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC08 — `deviceFault=true` round-trips
+### TC08 - `deviceFault=true` round-trips
 
 **What is tested:** `smokeDetector.deviceFault = True` is stored and surfaced in HA.
 
@@ -234,7 +234,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC09 — `radioNetworkFault=true` round-trips
+### TC09 - `radioNetworkFault=true` round-trips
 
 **What is tested:** `radioModule.radioNetworkFault = True` is stored and surfaced in HA as the `radio_fault` entity.
 
@@ -250,7 +250,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC10 — All faults simultaneously
+### TC10 - All faults simultaneously
 
 **What is tested:** All fault-related fields can be set at the same time without interfering with each other.
 
@@ -269,7 +269,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC11 — Clear fault — HA transitions from `on` to `off`
+### TC11 - Clear fault - HA transitions from `on` to `off`
 
 **What is tested:** After a fault is cleared (by advancing `readoutTime` and setting the flag to `False`), HA updates the binary sensor from `on` to `off`.
 
@@ -286,9 +286,9 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-## Category 3 — Readout & Availability States
+## Category 3 - Readout & Availability States
 
-### TC12 — Recent readout — HA diagnostics available
+### TC12 - Recent readout - HA diagnostics available
 
 **What is tested:** A device with a current `readoutTime` has its diagnostic entities published to HA with the correct timestamp.
 
@@ -303,13 +303,13 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC13 — Overdue readout (>1 year old) — available but old date
+### TC13 - Overdue readout (>1 year old) - available but old date
 
 **What is tested:** A device whose last readout is more than a year old is still available in HA (no automatic expiry), but its `last_readout` sensor shows the old date.
 
 **How the test is performed:**
 1. Create device 900013 with `readoutTime = "2024-01-10T08:00:00.000Z"`.
-2. POST and GET — verify `readoutTime` is preserved and starts with `"2024-"`.
+2. POST and GET - verify `readoutTime` is preserved and starts with `"2024-"`.
 3. HA check: `sensor.genius_900013_last_readout` = `"2024-01-10T08:00:00+00:00"`.
 4. Cleanup.
 
@@ -321,7 +321,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC14 — No readout — HA diagnostics unavailable
+### TC14 - No readout - HA diagnostics unavailable
 
 **What is tested:** A device without any readout data (manual device, no `readoutTime`) has its diagnostic HA entities marked as `unavailable` because the MQTT availability payload is `offline` until a readout is performed.
 
@@ -339,9 +339,9 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-## Category 4 — Device Models & Radio Configurations
+## Category 4 - Device Models & Radio Configurations
 
-### TC15 — No radio module (`GRM_NONE=0`, `sn=0`)
+### TC15 - No radio module (`GRM_NONE=0`, `sn=0`)
 
 **What is tested:** A device with no radio module (`model=0`, `sn=0`) is stored correctly and the `radio_fault` HA entity still exists and reports `off` (not `unavailable`).
 
@@ -357,7 +357,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC16 — All smoke detector models (H, Hx, Plus, Plus X)
+### TC16 - All smoke detector models (H, Hx, Plus, Plus X)
 
 **What is tested:** All four valid `GeniusSmokeDetector` enum values (0–3) are stored and retrieved correctly.
 
@@ -377,7 +377,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC17 — All radio module models (None to FM Pro X)
+### TC17 - All radio module models (None to FM Pro X)
 
 **What is tested:** All six valid `GeniusRadioModule` enum values (0–5) are stored and retrieved correctly.
 
@@ -391,9 +391,9 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-## Category 5 — Bulk & Import
+## Category 5 - Bulk & Import
 
-### TC18 — Bulk add 10 devices — all persisted and published
+### TC18 - Bulk add 10 devices - all persisted and published
 
 **What is tested:** POSTing 10 devices in a single request causes all 10 to be persisted and retrievable. Tests that the firmware does not silently drop devices in a multi-device POST.
 
@@ -408,13 +408,13 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC19 — Import preserves field order and values
+### TC19 - Import preserves field order and values
 
 **What is tested:** A simulated web UI import (POST of real devices plus new imported devices) preserves specific field values (`warrantyFlags`, `driftState`) without corruption.
 
 **How the test is performed:**
 1. Build two import fixtures: 900040 with `warrantyFlags=7`, 900041 with `driftState=3`.
-2. `set_devices(real + imports)` — simulates web UI import.
+2. `set_devices(real + imports)` - simulates web UI import.
 3. GET and verify each field.
 4. Cleanup.
 
@@ -424,7 +424,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC20 — Re-import same IDs — updates, no duplicates
+### TC20 - Re-import same IDs - updates, no duplicates
 
 **What is tested:** Re-posting a device that already exists (same ID, changed `location`) updates the device in-place rather than creating a duplicate.
 
@@ -441,9 +441,9 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC21 — Import → delete all → re-import (full cycle)
+### TC21 - Import → delete all → re-import (full cycle)
 
-**What is tested:** The complete add / remove / re-add lifecycle produces consistent results at each stage — no stale data or ghost entries survive the intermediate delete step.
+**What is tested:** The complete add / remove / re-add lifecycle produces consistent results at each stage - no stale data or ghost entries survive the intermediate delete step.
 
 **How the test is performed:**
 1. Add device 900043 → assert it is present.
@@ -456,9 +456,9 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-## Category 6 — Edge Cases
+## Category 6 - Edge Cases
 
-### TC22 — Location with ASCII special characters and numbers
+### TC22 - Location with ASCII special characters and numbers
 
 **What is tested:** A `location` string containing hyphens, parentheses, brackets, and numbers survives the POST→GET round-trip without escaping or truncation.
 
@@ -468,11 +468,11 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 3. Cleanup.
 
 **Expected result:**
-- `location = "Room-01 (2nd Floor) [North]"` — character-for-character identical.
+- `location = "Room-01 (2nd Floor) [North]"` - character-for-character identical.
 
 ---
 
-### TC23 — Location with German umlauts (UTF-8)
+### TC23 - Location with German umlauts (UTF-8)
 
 **What is tested:** Non-ASCII UTF-8 characters (ü, Ü) in `location` are accepted by the REST API. The REST round-trip is expected to be intact; however, MQTT/HA may render replacement characters (known firmware limitation with multi-byte UTF-8 in the MQTT payload).
 
@@ -485,11 +485,11 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 - `location` field is present and non-null.
 - REST round-trip may or may not preserve the exact characters; test is marked pass as long as the device is stored and returned.
 
-> **Manual follow-up (MV-03):** Check the HA device name for 900051 — it may display as `K?che` or similar. This documents the known UTF-8 limitation in the MQTT layer.
+> **Manual follow-up (MV-03):** Check the HA device name for 900051 - it may display as `K?che` or similar. This documents the known UTF-8 limitation in the MQTT layer.
 
 ---
 
-### TC24 — Empty location string
+### TC24 - Empty location string
 
 **What is tested:** `location = ""` is a valid value and the device is stored and retrievable.
 
@@ -503,7 +503,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC25 — `warrantyFlags` at all significant bit positions
+### TC25 - `warrantyFlags` at all significant bit positions
 
 **What is tested:** The full range of `warrantyFlags` values (0 to 65535, covering individual bits, byte boundaries, and the maximum) round-trips correctly as a `uint16_t`.
 
@@ -520,7 +520,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC26 — `driftState` all values 0–7
+### TC26 - `driftState` all values 0–7
 
 **What is tested:** All eight valid `driftState` values (0–7, a 3-bit field) round-trip correctly.
 
@@ -534,7 +534,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC27 — `radioStateMask` all-bits set (255)
+### TC27 - `radioStateMask` all-bits set (255)
 
 **What is tested:** The maximum value of the `radioStateMask` bitmask field (`uint8_t`, all 8 bits set = 255) is stored correctly.
 
@@ -548,7 +548,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC28 — `radioInterference` boundary values (0, 50, 100)
+### TC28 - `radioInterference` boundary values (0, 50, 100)
 
 **What is tested:** The `radioInterference` float field stores values at 0%, 50%, and 100% correctly (the three key boundary points of the percentage scale).
 
@@ -565,9 +565,9 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC29 — Device with multiple alarms — all preserved
+### TC29 - Device with multiple alarms - all preserved
 
-**What is tested:** A device can store multiple alarm entries and all of them — including specific `endingReason` values — survive the round-trip intact.
+**What is tested:** A device can store multiple alarm entries and all of them - including specific `endingReason` values - survive the round-trip intact.
 
 **Alarm entries posted:**
 1. `2025-01-10 08:00–08:05`, `endingReason=0` (ended by smoke detector)
@@ -585,7 +585,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC30 — Dates without milliseconds parsed correctly (Utils.cpp fix)
+### TC30 - Dates without milliseconds parsed correctly (Utils.cpp fix)
 
 **What is tested:** Regression test for the `Utils::iso8601_to_time_t` fix. Before the fix, timestamps without `.000Z` milliseconds were parsed as `time_t = -1` and serialised as `1969-12-31T23:59:59.000Z`. The test fixture uses `.000Z` format and verifies the readoutTime does not regress to an epoch value.
 
@@ -600,7 +600,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC31 — `isAlarming=true` reflected in HA smoke sensor
+### TC31 - `isAlarming=true` reflected in HA smoke sensor
 
 **What is tested:** A new device created with `isAlarming=True` causes the HA smoke sensor to report `on`.
 
@@ -617,7 +617,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC32 — `deinstallationCount` and `alarmCountTotal` preserved
+### TC32 - `deinstallationCount` and `alarmCountTotal` preserved
 
 **What is tested:** The counter fields `deinstallationCount`, `alarmCountTotal`, and `alarmCountLast3Months` are stored correctly and their values are surfaced in HA sensor entities.
 
@@ -635,7 +635,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC33 — Registration type never overwritten on edit
+### TC33 - Registration type never overwritten on edit
 
 **What is tested:** The `registration` field is write-once on device creation. Subsequent POSTs that include a different `registration` value for an existing device must be ignored by the firmware.
 
@@ -653,7 +653,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC34 — `lineCharacter` valid values (A–J)
+### TC34 - `lineCharacter` valid values (A–J)
 
 **What is tested:** A valid `lineCharacter` value in the accepted range (`A`–`J`) is stored and retrieved correctly together with `lineNumber`.
 
@@ -668,9 +668,9 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-## Category 7 — Resilience (Basic)
+## Category 7 - Resilience (Basic)
 
-### TC35 — POST with `version` field — accepted
+### TC35 - POST with `version` field - accepted
 
 **What is tested:** The optional root-level `version` field is accepted without error and does not cause unexpected behaviour.
 
@@ -685,14 +685,14 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC36 — POST empty devices array — clears test devices
+### TC36 - POST empty devices array - clears test devices
 
 **What is tested:** Posting a list that contains only real devices (and no test devices) effectively deletes the test device. Verifies that a reductive POST is processed atomically.
 
 **How the test is performed:**
 1. Add device 900081.
 2. Verify it is present.
-3. `set_devices(get_real_devices())` — POST with test device excluded.
+3. `set_devices(get_real_devices())` - POST with test device excluded.
 4. GET and verify 900081 is absent.
 5. Cleanup (no-op).
 
@@ -701,7 +701,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC37 — Repeated identical POST — idempotent
+### TC37 - Repeated identical POST - idempotent
 
 **What is tested:** POSTing the exact same device list twice does not create duplicates or change the device count.
 
@@ -717,9 +717,9 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-## Category 8 — Missing & Invalid Data
+## Category 8 - Missing & Invalid Data
 
-### TC38 — POST without `devices` key — state unchanged
+### TC38 - POST without `devices` key - state unchanged
 
 **What is tested:** A POST body that contains no `devices` key is handled gracefully. The firmware is expected to return `UNCHANGED` and leave the device list intact.
 
@@ -728,20 +728,20 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 2. POST `{"version": 1}` (no `devices` key) via `invoke_gg`.
 3. GET and compare the count.
 
-> No cleanup needed — this test adds no devices.
+> No cleanup needed - this test adds no devices.
 
 **Expected result:**
 - Device count is identical before and after the POST.
 
 ---
 
-### TC39 — Device with `id=0` — accepted and retrievable
+### TC39 - Device with `id=0` - accepted and retrievable
 
 **What is tested:** A device ID of zero (the default when `id` is missing from JSON) is accepted and the device can be retrieved.
 
 **How the test is performed:**
 1. Build a full device fixture with `id=0`.
-2. `set_devices(real + [d])` — manual POST (not via `reset_test_devices` since ID 0 is outside the `MOCK_IDS` range used by that helper).
+2. `set_devices(real + [d])` - manual POST (not via `reset_test_devices` since ID 0 is outside the `MOCK_IDS` range used by that helper).
 3. GET and filter for `id = 0`.
 4. Restore: `set_devices(real)`.
 
@@ -750,13 +750,13 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC40 — Duplicate IDs in same POST — firmware stores both (no dedup)
+### TC40 - Duplicate IDs in same POST - firmware stores both (no dedup)
 
 **What is tested:** When two device objects in the same POST payload share the same ID, the firmware stores both entries without deduplication.
 
 **How the test is performed:**
 1. Build two fixtures both with `id=900083`: one with `location="First"`, one with `location="Second"`.
-2. POST `real + [first, second]` — both objects in the same array.
+2. POST `real + [first, second]` - both objects in the same array.
 3. GET, count occurrences of ID 900083.
 4. Cleanup.
 
@@ -765,12 +765,12 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC41 — Device without `smokeDetector` field — defaults applied
+### TC41 - Device without `smokeDetector` field - defaults applied
 
 **What is tested:** Omitting the entire `smokeDetector` object from a device payload does not crash the firmware; ArduinoJson applies zero-value defaults.
 
 **How the test is performed:**
-1. POST a device object containing only `id`, `location`, `isAlarming`, `registration`, `alarms` — no `smokeDetector` key.
+1. POST a device object containing only `id`, `location`, `isAlarming`, `registration`, `alarms` - no `smokeDetector` key.
 2. GET device 900084.
 3. Verify `smokeDetector.model = -1` (GSD_UNKNOWN) and `smokeDetector.sn = 0`.
 4. Cleanup.
@@ -781,7 +781,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC42 — Device without `radioModule` field — defaults applied
+### TC42 - Device without `radioModule` field - defaults applied
 
 **What is tested:** Omitting the `radioModule` object does not crash the firmware; defaults are applied.
 
@@ -797,7 +797,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC43 — `null` location — stored as empty or null
+### TC43 - `null` location - stored as empty or null
 
 **What is tested:** Sending `"location": null` (JSON null) does not crash the firmware. ArduinoJson coerces null to an empty string for `String` fields.
 
@@ -812,7 +812,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC44 — Out-of-range SD model enum (`-999` and `99`) — no crash
+### TC44 - Out-of-range SD model enum (`-999` and `99`) - no crash
 
 **What is tested:** The firmware casts the JSON integer to the `GeniusSmokeDetector` enum without range validation. Values outside the defined range (`-1` to `3`) should be stored and the firmware must not crash or refuse the POST.
 
@@ -830,7 +830,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC45 — Invalid ISO8601 timestamp — stored as epoch or absent (no crash)
+### TC45 - Invalid ISO8601 timestamp - stored as epoch or absent (no crash)
 
 **What is tested:** Sending `readoutTime = "not-a-date"` and `productionDate = "2022/01/15"` (wrong separator) is handled gracefully. `Utils::iso8601_to_time_t` returns `0` for unparseable strings; `0` is treated as "no date" and either omitted from the response or serialised as a near-epoch timestamp.
 
@@ -847,7 +847,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC46 — Partial ISO8601 (date only, no time) — graceful handling
+### TC46 - Partial ISO8601 (date only, no time) - graceful handling
 
 **What is tested:** A `productionDate` formatted as `"2022-01-15"` (missing `T` and `Z` components) does not cause a crash. This is a common mistake when manually constructing import data.
 
@@ -861,7 +861,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC47 — Max device limit (50) — 51st device dropped
+### TC47 - Max device limit (50) - 51st device dropped
 
 **What is tested:** The firmware enforces a hard cap of 50 devices (`GATEWAY_MAX_DEVICES`). Posting a 51st device should result in the excess being silently dropped.
 
@@ -881,7 +881,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC48 — More than 100 alarms per device — excess silently dropped
+### TC48 - More than 100 alarms per device - excess silently dropped
 
 **What is tested:** The firmware enforces a per-device alarm cap of 100 (`GATEWAY_MAX_ALARMS`). Posting 110 alarms should result in the first 100 being stored.
 
@@ -898,7 +898,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC49 — `lineCharacter` invalid values — rejected (stored as 0)
+### TC49 - `lineCharacter` invalid values - rejected (stored as 0)
 
 **What is tested:** Only characters `A`–`J` are valid for `lineCharacter` (the firmware has explicit validation). Characters outside this range are normalised to `0` (null char).
 
@@ -916,7 +916,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC50 — `driftState` out of range (8 and 255) — uint8 behaviour documented
+### TC50 - `driftState` out of range (8 and 255) - uint8 behaviour documented
 
 **What is tested:** `driftState` is a `uint8_t` field and valid only in 0–7. Values 8 and 255 exceed the defined range but are within uint8 capacity. The test documents the firmware's behaviour (no validation; stored and returned as-is).
 
@@ -931,7 +931,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC51 — `alarmCountTotal=300` overflow (> uint8 max 255) — truncated
+### TC51 - `alarmCountTotal=300` overflow (> uint8 max 255) - truncated
 
 **What is tested:** `alarmCountTotal` is a `uint8_t`. Posting `300` causes ArduinoJson to truncate the value to the uint8 range (either `300 % 256 = 44` by modular arithmetic, or `255` if clamped).
 
@@ -946,7 +946,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC52 — Extra unknown fields in device object — silently ignored
+### TC52 - Extra unknown fields in device object - silently ignored
 
 **What is tested:** Sending additional JSON keys that are not part of the firmware schema (e.g. for future compatibility or import from a newer version) does not cause an error and known fields are unaffected.
 
@@ -962,7 +962,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC53 — Extra unknown fields at root level — silently ignored
+### TC53 - Extra unknown fields at root level - silently ignored
 
 **What is tested:** An unexpected key at the root of the POST body (e.g. `unexpectedRootKey`) does not cause the request to fail.
 
@@ -977,7 +977,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC54 — Alarm with missing `startTime`/`endTime` — no crash
+### TC54 - Alarm with missing `startTime`/`endTime` - no crash
 
 **What is tested:** An alarm entry that contains only `endingReason` (both `startTime` and `endTime` missing) does not crash the firmware. The device should either be stored with a zero-timestamp alarm or with the alarm dropped.
 
@@ -993,7 +993,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC55 — Alarm `endingReason=-1` (AlarmActive) — stored correctly
+### TC55 - Alarm `endingReason=-1` (AlarmActive) - stored correctly
 
 **What is tested:** The `GAE_ALARM_ACTIVE = -1` enum value for `endingReason` (meaning the alarm is still active / has no defined end) is stored and round-trips correctly.
 
@@ -1007,7 +1007,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC56 — Negative `radioInterference` — stored as-is (no clamping)
+### TC56 - Negative `radioInterference` - stored as-is (no clamping)
 
 **What is tested:** The firmware does not validate the range of `radioInterference`. A negative value (`-5.5`) is stored without modification or rejection.
 
@@ -1022,7 +1022,7 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-### TC57 — `readoutProtocolVersion` boundary values (0, 1, 255)
+### TC57 - `readoutProtocolVersion` boundary values (0, 1, 255)
 
 **What is tested:** `readoutProtocolVersion` is a `uint8_t`. Values `0`, `1`, and `255` (the boundaries of the type) all round-trip correctly.
 
@@ -1036,11 +1036,11 @@ Tests that skip early (e.g. TC47 when cap headroom is too small) do so _before_ 
 
 ---
 
-## Category 9 — Device Ordering (Draggable List)
+## Category 9 - Device Ordering (Draggable List)
 
 The web UI presents devices in a drag-and-drop list. The device order is submitted by posting the full device array in the desired sequence. The firmware preserves this order in its internal `std::vector` and in LittleFS storage, and detects order changes by comparing ID sequences.
 
-### TC58 — Insertion order preserved — GET returns same order as POST
+### TC58 - Insertion order preserved - GET returns same order as POST
 
 **What is tested:** The fundamental ordering guarantee: the sequence of devices in a GET response matches the sequence that was POSTed.
 
@@ -1055,7 +1055,7 @@ The web UI presents devices in a drag-and-drop list. The device order is submitt
 
 ---
 
-### TC59 — Reorder devices — GET reflects new order
+### TC59 - Reorder devices - GET reflects new order
 
 **What is tested:** After reversing the order of existing devices via a new POST, the GET response reflects the reversed order.
 
@@ -1071,7 +1071,7 @@ The web UI presents devices in a drag-and-drop list. The device order is submitt
 
 ---
 
-### TC60 — Insert new device at beginning of list
+### TC60 - Insert new device at beginning of list
 
 **What is tested:** A new device prepended to the front of the existing list appears at position 0 in the subsequent GET, and the previously first device moves to position 1.
 
@@ -1088,7 +1088,7 @@ The web UI presents devices in a drag-and-drop list. The device order is submitt
 
 ---
 
-### TC61 — Insert new device at end of list
+### TC61 - Insert new device at end of list
 
 **What is tested:** A new device appended to the end of the list appears last, and the previously last device is at second-to-last position.
 
@@ -1105,7 +1105,7 @@ The web UI presents devices in a drag-and-drop list. The device order is submitt
 
 ---
 
-### TC62 — Insert new device in middle of list
+### TC62 - Insert new device in middle of list
 
 **What is tested:** A device inserted between positions 1 and 2 of a 4-device list lands at position 2, and the device previously at position 2 shifts to position 3.
 
@@ -1122,7 +1122,7 @@ The web UI presents devices in a drag-and-drop list. The device order is submitt
 
 ---
 
-### TC63 — Move device from last to first
+### TC63 - Move device from last to first
 
 **What is tested:** The last device in the list can be moved to the first position. This is the most disruptive ordering operation (maximum shift for all other devices).
 
@@ -1139,9 +1139,9 @@ The web UI presents devices in a drag-and-drop list. The device order is submitt
 
 ---
 
-### TC64 — Order change persisted across two GETs
+### TC64 - Order change persisted across two GETs
 
-**What is tested:** A reorder is durably written to LittleFS (not just in-memory). Two consecutive GETs — with a 300 ms pause between them — return identical order.
+**What is tested:** A reorder is durably written to LittleFS (not just in-memory). Two consecutive GETs - with a 300 ms pause between them - return identical order.
 
 **How the test is performed:**
 1. POST 3 devices: 900195, 900196, 900197.
@@ -1159,7 +1159,7 @@ The web UI presents devices in a drag-and-drop list. The device order is submitt
 
 ---
 
-### TC65 — Reorder-only POST — content unchanged
+### TC65 - Reorder-only POST - content unchanged
 
 **What is tested:** A POST that only changes device order (no field values modified) does not corrupt any device data.
 
@@ -1174,11 +1174,11 @@ The web UI presents devices in a drag-and-drop list. The device order is submitt
 
 ---
 
-## Section 10 — Manual HA UI Verification
+## Section 10 - Manual HA UI Verification
 
 The following checks require a human to look at the Home Assistant interface. They cannot be automated via the REST API.
 
-### MV-01 — Overdue readout visual prominence
+### MV-01 - Overdue readout visual prominence
 
 **Precondition:** TC13 has been run (or a device with a 2024 `readoutTime` exists in HA).
 
@@ -1192,7 +1192,7 @@ The following checks require a human to look at the Home Assistant interface. Th
 
 ---
 
-### MV-02 — Smoke detector model name in HA device info
+### MV-02 - Smoke detector model name in HA device info
 
 **Precondition:** TC16 has been run (or devices with different SD models exist).
 
@@ -1206,7 +1206,7 @@ The following checks require a human to look at the Home Assistant interface. Th
 
 ---
 
-### MV-03 — UTF-8 umlaut in device name (known limitation)
+### MV-03 - UTF-8 umlaut in device name (known limitation)
 
 **Precondition:** TC23 has been run.
 
@@ -1216,12 +1216,12 @@ The following checks require a human to look at the Home Assistant interface. Th
 
 **Expected result:**
 - REST round-trip preserves the umlauts.
-- HA device name may display `K?che` or `K<?>che` — this is the known MQTT UTF-8 encoding limitation.
+- HA device name may display `K?che` or `K<?>che` - this is the known MQTT UTF-8 encoding limitation.
 - Document the actual rendering for the changelog.
 
 ---
 
-### MV-04 — Radio interference at 100 % shown in HA
+### MV-04 - Radio interference at 100 % shown in HA
 
 **Precondition:** TC28 has been run, or device 900072 with `radioInterference=100` is present.
 
@@ -1234,7 +1234,7 @@ The following checks require a human to look at the Home Assistant interface. Th
 
 ---
 
-### MV-05 — Fault state visual in HA entity list vs. detail dialog
+### MV-05 - Fault state visual in HA entity list vs. detail dialog
 
 **Precondition:** A device with `deviceFault=True` or `batteryLowFault=True` is present.
 
@@ -1250,7 +1250,7 @@ The following checks require a human to look at the Home Assistant interface. Th
 
 ---
 
-### MV-06 — Unavailable diagnostic entities (no readout)
+### MV-06 - Unavailable diagnostic entities (no readout)
 
 **Precondition:** TC14 has been run, or a manual device (no `readoutTime`) is present.
 
@@ -1264,7 +1264,7 @@ The following checks require a human to look at the Home Assistant interface. Th
 
 ---
 
-### MV-07 — HA device page completeness
+### MV-07 - HA device page completeness
 
 **Precondition:** Any fully-populated acoustic device exists in HA.
 
@@ -1281,7 +1281,7 @@ The device page should contain:
 
 ---
 
-### MV-08 — Alarm in HA history
+### MV-08 - Alarm in HA history
 
 **Precondition:** TC29 has been run, or a device with alarms exists.
 
@@ -1300,7 +1300,7 @@ The device page should contain:
 
 | Layer | Automated | Notes |
 |-------|-----------|-------|
-| REST API — device CRUD and field round-trips | Yes (100 %) | TC01–TC65 |
+| REST API - device CRUD and field round-trips | Yes (100 %) | TC01–TC65 |
 | HA entity state (`on`/`off`/`unavailable`) | Yes, when `--ha-token` is provided | Polls with 60 s retry |
 | MQTT retained discovery payloads | No | Requires `mosquitto_sub` or `paho-mqtt` |
-| HA visual rendering (colours, icons, history) | No — manual | See Section 10 |
+| HA visual rendering (colours, icons, history) | No - manual | See Section 10 |

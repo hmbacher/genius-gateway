@@ -56,7 +56,7 @@ enum class HACategory
  * Common HA discovery fields are exposed as typed, chainable setters
  * (setName, setIcon, setEntityCategory, ...). The optional `extraConfig`
  * lambda is an escape hatch for niche or experimental fields not covered by
- * a typed setter — it runs after the typed values have been written, so it
+ * a typed setter - it runs after the typed values have been written, so it
  * can override them.
  */
 class HAEntityBase
@@ -110,7 +110,7 @@ public:
     HAEntityBase &setExtraConfig(ConfigBuilder builder);
 
     // ========================================================================
-    // Internal — set by HADevice when the entity is registered.
+    // Internal - set by HADevice when the entity is registered.
     // ========================================================================
     void _setOwnerDevice(HADevice *device) { _ownerDevice = device; }
 
@@ -141,7 +141,7 @@ protected:
 
     // Liveness flag captured by the lambda registered with HAService in begin().
     // Set to false in the destructor so post-destruction invocations bail out
-    // instead of dereferencing freed memory — HAService never deregisters its
+    // instead of dereferencing freed memory - HAService never deregisters its
     // _publishCallbacks, so the lambda can outlive us.
     std::shared_ptr<bool> _alive;
 
@@ -152,10 +152,10 @@ protected:
      */
     String _getDeviceId() const;
 
-    /** "~/<objectId>/state" — relative form for use inside discovery configs. */
+    /** "~/<objectId>/state" - relative form for use inside discovery configs. */
     String _stateTopicRel() const;
 
-    /** "~/<objectId>/set" — relative form for use inside discovery configs. */
+    /** "~/<objectId>/set" - relative form for use inside discovery configs. */
     String _commandTopicRel() const;
 
     /**

@@ -44,7 +44,7 @@
 		saving = true;
 		try {
 			await save();
-			notifications.success('Pins saved — re-initializing radio…', 4000);
+			notifications.success('Pins saved - re-initializing radio…', 4000);
 			modals.close(1);
 		} catch (e) {
 			console.error('Save failed:', e);

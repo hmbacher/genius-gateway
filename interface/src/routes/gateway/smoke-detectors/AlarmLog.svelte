@@ -23,7 +23,7 @@
 
 	const titleId = `alarm-log-title-${Math.random().toString(36).slice(2)}`;
 
-	// Show newest first — most users want the recent alarms at the top.
+	// Show newest first - most users want the recent alarms at the top.
 	const orderedAlarms = $derived([...geniusDevice.alarms].reverse());
 </script>
 

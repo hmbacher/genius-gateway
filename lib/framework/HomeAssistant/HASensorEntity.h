@@ -22,11 +22,11 @@
 /**
  * @brief MQTT infrastructure base for state-only HA entities (sensor, binary_sensor, event).
  *
- * Publishes a discovery config with a state_topic. Has no command_topic —
+ * Publishes a discovery config with a state_topic. Has no command_topic -
  * HA cannot send commands to this entity.
  *
  * State is published on every MQTT (re)connect via publishAll(), and can be
- * refreshed at any time by calling publishState() — typically from a periodic
+ * refreshed at any time by calling publishState() - typically from a periodic
  * timer or when the underlying value changes.
  *
  * The ValueReader lambda returns the current value as a String and is called

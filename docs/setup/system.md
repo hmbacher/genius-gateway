@@ -46,11 +46,11 @@ The radio status is reflected by a persistent icon in the navigation bar that li
 
 | Icon | Meaning |
 |------|---------|
-| :tabler-loader-2: | Loading — radio status not yet received |
-| :tabler-ear: | Radio listening (RX) — normal operating state |
+| :tabler-loader-2: | Loading - radio status not yet received |
+| :tabler-ear: | Radio listening (RX) - normal operating state |
 | :tabler-building-broadcast-tower:{ style="color: #2196f3" } | Radio transmitting (TX) |
 | :tabler-loader-2:{ style="color: #2196f3" } | Radio initializing |
-| :tabler-alert-hexagon-filled:{ style="color: #f44336" } | Radio error — check pin configuration |
+| :tabler-alert-hexagon-filled:{ style="color: #f44336" } | Radio error - check pin configuration |
 | :tabler-settings-off:{ style="color: #f44336" } | Radio not configured |
 
 ### Pin Configuration
@@ -65,12 +65,12 @@ If the board has predefined wiring presets, a **Wiring** dropdown lets you selec
 | **SCK** | SPI clock |
 | **MOSI** | SPI data from ESP32 to CC1101 |
 | **MISO** | SPI data from CC1101 to ESP32 |
-| **GDO0** | Packet signal — asserted when a packet has been received |
+| **GDO0** | Packet signal - asserted when a packet has been received |
 
 To change pins:
 
 1. Select a wiring preset or choose **Custom** and pick a GPIO for each pin. Reserved GPIOs are highlighted in red and cannot be selected; strapping pins are highlighted in orange as a caution
-2. Click **Test & Save** — the gateway probes the CC1101 over the new pin assignment and saves the configuration if the self-test passes
+2. Click **Test & Save** - the gateway probes the CC1101 over the new pin assignment and saves the configuration if the self-test passes
 3. The top-bar radio indicator updates to reflect the new state
 
 !!! warning "Pin conflicts rejected"
@@ -141,7 +141,7 @@ If a core dump is available:
 
 ## :tabler-database-import: Migrations
 
-The Migrations page shows what automatic config upgrades the gateway has performed across firmware versions. When you flash a new firmware, the gateway may need to transform older config files into the shape the new firmware expects — for example, splitting one combined file into two dedicated ones — and it does so without you having to re-enter anything in the UI.
+The Migrations page shows what automatic config upgrades the gateway has performed across firmware versions. When you flash a new firmware, the gateway may need to transform older config files into the shape the new firmware expects - for example, splitting one combined file into two dedicated ones - and it does so without you having to re-enter anything in the UI.
 
 ![Migrations](../assets/images/software/gg-system-migrations.png)
 
@@ -156,10 +156,10 @@ Every migration the firmware knows about appears on the page in one of four stat
 |---|---|
 | :tabler-circle-check:{ style="color: #4caf50" } **Applied** | The migration ran successfully and is recorded. It will never run again on this device. |
 | :tabler-circle-x:{ style="color: #f44336" } **Failed** | Something went wrong while applying. The gateway will normally try again on the next reboot. |
-| :tabler-clock:{ style="color: #ff9800" } **Pending** | The migration hasn't run yet but should — it will be applied on the next reboot. |
+| :tabler-clock:{ style="color: #ff9800" } **Pending** | The migration hasn't run yet but should - it will be applied on the next reboot. |
 | :tabler-circle-minus:{ style="color: currentColor; opacity: 0.5" } **Not applicable** | The migration doesn't apply to this device. Typically the old config file it would transform doesn't exist here (e.g. on a fresh install). |
 
-On a device upgraded from an older firmware that needed migration work, you will see Applied rows for the migrations that completed. On a fresh install of the same firmware, those same migrations show as Not applicable instead — there was nothing on disk to convert.
+On a device upgraded from an older firmware that needed migration work, you will see Applied rows for the migrations that completed. On a fresh install of the same firmware, those same migrations show as Not applicable instead - there was nothing on disk to convert.
 
 A small **critical** badge appears next to the state when a migration is essential for the gateway to start up safely.
 
@@ -167,7 +167,7 @@ A small **critical** badge appears next to the state when a migration is essenti
 
 If any migration shows as Failed, a warning banner appears at the top of the page. The gateway normally retries failed migrations automatically on the next reboot. If a migration fails several times in a row, the gateway records it as given up to avoid an infinite retry loop. The **Retry on next reboot** button at the top of the page clears that marker so the gateway will try again after you reboot the device.
 
-Pressing Retry does **not** apply migrations immediately — it only clears the give-up marker. You still need to reboot the device. Migrations are designed so that re-running them after a partial failure is safe.
+Pressing Retry does **not** apply migrations immediately - it only clears the give-up marker. You still need to reboot the device. Migrations are designed so that re-running them after a partial failure is safe.
 
 In the rare case that a *critical* migration fails, the gateway will refuse to boot rather than run with inconsistent configuration. You will see this in the serial log. Recovery typically requires a factory reset or a fresh firmware flash.
 
@@ -187,9 +187,9 @@ A persistent icon in the navigation bar shows the current firmware update status
 | Icon | Meaning |
 |------|---------|
 | :tabler-loader-2: | Checking for updates |
-| :tabler-cloud-check: | Firmware is up to date — click to re-check |
-| :tabler-refresh-alert: | Update available — click to install |
-| :tabler-cloud-off:{ style="color: #ff9800" } | Cannot reach GitHub — check internet connection |
+| :tabler-cloud-check: | Firmware is up to date - click to re-check |
+| :tabler-refresh-alert: | Update available - click to install |
+| :tabler-cloud-off:{ style="color: #ff9800" } | Cannot reach GitHub - check internet connection |
 
 A toast notification appears on a successful re-check only when triggered manually (not during the automatic hourly poll).
 
@@ -199,7 +199,7 @@ The GitHub Firmware Manager lists all firmware releases published to the project
 
 #### Release List
 
-Each release row shows the version tag and a list of available firmware assets. When the device's current version is known, the row matching the installed version is highlighted — indicating that version is already running.
+Each release row shows the version tag and a list of available firmware assets. When the device's current version is known, the row matching the installed version is highlighted - indicating that version is already running.
 
 #### Build Target Filtering
 

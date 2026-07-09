@@ -174,7 +174,7 @@
 		@apply bg-base-300 rounded-box p-1 mt-1;
 	}
 
-	/* Packet content — wraps so a wide packet does not blow out narrow viewports. */
+	/* Packet content - wraps so a wide packet does not blow out narrow viewports. */
 	:global(div.genius-packet>div.bytes-wrap>div.packet-data-container) {
 		@apply flex flex-wrap items-start justify-start gap-1 text-sm p-1;
 	}
@@ -187,9 +187,9 @@
 		@apply font-medium;
 	}
 
-	/* Force dark text on every typed byte chip — the bg-X-Y palette colors are
+	/* Force dark text on every typed byte chip - the bg-X-Y palette colors are
 	   static (not theme-aware) so default light text in dark mode would be unreadable.
-	   Same specificity as the per-type bg rules below, but earlier in source — any
+	   Same specificity as the per-type bg rules below, but earlier in source - any
 	   per-type rule that explicitly sets text-white overrides this. Untyped fillers
 	   omit the data-type attribute and keep theme-aware default text on bg-base-100. */
 	:global(div.genius-packet div.packet-data-container>div[data-type]>div) {

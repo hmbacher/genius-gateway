@@ -303,7 +303,7 @@ void WiFiSettingsService::updateRSSI()
 
 void WiFiSettingsService::onStationModeDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
 {
-    // Don't trigger reconnection from event handler — let loop() handle all
+    // Don't trigger reconnection from event handler - let loop() handle all
     // reconnection via manageSTA() on its regular 5s interval.
     // WiFi.begin() internally fires DISCONNECTED events which would cause
     // redundant scan/connect attempts while a connection is already in progress.

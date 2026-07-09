@@ -96,7 +96,7 @@
 				base = m.appliedAt ? `Applied in ${m.appliedAt}` : 'Applied';
 				break;
 			case 'failed':
-				base = `Attempt ${m.attempts ?? '?'}${m.lastError ? ' — ' + m.lastError : ''}`;
+				base = `Attempt ${m.attempts ?? '?'}${m.lastError ? ' - ' + m.lastError : ''}`;
 				break;
 			case 'pending':
 				base = `${m.phase ?? '?'} · order ${m.order ?? '?'} · ${m.onFailure ?? '?'}`;

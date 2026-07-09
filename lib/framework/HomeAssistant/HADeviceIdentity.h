@@ -29,7 +29,7 @@
  * remote sensor) populate their own HADeviceIdentity.
  *
  * `topicNamespace` is the slugified namespace used inside the MQTT base
- * topic — it does NOT appear in the discovery payload, only in topic paths.
+ * topic - it does NOT appear in the discovery payload, only in topic paths.
  */
 class HADeviceIdentity
 {
@@ -40,17 +40,17 @@ public:
     String model;            ///< Optional
     String swVersion;        ///< Optional
     String hwVersion;        ///< Optional
-    String configurationUrl; ///< Optional — typically "http://<ip>/"
-    String serialNumber;     ///< Optional — shown in HA device info panel
-    String viaDevice;        ///< Optional — identifier of bridge/parent device
-    String suggestedArea;    ///< Optional — HA room/area suggestion (e.g., "Living Room")
+    String configurationUrl; ///< Optional - typically "http://<ip>/"
+    String serialNumber;     ///< Optional - shown in HA device info panel
+    String viaDevice;        ///< Optional - identifier of bridge/parent device
+    String suggestedArea;    ///< Optional - HA room/area suggestion (e.g., "Living Room")
     String topicNamespace;   ///< Slugified, used in topic paths (not in payload)
 
     /**
      * @brief Write the `device` JSON block into a discovery config document.
      *
      * Adds `device.identifiers[0] = id`, `device.name = name`, and any of the
-     * optional fields that are non-empty. Idempotent — safe to call on a
+     * optional fields that are non-empty. Idempotent - safe to call on a
      * document that already has a `device` key (overwrites it).
      */
     void writeDeviceBlock(JsonDocument &doc) const;

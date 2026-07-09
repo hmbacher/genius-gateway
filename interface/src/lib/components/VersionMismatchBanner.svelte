@@ -11,7 +11,7 @@
 
 	onMount(() => {
 		// In `vite dev` the frontend is hot-served from the developer's machine
-		// while the firmware runs whatever version it was flashed with — a
+		// while the firmware runs whatever version it was flashed with - a
 		// permanent, expected mismatch. Suppress the banner there.
 		if (import.meta.env.DEV) return;
 		off = socket.on<{ version: string }>('app_version', (data) => {

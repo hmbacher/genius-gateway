@@ -19,15 +19,15 @@
 #include <FirmwareUpdateEvents.h>
 #include <ArduinoJson.h>
 
-// Forward declaration — avoids circular include
+// Forward declaration - avoids circular include
 class HAUpdateService;
 
 /**
  * @brief OTA update callback for dual-channel progress reporting
  *
  * Reports OTA progress to:
- * - WebSocket (Web UI) — directly via EventSocket
- * - MQTT (Home Assistant) — delegated to HAUpdateService
+ * - WebSocket (Web UI) - directly via EventSocket
+ * - MQTT (Home Assistant) - delegated to HAUpdateService
  *
  * Allocated on the heap by HAUpdateService, passed to DownloadFirmwareService::startOTAUpdate(),
  * and deleted by the OTA task after completion.

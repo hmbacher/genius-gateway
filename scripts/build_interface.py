@@ -113,7 +113,7 @@ def build_webapp():
     # APP_VERSION_FULL into version.ts (frontend) and AppVersion.h (firmware).
     os.environ["APP_VERSION"] = get_app_version()
     # Tell vite-plugin-littlefs to keep Rollup's content hashes when the bundle
-    # is going into PROGMEM — there is no 32-char filename limit there, and the
+    # is going into PROGMEM - there is no 32-char filename limit there, and the
     # firmware's "Cache-Control: immutable" header on /_app/immutable/* is only
     # safe when filenames actually change with their contents.
     if flag_exists("EMBED_WWW"):

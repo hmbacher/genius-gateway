@@ -76,11 +76,11 @@ struct Migration
     /// Only consulted for OnFailure::SkipAfterRetries.
     uint8_t maxAttempts = 3;
 
-    /// Cheap precondition. Return false to skip without marking applied —
+    /// Cheap precondition. Return false to skip without marking applied -
     /// e.g. legacy file doesn't exist, or target file already exists.
     std::function<bool(FS *)> shouldRun;
 
-    /// Do the work. Return true on success — only then is the migration
+    /// Do the work. Return true on success - only then is the migration
     /// recorded as applied. Should be idempotent where practical.
     std::function<bool(FS *)> apply;
 };
@@ -119,7 +119,7 @@ public:
     /// next boot; no migrations run synchronously here.
     void clearFailures();
 
-    /// Read-only inspection — for future REST/UI surface.
+    /// Read-only inspection - for future REST/UI surface.
     struct AppliedRecord
     {
         String id;

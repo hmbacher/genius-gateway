@@ -1,6 +1,6 @@
 # Development Insights
 
-This section documents the **non-obvious engineering decisions** behind Genius Gateway — the kind of design rationale that isn't visible from reading the code alone, doesn't belong in user-facing setup docs, and would otherwise live only in commit messages or the author's head.
+This section documents the **non-obvious engineering decisions** behind Genius Gateway - the kind of design rationale that isn't visible from reading the code alone, doesn't belong in user-facing setup docs, and would otherwise live only in commit messages or the author's head.
 
 Each page tackles one constraint of the platform (ESP32 memory, single-bundle frontend, HTTP throughput) and explains how the codebase works around it.
 
@@ -12,4 +12,4 @@ How the project fits **50 smoke detectors × 14 Home Assistant entities = 700 su
 
 ### :tabler-layers-subtract: [Frontend Bundle Strategy](frontend-bundles.md)
 
-Why the SvelteKit frontend is built as a **single bundle** rather than split per route, and how heavy on-demand dependencies (currently pdfmake, ~1.9 MB) are kept out of that bundle by staging them as static assets and loading them via classic `<script>` tags on demand. The trade-off is concurrency vs. eager-load size — covered in detail with the ESP32-side reasoning.
+Why the SvelteKit frontend is built as a **single bundle** rather than split per route, and how heavy on-demand dependencies (currently pdfmake, ~1.9 MB) are kept out of that bundle by staging them as static assets and loading them via classic `<script>` tags on demand. The trade-off is concurrency vs. eager-load size - covered in detail with the ESP32-side reasoning.

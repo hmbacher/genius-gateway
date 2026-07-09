@@ -4,7 +4,7 @@
  *
  * Stores the user/seed pin configuration and serves it (and the active board pin profile)
  * to the Web UI. The pins seeded here come from the active board profile
- * (the board pin-profile table in cc1101.c) — the single source of truth — and are overridden by the persisted
+ * (the board pin-profile table in cc1101.c) - the single source of truth - and are overridden by the persisted
  * file when present. Boot-time consumption of these pins is wired in a later phase.
  *
  * @copyright Copyright (c) 2024-2025 Genius Gateway Project

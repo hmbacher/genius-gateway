@@ -52,7 +52,7 @@
 	let userAborting = $state(false);
 
 	function handleProgress(p: ImportProgress) {
-		// Suppress progress updates once the user has clicked Abort — otherwise a
+		// Suppress progress updates once the user has clicked Abort - otherwise a
 		// late "uploading" event arriving while we're already showing "Aborting…"
 		// would flip the message back.
 		if (userAborting) return;
