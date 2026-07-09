@@ -124,7 +124,7 @@ Authorization: Bearer <token>
 - `id` - Unique 32-bit alarm line ID (0xFFFFFFFF = broadcast)
 - `name` - Human-readable alarm line name
 - `created` - Creation timestamp
-- `acquisition` - How line was discovered (0=built-in, 1=packet, 2=manual)
+- `acquisition` - How line was discovered (0=built-in, 1=packet, 2=manual, 3=acoustic, 4=signal probe)
 
 **POST Request:** Same format as GET response
 
@@ -397,25 +397,25 @@ Authorization: Bearer <token>
 
 **State values:**
 
-- `applied` — ran successfully (`appliedAt` carries the firmware version at apply time)
-- `failed` — ran but failed (`attempts` + `lastError` populated)
-- `pending` — registered, never applied, `shouldRun` currently true (will run on next applicable trigger)
-- `notApplicable` — registered, never applied, `shouldRun` currently false (preconditions not met for this device)
+- `applied` - ran successfully (`appliedAt` carries the firmware version at apply time)
+- `failed` - ran but failed (`attempts` + `lastError` populated)
+- `pending` - registered, never applied, `shouldRun` currently true (will run on next applicable trigger)
+- `notApplicable` - registered, never applied, `shouldRun` currently false (preconditions not met for this device)
 
 **Other fields:**
 
-- `phase` — `pre` (runs after FS mount, before settings services load) or `post` (runs after all services have started)
-- `order` — execution order within a phase (ascending); ties broken by registration order
-- `onFailure` — failure policy: `abortBoot` (halt boot), `retryNextBoot` (default — retry next boot), `skipAfterRetries` (give up after `maxAttempts`)
-- `maxAttempts` — only consulted for `skipAfterRetries`
-- `registered: false` — present on orphan entries (persisted as applied/failed but no longer registered in the current firmware)
+- `phase` - `pre` (runs after FS mount, before settings services load) or `post` (runs after all services have started)
+- `order` - execution order within a phase (ascending); ties broken by registration order
+- `onFailure` - failure policy: `abortBoot` (halt boot), `retryNextBoot` (default - retry next boot), `skipAfterRetries` (give up after `maxAttempts`)
+- `maxAttempts` - only consulted for `skipAfterRetries`
+- `registered: false` - present on orphan entries (persisted as applied/failed but no longer registered in the current firmware)
 
 ---
 
 #### `/rest/migrations/retry`
 - **Method:** POST
 - **Auth:** 🛡️ Admin
-- **Description:** Clear the migration failure list. Migrations recorded as given-up (`skipAfterRetries` past `maxAttempts`) become eligible to run again on the next reboot. No migrations run synchronously — the device must be rebooted for retries to take effect.
+- **Description:** Clear the migration failure list. Migrations recorded as given-up (`skipAfterRetries` past `maxAttempts`) become eligible to run again on the next reboot. No migrations run synchronously - the device must be rebooted for retries to take effect.
 
 **Request:** Empty body or `{}`
 
@@ -912,7 +912,7 @@ or 401 Unauthorized if invalid
 
 ---
 
-##### Without `?all=true` — latest release check
+##### Without `?all=true` - latest release check
 
 Returns metadata about the single latest GitHub release and whether it is newer than the currently running firmware. Used by the update indicator.
 
@@ -943,7 +943,7 @@ Returns metadata about the single latest GitHub release and whether it is newer 
 
 ---
 
-##### With `?all=true` — full release list
+##### With `?all=true` - full release list
 
 Returns all releases, each filtered to only their `.bin` assets. The response is wrapped in an envelope that also carries the device's build target so the frontend can perform client-side compatibility filtering without a separate round-trip.
 

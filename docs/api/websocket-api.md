@@ -384,7 +384,7 @@ New alarm line discovered
 - `id` - Unique 32-bit alarm line ID
 - `name` - Auto-generated or user-defined name
 - `created` - Discovery timestamp (ISO 8601)
-- `acquisition` - How line was added (0=built-in, 1=packet, 2=manual)
+- `acquisition` - How line was added (0=built-in, 1=packet, 2=manual, 3=acoustic, 4=signal probe)
 
 ---
 

@@ -90,16 +90,16 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | 14-17 | 4 | `XX XX XX XX`<br>*big endian* | Fwd-SN | Serial number[^2] of the FM Basis X radio module *forwarding* this packet.<br>The *first* packet has identical Org-SN and Fwd-SN fields. If other FM Basis X radio modules forward the packet (acting as routers), they insert their own serial number.
 | 18-21 | 4 | `XX XX XX XX`<br>*big endian* | Line-ID | The alarm line ID that this packet should affect.<br>Special IDs:<br>- `00 00 00 00 (0)`: The radio module is not (yet) assigned to any alarm line.<br>- `FF FF FF FF` (4294967295): Broadcast (all alarm lines) |
 | 22 | 1 | `0x0F - 0x00`<br>(`15 - 0`) | Hops | This appears to be a hop counter for forwarded packets, tracking the number of times the packet has been retransmitted. The original packet always contains `0x0F`, which is reduced to `0x0E` after the first forwarding. This suggests that the field is decremented by one with each subsequent forwarding. |
-| 23 | 1 | `XX` | | Sequence number — changes from one originated packet to the next. |
+| 23 | 1 | `XX` | | Sequence number - changes from one originated packet to the next. |
 | 24 | 1 | `XX` | | Flags. |
 | 25 | 1 | `0x00` | | Unknown, seems to be constant |
-| 26 | 1 | `XX` | | First byte of the message body — a **family marker**: `0x55` = ConfigCheckProbe, `0x66` = CommissioningProbe / Line test, `0x00` = alarm. The [message‑type](#message-type-byte) subtype follows at offset 27. |
+| 26 | 1 | `XX` | | First byte of the message body - a **family marker**: `0x55` = ConfigCheckProbe, `0x66` = CommissioningProbe / Line test, `0x00` = alarm. The [message‑type](#message-type-byte) subtype follows at offset 27. |
 
 </div>
 
 ### Message Type Byte
 
-The byte at **offset 27** — the first byte after the common part — is the packet's
+The byte at **offset 27** - the first byte after the common part - is the packet's
 **message type**. Every packet type carries a constant, distinct value here, so this byte
 (together with the packet length) identifies the packet type. In the per-packet detail
 tables below it is the offset-27 row (previously annotated *"Unknown, seems to be
@@ -123,7 +123,7 @@ constant"*).
 !!! note "Why the type byte matters for classification"
     Packet length alone is ambiguous: message type `0x00` is shared by **Alarming (36 B)**
     and the **CommissioningProbe Request (28 B)**, and a **36-byte** frame is either an **alarm
-    (`0x00`)** or a **ConfigCheckProbe response (`0x08`)** — so classifying purely by length can
+    (`0x00`)** or a **ConfigCheckProbe response (`0x08`)** - so classifying purely by length can
     misread a ConfigCheckProbe response as an alarm-stop. The gateway therefore classifies on
     `data[27]` with length as a validator (since v1.5.0).
 
@@ -183,6 +183,22 @@ When commissioning is initiated via a new radio module (i.e., not yet assigned t
 
 The principle by which new alarm line IDs are generated is not fully understood.
 
+!!! note "Commissioning eligibility is line-ID-state based, not group/line - firmware-confirmed"
+    Verified against the FM Basis X firmware RE (`commission_init` @0xC0E8, `commissioning_sm`
+    @0x95C4, the reception scope check in `mesh.c`), the decision to join a line during
+    commissioning is made **solely from stored line-ID state**:
+
+    - an **unassigned** module (`Line-ID == 0`) adopts the broadcast `New Line-ID` regardless of
+      its own group/line - the scope test is `our_line == 0 || rx_line == our_line || rx_line == 0xFFFFFFFF`;
+    - an **assigned** module reacts only to frames on its own line-ID.
+
+    The device's **group/line is metadata only**: it is collected by `commission_collect` (@0xC794,
+    *"device group/line + time"*), carried in the `0x03` payload, and written into the peer node
+    record - but it is **never compared to gate membership**. Consequence: several uncommissioned
+    modules with *different* group/line labels (e.g. `C.3` and `D.2`) commissioned together all
+    land on the **same** line-ID. Group/line therefore must **not** be used as a line key - always
+    key on `Line-ID`.
+
 ##### Basic properties
 
 - Overall packet length: **37 bytes**
@@ -204,7 +220,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x03` | Type | Message type — see [Message Type Byte](#message-type-byte). |
+| 27 | 1 | `0x03` | Type | Message type - see [Message Type Byte](#message-type-byte). |
 | 28-31 | 4 | `XX XX XX XX`<br>*big endian* | New Line-ID | The alarm line ID to be assigned during commissioning.<br><ul><li>When initiated by an already commissioned device: Contains the existing alarm line ID (same as `Line-ID`).</li><li>When initiated by a new device: Contains a newly generated alarm line ID (while `Line-ID` is `00 00 00 00`).</li></ul>See [Observations](#observations) for more details. |
 | 32 | 1 | `XX` | Ho(urs) | Hour of the smoke detector's current time in format `0-23`h |
 | 33 | 1 | `XX` | Mi(nutes) | Minute of the smoke detector's current time in format `0-59`min |
@@ -282,7 +298,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x00` | Type | Message type — see [Message Type Byte](#message-type-byte). |
+| 27 | 1 | `0x00` | Type | Message type - see [Message Type Byte](#message-type-byte). |
 | 28 | 1 | `XX` | Start | Start flag<br><br>`0x01`: Starting fire alarm<br>`0x00`: Otherwise |
 | 29 | 1 | `0x00` | | Unknown, seems to be constant |
 | 30 | 1 | `XX` | Stop | Stop flag<br><br>`0x01`: Stopping or silencing alarming<br>`0x00`: Otherwise |
@@ -321,14 +337,14 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x04` | Type | Message type — see [Message Type Byte](#message-type-byte). |
+| 27 | 1 | `0x04` | Type | Message type - see [Message Type Byte](#message-type-byte). |
 | 28 | 1 | `XX` | Start/Stop | `0x06`: Start/Perform line test<br>`0x00`: Stop line test |
 
 </div>
 
 #### CommissioningProbe Request
 
-This exchange runs **during commissioning**. After the initiating module broadcasts the [Alarm Line Commissioning](#alarm-line-commissioning) packet (the line assignment), it — and other involved modules — broadcast a **CommissioningProbe Request**, and every **directly reachable** module replies with a back-addressed [CommissioningProbe Response](#commissioningprobe-response) (`Req-SN` = the requester). It is a **direct-range reachability enumeration** (not forwarded, `Hops = 0`) — a broadcast *"who is reachable?"* — rather than a targeted request/response. (The name reflects this observed role.)
+This exchange runs **during commissioning**. After the initiating module broadcasts the [Alarm Line Commissioning](#alarm-line-commissioning) packet (the line assignment), it - and other involved modules - broadcast a **CommissioningProbe Request**, and every **directly reachable** module replies with a back-addressed [CommissioningProbe Response](#commissioningprobe-response) (`Req-SN` = the requester). It is a **direct-range reachability enumeration** (not forwarded, `Hops = 0`) - a broadcast *"who is reachable?"* - rather than a targeted request/response. (The name reflects this observed role.)
 
 ##### Observations
 
@@ -366,7 +382,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x00` | Type | Message type — see [Message Type Byte](#message-type-byte). |
+| 27 | 1 | `0x00` | Type | Message type - see [Message Type Byte](#message-type-byte). |
 
 </div>
 
@@ -401,7 +417,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
-| 27 | 1 | `0x01` | Type | Message type — see [Message Type Byte](#message-type-byte). |
+| 27 | 1 | `0x01` | Type | Message type - see [Message Type Byte](#message-type-byte). |
 | 28-31 | 4 | `XX XX XX XX`<br>*big endian* | Req-SN | Serial number of the radio module that sent the original [CommissioningProbe Request](#commissioningprobe-request).<br><br>This field allows the requesting module to identify that this response is directed to its specific request, enabling proper association between requests and responses in environments with multiple simultaneous discovery operations. |
 
 </div>
@@ -411,13 +427,13 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 A silent, direct-range reachability exchange, observed over the air during a
 *Linienabschlusstest*. Unlike the [CommissioningProbe Request/Response](#commissioningprobe-request) the
 request is **wildcard-addressed** (byte 3 = `0xFF` instead of the usual `0x00`, `Line-ID` =
-`FF FF FF FF`) and the exchange is **not forwarded** — every frame stays at `Hops = 0`.
+`FF FF FF FF`) and the exchange is **not forwarded** - every frame stays at `Hops = 0`.
 
 ##### Observations
 
 - The request is broadcast repeatedly; each directly reachable detector answers once per
   sweep with a 36-byte response carrying its **own** `Org-SN`/`Line-ID` and a small
-  status + group/line payload — it is *not* back-addressed to the requester like the
+  status + group/line payload - it is *not* back-addressed to the requester like the
   [CommissioningProbe Response](#commissioningprobe-response).
 - In one capture a single request sweep drew responses from ~15 distinct radio modules,
   including modules on other `Line-ID`s (neighbouring installations in direct range).
@@ -440,7 +456,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure). Note byte 3 is `0xFF` (wildcard, not the usual `0x00`), `Line-ID` is broadcast, and byte 26 is the `0x55` family marker.* |
-| 27 | 1 | `0x06` | Type | [Message type](#message-type-byte) — ConfigCheckProbe request |
+| 27 | 1 | `0x06` | Type | [Message type](#message-type-byte) - ConfigCheckProbe request |
 
 </div>
 
@@ -460,41 +476,42 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure). Byte 26 is the `0x55` family marker; `Org-SN` / `Line-ID` are the **responder's own**.* |
-| 27 | 1 | `0x08` | Type | [Message type](#message-type-byte) — ConfigCheckProbe response |
+| 27 | 1 | `0x08` | Type | [Message type](#message-type-byte) - ConfigCheckProbe response |
 | 28 | 1 | `0x00` | | Constant |
 | 29 | 1 | `XX` | Status | Per-device status/capability flag (`0x00` or `0x40` observed) |
-| 30 | 1 | `XX` | Group/Line | Responder group/line: high nibble = group `A–H`, low nibble = line `0–9` |
+| 30 | 1 | `XX` | Group/Line | Responder group/line label: high nibble = group `A–H`, low nibble = line `0–9`. **Display metadata only - not the line identity.** The authoritative line is the 32-bit `Line-ID` (offset 18–21); group/line is not commissioning-gating (see [line addressing](#line-addressing-fm-basis-x-vs-old-fm-basis)) and can differ between modules on the same line. |
 | 31 | 1 | `0x00` | | Constant |
 | 32 | 1 | `0x60` | | Constant |
 | 33-34 | 2 | `00 00` | | Constant |
-| 35 | 1 | `XX` | | Trailing byte, varies per frame (checksum or metric — not confirmed) |
+| 35 | 1 | `XX` | | Trailing byte, varies per frame (checksum or metric - not confirmed) |
 
 </div>
 
 ## Line Addressing: FM Basis X vs. old FM Basis
 
-The `Line-ID` field (offset 18–21) means different things depending on the **generation** of the radio module that produced it. This matters because the Genius Gateway was reverse-engineered around the **new** generation (FM Basis X), but old **FM Basis** modules behave fundamentally differently — and this is a common source of interop confusion.
+The `Line-ID` field (offset 18–21) means different things depending on the **generation** of the radio module that produced it. This matters because the Genius Gateway was reverse-engineered around the **new** generation (FM Basis X), but old **FM Basis** modules behave fundamentally differently - and this is a common source of interop confusion.
 
 !!! warning "Two incompatible line-identity schemes"
     A 32-bit `Line-ID` from an FM Basis **X** is a *commissioning-assigned random code*. A `Line-ID` seen from an *old* FM Basis is (almost certainly) a *deterministic function of the rotary switch position*. They are not interchangeable and are generated by completely different mechanisms.
 
-### New generation — FM Basis X (and Pro X)
+### New generation - FM Basis X (and Pro X)
 
 - The line is identified by a **32-bit Identifikationscode** that is assigned **automatically and uniquely during Funk-Inbetriebnahme (commissioning)** and stored by every module of that line. After commissioning, a module only reacts to packets carrying *both* the same line and the same ID; neighbouring systems are ignored.[^3]
-- The code is effectively **random** (see [New Line-ID generation](#alarm-line-commissioning) — "the principle by which new alarm line IDs are generated is not fully understood").
-- FM Basis X has **no rotary switch** — it is permanently fixed to the label "A.0" ex factory. The displayed "A.0" is therefore *not* the network identity; the 32-bit ID is.
+- The code is effectively **random** (see [New Line-ID generation](#alarm-line-commissioning) - "the principle by which new alarm line IDs are generated is not fully understood").
+- FM Basis X has **no rotary switch** - it is permanently fixed to the label "A.0" ex factory. The displayed "A.0" is therefore *not* the network identity; the 32-bit ID is.
+- The **group/line label** (e.g. `C.3`) is **device metadata, not a line key**: the firmware never uses it to gate commissioning (see the note under [Alarm-line commissioning](#observations)), neighbouring installations reuse the same labels, and modules on one line can carry different labels. Use it for display only; key lines on `Line-ID`.
 - Over smartsonic [acoustic readout](acoustic-readout.md), bytes 25–28 carry this commissioned 32-bit `lineId` (non-zero once commissioned; `0` = unassigned).
 
-### Old generation — FM Basis
+### Old generation - FM Basis
 
 - The line is set **physically via two rotary switches** (major `A–G`/`H`, minor `0–9`; up to ~70 lines). Factory default is A.0 but it **is changeable** (unlike Basis X).
-- There is **no Identifikationscode** and **no commissioning-assigned ID** — the rotary position *is* the entire line identity.
-- Over smartsonic, an old FM Basis transmits **only its type and serial number** — *not* the radio dataset. Consequently the acoustic `lineId` (bytes 25–28) reads **`0`**.
+- There is **no Identifikationscode** and **no commissioning-assigned ID** - the rotary position *is* the entire line identity.
+- Over smartsonic, an old FM Basis transmits **only its type and serial number** - *not* the radio dataset. Consequently the acoustic `lineId` (bytes 25–28) reads **`0`**.
 - Because the rotary is the module's *only* source of line identity, the 32-bit `Line-ID` it emits on the 868 MHz radio **must be a deterministic function of the rotary setting** (there is no other entropy source). I.e. a fixed rotary→Line-ID mapping, hardcoded in the module firmware.
 
 ### Working hypothesis & test
 
-Observation: an old FM Basis set to **A.0** was seen emitting `Line-ID = 0xD7F75240` (3623309888). A commissioned FM Basis **X** also labelled "A.0" emitted a *different*, random `0xA9B22DF3` — confirming the two schemes are unrelated.
+Observation: an old FM Basis set to **A.0** was seen emitting `Line-ID = 0xD7F75240` (3623309888). A commissioned FM Basis **X** also labelled "A.0" emitted a *different*, random `0xA9B22DF3` - confirming the two schemes are unrelated.
 
 **Hypothesis:** for old FM Basis, `Line-ID = f(major, minor)` is deterministic, so *every* old FM Basis at A.0 emits `0xD7F75240`.
 

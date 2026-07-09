@@ -51,6 +51,8 @@ Indicates how the alarm line was added to the system:
 
 - :tabler-forms: **Manual**: Alarm line was manually configured by an administrator
 - :tabler-access-point: **Automatic**: Alarm line was automatically registered when the gateway received a Genius packet with a new alarm line ID
+- :tabler-microphone: **Acoustic**: Alarm line was discovered via an acoustic device readout
+- :tabler-radar: **Signal probe**: Alarm line was discovered while probing directly-reachable radio modules
 
 #### Manage
 Action buttons for alarm line operations (described in detail below).
@@ -66,7 +68,7 @@ When you first access the Alarm Lines Management page with no alarm lines config
 You can proceed to [add a new alarm line](#adding-a-new-alarm-line) by either:
 
 1. **Manual Registration**: Explicitly add alarm line IDs you've configured in your smoke detectors (recommended for planned installations)
-2. **Automatic Discovery**: Enable automatic alarm line registration in [Gateway Settings](gateway-settings.md#add-alarm-line-from-line-test), then trigger any smoke detector—the gateway will automatically register the alarm line when it receives the packet
+2. **Automatic Discovery**: Enable automatic alarm line registration in [Gateway Settings](gateway-settings.md#add-alarm-line-from-line-test), then trigger any smoke detector-the gateway will automatically register the alarm line when it receives the packet
 
 ## Adding a New Alarm Line
 
@@ -87,7 +89,7 @@ To manually register a new alarm line:
 3. Configure the alarm line as follows:
 
     ***ID***  
-    Enter the alarm line ID (`1 - 4294967294`) that matches the configuration in your smoke detectors. This ID must be unique—the gateway will display an error if you attempt to register an ID that already exists.
+    Enter the alarm line ID (`1 - 4294967294`) that matches the configuration in your smoke detectors. This ID must be unique-the gateway will display an error if you attempt to register an ID that already exists.
 
     !!! warning "ID Validation"
         - The ID must be between `1` and `4294967294`
@@ -145,7 +147,7 @@ To remove an alarm line from the system:
 3. Click **Yes** to permanently remove the alarm line
 
 !!! warning "Consequences"
-    Deleting an alarm line does not affect the physical smoke detector configuration — devices will continue operating on their configured alarm line ID.
+    Deleting an alarm line does not affect the physical smoke detector configuration - devices will continue operating on their configured alarm line ID.
 
 ## Import and Export
 
