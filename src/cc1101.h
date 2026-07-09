@@ -242,6 +242,12 @@ extern "C" {
 #define NUM_ADDITIONAL_BYTES				(NUM_LENGTH_BYTES + NUM_STATUS_BYTES)
 #define CC1101_MAX_PACKET_LEN				(CC1101_FIFO_SIZE - NUM_ADDITIONAL_BYTES)
 
+/* RSSI conversion (CC1101 datasheet §17.3). The first appended status byte is a signed
+ * (2's-complement) raw RSSI; dBm = raw/2 - offset. The offset is the datasheet-typical
+ * ~74 dB for the 868 MHz band - good enough for relative link comparison; absolute
+ * accuracy would need per-board calibration. */
+#define CC1101_RSSI_OFFSET_DB				74
+
 typedef enum cc1101_mode {
 	CCM_IDLE = 0,
 	CCM_RX,
@@ -253,7 +259,7 @@ typedef enum cc1101_mode {
  *
  * Replaces the former compile-time CONFIG_*_GPIO / HOST_ID macros so the wiring can be
  * configured at runtime. Field order is part of the ABI used by the profile initializers
- * (the board pin-profile table in cc1101.c) — do not reorder.
+ * (the board pin-profile table in cc1101.c) - do not reorder.
  */
 typedef struct cc1101_pins {
 	int csn;      ///< Chip select (CSn), output
@@ -342,7 +348,7 @@ typedef struct cc1101_probe_result {
  *
  * Transiently initializes SPI on @p pins, reads the chip ID (proving SCK/MOSI/MISO/CSn wiring),
  * toggles GDO0 via IOCFG0 to verify that line, then fully tears down (cc1101_deinit). The radio
- * is left DEINITIALIZED afterwards — the caller is responsible for restoring any prior state.
+ * is left DEINITIALIZED afterwards - the caller is responsible for restoring any prior state.
  *
  * Must only be called when the radio is not actively running (no concurrent RX/TX), since it
  * tears down and rebuilds the SPI bus.
@@ -453,10 +459,33 @@ esp_err_t cc1101_get_state(uint8_t *state);
 uint32_t cc1101_get_last_rising_edge(void);
 
 /**
- * @brief Get the timestamp of the last falling edge on GDO0  
+ * @brief Get the timestamp of the last falling edge on GDO0
  * @return Timestamp in microseconds since boot, or 0 if no falling edge occurred
  */
 uint32_t cc1101_get_last_falling_edge(void);
+
+/**
+ * @brief Convert a raw CC1101 RSSI status byte to dBm.
+ *
+ * Applies the datasheet formula (§17.3): the raw byte is 2's-complement; dBm = raw/2 -
+ * CC1101_RSSI_OFFSET_DB. Result is clamped to int8_t range.
+ *
+ * @param raw_rssi First appended status byte from the RX FIFO
+ * @return Signal strength in dBm (negative), e.g. -60
+ */
+int8_t cc1101_rssi_dbm(uint8_t raw_rssi);
+
+/**
+ * @brief Extract the received signal strength of a decoded packet, in dBm.
+ *
+ * Reads the first appended status byte (at buffer[length + 1]) and converts it via
+ * cc1101_rssi_dbm(). Only meaningful for a packet successfully filled by
+ * cc1101_receive_data().
+ *
+ * @param packet Packet previously filled by cc1101_receive_data() (must not be NULL)
+ * @return Signal strength in dBm (negative), or 0 if packet is NULL
+ */
+int8_t cc1101_packet_rssi_dbm(const cc1101_packet_t *packet);
 
 #ifdef __cplusplus
 }

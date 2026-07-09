@@ -43,7 +43,7 @@
 static const char *TAG = "cc1101";
 
 /*
- * BOARD PIN PROFILE — single source of truth for per-board CC1101 pin presets.
+ * BOARD PIN PROFILE - single source of truth for per-board CC1101 pin presets.
  *
  * Hand-maintained authoring point: the GG board defines -D BOARD_GG_V1 in platformio.ini; any
  * other build falls through to the generic (Custom-only) profile. A profile bundles named presets
@@ -67,7 +67,7 @@ static const cc1101_pin_profile_t CC1101_PIN_PROFILE = {
     .preset_count = CC1101_PRESET_COUNT(PROFILE_PRESETS),
 };
 #else
-// Generic ESP32-S3 target (dev boards / undocumented clones) — the default for any build that
+// Generic ESP32-S3 target (dev boards / undocumented clones) - the default for any build that
 // doesn't define BOARD_GG_V1. No presets: boots unconfigured and the user assigns pins via the
 // Custom picker (any valid GPIO; flash/PSRAM/USB hard-blocked, strapping warned).
 static const cc1101_pin_profile_t CC1101_PIN_PROFILE = {
@@ -636,7 +636,7 @@ static esp_err_t cc1101_init_impl(const cc1101_pins_t *pins, void (*rx_callback)
      * reporting a "working" radio. */
     if (!cc1101_gdo0_responds())
     {
-        ESP_LOGE(TAG, "GDO0 did not respond to the connectivity check — check the GDO0 wiring.");
+        ESP_LOGE(TAG, "GDO0 did not respond to the connectivity check - check the GDO0 wiring.");
         cc1101_deinit();
         return ESP_FAIL;
     }
@@ -728,7 +728,7 @@ static esp_err_t cc1101_probe_impl(const cc1101_pins_t *pins, cc1101_probe_resul
     }
     result->spi_ok = true;
 
-    /* Reset and read the chip ID — this proves the SCK/MOSI/MISO/CSn wiring is correct. */
+    /* Reset and read the chip ID - this proves the SCK/MOSI/MISO/CSn wiring is correct. */
     if (cc1101_reset() == ESP_OK)
     {
         READ_STATUS_REG(CC1101_PARTNUM, &result->partnum);
@@ -887,6 +887,26 @@ static inline esp_err_t cc1101_read_rx_fifo(cc1101_packet_t *packet)
     get_system_time_us(&packet->timestamp);
 
     return ESP_OK;
+}
+
+int8_t cc1101_rssi_dbm(uint8_t raw_rssi)
+{
+    /* CC1101 datasheet §17.3: raw byte is 2's-complement, dBm = raw/2 - offset. */
+    int dbm = (raw_rssi >= 128 ? ((int)raw_rssi - 256) : (int)raw_rssi) / 2 - CC1101_RSSI_OFFSET_DB;
+
+    if (dbm < -128) dbm = -128;
+    else if (dbm > 127) dbm = 127;
+    return (int8_t)dbm;
+}
+
+int8_t cc1101_packet_rssi_dbm(const cc1101_packet_t *packet)
+{
+    if (!packet)
+        return 0;
+
+    /* First appended status byte follows the length byte and the packet payload:
+     * buffer[0] = length, buffer[1..length] = data, buffer[length + 1] = raw RSSI. */
+    return cc1101_rssi_dbm(packet->buffer[packet->length + 1]);
 }
 
 static inline esp_err_t cc1101_write_tx_fifo(unsigned char *tx_data, size_t length)

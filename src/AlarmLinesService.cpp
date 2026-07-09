@@ -85,6 +85,28 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0xFF, 0xFF, 0xFF, 0xFE // SN of smoke detector sensing smoke (0xFFFFFFFE = Gateway)
 };
 
+/// Base packet template for the ConfigCheckProbe request (silent direct-range reachability probe).
+/// Wire layout per the captured Linienabschlusstest request (see docs/reverse-engineering/
+/// protocol-analysis.md#configcheckprobe): wildcard-addressed (#3 = 0xFF), broadcast Line-ID,
+/// family marker 0x55 (#26) + type 0x06 (#27). 28 bytes total.
+const uint8_t AlarmLinesService::_packet_base_configcheckprobe[] = {
+    0x02,
+    0x00, 0x00, // Counter (#1-2), set per-iteration by the TX loop
+    0xFF,       // Addr-mode (#3): 0xFF = wildcard (probe is not addressed to one line)
+    0xFF, 0xFF, 0xFF, 0xFF, // Dest SN (#4-7): broadcast
+    0x00,
+    0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator (#9-12) = Gateway (0xFFFFFFFE)
+    0x00,
+    0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, forwarder (#14-17) = Gateway (0xFFFFFFFE)
+    0xFF, 0xFF, 0xFF, 0xFF, // Line-ID (#18-21): broadcast (wildcard probe)
+    0x0F,                   // Hops (#22): fresh (0 hops traversed)
+    0x00,                   // Packet sequence number (#23), set at TX
+    0x40,                   // Flags (#24): (type<<5)|(fwd_class<<2) - type=2 (bits 5-6), fwd_class=0
+                            // (bits 2-3, direct-only).
+    0x00,                   // Constant (#25)
+    0x55,                   // Family marker (#26): 0x55 (ConfigCheckProbe family)
+    0x06};                  // Message type (#27): 0x06 = ConfigCheckProbe request
+
 /**
  * @brief Constructor implementation
  * @details Initializes all member variables and sets up framework dependencies.
@@ -257,6 +279,15 @@ void AlarmLinesService::_txLoop()
             // Temporarily disable RX monitoring to avoid interference
             _cc1101Ctrl->disableRXMonitoring();
 
+            // Drop the radio to IDLE before the first packet. The sweep starts from RX, and strobing
+            // STX straight from RX is gated by the CC1101's Clear-Channel-Assessment (MCSM1.CCA_MODE
+            // = "transmit unless currently receiving"): on a busy 868 MHz band the channel is rarely
+            // clear, so the first STX is rejected, GDO0 never asserts, and iteration 1 fails with
+            // "GDO0 timeout: line did not go high". From IDLE, STX is an unconditional IDLE->TX;
+            // packets 2..N transition FSTXON->TX and were never affected. SFRX also clears any
+            // RX-FIFO overflow accumulated while listening on the busy channel.
+            cc1101_flush_rx_fifo();
+
             // Initialize transmission monitoring
             bool timedOut = false;
             _transmissionTimeElapsed = 0;
@@ -316,7 +347,7 @@ void AlarmLinesService::_txLoop()
             }
 
             _isTransmitting = false;
-            _cc1101Ctrl->setTransmitting(false); // back to listening — update the radio indicator
+            _cc1101Ctrl->setTransmitting(false); // back to listening - update the radio indicator
 
             // Notify clients of transmission completion
             _emitActionFinishedEvent(timedOut);
@@ -600,6 +631,40 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
     return ESP_OK;
 }
 
+esp_err_t AlarmLinesService::transmitConfigCheckProbe()
+{
+    // Best-effort guard against overlapping a running TX (the semaphore is the real serializer;
+    // this mirrors the codebase's existing _isTransmitting checks).
+    if (_isTransmitting)
+    {
+        ESP_LOGW(TAG, "TX already in progress; ConfigCheckProbe sweep rejected.");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    _txPeriodUs = ALARMLINES_TX_PERIOD_CONFIGCHECKPROBE_US;
+    _txRepeat = ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE;
+    _currentPacketCnt = ALARMLINES_CONFIGCHECKPROBE_FIRST_PCKTCNT;
+    _packetCntStep = ALARMLINES_CONFIGCHECKPROBE_PCKTCNT_STEP;
+
+    size_t datalen = std::min(sizeof(_packet_base_configcheckprobe), sizeof(_txBuffer));
+    memcpy(_txBuffer, _packet_base_configcheckprobe, datalen);
+    _txDataLength = datalen;
+
+    // Sequence number only (offset 23). The Pkt-# (offset 1-2) is written per iteration by the TX
+    // loop. No line-ID write: the probe is wildcard/broadcast, Line-ID stays 0xFFFFFFFF.
+    _txBuffer[23] = incPcktSeqNum();
+
+    ESP_LOGI(TAG, "ConfigCheckProbe sweep queued (%d reps, ~%d ms).",
+             ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE, ALARMLINES_CONFIGCHECKPROBE_SWEEP_MS);
+
+    if (xSemaphoreGive(_txSemaphore) != pdTRUE)
+    {
+        ESP_LOGE(TAG, "Failed to give semaphore for ConfigCheckProbe.");
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
 // ============================================================================
 // Private Methods - HA Sub-device Management
 // ============================================================================
@@ -704,13 +769,13 @@ void AlarmLinesService::_syncAlarmLineSubDevices()
     {
         if (!_haDevices.count(line.id))
         {
-            // New line — add sub-device
+            // New line - add sub-device
             _addAlarmLineSubDevice(line.id, line.name);
             line.published = true;
         }
         else if (!line.published)
         {
-            // Line renamed or otherwise needs refresh — replace sub-device
+            // Line renamed or otherwise needs refresh - replace sub-device
             _removeAlarmLineSubDevice(line.id);
             _addAlarmLineSubDevice(line.id, line.name);
             line.published = true;

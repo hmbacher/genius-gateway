@@ -31,6 +31,7 @@
 #define GeniusDevicesService_h
 
 #include <map>
+#include <vector>
 #include <EventSocket.h>
 #include <FSPersistence.h>
 #include <HttpEndpoint.h>
@@ -71,6 +72,7 @@
 #define ALARM_STATE_CHANGE "alarm-state-change"  ///< WebSocket event for alarm state changes
 
 #define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"  ///< Event for device discovery
+#define RSSI_SURVEY_UPDATE "rssi-survey-update"  ///< Update origin for a ConfigCheckProbe RSSI write (persist only; no HA/sub-device sync)
 #define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"  ///< Default location for new devices
 
 #define GATEWAY_DEVICES_CONFIG_VERSION 2  ///< Current config file version (for JSON migration support)
@@ -118,7 +120,7 @@ typedef enum genius_radio_module
 } GeniusRadioModule;
 
 /// True for the old-generation FM modules (FM.Basis / FM.Pro) that cannot expose
-/// their alarm line via the device — the line must be entered manually, mirroring
+/// their alarm line via the device - the line must be entered manually, mirroring
 /// the official app's SmartSonicValidationService.isOldFm().
 static inline bool isOldFmModule(GeniusRadioModule model)
 {
@@ -228,6 +230,14 @@ struct GeniusRadioModuleInfo
     bool radioNetworkFault;   ///< Radio network fault flag
     bool lineManual;          ///< True if the alarm line was entered by hand (old FM modules)
 
+    // --- Direct-link signal (populated by the ConfigCheckProbe range test) ---
+    // lastRangeTest is stamped for EVERY known module each survey (reached or not); rssi carries the
+    // measured dBm when the module answered, or 0 as the "tested but no response" sentinel. A real
+    // 868 MHz direct-link RSSI is always negative (dBm ∈ [-138, -10]), so 0 never collides with a
+    // genuine reading - that lets the UI tell "out of range" (rssi 0) from "never tested" (unset).
+    int8_t rssi;              ///< Direct-link RSSI in dBm when reached; 0 = tested but no response
+    time_t lastRangeTest;     ///< Timestamp of the last range test this module was included in (0 = never tested)
+
     void toJson(JsonObject &root) const
     {
         if (static_cast<int>(model) != -1)
@@ -241,6 +251,11 @@ struct GeniusRadioModuleInfo
         root["radioInterference"] = radioInterference;
         if (radioNetworkFault) root["radioNetworkFault"] = radioNetworkFault;
         if (lineManual)       root["lineManual"] = true;
+        if (lastRangeTest > 0)
+        {
+            root["rssi"] = rssi;
+            root["lastRangeTest"] = Utils::time_t_to_iso8601(lastRangeTest);
+        }
     }
 
     static GeniusRadioModuleInfo fromJson(JsonObject root)
@@ -258,6 +273,8 @@ struct GeniusRadioModuleInfo
         d.radioInterference = max(0.0f, root["radioInterference"].as<float>());
         d.radioNetworkFault = root["radioNetworkFault"].as<bool>();
         d.lineManual = root["lineManual"].as<bool>();
+        d.rssi = static_cast<int8_t>(root["rssi"].as<int>());
+        d.lastRangeTest = root["lastRangeTest"].is<String>() ? Utils::iso8601_to_time_t(root["lastRangeTest"].as<String>()) : 0;
         return d;
     }
 };
@@ -397,15 +414,51 @@ public:
     /// Check if a smoke detector is known/registered
     bool isSmokeDetectorKnown(uint32_t detectorSN);
 
+    /// Check if a radio module (by its serial) is registered on any device.
+    bool isRadioModuleKnown(uint32_t radioModuleSN);
+
+    /**
+     * @brief Update the stored direct-link RSSI of the device whose radio module has serial
+     *        @p radioModuleSN (in RAM only - does NOT persist; call persistRssiSurvey() once
+     *        after a batch of updates).
+     *
+     * Used by the ConfigCheckProbe RSSI survey: each 0x08 response carries the responder's
+     * radio-module serial (Org-SN) and is heard with a measured RSSI.
+     *
+     * @param radioModuleSN Radio module serial number (packet Org-SN)
+     * @param rssi Measured RSSI in dBm
+     * @param when Measurement timestamp
+     * @return true if a registered device matched and was updated; false if unknown module
+     */
+    bool updateRadioModuleRssi(uint32_t radioModuleSN, int8_t rssi, time_t when);
+
+    /**
+     * @brief Stamp every known radio module NOT in @p reached as "range-tested, no response":
+     *        rssi = 0 (sentinel), lastRangeTest = @p when. RAM only - call persistRssiSurvey()
+     *        afterwards. Devices without a radio module (sn == 0) are skipped.
+     *
+     * Lets the UI distinguish "out of range this survey" (tested, rssi 0) from "never tested"
+     * (lastRangeTest unset). Runs for every survey, so a sweep with zero responders still records
+     * that all known modules were probed.
+     *
+     * @param reached Serial numbers that answered (already stamped via updateRadioModuleRssi)
+     * @param when Survey timestamp
+     * @return number of modules stamped as unreached
+     */
+    uint32_t markRadioModulesUnreached(const std::vector<uint32_t> &reached, time_t when);
+
+    /// Persist the device list once after a batch of range-test updates (single FS write).
+    void persistRssiSurvey();
+
     /**
      * @brief Synchronize HA sub-devices with current device list.
      *
      * Adds sub-devices for any unregistered smoke detectors, removes sub-devices
      * for deleted ones. HAService handles config and state republishing on
-     * MQTT (re)connect — this function only needs to be called when the device
+     * MQTT (re)connect - this function only needs to be called when the device
      * list changes.
      *
-     * @param onlyUnpublished Ignored — sync is always idempotent (kept for API compatibility)
+     * @param onlyUnpublished Ignored - sync is always idempotent (kept for API compatibility)
      */
     void mqttPublishAllDevices(bool onlyUnpublished = true);
 
@@ -422,7 +475,7 @@ public:
     /**
      * @brief Publish alarm state for a single device (by serial number).
      *
-     * Calls sensor->publishState() — the sensor getter reads device.isAlarming live.
+     * Calls sensor->publishState() - the sensor getter reads device.isAlarming live.
      *
      * @param smokeDetectorSN Smoke detector serial number
      * @param useTransaction If true, wraps access in transaction
@@ -432,7 +485,7 @@ public:
     esp_err_t mqttPublishDeviceState(uint32_t smokeDetectorSN, bool useTransaction = true, bool markPublished = true);
 
     // ========================================================================
-    // Per-Device CRUD (small-body endpoints — replace the bulk POST for UI ops)
+    // Per-Device CRUD (small-body endpoints - replace the bulk POST for UI ops)
     // ========================================================================
 
     /// Outcome of a per-device CRUD operation. ERROR codes are mapped to HTTP status by the endpoint layer.
@@ -453,11 +506,11 @@ public:
     DeviceOpResult removeDevice(uint32_t deviceId);
 
     /// Reorder devices to match the given id list. The list MUST contain exactly the
-    /// current device id set (no additions, no removals) — otherwise INVALID_BODY.
+    /// current device id set (no additions, no removals) - otherwise INVALID_BODY.
     DeviceOpResult reorderDevices(const std::vector<uint32_t> &newOrder);
 
     // ========================================================================
-    // Chunked Import (single global slot — only one admin can import at a time)
+    // Chunked Import (single global slot - only one admin can import at a time)
     // ========================================================================
 
     enum class ImportResult
@@ -572,7 +625,7 @@ private:
     void _syncSmokeDetectorSubDevices();
 
     /// Trigger a diagnostics state publish for one device (by stable device ID).
-    /// Reads all values directly from _state.devices — no separate cache needed.
+    /// Reads all values directly from _state.devices - no separate cache needed.
     esp_err_t _publishSmokeDetectorAttributes(uint32_t deviceId);
 
     // ========================================================================

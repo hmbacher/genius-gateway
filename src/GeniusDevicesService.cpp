@@ -79,7 +79,7 @@ void GeniusDevicesService::begin()
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
 
-    // Spawn the post-commit task — it sleeps on a notification and runs the
+    // Spawn the post-commit task - it sleeps on a notification and runs the
     // update-handler chain (FS write + HA sync) for chunked-import commits so
     // those don't block the HTTP server task.
     xTaskCreatePinnedToCore(
@@ -267,7 +267,7 @@ void GeniusDevicesService::begin()
     /* Sync HA sub-devices after device list changes (not for packet-originated adds or alarm state) */
     this->addUpdateHandler([&](const String &originId)
                            {
-                               if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET && originId != ALARM_STATE_CHANGE)
+                               if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET && originId != ALARM_STATE_CHANGE && originId != RSSI_SURVEY_UPDATE)
                                {
                                    _syncSmokeDetectorSubDevices();
                                    if (_haService->isReady())
@@ -291,7 +291,7 @@ void GeniusDevicesService::begin()
     /* Register sub-devices for devices already loaded from FS */
     _syncSmokeDetectorSubDevices();
 
-    // Heap snapshot after all HA sub-devices are constructed — useful for verifying
+    // Heap snapshot after all HA sub-devices are constructed - useful for verifying
     // PSRAM-routing sdkconfig changes actually moved allocations off internal RAM.
     // Compare internal/PSRAM free before vs. after the import → boot → settle cycle.
     ESP_LOGI(GeniusDevices::TAG,
@@ -544,6 +544,76 @@ bool GeniusDevicesService::isSmokeDetectorKnown(uint32_t detectorSN)
     return found;
 }
 
+bool GeniusDevicesService::isRadioModuleKnown(uint32_t radioModuleSN)
+{
+    bool found = false;
+    beginTransaction();
+    for (auto &device : _state.devices)
+    {
+        if (device.radioModule.sn == radioModuleSN)
+        {
+            found = true;
+            break;
+        }
+    }
+    endTransaction();
+    return found;
+}
+
+bool GeniusDevicesService::updateRadioModuleRssi(uint32_t radioModuleSN, int8_t rssi, time_t when)
+{
+    bool updated = false;
+    beginTransaction();
+    for (auto &device : _state.devices)
+    {
+        if (device.radioModule.sn == radioModuleSN)
+        {
+            device.radioModule.rssi = rssi;
+            device.radioModule.lastRangeTest = when;
+            updated = true;
+            break;
+        }
+    }
+    endTransaction();
+    return updated;
+}
+
+uint32_t GeniusDevicesService::markRadioModulesUnreached(const std::vector<uint32_t> &reached, time_t when)
+{
+    uint32_t stamped = 0;
+    beginTransaction();
+    for (auto &device : _state.devices)
+    {
+        if (device.radioModule.sn == 0)
+            continue; // no radio module to range-test
+
+        bool wasReached = false;
+        for (uint32_t sn : reached)
+        {
+            if (sn == device.radioModule.sn)
+            {
+                wasReached = true;
+                break;
+            }
+        }
+        if (wasReached)
+            continue; // already stamped with its measured RSSI
+
+        device.radioModule.rssi = 0; // sentinel: tested, no response (out of direct range)
+        device.radioModule.lastRangeTest = when;
+        stamped++;
+    }
+    endTransaction();
+    return stamped;
+}
+
+void GeniusDevicesService::persistRssiSurvey()
+{
+    // RSSI_SURVEY_UPDATE origin is skipped by the HA/sub-device sync handler (RSSI is not an HA
+    // attribute), but still triggers the FSPersistence write handler - one flash write per survey.
+    callUpdateHandlers(RSSI_SURVEY_UPDATE);
+}
+
 // ============================================================================
 // GeniusDevice JSON helpers (shared between bulk-POST and per-device endpoints)
 // ============================================================================
@@ -596,7 +666,7 @@ bool GeniusDevice::buildFromJson(JsonVariant src, GeniusDevice &out)
     if (src["alarms"].is<JsonArray>())
         out.alarms = parseAlarms(src["alarms"].as<JsonArray>());
 
-    out.published = false; // new device — needs publish
+    out.published = false; // new device - needs publish
     return true;
 }
 
@@ -609,6 +679,12 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
 
     GeniusSmokeDetectorInfo newSD = GeniusSmokeDetectorInfo::fromJson(smokeDetectorJson);
     GeniusRadioModuleInfo newRM = GeniusRadioModuleInfo::fromJson(radioModuleJson);
+
+    // RSSI is backend-owned telemetry (written only by the ConfigCheckProbe survey), never by a
+    // client edit. Preserve the current value across this merge so a location/identity edit that
+    // round-trips the device object can't clobber a fresh probe measurement.
+    const int8_t keepRssi = this->radioModule.rssi;
+    const time_t keepLastRangeTest = this->radioModule.lastRangeTest;
     time_t newReadoutTime = src["readoutTime"].is<String>()
                                 ? Utils::iso8601_to_time_t(src["readoutTime"].as<String>())
                                 : 0;
@@ -697,6 +773,10 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
             changed = true;
         }
     }
+
+    // Restore backend-owned RSSI telemetry (see note above): a client merge must not change it.
+    this->radioModule.rssi = keepRssi;
+    this->radioModule.lastRangeTest = keepLastRangeTest;
 
     if (changed)
         this->published = false;
@@ -788,7 +868,7 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
 
         uint32_t deviceId = jsonDeviceArrItem["id"].as<uint32_t>();
 
-        // Skip duplicate IDs in the input JSON — without this, two entries with the same id
+        // Skip duplicate IDs in the input JSON - without this, two entries with the same id
         // both pass the "not in existing state" check below (state is empty at startup) and
         // both land in newDevicesVector, perpetuating the corruption on every restart.
         if (std::find(processedDeviceIds.begin(), processedDeviceIds.end(), deviceId) != processedDeviceIds.end())
@@ -1125,7 +1205,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
 
     auto dev = std::make_unique<HADevice>(_haService, std::move(identity));
 
-    // ---- Smoke alarm binary_sensor (Control) — reads live from _state.devices ----
+    // ---- Smoke alarm binary_sensor (Control) - reads live from _state.devices ----
     auto sensor = std::make_unique<HABinarySensor>(_haService, "smoke",
         [this, devId]() -> bool {
             bool alarming = false;
@@ -1144,7 +1224,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
     sensor->setName("Smoke Detector");
     HABinarySensor *rawSensor = dev->registerControl(std::move(sensor));
 
-    // ---- Diagnostics grouped publisher — all 13 readout entities share one state topic ----
+    // ---- Diagnostics grouped publisher - all 13 readout entities share one state topic ----
     // Availability is folded into the JSON: {"available": bool, ...fields}
     // Entities show "unavailable" in HA until the first acoustic readout arrives.
     HADevice *rawDev = _haService->addSubDevice(std::move(dev));
@@ -1190,7 +1270,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         rawDev);
 
     // Availability template shared by all diagnostic entities.
-    // Evaluated from the same state topic message — no separate avail topic needed.
+    // Evaluated from the same state topic message - no separate avail topic needed.
     // Captured by value below: the std::function copies stored in Sensor::extraConfig
     // outlive this function, so a [&availConfig] capture would dangle once we return.
     auto availConfig = [](JsonObject &c) {
@@ -1320,7 +1400,7 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
         }
         else if (!device.published)
         {
-            // Config changed (e.g. location or serial number) — update the
+            // Config changed (e.g. location or serial number) - update the
             // existing HADevice identity in place and republish its discovery.
             // Avoids remove+re-add, which causes HA to ignore the new
             // suggested_area because its device registry entry persists (Bug 2).
@@ -1509,7 +1589,7 @@ GeniusDevicesService::reorderDevices(const std::vector<uint32_t> &newOrder)
 
     beginTransaction();
 
-    // The new order must contain exactly the current id set — same size, same elements.
+    // The new order must contain exactly the current id set - same size, same elements.
     if (newOrder.size() != _state.devices.size())
     {
         valid = false;
@@ -1560,7 +1640,7 @@ GeniusDevicesService::reorderDevices(const std::vector<uint32_t> &newOrder)
 
 String GeniusDevicesService::_newImportToken()
 {
-    // 16 hex chars = 64 bits — plenty of entropy for a single-slot session id.
+    // 16 hex chars = 64 bits - plenty of entropy for a single-slot session id.
     // esp_random() is hardware-backed when WiFi/BT is enabled (always true here).
     char buf[17];
     snprintf(buf, sizeof(buf), "%08lx%08lx",

@@ -86,6 +86,19 @@
 #define ALARMLINES_FIREALARM_LAST_PCKTCNT 0x000A                                                                                                                            ///< Last packet count value for fire alarm sequence
 #define ALARMLINES_FIREALARM_PCKTCNT_STEP (float)(ALARMLINES_FIREALARM_FIRST_PCKTCNT - ALARMLINES_FIREALARM_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_FIREALARM - 1) ///< Packet count step size calculation for fire alarm
 
+/* ConfigCheckProbe (SilentPing) request cadence - matched to a live Genius-Port capture: the burst
+ * runs ~3.1 s with the Pkt-# counting down from 6348 (0x18CC) over ~379 reps at ~8.17 ms, then the
+ * Port listens; detectors answer after the burst (not during it). Same countdown as the line-test /
+ * fire-alarm sweeps. The earlier 427/26-rep values were wrong (class-1 start, ~15x too short). */
+#define ALARMLINES_TX_PERIOD_CONFIGCHECKPROBE_US 8190  ///< Transmission period for ConfigCheckProbe request (~8.19 ms; Port ~8.17 ms)
+#define ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE 379  ///< Repetitions per probe sweep (Port capture: 379 reps ≈ 3.1 s)
+#define ALARMLINES_CONFIGCHECKPROBE_FIRST_PCKTCNT 0x18CC ///< First packet count (6348) — Pkt-# countdown start, per live Port SilentPing capture
+#define ALARMLINES_CONFIGCHECKPROBE_LAST_PCKTCNT 0x0001  ///< Last packet count value (counts down to ~0)
+#define ALARMLINES_CONFIGCHECKPROBE_PCKTCNT_STEP (float)(ALARMLINES_CONFIGCHECKPROBE_FIRST_PCKTCNT - ALARMLINES_CONFIGCHECKPROBE_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE - 1) ///< Packet count step
+
+/// Duration of one full ConfigCheckProbe TX sweep, in milliseconds (used to size the response window)
+#define ALARMLINES_CONFIGCHECKPROBE_SWEEP_MS ((ALARMLINES_TX_PERIOD_CONFIGCHECKPROBE_US / 1000) * ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE)
+
 #define ALARMLINES_EVENT_NEW_LINE "new-alarm-line"                    ///< WebSocket event for new alarm line discovery
 #define ALARMLINES_EVENT_ACTION_STARTED "alarm-line-action-started"   ///< WebSocket event for action start notification
 #define ALARMLINES_EVENT_ACTION_FINISHED "alarm-line-action-finished" ///< WebSocket event for action completion notification
@@ -102,6 +115,7 @@ typedef enum alarm_line_acquisition
     ALA_GENIUS_PACKET, ///< Discovered via received genius packet
     ALA_MANUAL,        ///< Manually added via web interface
     ALA_ACOUSTIC,      ///< Discovered via acoustic device readout
+    ALA_SIGNAL_PROBE,  ///< Discovered via signal probe
     ALA_MAX            ///< Boundary check maximum value
 } alarm_line_acquisition_t;
 
@@ -257,10 +271,23 @@ public:
     /// Load persisted packet sequence number from NVS
     esp_err_t loadPcktSeqNum();
 
+    /**
+     * @brief Transmit a single ConfigCheckProbe request sweep (silent, wildcard, direct-range).
+     *
+     * Prepares a 28-byte `0x55 0x06` request (broadcast, forward-class 0 = not forwarded) and
+     * fires the shared TX task for one sweep. Non-blocking: returns as soon as the sweep is
+     * queued. Directly reachable radio modules answer with 0x08 responses, which the gateway RX
+     * path collects (see GeniusGateway). Sweep duration ≈ ALARMLINES_CONFIGCHECKPROBE_SWEEP_MS.
+     *
+     * @return ESP_OK if the sweep was queued, ESP_ERR_INVALID_STATE if a TX is already running.
+     */
+    esp_err_t transmitConfigCheckProbe();
+
 private:
     // ========== Static Constants ==========
     static const uint8_t _packet_base_linetest[];  ///< Base packet template for line test transmissions
     static const uint8_t _packet_base_firealarm[]; ///< Base packet template for fire alarm transmissions
+    static const uint8_t _packet_base_configcheckprobe[]; ///< Base packet template for ConfigCheckProbe request
     uint8_t _packet_sequence_number;               ///< Current packet sequence number (persisted in NVS)
 
     // ========== Member Variables ==========
@@ -366,7 +393,7 @@ private:
      * Creates an HADevice with identity "genius-alarmline-{lineId}", registers 4
      * HAButton entities (line-test start/stop, fire-alarm start/stop) and one
      * HASensor for the current transmission state, then calls
-     * HAService::addSubDevice(). Idempotent — no-op if the device is already
+     * HAService::addSubDevice(). Idempotent - no-op if the device is already
      * registered.
      *
      * @param lineId  Alarm line ID
