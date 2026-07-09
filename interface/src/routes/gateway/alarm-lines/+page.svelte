@@ -35,6 +35,7 @@
 	import Manual from '~icons/tabler/forms';
 	import Automatic from '~icons/tabler/access-point';
 	import Microphone from '~icons/tabler/microphone';
+	import Radar from '~icons/tabler/radar';
 	import SpinnerSmall from '$lib/components/SpinnerSmall.svelte';
 
 	const BROADCAST_ID = 0xffffffff; // 4294967295
@@ -516,6 +517,13 @@
 													>
 														<Microphone class="flex-shrink-0 h-6 w-6 text-base-content/50" />
 													</div>
+												{:else if line.acquisition === AlarmLineAcquisition.SignalProbe}
+													<div
+														class="tooltip tooltip-top"
+														data-tip="Alarm line discovered via signal probe"
+													>
+														<Radar class="flex-shrink-0 h-6 w-6 text-base-content/50" />
+													</div>
 												{/if}
 											{/if}
 										</div>
@@ -716,6 +724,13 @@
 																data-tip="Alarm line discovered via acoustic device readout"
 															>
 																<Microphone class="h-6 w-6" />
+															</div>
+														{:else if line.acquisition === AlarmLineAcquisition.SignalProbe}
+															<div
+																class="tooltip tooltip-top"
+																data-tip="Alarm line discovered via signal probe"
+															>
+																<Radar class="h-6 w-6" />
 															</div>
 														{/if}
 													{/if}

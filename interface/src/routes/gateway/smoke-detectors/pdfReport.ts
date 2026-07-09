@@ -116,7 +116,7 @@ type PdfContent = Record<string, any>;
 
 function formatDuration(startTime: Date, endTime: Date): string {
 	const ms = endTime.getTime() - startTime.getTime();
-	if (ms < 0) return '—';
+	if (ms < 0) return '-';
 	const totalSeconds = Math.floor(ms / 1000);
 	const h = Math.floor(totalSeconds / 3600);
 	const m = Math.floor((totalSeconds % 3600) / 60);
@@ -135,7 +135,7 @@ function alarmEndingReasonText(reason: number): string {
 		case GeniusAlarmEnding.ByImport:
 			return 'Import';
 		default:
-			return '—';
+			return '-';
 	}
 }
 
@@ -302,7 +302,7 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 	if (!sdReadout) {
 		blocks.push(warningCallout('No readout data available for this device.'));
 	} else if (stale) {
-		blocks.push(warningCallout('Readout data is stale — last readout was more than 24 hours ago.'));
+		blocks.push(warningCallout('Readout data is stale - last readout was more than 24 hours ago.'));
 	}
 
 	if (allFaults.length > 0) {
@@ -413,7 +413,32 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 			rightCol.push(
 				detailRow('Radio Status', fmFault ? 'Fault' : 'OK', fmFault ? C_ERROR : C_OK, LW)
 			);
+		}
 
+		// Direct-link signal from the last ConfigCheckProbe range test. Independent of the
+		// readout, so shown whenever a module exists. Mirrors SignalIndicator's three states
+		// and dBm→quality thresholds.
+		rightCol.push({
+			text: 'Direct Link',
+			fontSize: 8,
+			color: C_MUTED,
+			margin: [8, 6, 0, 2],
+			italics: true
+		});
+		if (!rm.lastRangeTest) {
+			rightCol.push(detailRow('Signal', 'Not range-tested yet', C_MUTED, LW));
+		} else if ((rm.rssi ?? 0) < 0) {
+			const dbm = rm.rssi as number;
+			const quality =
+				dbm >= -60 ? 'Excellent' : dbm >= -70 ? 'Good' : dbm >= -80 ? 'Fair' : 'Weak';
+			rightCol.push(detailRow('Signal', `${dbm} dBm (${quality})`, C_OK, LW));
+			rightCol.push(detailRow('Range Test', formatDateTime(rm.lastRangeTest), undefined, LW));
+		} else {
+			rightCol.push(detailRow('Signal', 'Out of direct range', C_MUTED, LW));
+			rightCol.push(detailRow('Range Test', formatDateTime(rm.lastRangeTest), undefined, LW));
+		}
+
+		if (sdReadout) {
 			rightCol.push({
 				text: 'Radio State Flags',
 				fontSize: 8,
@@ -502,7 +527,7 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 			return [
 				{ text: formatDateTime(alarm.startTime), fontSize: 8 },
 				{
-					text: active ? '—' : formatDateTime(alarm.endTime),
+					text: active ? '-' : formatDateTime(alarm.endTime),
 					fontSize: 8,
 					color: active ? C_MUTED : '#111827'
 				},
@@ -633,6 +658,15 @@ function buildOverviewPage(
 		const rmFaults = device.readoutTime && hasRm ? getRadioModuleFaults(rm) : [];
 		const hasFaults = sdFaults.length + rmFaults.length > 0;
 
+		// Direct-link range-test signal (see buildDevicePage), condensed for the table.
+		const signalCell = !hasRm
+			? { text: '—', fontSize: 8, alignment: 'center', color: C_MUTED }
+			: !rm.lastRangeTest
+				? { text: 'Not tested', fontSize: 8, alignment: 'center', color: C_MUTED }
+				: (rm.rssi ?? 0) < 0
+					? { text: `${rm.rssi} dBm`, fontSize: 8, alignment: 'center', color: C_OK }
+					: { text: 'Out of range', fontSize: 8, alignment: 'center', color: C_MUTED };
+
 		return [
 			{ text: String(i + 1), fontSize: 8, alignment: 'center' },
 			{ text: device.location, fontSize: 8, bold: true },
@@ -650,6 +684,7 @@ function buildOverviewPage(
 						]
 					: [{ text: 'None', fontSize: 8, color: C_MUTED, italics: true }]
 			},
+			signalCell,
 			{
 				text: String(device.alarms.length),
 				fontSize: 8,
@@ -680,13 +715,14 @@ function buildOverviewPage(
 	blocks.push({
 		table: {
 			headerRows: 1,
-			widths: [20, '*', '*', '*', 36, 50],
+			widths: [20, '*', '*', '*', 56, 36, 50],
 			body: [
 				[
 					{ text: '#', bold: true, fontSize: 8, fillColor: C_SECTION_BG, alignment: 'center' },
 					{ text: 'Location', bold: true, fontSize: 8, fillColor: C_SECTION_BG },
 					{ text: 'Smoke Detector', bold: true, fontSize: 8, fillColor: C_SECTION_BG },
 					{ text: 'Radio Module', bold: true, fontSize: 8, fillColor: C_SECTION_BG },
+					{ text: 'Signal', bold: true, fontSize: 8, fillColor: C_SECTION_BG, alignment: 'center' },
 					{ text: 'Alarms', bold: true, fontSize: 8, fillColor: C_SECTION_BG, alignment: 'center' },
 					{ text: 'Status', bold: true, fontSize: 8, fillColor: C_SECTION_BG, alignment: 'center' }
 				],
@@ -734,7 +770,7 @@ function loadScript(src: string): Promise<void> {
 async function loadPdfMake(): Promise<PdfMakeGlobal> {
 	if (pdfMakeReady) return pdfMakeReady;
 	pdfMakeReady = (async () => {
-		// pdfmake.min.js must run first — it assigns `window.pdfMake`.
+		// pdfmake.min.js must run first - it assigns `window.pdfMake`.
 		// vfs_fonts.js then attaches the Roboto VFS via
 		// pdfMake.addVirtualFileSystem (modern builds) or pdfMake.vfs (legacy).
 		await loadScript('/pdf/pdfmake.min.js');

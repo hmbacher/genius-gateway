@@ -16,18 +16,23 @@
 		AlarmLine,
 		ReportSettings,
 		StaticSystemInformation,
-		WifiSettings
+		WifiSettings,
+		ConfigCheckProbeEvent,
+		ConfigCheckResponder
 	} from '$lib/types/models';
 	import {
 		GeniusDeviceRegistration,
 		AlarmLineAcquisition,
-		GeniusAlarmEnding
+		GeniusAlarmEnding,
+		GeniusRadioModule,
+		GeniusSmokeDetector
 	} from '$lib/types/enums';
 	import type { TunerData } from '$lib/audio/tuner-pipeline';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { getSmokeDetectorFaults, getRadioModuleFaults } from '$lib/utils/deviceStatus';
 	import { isOldFmModule } from '$lib/genius/line';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
+	import { socket } from '$lib/stores/socket';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import DraggableList from '$lib/components/DraggableList.svelte';
@@ -38,6 +43,8 @@
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
 	import DeviceImportDialog from './DeviceImportDialog.svelte';
 	import DeviceDetailsDialog from './DeviceDetailsDialog.svelte';
+	import ProbeProgressDialog from './ProbeProgressDialog.svelte';
+	import EditAlarmLine from '../alarm-lines/EditAlarmLine.svelte';
 	import ManualLineEntry from './ManualLineEntry.svelte';
 	import PdfReportDialog from './PdfReportDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
@@ -53,6 +60,7 @@
 	import Microphone from '~icons/tabler/microphone';
 	import BellRinging from '~icons/tabler/bell-ringing';
 	import BellOff from '~icons/tabler/bell-off';
+	import Radar from '~icons/tabler/radar';
 
 	interface Props {
 		data: PageData;
@@ -63,7 +71,7 @@
 	// Backend rejects request bodies > 16 KB (PsychicHttp MAX_REQUEST_BODY_SIZE).
 	// Budget set well below the hard limit because larger chunks have been observed to
 	// stall the HTTP task before our handler runs (likely body-read / JsonDocument
-	// memory pressure under WS keepalive load — TBC via server-side log).
+	// memory pressure under WS keepalive load - TBC via server-side log).
 	// 6 KB ≈ 3 fully-populated devices per chunk; 50-device imports = ~17 round-trips,
 	// well within an acceptable interactive latency budget.
 	const IMPORT_CHUNK_BYTE_BUDGET = 6000;
@@ -146,7 +154,7 @@
 	}
 
 	/** Group devices into chunks whose serialized JSON byte size stays under the budget.
-	 *  Each chunk always contains at least one device — a device larger than the budget
+	 *  Each chunk always contains at least one device - a device larger than the budget
 	 *  is sent on its own and the server may reject it (surfaced as an error). */
 	function chunkByBytes(devices: GeniusDevice[]): GeniusDevice[][] {
 		const encoder = new TextEncoder();
@@ -169,7 +177,7 @@
 	}
 
 	/** Atomically replace the full device list using the chunked-import protocol.
-	 *  Used for file import and for "delete all" — both cases where holding the whole
+	 *  Used for file import and for "delete all" - both cases where holding the whole
 	 *  payload in one HTTP body would exceed the backend's body-size limit.
 	 *
 	 *  `onProgress` lets a progress dialog drive its UI from the chunk loop.
@@ -183,7 +191,7 @@
 	): Promise<{ ok: boolean; error?: string; aborted?: boolean }> {
 		let sessionId = '';
 		// Cleanup uses a fresh fetch (no signal) so it completes even after the caller
-		// aborted the controller — otherwise we'd leave the server-side session slot held.
+		// aborted the controller - otherwise we'd leave the server-side session slot held.
 		const cleanupSession = async () => {
 			if (!sessionId) return;
 			await fetch('/rest/gateway-devices/import/abort', {
@@ -257,9 +265,9 @@
 				await cleanupSession();
 				return { ok: false, error: 'Commit failed.' };
 			}
-			sessionId = ''; // committed — no abort needed
+			sessionId = ''; // committed - no abort needed
 
-			// Server is now authoritative — adopt the submitted list locally.
+			// Server is now authoritative - adopt the submitted list locally.
 			geniusDevices.devices = devices;
 			return { ok: true };
 		} catch (error) {
@@ -345,6 +353,167 @@
 		//
 	}
 
+	// ── ConfigCheckProbe signal survey ─────────────────────────────────────────
+	let probing = $state(false);
+
+	/** Re-fetch the device list so the survey's persisted RSSI shows in the list. */
+	async function refreshDevices() {
+		try {
+			const response = await fetch('/rest/gateway-devices', {
+				method: 'GET',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+			if (response.status === 200) {
+				geniusDevices.devices = (
+					JSON.parse(await response.text(), jsonDateReviver) as GeniusDevices
+				).devices;
+			}
+		} catch (error) {
+			console.error('Failed to refresh devices after probe:', error);
+		}
+	}
+
+	/** Trigger a ConfigCheckProbe RSSI survey (measures directly-reachable radio modules). */
+	async function handleProbeSignal() {
+		if (probing) return;
+		probing = true;
+		try {
+			const response = await fetch('/rest/config-check-probe', {
+				method: 'POST',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+			if (response.status !== 202) {
+				probing = false;
+				const body = await response.json().catch(() => ({}));
+				notifications.error(body?.reason ?? 'Could not start signal probe.', 5000);
+				return;
+			}
+			// On 202 keep the spinner until the 'done' WS event (~1 min: two 30 s listening sweeps);
+			// safety net (survey window + margin) clears it if the event is missed.
+			const body = await response.json().catch(() => ({}));
+			const windowMs = typeof body?.windowMs === 'number' ? body.windowMs : 60000;
+			const sweepId = typeof body?.sweepId === 'number' ? body.sweepId : 0;
+			setTimeout(() => (probing = false), windowMs + 5000);
+			// Snapshot the configured alarm lines so the dialog can offer to register lines it hasn't seen.
+			const registeredLineIds = await fetchRegisteredLineIds();
+			// Live progress dialog: fills in responders (known grouped first, then new nearby) as they answer.
+			modals.open(ProbeProgressDialog, {
+				title: 'Signal probe',
+				windowMs,
+				sweepId,
+				registeredLineIds,
+				onAdd: (r: ConfigCheckResponder, onAdded: () => void) => handleAddDiscovered(r, onAdded),
+				onAddLine: (lineId: number, onRegistered: () => void) =>
+					openAddAlarmLine(lineId, onRegistered),
+				onStop: () => stopProbe(),
+				onCancel: () => cancelProbe()
+			});
+		} catch {
+			probing = false;
+			notifications.error('Could not start signal probe.', 5000);
+		}
+	}
+
+	/** Finalize a running survey early (user pressed "Stop probing"). The backend keeps + persists the
+	 *  responders heard so far and emits 'done', which the WS effect below handles (clears the spinner,
+	 *  refreshes the list). The dialog stays open on the results so the user can add what showed up. */
+	async function stopProbe() {
+		try {
+			await fetch('/rest/config-check-probe/stop', {
+				method: 'POST',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+		} catch {
+			/* best-effort - the backend also self-terminates at the end of its window */
+		}
+	}
+
+	/** Abort a running survey (dialog closed before it finished). Best-effort: clears the local
+	 *  spinner immediately; the backend stops collecting and skips finalize/persist. */
+	async function cancelProbe() {
+		probing = false;
+		try {
+			await fetch('/rest/config-check-probe/cancel', {
+				method: 'POST',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+		} catch {
+			/* best-effort - the backend also self-terminates at the end of its window */
+		}
+	}
+
+	/** Open the device editor pre-seeded with a discovered radio module's serial + RSSI.
+	 *  onAdded is called once the device is saved so the probe dialog can mark its row "Added". */
+	function handleAddDiscovered(r: ConfigCheckResponder, onAdded: () => void) {
+		const device: GeniusDevice = {
+			id: 0,
+			smokeDetector: {
+				model: GeniusSmokeDetector.GeniusPlusX,
+				sn: 0,
+				productionDate: new Date()
+			} as GeniusSmokeDetectorInfo,
+			radioModule: {
+				model: GeniusRadioModule.FmBasisX,
+				sn: r.sn,
+				lineId: r.lineId,
+				rssi: r.rssi,
+				lastRangeTest: new Date()
+			} as GeniusRadioModuleInfo,
+			location: '',
+			registration: GeniusDeviceRegistration.Manual,
+			isAlarming: false,
+			alarms: []
+		};
+		modals.open(EditSmokeDetector, {
+			title: 'Add discovered device',
+			geniusDevice: device,
+			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
+				const saved = await apiPutDevice(newGeniusDevice);
+				modals.close();
+				if (saved) onAdded();
+				afterDeviceSaved(newGeniusDevice);
+			}
+		});
+	}
+
+	// Subscribe to the survey progress/result event while this page is mounted. The live per-module
+	// breakdown is shown by ProbeProgressDialog; here we only keep the toolbar spinner in sync and
+	// refresh the list on completion so persisted RSSI lands.
+	$effect(() => {
+		const handler = (evt: ConfigCheckProbeEvent) => {
+			if (evt.phase === 'started') {
+				probing = true;
+			} else if (evt.phase === 'cancelled') {
+				probing = false;
+			} else if (evt.phase === 'done') {
+				probing = false;
+				refreshDevices();
+				const known = evt.knownUpdated ?? 0;
+				const disc = evt.discovered?.length ?? 0;
+				const label = evt.stopped ? 'Signal probe stopped' : 'Signal probe';
+				notifications.success(
+					`${label}: ${evt.responderCount ?? 0} responded, ${known} updated` +
+						(disc > 0 ? `, ${disc} new nearby` : ''),
+					5000
+				);
+			}
+		};
+		socket.on<ConfigCheckProbeEvent>('config-check-probe', handler);
+		return () => socket.off('config-check-probe', handler);
+	});
+
 	function handleAlarmLog(index: number) {
 		modals.open(AlarmLog, {
 			title: 'Alarms log',
@@ -389,7 +558,7 @@
 			dirtForecastNegative: data.dirtForecastNegative
 		};
 		// Old FM modules (FM.Basis / FM.Pro) transmit lineId == 0 and an unreliable
-		// line byte over SmartSonic — the line must be entered by hand, so we do not
+		// line byte over SmartSonic - the line must be entered by hand, so we do not
 		// trust the readout's line fields for them (see lib/genius/line.ts).
 		const oldModule = isOldFmModule(data.radioProductType);
 		const rm: GeniusRadioModuleInfo = {
@@ -416,12 +585,8 @@
 		} as GeniusDevice;
 	}
 
-	/** Check if the device's alarm line ID is already configured; if not, offer to add it */
-	async function checkAndOfferAlarmLine(device: GeniusDevice) {
-		const lineId = device.radioModule.lineId;
-		// 0x00000000 = unassigned (ALARMLINES_ID_NONE), 0xFFFFFFFF = broadcast — neither is a user line
-		if (!lineId || lineId === 0xffffffff) return;
-
+	/** Fetch the IDs of the alarm lines currently configured on the gateway (empty on failure). */
+	async function fetchRegisteredLineIds(): Promise<number[]> {
 		try {
 			const response = await fetch('/rest/alarm-lines', {
 				method: 'GET',
@@ -431,50 +596,134 @@
 				}
 			});
 			const alarmLines: AlarmLines = JSON.parse(await response.text(), jsonDateReviver);
-
-			if (alarmLines.lines.some((l) => l.id === lineId)) return;
-
-			modals.open(ConfirmDialog, {
-				title: 'Unknown Alarm Line detected',
-				message: `The device contains Alarm Line ID ${lineId} which is not yet configured. Would you like to add it?`,
-				labels: {
-					cancel: { label: 'Skip', icon: Cancel },
-					confirm: { label: 'Add alarm line', icon: Check }
-				},
-				onConfirm: async () => {
-					const newLine: AlarmLine = {
-						id: lineId,
-						name: `Line ${lineId}`,
-						created: new Date(),
-						acquisition: AlarmLineAcquisition.Acoustic
-					};
-					alarmLines.lines = [...alarmLines.lines, newLine];
-					try {
-						const postResponse = await fetch('/rest/alarm-lines', {
-							method: 'POST',
-							headers: {
-								Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-								'Content-Type': 'application/json'
-							},
-							body: JSON.stringify(alarmLines)
-						});
-						if (postResponse.status === 200) {
-							notifications.success('Alarm line added.', 3000);
-						} else {
-							notifications.error('Failed to add alarm line.', 3000);
-						}
-					} catch (error) {
-						console.error('Error:', error);
-					}
-					modals.close();
-				}
-			});
+			return alarmLines.lines.map((l) => l.id >>> 0);
 		} catch (error) {
-			console.error('Error checking alarm lines:', error);
+			console.error('Error fetching alarm lines:', error);
+			return [];
 		}
 	}
 
-	/** Old FM module that still has no manually-entered alarm line — needs attention. */
+	/** Fetch the full alarm-line set (null on failure). */
+	async function fetchAlarmLines(): Promise<AlarmLines | null> {
+		try {
+			const response = await fetch('/rest/alarm-lines', {
+				method: 'GET',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+			return JSON.parse(await response.text(), jsonDateReviver) as AlarmLines;
+		} catch (error) {
+			console.error('Error fetching alarm lines:', error);
+			return null;
+		}
+	}
+
+	/** Persist the alarm-line set. Returns true on success. */
+	async function postAlarmLines(alarmLines: AlarmLines): Promise<boolean> {
+		try {
+			const response = await fetch('/rest/alarm-lines', {
+				method: 'POST',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(alarmLines)
+			});
+			if (response.status === 200) {
+				notifications.success('Alarm line added.', 3000);
+				return true;
+			}
+			notifications.error('Failed to add alarm line.', 3000);
+			return false;
+		} catch (error) {
+			console.error('Error:', error);
+			notifications.error('Failed to add alarm line.', 3000);
+			return false;
+		}
+	}
+
+	/** Register an alarm line by ID with a default name (no editor). Refetches first so a concurrent
+	 *  edit isn't clobbered and an already-present line is treated as success. Used by the device-add
+	 *  confirm flow; the probe dialog uses {@link openAddAlarmLine} to let the user name the line. */
+	async function registerAlarmLine(lineId: number): Promise<boolean> {
+		// 0x00000000 = unassigned (ALARMLINES_ID_NONE), 0xFFFFFFFF = broadcast - neither is a user line
+		if (!lineId || lineId === 0xffffffff) return false;
+		const alarmLines = await fetchAlarmLines();
+		if (!alarmLines) {
+			notifications.error('Failed to add alarm line.', 3000);
+			return false;
+		}
+		if (alarmLines.lines.some((l) => l.id === lineId)) return true;
+		const newLine: AlarmLine = {
+			id: lineId,
+			name: `Line ${lineId}`,
+			created: new Date(),
+			acquisition: AlarmLineAcquisition.Acoustic
+		};
+		return postAlarmLines({ ...alarmLines, lines: [...alarmLines.lines, newLine] });
+	}
+
+	/** Open the alarm-line editor pre-seeded with a probe-discovered line ID (default name "Line <id>"),
+	 *  mirroring the device-add flow which opens the device editor. The discovered ID is locked
+	 *  (acquisition = SignalProbe) so only the name is edited. Calls onRegistered after a successful
+	 *  save so the caller (the probe dialog) can drop its per-line "Add alarm line" button. */
+	async function openAddAlarmLine(lineId: number, onRegistered?: () => void) {
+		if (!lineId || lineId === 0xffffffff) return;
+		const alarmLines = await fetchAlarmLines();
+		if (!alarmLines) {
+			notifications.error('Could not load alarm lines.', 3000);
+			return;
+		}
+		if (alarmLines.lines.some((l) => (l.id >>> 0) === (lineId >>> 0))) {
+			onRegistered?.();
+			return;
+		}
+		modals.open(EditAlarmLine, {
+			title: 'Add alarm line',
+			existingAlarmLines: alarmLines.lines,
+			alarmLine: {
+				id: lineId,
+				name: `Line ${lineId}`,
+				created: new Date(),
+				acquisition: AlarmLineAcquisition.SignalProbe
+			},
+			onSaveAlarmLine: async (newAlarmLine: AlarmLine) => {
+				modals.close();
+				const ok = await postAlarmLines({
+					...alarmLines,
+					lines: [...alarmLines.lines, newAlarmLine]
+				});
+				if (ok) onRegistered?.();
+			}
+		});
+	}
+
+	/** Check if the device's alarm line ID is already configured; if not, offer to add it */
+	async function checkAndOfferAlarmLine(device: GeniusDevice) {
+		const lineId = device.radioModule.lineId;
+		// 0x00000000 = unassigned (ALARMLINES_ID_NONE), 0xFFFFFFFF = broadcast - neither is a user line
+		if (!lineId || lineId === 0xffffffff) return;
+
+		const registeredIds = await fetchRegisteredLineIds();
+		if (registeredIds.includes(lineId >>> 0)) return;
+
+		modals.open(ConfirmDialog, {
+			title: 'Unknown Alarm Line detected',
+			message: `The device contains Alarm Line ID ${lineId} which is not yet configured. Would you like to add it?`,
+			labels: {
+				cancel: { label: 'Skip', icon: Cancel },
+				confirm: { label: 'Add alarm line', icon: Check }
+			},
+			onConfirm: async () => {
+				await registerAlarmLine(lineId);
+				modals.close();
+			}
+		});
+	}
+
+	/** Old FM module that still has no manually-entered alarm line - needs attention. */
 	function needsManualLineEntry(device: GeniusDevice): boolean {
 		return isOldFmModule(device.radioModule.model) && !device.radioModule.lineCharacter;
 	}
@@ -511,7 +760,7 @@
 	 * Carry a previously manually-entered alarm line from `source` onto `target`'s old
 	 * FM module, but only when `source`'s radio module serial confirms it's the SAME
 	 * physical hardware. The rotary switch position is a property of the radio module,
-	 * not the smoke detector — it should follow the module (e.g. when it's matched on a
+	 * not the smoke detector - it should follow the module (e.g. when it's matched on a
 	 * different / new device base), but must never leak onto an unrelated module just
 	 * because the serial didn't match (e.g. the module was swapped on this base).
 	 */
@@ -588,7 +837,7 @@
 						newDevice.id = existing.id;
 						newDevice.location = existing.location;
 						// Same RM serial confirms this is the same physical module, just
-						// moved to a different smoke-detector base — pre-fill its known
+						// moved to a different smoke-detector base - pre-fill its known
 						// rotary line so the installer doesn't have to recall/re-enter it.
 						preserveManualLineIfSameModule(newDevice, existing);
 						modals.close();
@@ -624,7 +873,7 @@
 					},
 					onConfirm: () => {
 						// Same RM serial confirms deviceB's module is the one in this
-						// reading — carry its known rotary line into the new device.
+						// reading - carry its known rotary line into the new device.
 						preserveManualLineIfSameModule(newDevice, deviceB);
 						modals.close();
 						acousticAddNew(newDevice, 'Delete previous & add device', idsToDelete);
@@ -641,7 +890,7 @@
 			geniusDevice: device,
 			saveButtonLabel,
 			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				// Cross-match path: clean up superseded devices first. Not atomic across requests —
+				// Cross-match path: clean up superseded devices first. Not atomic across requests -
 				// if a delete fails mid-flight the user sees the error and can retry.
 				for (const id of idsToDeleteFirst) await apiDeleteDevice(id);
 				await apiPutDevice(newGeniusDevice);
@@ -949,7 +1198,7 @@
 					if (alarmingCount > 0) {
 						modals.open(ConfirmDialog, {
 							title: 'Alarming Devices in Import',
-							message: `<strong>${alarmingCount}</strong> device(s) in the import file are marked as alarming.<br><br>Keeping the alarm state may trigger automations in connected integrations (e.g. Home Assistant) — useful for testing purposes.`,
+							message: `<strong>${alarmingCount}</strong> device(s) in the import file are marked as alarming.<br><br>Keeping the alarm state may trigger automations in connected integrations (e.g. Home Assistant) - useful for testing purposes.`,
 							labels: {
 								cancel: { label: 'Keep Alarm State', icon: BellRinging },
 								confirm: { label: 'Clear Alarm State', icon: BellOff }
@@ -1049,6 +1298,23 @@
 						</span>
 					</button>
 				</div>
+				<div
+					class="tooltip tooltip-bottom"
+					data-tip="Discover directly reachable detectors"
+				>
+					<button
+						class="btn btn-primary btn-md"
+						aria-label="Probe signal strength of reachable modules"
+						disabled={!geniusDevices.isLoaded || probing}
+						onclick={handleProbeSignal}
+					>
+						{#if probing}
+							<span class="loading loading-spinner h-6 w-6"></span>
+						{:else}
+							<Radar class="h-6 w-6" />
+						{/if}
+					</button>
+				</div>
 				<div class="tooltip tooltip-left" data-tip="Load smoke detector configuration from file">
 					<label
 						for="upload"
@@ -1123,7 +1389,7 @@
 				<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
 					<!-- Header row -->
 					<div
-						class="hidden md:grid grid-cols-[30px_1fr_1fr_1fr_65px_50px_120px] gap-2 bg-base-200 px-4 py-2 rounded-t-lg font-bold text-sm"
+						class="hidden md:grid grid-cols-[30px_1fr_1fr_1fr_65px_72px_120px] gap-2 bg-base-200 px-4 py-2 rounded-t-lg font-bold text-sm"
 					>
 						<div></div>
 						<!-- Space for grip icon -->

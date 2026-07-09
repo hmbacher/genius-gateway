@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { modals } from 'svelte-modals';
+	import { modals, type ModalProps } from 'svelte-modals';
 	import type { Action } from 'svelte/action';
 	import { fly } from 'svelte/transition';
 	import type { AlarmLine } from '$lib/types/models';
@@ -8,11 +8,14 @@
 	import { inRange, hasLength } from '$lib/utils/validators';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
+	import Manual from '~icons/tabler/forms';
+	import Automatic from '~icons/tabler/access-point';
+	import Microphone from '~icons/tabler/microphone';
+	import Radar from '~icons/tabler/radar';
 
 	// provided by <Modals />
 
-	interface Props {
-		isOpen: boolean;
+	interface Props extends ModalProps {
 		title: string;
 		existingAlarmLines: AlarmLine[];
 		onSaveAlarmLine: any;
@@ -50,6 +53,29 @@
 	const nameError = $derived(!hasLength(alarmLine.name, minNameLength, maxNameLength));
 	const hasErrors = $derived(idRangeError || idExistsError || nameError);
 
+	/** For auto-discovered lines the ID is fixed and cannot be edited. Resolves to a human-readable
+	 *  source label when so (used for the lock hint), or null when the ID is freely editable. */
+	const discoveredVia = $derived(
+		alarmLine.acquisition === AlarmLineAcquisition.Acoustic
+			? 'acoustic readout'
+			: alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket
+				? 'Genius radio packet'
+				: alarmLine.acquisition === AlarmLineAcquisition.SignalProbe
+					? 'signal probe'
+					: null
+	);
+
+	/** Icon for the line's acquisition source - matches the icons used in the alarm-lines list. */
+	const AcquisitionIcon = $derived(
+		alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket
+			? Automatic
+			: alarmLine.acquisition === AlarmLineAcquisition.Acoustic
+				? Microphone
+				: alarmLine.acquisition === AlarmLineAcquisition.SignalProbe
+					? Radar
+					: Manual
+	);
+
 	const focus: Action = (node) => {
 		// the node has been mounted in the DOM
 		node.focus();
@@ -69,7 +95,12 @@
 		<div
 			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex min-w-fit max-w-md flex-col justify-between p-4 shadow-lg md:w-[28rem]"
 		>
-			<h2 id={titleId} class="text-base-content text-start text-2xl font-bold">{title}</h2>
+			<h2
+				id={titleId}
+				class="text-base-content flex items-center gap-2 text-start text-2xl font-bold"
+			>
+				<AcquisitionIcon class="text-primary h-7 w-7 flex-shrink-0" />{title}
+			</h2>
 			<div class="divider my-2"></div>
 			<form
 				class="fieldset"
@@ -92,18 +123,17 @@
 								min={minID}
 								max={maxID}
 								required
-								disabled={alarmLine.acquisition === AlarmLineAcquisition.Acoustic ||
-									alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket}
+								disabled={discoveredVia !== null}
 								class=""
 								bind:value={alarmLine.id}
 								id="AlarmLineID"
 								use:focus
 							/>
 						</label>
-						{#if alarmLine.acquisition === AlarmLineAcquisition.Acoustic || alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket}
+						{#if discoveredVia !== null}
 							<label for="AlarmLineID" class="label">
 								<span class="text-wrap pl-1">
-									IDs of alarm lines discovered via {alarmLine.acquisition === AlarmLineAcquisition.Acoustic ? 'acoustic readout' : 'Genius radio packet'} cannot be changed.
+									IDs of alarm lines discovered via {discoveredVia} cannot be changed.
 								</span>
 							</label>
 						{:else}

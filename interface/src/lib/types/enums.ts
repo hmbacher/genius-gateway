@@ -12,6 +12,8 @@ export enum AlarmLineAcquisition {
   Manual,
   /** /< Discovered via acoustic device readout */
   Acoustic,
+  /** /< Discovered via signal probe */
+  SignalProbe,
 }
 
 // From CC1101Controller.h

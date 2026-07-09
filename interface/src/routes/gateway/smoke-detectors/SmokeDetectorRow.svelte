@@ -10,6 +10,7 @@
 	import { isOldFmModule } from '$lib/genius/line';
 	import { dragHandle } from 'svelte-dnd-action';
 	import DetectorStatusBadge from './DetectorStatusBadge.svelte';
+	import SignalIndicator from './SignalIndicator.svelte';
 	import { GeniusSmokeDetector, GeniusRadioModule } from '$lib/types/enums';
 	import type { GeniusRadioModuleInfo } from '$lib/types/models';
 	import Delete from '~icons/tabler/trash';
@@ -89,7 +90,7 @@
 	const successColor = $derived(device.isAlarming ? 'text-current' : 'text-success');
 	const errorColor = $derived(device.isAlarming ? 'text-current' : 'text-error');
 
-	// Drop-focus before navigating away — keeps daisyUI dropdown from staying
+	// Drop-focus before navigating away - keeps daisyUI dropdown from staying
 	// open after a menu pick. Click-blur is a known DaisyUI quirk.
 	function blurAndCall(fn: (i: number) => void) {
 		(document.activeElement as HTMLElement)?.blur();
@@ -130,16 +131,24 @@
 				</span>
 			</div>
 			{#if sdReadout && !stale}
-				<div class="tooltip tooltip-top" data-tip="Acoustic readout up to date">
+				<div class="tooltip tooltip-left" data-tip="Acoustic readout up to date">
 					<Award class="flex-shrink-0 h-6 w-6 {successColor}" />
 				</div>
 			{:else if sdReadout && stale}
-				<div class="tooltip tooltip-top" data-tip="Last acoustic readout is more than 1 year ago">
+				<div class="tooltip tooltip-left" data-tip="Last acoustic readout is more than 1 year ago">
 					<CalendarExclamation class="flex-shrink-0 h-6 w-6 {errorColor}" />
 				</div>
 			{:else}
-				<div class="tooltip tooltip-top" data-tip="No acoustic readout performed yet">
+				<div class="tooltip tooltip-left" data-tip="No acoustic readout performed yet">
 					<MicrophoneOff class="flex-shrink-0 h-6 w-6 {errorColor}" />
+				</div>
+			{/if}
+			{#if rmPresent}
+				<div class="flex-shrink-0">
+					<SignalIndicator
+						rssi={device.radioModule.rssi}
+						lastRangeTest={device.radioModule.lastRangeTest}
+					/>
 				</div>
 			{/if}
 			<div class="dropdown dropdown-end flex-shrink-0">
@@ -232,7 +241,7 @@
 	<div
 		class="hidden md:grid rounded-box {device.isAlarming
 			? 'bg-error text-error-content'
-			: 'bg-base-100'} grid-cols-[30px_1fr_1fr_1fr_65px_50px_120px] gap-2 px-4 py-2 items-center"
+			: 'bg-base-100'} grid-cols-[30px_1fr_1fr_1fr_65px_72px_120px] gap-2 px-4 py-2 items-center"
 	>
 		<!-- Drag handle -->
 		<div class="flex items-center justify-center" use:dragHandle>
@@ -315,20 +324,26 @@
 			{/if}
 		</div>
 
-		<!-- Service: readout age -->
-		<div class="flex items-center justify-center">
+		<!-- Service: readout age + direct signal -->
+		<div class="flex items-center justify-center gap-1.5">
 			{#if sdReadout && !stale}
-				<div class="tooltip tooltip-top" data-tip="Acoustic readout up to date">
+				<div class="tooltip tooltip-left" data-tip="Acoustic readout up to date">
 					<Award class="h-6 w-6 {successColor}" />
 				</div>
 			{:else if sdReadout && stale}
-				<div class="tooltip tooltip-top" data-tip="Last acoustic readout is more than 1 year ago">
+				<div class="tooltip tooltip-left" data-tip="Last acoustic readout is more than 1 year ago">
 					<CalendarExclamation class="h-6 w-6 {errorColor}" />
 				</div>
 			{:else}
-				<div class="tooltip tooltip-top" data-tip="No acoustic readout performed yet">
+				<div class="tooltip tooltip-left" data-tip="No acoustic readout performed yet">
 					<MicrophoneOff class="h-6 w-6 {errorColor}" />
 				</div>
+			{/if}
+			{#if rmPresent}
+				<SignalIndicator
+					rssi={device.radioModule.rssi}
+					lastRangeTest={device.radioModule.lastRangeTest}
+				/>
 			{/if}
 		</div>
 

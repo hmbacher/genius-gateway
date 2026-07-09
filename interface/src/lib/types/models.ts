@@ -186,6 +186,52 @@ export type GeniusRadioModuleInfo = {
 	radioNetworkFault?: boolean;
 	/** True if the alarm line was entered by hand (old FM.Basis / FM.Pro modules). */
 	lineManual?: boolean;
+	/**
+	 * Direct-link signal from the last ConfigCheckProbe range test. Present only when lastRangeTest is set.
+	 * `rssi < 0` = reached (measured dBm); `rssi === 0` = tested but no response (out of direct range).
+	 */
+	rssi?: number;
+	/** Timestamp of the last range test this module was included in (unset = never tested). */
+	lastRangeTest?: Date;
+};
+
+/** One radio module that answered a ConfigCheckProbe survey (heard directly by the gateway). */
+export type ConfigCheckResponder = {
+	/** Responder's own radio-module serial (packet Org-SN). */
+	sn: number;
+	/** Best measured RSSI this sweep, in dBm. */
+	rssi: number;
+	/** Responder's own Line-ID. */
+	lineId: number;
+	/** Response status/capability byte. */
+	status: number;
+	/** Group/line nibble byte (high nibble = group A–H, low nibble = line 0–9). */
+	groupLine: number;
+};
+
+/** Payload of the `config-check-probe` WebSocket event. */
+export type ConfigCheckProbeEvent = {
+	/** 'started' when a survey begins, 'responder' for each newly-heard module, 'done' when it closes,
+	 *  'cancelled' when the user aborts it before completion. */
+	phase: 'started' | 'responder' | 'done' | 'cancelled';
+	/** Monotonic id correlating the started/responder/done stream. */
+	sweepId: number;
+	/** Total survey window in ms (present on 'started'). */
+	windowMs?: number;
+	/** True when the heard module matches a registered device (present on 'responder'). */
+	known?: boolean;
+	/** The newly-heard module (present on 'responder'). */
+	responder?: ConfigCheckResponder;
+	/** True when 'done' was reached by an early user stop rather than the survey running to completion. */
+	stopped?: boolean;
+	/** Distinct responders heard (present on 'done'). */
+	responderCount?: number;
+	/** Count of known devices whose RSSI was updated (present on 'done'). */
+	knownUpdated?: number;
+	/** All responders heard this survey (present on 'done'). */
+	responders?: ConfigCheckResponder[];
+	/** Responders whose radio module is not a registered device (present on 'done'). */
+	discovered?: ConfigCheckResponder[];
 };
 
 export type GeniusDevice = {
@@ -222,7 +268,7 @@ export type PacketIdentifier = {
 export type PacketType = {
 	name: string;
 	cssClass: string;
-	/** On-air message-type byte at offset 27 — the radio module's primary type discriminator. */
+	/** On-air message-type byte at offset 27 - the radio module's primary type discriminator. */
 	typeByte: number;
 	packetLength: number;
 	description: string;
@@ -245,7 +291,7 @@ export const PacketTypeNames = {
 	ConfigCheckProbeResponse: 'ConfigCheckProbe Response'
 } as const;
 
-// Classification keys on the message-type byte (offset 27) with packetLength as a validator —
+// Classification keys on the message-type byte (offset 27) with packetLength as a validator -
 // the same discrimination the radio module uses. Length alone is ambiguous: typeByte 0x00 is
 // shared by Alarming (36 B) and the CommissioningProbe request (28 B), and a 36-byte frame
 // is either Alarming (0x00) or a ConfigCheckProbe response (0x08). `identifiers` carry sub-variant
@@ -321,7 +367,7 @@ export const PacketTypes: PacketType[] = [
 		typeByte: 0x06,
 		packetLength: 28,
 		description:
-			'ConfigCheckProbe request — a silent, direct-range reachability probe (not forwarded). Directly reachable detectors answer with a ConfigCheckProbe Response.',
+			'ConfigCheckProbe request - a silent, direct-range reachability probe (not forwarded). Directly reachable detectors answer with a ConfigCheckProbe Response.',
 		identifiers: []
 	},
 	{
@@ -330,7 +376,7 @@ export const PacketTypes: PacketType[] = [
 		typeByte: 0x08,
 		packetLength: 36,
 		description:
-			'ConfigCheckProbe response — a directly reachable detector reports its presence, group/line and status (not forwarded).',
+			'ConfigCheckProbe response - a directly reachable detector reports its presence, group/line and status (not forwarded).',
 		identifiers: []
 	}
 ];
@@ -453,7 +499,7 @@ export type WSLoggerSettings = {
 
 export type HASettings = {
 	enabled: boolean;
-	commissioningprobe_prefix: string;
+	discovery_prefix: string;
 	device_name: string;
 	manufacturer: string;
 	model: string;
