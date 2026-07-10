@@ -16,7 +16,7 @@
 {#if dirty}
 	<button
 		type="button"
-		class="text-error tooltip tooltip-left flex shrink-0 cursor-pointer items-center"
+		class="text-error tooltip tooltip-left relative z-20 flex shrink-0 cursor-pointer items-center"
 		data-tip={title}
 		aria-label={title}
 		onclick={() => onrevert()}

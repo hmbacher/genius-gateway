@@ -18,6 +18,9 @@ Packets are now identified by the radio module's on-air **message-type byte** (o
 ## Packet Visualizer
 - **Header field `Counter` renamed to `Remaining TX Time`**: reverse-engineering the radio-module firmware confirmed that bytes 2-3 are not a packet counter but the **remaining transmission time** - a countdown of the packet's repetition window. The visualizer label and the underlying field naming now reflect that
 
+## Bugfixes
+- **"Revert change" tooltip no longer hides behind the dirty-field accent bar**: on the SPI Pin Configuration selectors (and other dirty-tracked fields), the revert tooltip rendered underneath the red dirty accent bar - daisyUI draws tooltips at `z-index: 2` while the accent bar sits at `z-10`. The revert button now establishes its own stacking context above the bar so the tooltip is fully visible
+
 # v1.4.1
 
 ## Manual Alarm-Line Entry for Old FM Modules
