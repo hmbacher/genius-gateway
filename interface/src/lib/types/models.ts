@@ -382,7 +382,7 @@ export const PacketTypes: PacketType[] = [
 ];
 
 export type GeneralInfo = {
-	counter: number;
+	remainingTxTime: number;
 	firstRadioModuleSN: number;
 	firstLocation: string;
 	secondRadioModuleSN: number;

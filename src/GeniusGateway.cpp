@@ -719,8 +719,8 @@ void GeniusGateway::_rx_packets()
                 bool isDuplicate = false;
                 if (packet.length > 3)
                 {
-                    // Skip first 3 bytes of packet data as first byte is always 0x02 and
-                    // bytes 2-3 are some kind of a varying packet counter
+                    // Skip first 3 bytes of packet data: byte 1 is always 0x02 and bytes 2-3 are the
+                    // Remaining-TX-Time field, which changes on every repetition of the same logical packet
                     uint32_t currentHash = Utils::xorHash(packet.data + 3, packet.length - 3);
 
                     if (_hasLastPacketHash && currentHash == _lastPacketHash)

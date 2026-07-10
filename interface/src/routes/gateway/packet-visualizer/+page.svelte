@@ -101,7 +101,7 @@
 
 		// Common packet properties
 		packet.generalInfo = {
-			counter: dv.getUint16(1, true),
+			remainingTxTime: dv.getUint16(1, true),
 			firstRadioModuleSN: dv.getUint32(9),
 			firstLocation: getDetectorLocationByRadioModuleSN(dv.getUint32(9)),
 			secondRadioModuleSN: dv.getUint32(14),

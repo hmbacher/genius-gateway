@@ -196,11 +196,11 @@
 		@apply text-slate-900 dark:text-slate-100;
 	}
 
-	:global(div.genius-packet div.packet-data-container>div[data-type='counter']>div.packet-data-1) {
+	:global(div.genius-packet div.packet-data-container>div[data-type='remaining-tx-time']>div.packet-data-1) {
 		@apply bg-stone-400 dark:bg-stone-600;
 	}
 
-	:global(div.genius-packet div.packet-data-container>div[data-type='counter']>div) {
+	:global(div.genius-packet div.packet-data-container>div[data-type='remaining-tx-time']>div) {
 		@apply bg-stone-300 dark:bg-stone-800;
 	}
 

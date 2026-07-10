@@ -68,7 +68,7 @@ The following table shows the 27 bytes large part of a packet that was recogniza
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 |
 Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | XX |
-Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   |
 ```
 
 #### Detailed explanation
@@ -78,7 +78,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | 0 | 1 | `0x02` | | Unknown, seems to be constant |
-| 1-2 | 2 | `CC18 - 0000`<br>(`6.348 - 0`)<br>*little endian* | Pkt-# | A *packet repetition counter* that decreases with each packet repetition. It is not entirely clear how the decrementation occurs (see [Repetition](#repetition) for details). |
+| 1-2 | 2 | `CC18 - 0000`<br>(`6.348 - 0`)<br>*little endian* | Rem-TX | **Remaining transmission time.** The radio module repeats every packet for a fixed time window; this field holds the remaining window time in module clock ticks (little-endian), reloaded on each repetition as `remaining = window - elapsed` and counted down toward ~0, at which point the module stops repeating. It is *not* a packet sequence number or counter - see [Repetition](#repetition). |
 | 3 | 1 | `0x00` / `0xFF` | | Address mode: `0x00` in normal (line-addressed) packets; `0xFF` marks a wildcard/broadcast packet such as the [ConfigCheckProbe request](#configcheckprobe). |
 | 4 | 1 | `0xFF` | | Unknown, seems to be constant |
 | 5 | 1 | `0xFF` | | Unknown, seems to be constant |
@@ -150,11 +150,11 @@ always `Hops = 0`), whereas alarms, line tests and commissioning propagate acros
 
 ### Repetition
 
-All packets are transmitted multiple times by the radio module. The packets are sent with a period of approximately 10 ms. The repeated packets are identical except for the `Pkt-#` field (see [Base Packet Structure](#base-packet-structure)). The `Pkt-#` field starts with an individual initial value in the first packet, which is decremented with each repetition.
+All packets are transmitted multiple times by the radio module. The packets are sent with a period of approximately 10 ms. The repeated packets are identical except for the `Rem-TX` (*Remaining transmission time*) field (see [Base Packet Structure](#base-packet-structure)). This field starts at an individual initial value in the first packet and is decremented with each repetition until it reaches ~0, when transmission stops.
 
 The number of repetitions, the exact period for packet repetitions, as well as the initial value and decrementation slightly differ depending on the packet type:
 
-| Packet Type | Repetitions<br>$N$ | Period Time<br>$T$ | Initial *Pkt-#*<br>$PC_{Start}$ | *Pkt-#* Decrement<br>$\Delta=\frac{PC_{Start}}{N - 1}$ |
+| Packet Type | Repetitions<br>$N$ | Period Time<br>$T$ | Initial *Rem-TX*<br>$RT_{Start}$ | *Rem-TX* Decrement<br>$\Delta=\frac{RT_{Start}}{N - 1}$ |
 |:------------|------------:|-------:|----------------:|:---------:|
 | [Alarm Line Commissioning](#alarm-line-commissioning) | 309 x | ~10.06 ms | 6.348 (CC 18) | ~20,6 |
 | [Alarming (Start/Stop)](#alarming-startstop) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
@@ -162,10 +162,10 @@ The number of repetitions, the exact period for packet repetitions, as well as t
 | [CommissioningProbe Request](#commissioningprobe-request) | 26 x | ~8,19 ms | 427 (AB 01) | ~17,1 |
 | [CommissioningProbe Response](#commissioningprobe-response) | 24 x| ~9,02 ms | 427 (AB 01) | ~18,6 |
 
-!!! note "Pkt-# decrement"
-    It can be observed that the decrement is not constant across packet repetitions but exhibits a certain amount of jitter. This is likely caused by a higher-resolution underlying counter whose value may vary slightly with each iteration and is then rounded and stored as an unsigned integer in the `Pkt-#` field.
+!!! note "Rem-TX decrement"
+    It can be observed that the decrement is not constant across packet repetitions but exhibits a certain amount of jitter. This is caused by the higher-resolution underlying timer (the radio module's ~2 kHz clock-tick counter): the remaining transmission time is sampled each iteration and rounded to an unsigned integer when stored in the `Rem-TX` field.
 
-    Furthermore, it is notable that the average decrement approximately equals twice the period time $T$, which corresponds to the count value of a 2 kHz clock. The initial value $PC_{Start}$ thereby corresponds to twice the duration of the entire transmission process (across all repetitions) in milliseconds.
+    Furthermore, it is notable that the average decrement approximately equals twice the period time $T$, which corresponds to the count value of a 2 kHz clock. The initial value $RT_{Start}$ thereby corresponds to twice the duration of the entire transmission process (across all repetitions) in milliseconds.
 
 ### Specific Packets
 
@@ -210,7 +210,7 @@ The principle by which new alarm line IDs are generated is not fully understood.
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |    28-31    | 32 | 33 | 34 | 35 | 36 |
 Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | XX | 03 | XX XX XX XX | XX | XX | XX | 00 | 00 |
-Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        | New Line-ID | Ho | Mi | Se |         |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        | New Line-ID | Ho | Mi | Se |         |
 ```
 
 ##### Detailed explanation (delta)
@@ -288,7 +288,7 @@ The packets described here serve to signal the detection of smoke by an individu
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |   28  | 29 |  30  | 31 |    32-35    |
 Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | 00 | 00 |   XX  | 00 |  XX  | 00 | XX XX XX XX |
-Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        | Start |    | Stop |    |  Detector   |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        | Start |    | Stop |    |  Detector   |
 ```
 
 ##### Detailed explanation (delta)
@@ -327,7 +327,7 @@ Line tests can be initiated or stopped from the Genius Gateway for known alarm l
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |     28     |
 Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | XX | 04 |     XX     |
-Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        | Start/Stop |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        | Start/Stop |
 ```
 
 ##### Detailed explanation (delta)
@@ -372,7 +372,7 @@ Furthermore, it appears that each radio module (in its own smoke detector networ
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |
 Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | XX | 00 |
-Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |
 ```
 
 ##### Detailed explanation (delta)
@@ -407,7 +407,7 @@ Further details are described in the [CommissioningProbe Request](#commissioning
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |    28-31    |
 Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | XX | 01 | XX XX XX XX |
-Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        |   Req-SN    |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        |   Req-SN    |
 ```
 
 ##### Detailed explanation (delta)
@@ -448,7 +448,7 @@ request is **wildcard-addressed** (byte 3 = `0xFF` instead of the usual `0x00`, 
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |
 Value (hex) | 02 | XX XX | FF | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | FF FF FF FF |  0F  | XX | XX | 00 | 55 | 06 |
-Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   | Ty |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   | Ty |
 ```
 
 <div class="pckt-table" markdown>
@@ -468,7 +468,7 @@ Field            | Pkt-# |                             |   Org-SN    |    |   Fw
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 |
 Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  0F  | XX | XX | 00 | 55 | 08 | 00 | XX | XX | 00 | 60 | 00 | 00 | XX |
-Field            | Pkt-# |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   | Ty |    | St | GL |    |    |    |    | Ck |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   | Ty |    | St | GL |    |    |    |    | Ck |
 ```
 
 <div class="pckt-table" markdown>

@@ -21,8 +21,8 @@
 	data={packet.data.subarray(1, 3)}
 	endianess="little"
 	details={{
-		text: 'Counter',
-		type: 'counter'
+		text: 'Remaining TX Time',
+		type: 'remaining-tx-time'
 	}}
 />
 <GeniusPacketRawBytes {showDetails} data={packet.data.subarray(3, 9)} />
