@@ -1,3 +1,23 @@
+# v1.5.0
+
+## Direct-Link Signal / Range Survey
+Measure how well each radio module is heard **directly** by the gateway - bypassing the mesh - to help place devices and diagnose weak links. The gateway sweeps the network with a **ConfigCheckProbe** direct-range reachability probe and records the best signal it hears back from each module.
+
+- **Range test from the device list and alarm-line editor**: broadcasts the ConfigCheckProbe and collects the direct responses; each responding module's best **RSSI** and the **time of measurement** are stored per device (`rssi` / `lastRangeTest`)
+- **Signal indicator on the smoke-detector list**: a signal-strength icon shows each device's last measured direct-link quality at a glance
+- **Progress and result dialogs**: live progress while probing, then a summary of which modules answered and how strongly
+- **New "SignalProbe" alarm-line acquisition source**: a device's alarm line can be acquired/confirmed from a direct-range survey response, alongside the existing sources
+- **PDF report "Direct Link (Signal / Range Test)" section**: exported reports now include a per-device signal/range-test section with the measured RSSI and timestamp
+
+## Robust Packet Classification by Message-Type Byte
+Packets are now identified by the radio module's on-air **message-type byte** (offset 27), with packet length used only as a validator - replacing the previous length-only heuristic.
+
+- **Fixes a misclassification**: a 36-byte frame can be either an **Alarm** or a **ConfigCheckProbe response**, so a ConfigCheckProbe response from a group-A / line-1 detector could previously be misread as **ALARM_STOP**. Keying on the message type eliminates that false read
+- **Recognizes the ConfigCheckProbe family**: ConfigCheckProbe request/response packets are now decoded (message type, group/line, status) in the backend and the packet visualizer
+
+## Packet Visualizer
+- **Header field `Counter` renamed to `Remaining TX Time`**: reverse-engineering the radio-module firmware confirmed that bytes 2-3 are not a packet counter but the **remaining transmission time** - a countdown of the packet's repetition window. The visualizer label and the underlying field naming now reflect that
+
 # v1.4.1
 
 ## Manual Alarm-Line Entry for Old FM Modules
