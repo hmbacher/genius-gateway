@@ -38,7 +38,7 @@
 /// Base packet template for alarm line test operations
 const uint8_t AlarmLinesService::_packet_base_linetest[] = {
     0x02,
-    0x00, 0x00, // Counter
+    0x00, 0x00, // Remaining-TX-Time (#1-2)
     0x00,
     0xFF,
     0xFF,
@@ -60,7 +60,7 @@ const uint8_t AlarmLinesService::_packet_base_linetest[] = {
 /// Base packet template for fire alarm operations
 const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0x02,
-    0x00, 0x00, // Counter
+    0x00, 0x00, // Remaining-TX-Time (#1-2)
     0x00,
     0xFF,
     0xFF,
@@ -91,7 +91,7 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
 /// family marker 0x55 (#26) + type 0x06 (#27). 28 bytes total.
 const uint8_t AlarmLinesService::_packet_base_configcheckprobe[] = {
     0x02,
-    0x00, 0x00, // Counter (#1-2), set per-iteration by the TX loop
+    0x00, 0x00, // Remaining-TX-Time (#1-2), set per-iteration by the TX loop
     0xFF,       // Addr-mode (#3): 0xFF = wildcard (probe is not addressed to one line)
     0xFF, 0xFF, 0xFF, 0xFF, // Dest SN (#4-7): broadcast
     0x00,
@@ -139,16 +139,14 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClien
                                                                                                                                                  _isTransmitting(false),
                                                                                                                                                  _transmissionTimeElapsed(0),
                                                                                                                                                  _lastTXLoop(0),
-                                                                                                                                                 _txRepeat(0),
+                                                                                                                                                 _txWindowUs(0),
                                                                                                                                                  _mqttClient(mqttClient),
                                                                                                                                                  _alarmPublishingSettings(alarmPublishingSettings),
                                                                                                                                                  _haService(sveltekit->getHAService()),
                                                                                                                                                  _lastActionLineId(0),
                                                                                                                                                  _lastActionType(String()),
                                                                                                                                                  _txDataLength(0),
-                                                                                                                                                 _packetCntStep(0.0f),
-                                                                                                                                                 _currentPacketCnt(0.0f),
-                                                                                                                                                 _txPeriodUs(0),
+                                                                                                                                                 _txTimingMode(TxTimingMode::ConstantPeriod),
                                                                                                                                                  _packet_sequence_number(ALARMLINES_NVS_SEQ_DEFAULT)
 {
 }
@@ -264,6 +262,13 @@ void AlarmLinesService::_onTimer()
     xTaskNotifyGiveIndexed(_txTaskHandle, ALARMLINES_TX_TASK_NOTIFICATION_INDEX);
 }
 
+// Remaining-TX-Time field = remaining window time in 2048 Hz ticks (matches the RM:
+// 32768 Hz Timer_B >> 4). Clamped to the window, so it fits a uint16 (<= 6348).
+static inline uint16_t remTxFromRemainingUs(uint32_t remainingUs)
+{
+    return (uint16_t)(((uint64_t)remainingUs * ALARMLINES_REMTX_TICK_HZ) / 1000000ULL);
+}
+
 void AlarmLinesService::_txLoop()
 {
     ESP_LOGI(pcTaskGetName(0), "Started.");
@@ -293,56 +298,68 @@ void AlarmLinesService::_txLoop()
             _transmissionTimeElapsed = 0;
             _lastTXLoop = millis();
 
-            ESP_LOGI(pcTaskGetName(0), "Starting transmission: packets: %lu, period: %.3f ms, first packet count: %u (0x%04x), packet count step: %u.",
-                     _txRepeat,
-                     _txPeriodUs / 1000.0,
-                     static_cast<uint16_t>(_currentPacketCnt),
-                     static_cast<uint16_t>(_currentPacketCnt),
-                     static_cast<uint16_t>(_packetCntStep));
+            const uint16_t remTxStart = remTxFromRemainingUs(_txWindowUs);
+            ESP_LOGI(pcTaskGetName(0), "Starting transmission: mode=%s, window=%.3f s, Remaining-TX-Time start=%u (0x%04x).",
+                     _txTimingMode == TxTimingMode::Realistic ? "realistic" : "constant",
+                     _txWindowUs / 1e6, remTxStart, remTxStart);
 
-            for (int i = 1; i <= _txRepeat; i++)
+            // Anchor the countdown: the on-air Remaining-TX-Time field is (window - elapsed),
+            // exactly like the RM's `remaining = window - (now - t0)`. The burst ends when the
+            // window elapses (normal termination), or via the safety cap / stall watchdog.
+            const int64_t t0Us = esp_timer_get_time();
+            int i = 0;
+
+            // Drain any stale notification so the first constant-mode wait blocks correctly.
+            ulTaskNotifyTakeIndexed(ALARMLINES_TX_TASK_NOTIFICATION_INDEX, pdTRUE, 0);
+
+            for (;;)
             {
-                // Check for transmission timeout
-                uint32_t currentMillis = millis();
-                uint32_t _transmissionTimeElapsed = currentMillis - _lastTXLoop;
-                if (_transmissionTimeElapsed >= ALARMLINES_TX_TIMEOUT_MS)
+                int64_t remainingUs = (int64_t)_txWindowUs - (esp_timer_get_time() - t0Us);
+                if (remainingUs <= 0 || i >= ALARMLINES_TX_MAX_REPEAT)
+                    break; // window elapsed (normal termination) or safety cap
+
+                // Per-iteration stall watchdog
+                if ((millis() - _lastTXLoop) >= ALARMLINES_TX_TIMEOUT_MS)
                 {
                     ESP_LOGW(TAG, "Transmission timeout reached (%lu ms). Cancelling running transmission.", ALARMLINES_TX_TIMEOUT_MS);
                     timedOut = true;
                     break;
                 }
 
-                // Configure timer for next iteration (except for last packet)
-                if (i < _txRepeat) // Don't (re)start the timer for the last iteration
+                // Constant mode: arm the fixed period *before* the send so the airtime counts
+                // toward it; the wait below then yields the remainder (period - airtime).
+                if (_txTimingMode == TxTimingMode::ConstantPeriod)
                 {
-                    esp_err_t ret = esp_timer_start_once(_timerHandle, _txPeriodUs);
-                    if (ret != ESP_OK)
+                    if (esp_timer_start_once(_timerHandle, ALARMLINES_TX_PERIOD_US) != ESP_OK)
                     {
-                        ESP_LOGE(TAG, "Failed to start TX timer: %s.", esp_err_to_name(ret));
+                        ESP_LOGE(TAG, "Failed to start TX timer.");
                         break;
                     }
                 }
 
-                // Update packet count in transmission buffer (2 bytes, little-endian)
-                *(uint16_t *)&_txBuffer[1] = (uint16_t)_currentPacketCnt;
-
-                // Execute RF packet transmission
-                if (cc1101_send_data(_txBuffer, _txDataLength) != ESP_OK)
-                    ESP_LOGE(pcTaskGetName(0), "Failed to send packet @ iteration %d.", i);
-
-                // Progress packet count for fire alarm sequences
-                _currentPacketCnt = std::max(_currentPacketCnt - _packetCntStep, 0.0f);
+                // Write Remaining-TX-Time = remaining window time (2048 Hz), then transmit.
+                *(uint16_t *)&_txBuffer[1] = remTxFromRemainingUs((uint32_t)remainingUs);
+                if (cc1101_send_data(_txBuffer, _txDataLength) != ESP_OK) // blocks until end-of-packet (airtime)
+                    ESP_LOGE(pcTaskGetName(0), "Failed to send packet @ iteration %d.", i + 1);
 
                 _lastTXLoop = millis();
+                i++;
 
-                // Wait for timer notification before next packet (except last iteration)
-                if (i < _txRepeat) // Don't wait after the last iteration
+                // Pace + yield. Constant mode waits out the fixed period (yielding period - airtime).
+                // Realistic mode runs back-to-back at airtime, with a one-tick (~1 ms) yield so the
+                // busy-polling send loop still lets the idle task run (feeds the task watchdog).
+                if (_txTimingMode == TxTimingMode::ConstantPeriod)
                 {
                     if (ulTaskNotifyTakeIndexed(ALARMLINES_TX_TASK_NOTIFICATION_INDEX, pdTRUE, ALARMLINES_TX_TASK_ITERATION_MAX_WAITING_TICKS) != 1)
                     {
                         ESP_LOGE(TAG, "Failed to receive timer notification @ iteration %d.", i);
+                        esp_timer_stop(_timerHandle);
                         break;
                     }
+                }
+                else // TxTimingMode::Realistic
+                {
+                    vTaskDelay(1); // one scheduler tick (~1 ms @1000 Hz): minimal safe yield
                 }
             }
 
@@ -550,10 +567,7 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
     // Configure transmission parameters based on requested action
     if (action == "line-test-start" || action == "line-test-stop")
     {
-        _txPeriodUs = ALARMLINES_TX_PERIOD_LINETEST_US;
-        _txRepeat = ALARMLINES_TX_NUM_REPEAT_LINETEST;
-        _currentPacketCnt = ALARMLINES_LINETEST_FIRST_PCKTCNT;
-        _packetCntStep = ALARMLINES_LINETEST_PCKTCNT_STEP;
+        _txWindowUs = ALARMLINES_TX_WINDOW_LONG_US;
 
         size_t datalen = std::min(sizeof(_packet_base_linetest), sizeof(_txBuffer));
         memcpy(_txBuffer, _packet_base_linetest, datalen);
@@ -567,10 +581,7 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
     }
     else if (action == "fire-alarm-start" || action == "fire-alarm-stop")
     {
-        _txPeriodUs = ALARMLINES_TX_PERIOD_FIREALARM_US;
-        _txRepeat = ALARMLINES_TX_NUM_REPEAT_FIREALARM;
-        _currentPacketCnt = ALARMLINES_FIREALARM_FIRST_PCKTCNT;
-        _packetCntStep = ALARMLINES_FIREALARM_PCKTCNT_STEP;
+        _txWindowUs = ALARMLINES_TX_WINDOW_LONG_US;
 
         size_t datalen = std::min(sizeof(_packet_base_firealarm), sizeof(_txBuffer));
         memcpy(_txBuffer, _packet_base_firealarm, datalen);
@@ -641,21 +652,17 @@ esp_err_t AlarmLinesService::transmitConfigCheckProbe()
         return ESP_ERR_INVALID_STATE;
     }
 
-    _txPeriodUs = ALARMLINES_TX_PERIOD_CONFIGCHECKPROBE_US;
-    _txRepeat = ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE;
-    _currentPacketCnt = ALARMLINES_CONFIGCHECKPROBE_FIRST_PCKTCNT;
-    _packetCntStep = ALARMLINES_CONFIGCHECKPROBE_PCKTCNT_STEP;
+    _txWindowUs = ALARMLINES_TX_WINDOW_LONG_US;
 
     size_t datalen = std::min(sizeof(_packet_base_configcheckprobe), sizeof(_txBuffer));
     memcpy(_txBuffer, _packet_base_configcheckprobe, datalen);
     _txDataLength = datalen;
 
-    // Sequence number only (offset 23). The Pkt-# (offset 1-2) is written per iteration by the TX
+    // Sequence number only (offset 23). The Remaining-TX-Time field (offset 1-2) is written per iteration by the TX
     // loop. No line-ID write: the probe is wildcard/broadcast, Line-ID stays 0xFFFFFFFF.
     _txBuffer[23] = incPcktSeqNum();
 
-    ESP_LOGI(TAG, "ConfigCheckProbe sweep queued (%d reps, ~%d ms).",
-             ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE, ALARMLINES_CONFIGCHECKPROBE_SWEEP_MS);
+    ESP_LOGI(TAG, "ConfigCheckProbe sweep queued (~%d ms window).", ALARMLINES_CONFIGCHECKPROBE_SWEEP_MS);
 
     if (xSemaphoreGive(_txSemaphore) != pdTRUE)
     {

@@ -73,31 +73,37 @@
 /// Maximum ticks to wait between packet transmission iterations
 #define ALARMLINES_TX_TASK_ITERATION_MAX_WAITING_TICKS pdMS_TO_TICKS(1000) // 1 second
 
-#define ALARMLINES_TX_PERIOD_LINETEST_US 8395    ///< Transmission period for line test packets in microseconds (8.395 ms)
-#define ALARMLINES_TX_NUM_REPEAT_LINETEST 370    ///< Number of line test packet repetitions
-#define ALARMLINES_LINETEST_FIRST_PCKTCNT 0x18CC ///< First packet count value for line test sequence
-#define ALARMLINES_LINETEST_LAST_PCKTCNT 0x0002  ///< Last packet count value for line test sequence
+// --- Repetition timing model (aligned with the genuine radio modules) --------
+// The RM rebroadcasts a message for a fixed *window* and writes the remaining
+// window time into the on-air Remaining-TX-Time field, sampled at 2048 Hz
+// (32768 Hz Timer_B >> 4). It stores neither a repetition count nor a step: each
+// repeat is fired by the CC1101 end-of-packet (GDO) event, so the on-air period
+// is simply the frame airtime. cc1101_send_data() already blocks until
+// end-of-packet, so airtime is emergent - we never compute it.
 
-#define ALARMLINES_LINETEST_PCKTCNT_STEP (float)(ALARMLINES_LINETEST_FIRST_PCKTCNT - ALARMLINES_LINETEST_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_LINETEST - 1) ///< Packet count step size calculation for line test
+#define ALARMLINES_REMTX_TICK_HZ 2048ULL       ///< Remaining-TX-Time tick rate (Timer_B 32768 Hz >> 4)
 
-#define ALARMLINES_TX_PERIOD_FIREALARM_US 9855                                                                                                                              ///< Transmission period for fire alarm packets in microseconds (9.855 ms)
-#define ALARMLINES_TX_NUM_REPEAT_FIREALARM 315                                                                                                                              ///< Number of fire alarm packet repetitions
-#define ALARMLINES_FIREALARM_FIRST_PCKTCNT 0x18CC                                                                                                                           ///< First packet count value for fire alarm sequence
-#define ALARMLINES_FIREALARM_LAST_PCKTCNT 0x000A                                                                                                                            ///< Last packet count value for fire alarm sequence
-#define ALARMLINES_FIREALARM_PCKTCNT_STEP (float)(ALARMLINES_FIREALARM_FIRST_PCKTCNT - ALARMLINES_FIREALARM_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_FIREALARM - 1) ///< Packet count step size calculation for fire alarm
+// Broadcast windows from the RM radio_tx_window table (durations, not counts):
+#define ALARMLINES_TX_WINDOW_LONG_US 3100000   ///< class 0: 0x18CCC ticks @32768 Hz = 3.100 s (alarm / line-test / ConfigCheckProbe)
+#define ALARMLINES_TX_WINDOW_SHORT_US 208500   ///< class 1: 0x1AB0 ticks = 0.2085 s (CommissioningProbe)
 
-/* ConfigCheckProbe (SilentPing) request cadence - matched to a live Genius-Port capture: the burst
- * runs ~3.1 s with the Pkt-# counting down from 6348 (0x18CC) over ~379 reps at ~8.17 ms, then the
- * Port listens; detectors answer after the burst (not during it). Same countdown as the line-test /
- * fire-alarm sweeps. The earlier 427/26-rep values were wrong (class-1 start, ~15x too short). */
-#define ALARMLINES_TX_PERIOD_CONFIGCHECKPROBE_US 8190  ///< Transmission period for ConfigCheckProbe request (~8.19 ms; Port ~8.17 ms)
-#define ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE 379  ///< Repetitions per probe sweep (Port capture: 379 reps ≈ 3.1 s)
-#define ALARMLINES_CONFIGCHECKPROBE_FIRST_PCKTCNT 0x18CC ///< First packet count (6348) — Pkt-# countdown start, per live Port SilentPing capture
-#define ALARMLINES_CONFIGCHECKPROBE_LAST_PCKTCNT 0x0001  ///< Last packet count value (counts down to ~0)
-#define ALARMLINES_CONFIGCHECKPROBE_PCKTCNT_STEP (float)(ALARMLINES_CONFIGCHECKPROBE_FIRST_PCKTCNT - ALARMLINES_CONFIGCHECKPROBE_LAST_PCKTCNT) / (float)(ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE - 1) ///< Packet count step
+// Constant-mode pacing: a fixed period above the longest frame airtime (~9.4 ms),
+// frame-length independent. The esp_timer/notify wait enforces it and yields the
+// remainder of the period each iteration.
+#define ALARMLINES_TX_PERIOD_US 10000          ///< Constant-mode inter-send period (us)
 
-/// Duration of one full ConfigCheckProbe TX sweep, in milliseconds (used to size the response window)
-#define ALARMLINES_CONFIGCHECKPROBE_SWEEP_MS ((ALARMLINES_TX_PERIOD_CONFIGCHECKPROBE_US / 1000) * ALARMLINES_TX_NUM_REPEAT_CONFIGCHECKPROBE)
+// Hard safety cap on repetitions (the RM uses a ~37 s backstop):
+#define ALARMLINES_TX_MAX_REPEAT 600
+
+/// Duration of one full ConfigCheckProbe TX sweep ~ the window (used to size the response window)
+#define ALARMLINES_CONFIGCHECKPROBE_SWEEP_MS (ALARMLINES_TX_WINDOW_LONG_US / 1000)
+
+/// Inter-send pacing mode for alarm-line transmissions (see the TX loop).
+enum class TxTimingMode : uint8_t
+{
+    ConstantPeriod = 0, ///< Fixed safe period (ALARMLINES_TX_PERIOD_US), frame-length independent (default)
+    Realistic = 1,      ///< Airtime-paced like the RMs: back-to-back send + a one-tick (1 ms) safety yield
+};
 
 #define ALARMLINES_EVENT_NEW_LINE "new-alarm-line"                    ///< WebSocket event for new alarm line discovery
 #define ALARMLINES_EVENT_ACTION_STARTED "alarm-line-action-started"   ///< WebSocket event for action start notification
@@ -259,6 +265,11 @@ public:
     /// Initialize the alarm lines service
     void begin();
 
+    /// Select the inter-send pacing mode for alarm-line transmissions.
+    void setTxTimingMode(TxTimingMode mode) { _txTimingMode = mode; }
+    /// Current inter-send pacing mode.
+    TxTimingMode getTxTimingMode() const { return _txTimingMode; }
+
     /// Add a new alarm line to the system
     esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET, bool toFront = false);
 
@@ -312,12 +323,10 @@ private:
     volatile uint32_t _lastTXLoop;              ///< Last transmission loop timestamp
 
     // Transmission configuration
-    uint32_t _txRepeat;                       ///< Number of transmission repetitions
     uint8_t _txBuffer[CC1101_MAX_PACKET_LEN]; ///< Transmission buffer
     size_t _txDataLength;                     ///< Current transmission data length
-    float _packetCntStep;                     ///< Packet count increment step
-    float _currentPacketCnt;                  ///< Current packet count value
-    uint32_t _txPeriodUs;                     ///< Transmission period in microseconds
+    uint32_t _txWindowUs;                     ///< Broadcast window: Remaining-TX-Time countdown span (us)
+    TxTimingMode _txTimingMode;               ///< Inter-send pacing mode (default ConstantPeriod)
 
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client instance (not owned)
