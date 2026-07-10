@@ -11,6 +11,7 @@
 	import IconRetry from '~icons/tabler/reload';
 	import IconEdit from '~icons/tabler/pencil';
 	import IconCancel from '~icons/tabler/x';
+	import IconTest from '~icons/tabler/plug-connected';
 	import type { CC1101ProbeResult } from '$lib/types/models';
 
 	interface Props extends ModalProps {
@@ -69,7 +70,9 @@
 		<div
 			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex min-w-fit max-w-md flex-col p-4 shadow-lg md:w-[28rem]"
 		>
-			<h2 id={titleId} class="text-base-content text-start text-2xl font-bold">Test wiring</h2>
+			<h2 class="text-base-content flex items-center gap-2 text-start text-2xl font-bold" id={titleId}>
+				<IconTest class="text-primary h-7 w-7 flex-shrink-0" />Test wiring
+			</h2>
 			<div class="divider my-2"></div>
 
 			{#if testing}

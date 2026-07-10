@@ -14,6 +14,7 @@
 	import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 	import DetailRow from './DetailRow.svelte';
 	import Cancel from '~icons/tabler/x';
+	import IconListDetails from '~icons/tabler/list-details';
 	import Microphone from '~icons/tabler/microphone';
 	import MicrophoneOff from '~icons/tabler/microphone-off';
 	import CalendarExclamation from '~icons/tabler/calendar-exclamation';
@@ -179,7 +180,9 @@
 			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex w-full max-w-lg flex-col justify-between p-4 shadow-lg"
 		>
 			<div class="flex items-center justify-between">
-				<h2 id={titleId} class="text-base-content text-2xl font-bold">{title}</h2>
+				<h2 id={titleId} class="text-base-content flex items-center gap-2 text-2xl font-bold">
+					<IconListDetails class="text-primary h-7 w-7 flex-shrink-0" />{title}
+				</h2>
 				<button
 					class="btn btn-ghost btn-circle btn-sm"
 					aria-label="Close"

@@ -51,6 +51,8 @@
 	import { matchAcousticResult, matchAcousticUpdate } from './acousticMatch';
 	import DeleteAll from '~icons/tabler/trash-x';
 	import Add from '~icons/tabler/circle-plus';
+	import Edit from '~icons/tabler/pencil';
+	import Replace from '~icons/tabler/replace';
 	import SmokeDetector from '~icons/custom-icons/smoke-detector-m';
 	import Cancel from '~icons/tabler/x';
 	import ClipboardList from '~icons/tabler/clipboard-list';
@@ -331,6 +333,7 @@
 	function handleEdit(index: number) {
 		modals.open(EditSmokeDetector, {
 			title: 'Edit smoke detector',
+			titleIcon: Edit,
 			//geniusDevice: { ...geniusDevices.devices[index] }, // Shallow Copy
 			geniusDevice: $state.snapshot(geniusDevices.devices[index]), // Deep copy
 			onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
@@ -344,6 +347,7 @@
 	function handleNewGeniusDevice() {
 		modals.open(EditSmokeDetector, {
 			title: 'Add smoke detector',
+			titleIcon: Add,
 			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
 				await apiPutDevice(newGeniusDevice);
 				modals.close();
@@ -478,6 +482,7 @@
 		};
 		modals.open(EditSmokeDetector, {
 			title: 'Add discovered device',
+			titleIcon: Add,
 			geniusDevice: device,
 			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
 				const saved = await apiPutDevice(newGeniusDevice);
@@ -682,6 +687,7 @@
 		}
 		modals.open(EditAlarmLine, {
 			title: 'Add alarm line',
+			titleIcon: Add,
 			existingAlarmLines: alarmLines.lines,
 			alarmLine: {
 				id: lineId,
@@ -843,6 +849,7 @@
 						modals.close();
 						modals.open(EditSmokeDetector, {
 							title: 'Replace smoke detector',
+							titleIcon: Replace,
 							geniusDevice: newDevice,
 							saveButtonLabel: 'Replace',
 							onSaveGeniusDevice: async (editedDevice: GeniusDevice) => {
@@ -887,6 +894,7 @@
 	function acousticAddNew(device: GeniusDevice, saveButtonLabel: string = 'Add', idsToDeleteFirst: number[] = []) {
 		modals.open(EditSmokeDetector, {
 			title: 'Add smoke detector',
+			titleIcon: Add,
 			geniusDevice: device,
 			saveButtonLabel,
 			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {

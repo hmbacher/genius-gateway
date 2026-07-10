@@ -248,6 +248,7 @@
 	function handleEdit(index: number) {
 		modals.open(EditAlarmLine, {
 			title: 'Edit alarm line',
+			titleIcon: Edit,
 			alarmLine: $state.snapshot(alarmLines.lines[index]), // Deep copy
 			existingAlarmLines: alarmLines.lines,
 			onSaveAlarmLine: (editedAlarmLine: AlarmLine) => {
@@ -261,6 +262,7 @@
 	function handleNewAlarmLine() {
 		modals.open(EditAlarmLine, {
 			title: 'Add alarm line',
+			titleIcon: Add,
 			existingAlarmLines: alarmLines.lines,
 			onSaveAlarmLine: (newAlarmLine: AlarmLine) => {
 				alarmLines.lines = [...alarmLines.lines, newAlarmLine];

@@ -184,6 +184,7 @@
 	function handleNewNetwork(ssid?: string) {
 		modals.open(EditNetwork, {
 			title: 'Add network',
+			titleIcon: Add,
 			networkEditable: {
 				ssid: ssid || '',
 				password: '',
@@ -204,6 +205,7 @@
 	function handleEdit(index: number) {
 		modals.open(EditNetwork, {
 			title: 'Edit network',
+			titleIcon: Edit,
 			networkEditable: $state.snapshot(wifi_networks[index]),
 			onSaveNetwork: async (editedNetwork: KnownNetworkItem) => {
 				wifi_networks[index] = editedNetwork;

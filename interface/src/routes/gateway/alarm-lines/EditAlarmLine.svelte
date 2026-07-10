@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { modals, type ModalProps } from 'svelte-modals';
+	import type { Component } from 'svelte';
 	import type { Action } from 'svelte/action';
 	import { fly } from 'svelte/transition';
 	import type { AlarmLine } from '$lib/types/models';
@@ -8,10 +9,6 @@
 	import { inRange, hasLength } from '$lib/utils/validators';
 	import Cancel from '~icons/tabler/x';
 	import Save from '~icons/tabler/device-floppy';
-	import Manual from '~icons/tabler/forms';
-	import Automatic from '~icons/tabler/access-point';
-	import Microphone from '~icons/tabler/microphone';
-	import Radar from '~icons/tabler/radar';
 
 	// provided by <Modals />
 
@@ -20,6 +17,7 @@
 		existingAlarmLines: AlarmLine[];
 		onSaveAlarmLine: any;
 		alarmLine?: AlarmLine;
+		titleIcon?: Component<{ class?: string }>;
 	}
 
 	let {
@@ -27,6 +25,7 @@
 		title,
 		onSaveAlarmLine,
 		existingAlarmLines,
+		titleIcon: TitleIcon,
 		alarmLine: _alarmLine = {
 			id: 0,
 			name: '',
@@ -65,17 +64,6 @@
 					: null
 	);
 
-	/** Icon for the line's acquisition source - matches the icons used in the alarm-lines list. */
-	const AcquisitionIcon = $derived(
-		alarmLine.acquisition === AlarmLineAcquisition.GeniusPacket
-			? Automatic
-			: alarmLine.acquisition === AlarmLineAcquisition.Acoustic
-				? Microphone
-				: alarmLine.acquisition === AlarmLineAcquisition.SignalProbe
-					? Radar
-					: Manual
-	);
-
 	const focus: Action = (node) => {
 		// the node has been mounted in the DOM
 		node.focus();
@@ -99,7 +87,7 @@
 				id={titleId}
 				class="text-base-content flex items-center gap-2 text-start text-2xl font-bold"
 			>
-				<AcquisitionIcon class="text-primary h-7 w-7 flex-shrink-0" />{title}
+				{#if TitleIcon}<TitleIcon class="text-primary h-7 w-7 flex-shrink-0" />{/if}{title}
 			</h2>
 			<div class="divider my-2"></div>
 			<form

@@ -8,6 +8,7 @@
 	import AP from '~icons/tabler/access-point';
 	import Cancel from '~icons/tabler/x';
 	import Reload from '~icons/tabler/reload';
+	import Radar from '~icons/tabler/radar-2';
 	import { onMount, onDestroy } from 'svelte';
 	import RssiIndicator from '$lib/components/RSSIIndicator.svelte';
 	import type { NetworkItem } from '$lib/types/models';
@@ -100,7 +101,9 @@
 		<div
 			class="bg-base-100 shadow-secondary/30 rounded-box pointer-events-auto flex max-h-full min-w-fit max-w-md flex-col justify-between p-4 shadow-lg"
 		>
-			<h2 class="text-base-content text-start text-2xl font-bold">Scan Networks</h2>
+			<h2 class="text-base-content flex items-center gap-2 text-start text-2xl font-bold">
+				<Radar class="text-primary h-7 w-7 flex-shrink-0" />Scan Networks
+			</h2>
 			<div class="divider my-2"></div>
 			<div class="overflow-y-auto">
 				{#if scanActive}<div class="bg-base-100 flex flex-col items-center justify-center p-6">

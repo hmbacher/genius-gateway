@@ -128,6 +128,7 @@
 	function handleEdit(index: number) {
 		modals.open(EditUser, {
 			title: 'Edit User',
+			titleIcon: Edit,
 			user: { ...users[index] },
 			onSaveUser: (editedUser: userSetting) => {
 				users[index] = editedUser;
@@ -140,6 +141,7 @@
 	function handleNewUser() {
 		modals.open(EditUser, {
 			title: 'Add User',
+			titleIcon: AddUser,
 			onSaveUser: (newUser: userSetting) => {
 				users = [...users, newUser];
 				modals.close();
