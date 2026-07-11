@@ -502,6 +502,7 @@
 				probing = true;
 			} else if (evt.phase === 'cancelled') {
 				probing = false;
+				notifications.info('Signal probe cancelled', 5000);
 			} else if (evt.phase === 'done') {
 				probing = false;
 				refreshDevices();

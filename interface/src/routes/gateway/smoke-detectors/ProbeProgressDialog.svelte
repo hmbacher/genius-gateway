@@ -1,18 +1,20 @@
 <script lang="ts">
 	import { modals, onBeforeClose, type ModalProps } from 'svelte-modals';
 	import { focusTrap } from 'svelte-focus-trap';
-	import { fly } from 'svelte/transition';
+	import { fly, slide } from 'svelte/transition';
 	import type { ConfigCheckResponder, ConfigCheckProbeEvent } from '$lib/types/models';
 	import { socket } from '$lib/stores/socket';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import SignalIndicator from './SignalIndicator.svelte';
 	import Radar from '~icons/tabler/radar';
+	import RadarSweep from '~icons/tabler/radar-2';
 	import Add from '~icons/tabler/circle-plus';
 	import Close from '~icons/tabler/x';
 	import Check from '~icons/tabler/check';
 	import Stop from '~icons/tabler/player-stop';
 	import IconHash from '~icons/tabler/hash';
 	import IconNumber from '~icons/tabler/number';
+	import ChevronDown from '~icons/tabler/chevron-down';
 
 	interface Props extends ModalProps {
 		title: string;
@@ -126,6 +128,11 @@
 
 	const knownList = $derived([...heard.values()].filter((h) => h.known));
 	const unknownList = $derived([...heard.values()].filter((h) => !h.known));
+
+	// Section collapse state - both start expanded; collapsing is opt-in. Kept as its own state
+	// (independent of the derived lists) so a toggle survives the live WS updates below.
+	let knownOpen = $state(true);
+	let unknownOpen = $state(true);
 
 	type LineGroup = { lineId: number; items: Heard[] };
 	/** Bucket responders by their alarm Line-ID (writing the line once per group instead of per row),
@@ -280,86 +287,134 @@
 				<!-- Registered devices (known) - grouped at the top; only shown when at least one responded -->
 				{#if knownList.length > 0}
 					<div>
-						<div class="text-base-content/60 mb-2 text-xs font-semibold tracking-wide uppercase">
+						<button
+							type="button"
+							class="text-base-content/60 hover:text-base-content flex w-full cursor-pointer items-center gap-1.5 text-start text-xs font-semibold tracking-wide uppercase"
+							class:mb-2={knownOpen}
+							onclick={() => (knownOpen = !knownOpen)}
+							aria-expanded={knownOpen}
+						>
+							<ChevronDown
+								class="h-3.5 w-3.5 transition-transform {knownOpen ? '' : '-rotate-90'}"
+							/>
 							Already registered devices ({knownList.length})
-						</div>
-						<div class="flex flex-col gap-3">
-							{#each knownGroups as g (g.lineId)}
-								<div>
-									{@render lineHeader(g.lineId)}
-									<ul class="flex flex-col gap-2">
-										{#each g.items as h (h.r.sn)}
-											{@const loc = locationFor(h.r.sn)}
-											<li class="rounded-box bg-base-200 flex items-center gap-3 p-2">
-												<div class="flex min-w-0 flex-1 items-center gap-2">
-													<span
-														class="truncate text-sm font-bold {loc ? '' : 'text-base-content/70 italic'}"
-													>
-														{loc ?? 'Unknown location'}
-													</span>
-													<span
-														class="text-base-content/60 flex flex-shrink-0 items-center gap-0.5 font-mono text-sm"
-													>
-														<IconNumber class="h-3.5 w-3.5" />{dec(h.r.sn)}
-													</span>
-												</div>
-												<SignalIndicator rssi={h.r.rssi} lastRangeTest={h.at} />
-											</li>
-										{/each}
-									</ul>
-								</div>
-							{/each}
-						</div>
+						</button>
+						{#if knownOpen}
+							<div class="flex flex-col gap-3" transition:slide={{ duration: 200 }}>
+								{#each knownGroups as g (g.lineId)}
+									<div>
+										{@render lineHeader(g.lineId)}
+										<ul class="flex flex-col gap-2">
+											{#each g.items as h (h.r.sn)}
+												{@const loc = locationFor(h.r.sn)}
+												<li class="rounded-box bg-base-200 flex items-center gap-3 p-2">
+													<div class="flex min-w-0 flex-1 items-center gap-2">
+														<span
+															class="truncate text-sm font-bold {loc ? '' : 'text-base-content/70 italic'}"
+														>
+															{loc ?? 'Unknown location'}
+														</span>
+														<span
+															class="text-base-content/60 flex flex-shrink-0 items-center gap-0.5 font-mono text-sm"
+														>
+															<IconNumber class="h-3.5 w-3.5" />{dec(h.r.sn)}
+														</span>
+													</div>
+													<SignalIndicator rssi={h.r.rssi} lastRangeTest={h.at} />
+												</li>
+											{/each}
+										</ul>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				{/if}
 
 				<!-- New nearby modules (unknown) - grouped below, with one-click add; only when non-empty -->
 				{#if unknownList.length > 0}
 					<div>
-						<div class="text-base-content/60 mb-2 text-xs font-semibold tracking-wide uppercase">
+						<button
+							type="button"
+							class="text-base-content/60 hover:text-base-content flex w-full cursor-pointer items-center gap-1.5 text-start text-xs font-semibold tracking-wide uppercase"
+							class:mb-2={unknownOpen}
+							onclick={() => (unknownOpen = !unknownOpen)}
+							aria-expanded={unknownOpen}
+						>
+							<ChevronDown
+								class="h-3.5 w-3.5 transition-transform {unknownOpen ? '' : '-rotate-90'}"
+							/>
 							New nearby devices ({unknownList.length})
-						</div>
-						<div class="flex flex-col gap-3">
-							{#each unknownGroups as g (g.lineId)}
-								<div>
-									{@render lineHeader(g.lineId)}
-									<ul class="flex flex-col gap-2">
-										{#each g.items as h (h.r.sn)}
-											<li class="rounded-box bg-base-200 flex items-center gap-3 p-2">
-												<span
-													class="text-base-content flex min-w-0 flex-1 items-center gap-0.5 font-mono text-sm font-medium"
-												>
-													<IconNumber class="h-4 w-4 flex-shrink-0" />{dec(h.r.sn)}
-												</span>
-												<SignalIndicator rssi={h.r.rssi} lastRangeTest={h.at} />
-												{#if added.has(h.r.sn >>> 0)}
-													<button class="btn btn-ghost gap-1 text-success" disabled>
-														<Check class="h-5 w-5" /> Added
-													</button>
-												{:else}
-													<button
-														class="btn btn-secondary gap-1"
-														onclick={() => addDevice(h.r)}
-														disabled={!done}
-														title={done ? undefined : 'Stop probing to add this detector'}
+						</button>
+						{#if unknownOpen}
+							<div class="flex flex-col gap-3" transition:slide={{ duration: 200 }}>
+								{#each unknownGroups as g (g.lineId)}
+									<div>
+										{@render lineHeader(g.lineId)}
+										<ul class="flex flex-col gap-2">
+											{#each g.items as h (h.r.sn)}
+												<li class="rounded-box bg-base-200 flex items-center gap-3 p-2">
+													<span
+														class="text-base-content flex min-w-0 flex-1 items-center gap-0.5 font-mono text-sm font-medium"
 													>
-														<Add class="h-5 w-5" /> Add
-													</button>
-												{/if}
-											</li>
-										{/each}
-									</ul>
-								</div>
-							{/each}
-						</div>
+														<IconNumber class="h-4 w-4 flex-shrink-0" />{dec(h.r.sn)}
+													</span>
+													<SignalIndicator rssi={h.r.rssi} lastRangeTest={h.at} />
+													{#if added.has(h.r.sn >>> 0)}
+														<button class="btn btn-ghost gap-1 text-success" disabled>
+															<Check class="h-5 w-5" /> Added
+														</button>
+													{:else}
+														<button
+															class="btn btn-secondary gap-1"
+															onclick={() => addDevice(h.r)}
+															disabled={!done}
+															title={done ? undefined : 'Stop probing to add this detector'}
+														>
+															<Add class="h-5 w-5" /> Add
+														</button>
+													{/if}
+												</li>
+											{/each}
+										</ul>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				{/if}
 
-				<!-- Nothing to show yet: single placeholder while listening / when no one answered -->
+				<!-- Nothing to show yet: while probing, a rotating radar sweep stands in as the
+				     central "listening" element (mirrors the acoustic dialog's live mic); once done
+				     with no answers, fall back to a plain message. -->
 				{#if knownList.length === 0 && unknownList.length === 0}
-					<div class="text-base-content/50 py-6 text-center text-sm italic">
-						{done ? 'No modules responded.' : 'Listening…'}
-					</div>
+					{#if done}
+						<div class="text-base-content/50 py-6 text-center text-sm italic">
+							No modules responded.
+						</div>
+					{:else}
+						<div
+							class="flex flex-col items-center justify-center gap-4 py-6"
+							role="status"
+							aria-live="polite"
+						>
+							<div class="relative flex h-32 w-32 items-center justify-center">
+								<!-- Radar pulses out from a static, muted dish. inset-8 keeps the fully
+								     expanded ring (animate-ping scales to 2×) within this box, so it is
+								     never clipped by the surrounding scroll area while still visible. -->
+								<div
+									class="border-primary/40 absolute inset-8 animate-ping rounded-full border motion-reduce:hidden"
+									style="animation-duration: 2s"
+								></div>
+								<div
+									class="border-primary/40 absolute inset-8 animate-ping rounded-full border motion-reduce:hidden"
+									style="animation-duration: 2s; animation-delay: -1s"
+								></div>
+								<RadarSweep class="h-16 w-16 text-slate-400 dark:text-slate-500" />
+							</div>
+							<p class="text-base-content/60 text-sm">Listening for modules…</p>
+						</div>
+					{/if}
 				{/if}
 			</div>
 
