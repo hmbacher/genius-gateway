@@ -45,6 +45,8 @@ Acoustic readout status icon:
 - :tabler-calendar-exclamation:{ style="color: #f44336" } - Last readout is more than 1 year ago
 - :tabler-microphone-off:{ style="color: #f44336" } - No acoustic readout performed yet
 
+When the device has a radio module, a :tabler-wifi: signal-strength icon also appears here, showing its direct-link quality from the last [Signal Probe Discovery](#signal-probe-discovery).
+
 #### Manage
 Action buttons for device operations:
 
@@ -188,6 +190,49 @@ Fields that were read from the acoustic signal (model, serial number, production
 
 !!! info "Acoustic readout signal details"
     See [Acoustic Readout](../reverse-engineering/acoustic-readout.md) in the Reverse Engineering section for a description of the signal modulation, framing, and payload format.
+
+## Signal Probe Discovery
+
+The gateway can actively **survey which radio modules are within direct radio range** and how strong their link is - and register any new ones it finds. It broadcasts a [ConfigCheckProbe](../reverse-engineering/protocol-analysis.md#configcheckprobe) direct-range reachability probe that every directly reachable module answers once, reporting its radio-module serial number, alarm line ID, and signal strength (RSSI). The probe is **not relayed** through the mesh, so only modules the gateway hears *directly* respond.
+
+![Signal Probe Dialog (Running)](../assets/images/software/gg-gateway-devices-signal-probe-running.png)
+
+!!! tip "What it is useful for"
+    Installation and diagnostics: check which module is directly reachable, compare signal strength across the property, and discover modules in direct range that are not yet registered - including neighbouring installations on other alarm lines.
+
+### Running a survey
+
+1. Click the :tabler-radar: **Discover directly reachable detectors** button in the top-right toolbar
+2. A **Signal probe** progress dialog opens and fills in live as modules answer. The whole survey takes about a minute
+3. Responders are grouped as they arrive:
+    - **Known devices** - modules already in your device list; their signal strength and range-test timestamp get recorded
+    - **New nearby** - modules that answered but are not yet registered (discovered devices)
+4. While the survey is running, you can:
+    - :tabler-player-stop: **Stop probing** - finish early but keep everything heard so far
+    - **Cancel** - abort and discard the survey
+5. After the survey finishes (or after stopping it) you can:  
+    
+    ![Signal Probe Dialog (New Nearby Devices)](../assets/images/software/gg-gateway-devices-signal-probe-adds.png)
+
+    - :tabler-circle-plus: **Add** a *new nearby* module as a device - opens the [Adding a New Detector](#adding-a-new-detector) dialog pre-filled with the radio-module serial number
+    - :tabler-circle-plus: **Add alarm line** for a line ID that showed up but is not configured yet - opens the [Adding a New Alarm Line](./alarm-lines-management.md#adding-a-new-alarm-line) dialog with the ID locked and its acquisition source set to :tabler-radar: *SignalProbe*
+
+6. On completion a summary notification reports how many modules responded, how many known devices were updated, and how many new nearby modules were found; the device list refreshes so the new readings appear
+
+### Signal strength indicator
+
+Each device with a radio module shows a signal icon in the **Service** column reflecting its last range test:
+
+| Icon | State | Meaning |
+|------|-------|---------|
+| :tabler-wifi:{ style="color: #4caf50" } (0-3 bars) | **Reached** | Heard directly. Bars and tooltip show quality (with the exact dBm and test date):<br><ul><li>Excellent (≥ -60 dBm)</li><li>Good (≥ -70 dBm)</li><li>Fair (≥ -80 dBm)</li><li>Weak (below)</li></ul> |
+| :tabler-wifi-off: | **Out of range** | Included in a survey but did not answer directly |
+| :tabler-radar-off: | **Not tested** | Never included in a range test yet |
+
+The measured signal and last range-test date also appear in the [Device Details](#viewing-device-details) dialog and in the [PDF report](#generating-a-pdf-report) (Direct Link / Range Test section).
+
+!!! info "Probe protocol details"
+    See [ConfigCheckProbe](../reverse-engineering/protocol-analysis.md#configcheckprobe) in the Reverse Engineering section for the on-air request/response framing and repetition behaviour.
 
 ## Viewing Device Details
 
