@@ -174,11 +174,29 @@ To restore alarm lines from a previously exported file:
 
 ## Alarm Line Actions
 
-Each alarm line supports several test and diagnostic actions. These actions transmit RF commands to all smoke detectors configured for that alarm line.
+Each alarm line supports several commissioning, test and diagnostic actions. These actions transmit RF commands to all smoke detectors configured for that alarm line.
 
 !!! info "Action Behavior"
     - Only one action can be triggered at a time across all alarm lines
     - While the Genius Gateway is actively transmitting RF packets for the triggered action, a spinner icon is shown 
+
+### :tabler-plug-connected: Start Commissioning
+
+Starts the wireless commissioning (*Funk-Inbetriebnahme*) procedure for the selected alarm line. The gateway broadcasts the [Alarm Line Commissioning](../reverse-engineering/protocol-analysis.md#alarm-line-commissioning) packet (`0x03`) carrying the line's ID — over RF this does the same thing as mounting a smoke detector whose radio-module button has been held for several seconds.
+
+Every smoke detector **already assigned to this alarm line** then enters commissioning mode for about **15 minutes**, signalling with a triple-tone and green blinking of the test button every 8 seconds. During this window you can add or re-enrol detectors following the procedure in the Hekatron *Funkmodul Basis X / Pro X* manual (unmount the detector, press and hold the radio-module button until its LED is steady, re-mount it, and confirm each detector with its test button).
+
+!!! warning "Acoustic signalling"
+    Starting commissioning makes **all detectors already on the line** beep (triple-tone) and blink for up to 15 minutes. Trigger it only when you actually intend to commission the line.
+
+!!! note "No separate stop action"
+    Commissioning mode is a receiver-side timer on the detectors and ends on its own after ~15 minutes. There is no gateway "stop commissioning" action, because the underlying radio protocol has no corresponding stop frame. This action is unavailable for the *Broadcast* line.
+
+1. Click the :tabler-plug-connected: **Start commissioning** button
+2. A confirmation dialog appears
+3. Click **Yes** to proceed
+4. The gateway transmits the commissioning packet [repetitively](../reverse-engineering/protocol-analysis.md#repetition) via RF
+5. The button displays a spinner while RF transmission is in progress
 
 ### :tabler-location: Start Line Test
 

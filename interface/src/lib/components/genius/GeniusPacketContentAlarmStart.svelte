@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Packet, AlarmStartInfo } from '$lib/types/models';
+	import { entityStyleSuffix } from '$lib/genius/entity';
 	import GeniusPacketContentHeader from './GeniusPacketContentHeader.svelte';
 	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
 	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
@@ -34,7 +35,7 @@
 		icon: IconDetector,
 		text: (packet.specificInfo as AlarmStartInfo)?.startingLocation,
 		type: 'serialnumber-smokedetector'.concat(
-			(packet.specificInfo as AlarmStartInfo)?.startingLocation === 'Unknown' ? '-unknown' : ''
+			entityStyleSuffix((packet.specificInfo as AlarmStartInfo)?.startingLocation)
 		)
 	}}
 />

@@ -7,6 +7,7 @@
 		AlarmStopInfo
 	} from '$lib/types/models';
 	import { PacketTypeNames } from '$lib/types/models';
+	import { entityStyleSuffix } from '$lib/genius/entity';
 	import IconWifi from '~icons/tabler/wifi';
 	import IconHops from '~icons/tabler/arrow-forward-up';
 	import IconClock from '~icons/tabler/clock';
@@ -24,7 +25,7 @@
 	let typeName = $derived(packet.type?.name);
 
 	function chipClass(value: string | undefined, base: string): string {
-		return value === 'Unknown' ? `summary-chip ${base}-unknown` : `summary-chip ${base}`;
+		return `summary-chip ${base}${entityStyleSuffix(value)}`;
 	}
 </script>
 
@@ -107,6 +108,10 @@
 
 	span.chip-radio-unknown {
 		@apply bg-red-200 dark:bg-red-900;
+	}
+
+	span.chip-radio-gateway {
+		@apply bg-cyan-600 text-white dark:text-white;
 	}
 
 	span.chip-line {

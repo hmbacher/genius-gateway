@@ -91,7 +91,7 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 | 18-21 | 4 | `XX XX XX XX`<br>*big endian* | Line-ID | The alarm line ID that this packet should affect.<br>Special IDs:<br>- `00 00 00 00 (0)`: The radio module is not (yet) assigned to any alarm line.<br>- `FF FF FF FF` (4294967295): Broadcast (all alarm lines) |
 | 22 | 1 | `0x0F - 0x00`<br>(`15 - 0`) | Hops | This appears to be a hop counter for forwarded packets, tracking the number of times the packet has been retransmitted. The original packet always contains `0x0F`, which is reduced to `0x0E` after the first forwarding. This suggests that the field is decremented by one with each subsequent forwarding. |
 | 23 | 1 | `XX` | | Sequence number - changes from one originated packet to the next. |
-| 24 | 1 | `XX` | | Flags. |
+| 24 | 1 | `XX` | Flags | Bit-fields: `(type & 3) << 5 \| (relay & 1) << 4 \| (fwd_class & 3) << 2 \| (flag01 & 3)`.<br>Only the **forward-class** (bits 2-3) and **flag01** (bits 0-1, `1` for commissioning and `0` for every other frame) vary; the **type** (bits 5-6) and **relay** (bit 4) fields carry a constant `0x40` (type = 2, relay = 0) on the captured firmware. Observed values: **Alarm Line Commissioning `0x45`**, Line Test / Alarming `0x48`, ConfigCheckProbe `0x40`. |
 | 25 | 1 | `0x00` | | Unknown, seems to be constant |
 | 26 | 1 | `XX` | | First byte of the message body - a **family marker**: `0x55` = ConfigCheckProbe, `0x66` = CommissioningProbe / Line test, `0x00` = alarm. The [message‑type](#message-type-byte) subtype follows at offset 27. |
 
@@ -184,16 +184,15 @@ When commissioning is initiated via a new radio module (i.e., not yet assigned t
 The principle by which new alarm line IDs are generated is not fully understood.
 
 !!! note "Commissioning eligibility is line-ID-state based, not group/line - firmware-confirmed"
-    Verified against the FM Basis X firmware RE (`commission_init` @0xC0E8, `commissioning_sm`
-    @0x95C4, the reception scope check in `mesh.c`), the decision to join a line during
-    commissioning is made **solely from stored line-ID state**:
+    Verified against the FM Basis X firmware reverse-engineering, the decision to join a line
+    during commissioning is made **solely from stored line-ID state**:
 
     - an **unassigned** module (`Line-ID == 0`) adopts the broadcast `New Line-ID` regardless of
       its own group/line - the scope test is `our_line == 0 || rx_line == our_line || rx_line == 0xFFFFFFFF`;
     - an **assigned** module reacts only to frames on its own line-ID.
 
-    The device's **group/line is metadata only**: it is collected by `commission_collect` (@0xC794,
-    *"device group/line + time"*), carried in the `0x03` payload, and written into the peer node
+    The device's **group/line is metadata only**: it is collected by the radio module, carried in
+    the `0x03` payload, and written into the peer node
     record - but it is **never compared to gate membership**. Consequence: several uncommissioned
     modules with *different* group/line labels (e.g. `C.3` and `D.2`) commissioned together all
     land on the **same** line-ID. Group/line therefore must **not** be used as a line key - always
@@ -209,7 +208,7 @@ The principle by which new alarm line IDs are generated is not fully understood.
 
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |    28-31    | 32 | 33 | 34 | 35 | 36 |
-Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | XX | 03 | XX XX XX XX | XX | XX | XX | 00 | 00 |
+Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | 45 | 00 | 66 | 03 | XX XX XX XX | XX | XX | XX | 00 | 00 |
 Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        | New Line-ID | Ho | Mi | Se |         |
 ```
 

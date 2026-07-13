@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Packet, CommissioningProbeResponseInfo } from '$lib/types/models';
+	import { entityStyleSuffix } from '$lib/genius/entity';
 	import GeniusPacketContentHeader from './GeniusPacketContentHeader.svelte';
 	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
 	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
@@ -23,7 +24,7 @@
 		icon: IconWifi,
 		text: (packet.specificInfo as CommissioningProbeResponseInfo)?.requestingLocation,
 		type: 'serialnumber-radiomodule'.concat(
-			(packet.specificInfo as CommissioningProbeResponseInfo)?.requestingLocation === 'Unknown' ? '-unknown' : ''
+			entityStyleSuffix((packet.specificInfo as CommissioningProbeResponseInfo)?.requestingLocation)
 		)
 	}}
 />

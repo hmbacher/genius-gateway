@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Packet } from '$lib/types/models';
+	import { entityStyleSuffix } from '$lib/genius/entity';
 	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
 	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
 	import IconWifi from '~icons/tabler/wifi';
@@ -33,9 +34,7 @@
 	details={{
 		icon: IconWifi,
 		text: packet.generalInfo?.firstLocation,
-		type: 'serialnumber-radiomodule'.concat(
-			packet.generalInfo?.firstLocation === 'Unknown' ? '-unknown' : ''
-		)
+		type: 'serialnumber-radiomodule'.concat(entityStyleSuffix(packet.generalInfo?.firstLocation))
 	}}
 />
 <GeniusPacketDataBlock {showDetails} data={packet.data.subarray(13, 14)} />
@@ -46,9 +45,7 @@
 	details={{
 		icon: IconWifi,
 		text: packet.generalInfo?.secondLocation,
-		type: 'serialnumber-radiomodule'.concat(
-			packet.generalInfo?.secondLocation === 'Unknown' ? '-unknown' : ''
-		)
+		type: 'serialnumber-radiomodule'.concat(entityStyleSuffix(packet.generalInfo?.secondLocation))
 	}}
 />
 <GeniusPacketDataBlock

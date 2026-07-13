@@ -299,6 +299,7 @@ private:
     static const uint8_t _packet_base_linetest[];  ///< Base packet template for line test transmissions
     static const uint8_t _packet_base_firealarm[]; ///< Base packet template for fire alarm transmissions
     static const uint8_t _packet_base_configcheckprobe[]; ///< Base packet template for ConfigCheckProbe request
+    static const uint8_t _packet_base_commissioning[];    ///< Base packet template for Alarm-Line Commissioning (start)
     uint8_t _packet_sequence_number;               ///< Current packet sequence number (persisted in NVS)
 
     // ========== Member Variables ==========
@@ -397,11 +398,11 @@ private:
     // ========== MQTT / HA Publishing ==========
 
     /**
-     * @brief Add a HA sub-device for a single alarm line (4 buttons + 1 sensor).
+     * @brief Add a HA sub-device for a single alarm line (5 buttons + 1 sensor).
      *
-     * Creates an HADevice with identity "genius-alarmline-{lineId}", registers 4
-     * HAButton entities (line-test start/stop, fire-alarm start/stop) and one
-     * HASensor for the current transmission state, then calls
+     * Creates an HADevice with identity "genius-alarmline-{lineId}", registers 5
+     * HAButton entities (line-test start/stop, fire-alarm start/stop, commissioning
+     * start) and one HASensor for the current transmission state, then calls
      * HAService::addSubDevice(). Idempotent - no-op if the device is already
      * registered.
      *

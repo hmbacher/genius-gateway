@@ -107,6 +107,39 @@ const uint8_t AlarmLinesService::_packet_base_configcheckprobe[] = {
     0x55,                   // Family marker (#26): 0x55 (ConfigCheckProbe family)
     0x06};                  // Message type (#27): 0x06 = ConfigCheckProbe request
 
+/// Base packet template for the Alarm-Line Commissioning frame (0x03), broadcast to start
+/// commissioning on a line. A genuine master radio module emits this on being mounted after a
+/// long button-press; every detector already on the target Line-ID then enters a ~15 min
+/// commissioning/ready mode (triple-tone + green blink every 8 s), letting the installer (re)enrol
+/// detectors. Wire layout per docs/reverse-engineering/protocol-analysis.md#alarm-line-commissioning,
+/// confirmed against on-air captures. 37 bytes total.
+/// The TX loop writes Remaining-TX-Time (#1-2); _triggerAction writes Line-ID (#18-21), sequence
+/// number (#23), New Line-ID (#28-31) and the current time (#32-34).
+const uint8_t AlarmLinesService::_packet_base_commissioning[] = {
+    0x02,
+    0x00, 0x00, // Remaining-TX-Time (#1-2), set per-iteration by the TX loop
+    0x00,       // Addr-mode (#3)
+    0xFF, 0xFF, 0xFF, 0xFF, // Dest SN (#4-7): broadcast
+    0x00,
+    0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator (#9-12) = Gateway (0xFFFFFFFE)
+    0x00,
+    0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, forwarder (#14-17) = Gateway (0xFFFFFFFE)
+    0x00, 0x00, 0x00, 0x00, // Line-ID (#18-21): set to the selected line
+    0x0F,                   // Hops (#22): fresh (0 hops traversed)
+    0x00,                   // Packet sequence number (#23), set at TX
+    0x45,                   // Flags (#24). Bit-fields: (type&3)<<5 | (relay&1)<<4 | (fwd_class&3)<<2 |
+                            // (low2&3). Commissioning uses fwd_class=1 (STRICT, forwarded in-scope) and
+                            // low2=1 -> low nibble 0x05; type=2/relay=0 give the high nibble 0x40.
+                            // 0x40 | 0x04 | 0x01 = 0x45. Matches a real on-air capture.
+    0x00,                   // Constant (#25)
+    0x66,                   // Family marker (#26): 0x66 (commissioning / line-test family)
+    0x03,                   // Message type (#27): 0x03 = Alarm-Line Commissioning
+    0x00, 0x00, 0x00, 0x00, // New Line-ID (#28-31): set to the selected line
+    0x00,                   // Hour (#32), set at TX from the gateway RTC
+    0x00,                   // Minute (#33), set at TX
+    0x00,                   // Second (#34), set at TX
+    0x00, 0x00};            // Constant (#35-36)
+
 /**
  * @brief Constructor implementation
  * @details Initializes all member variables and sets up framework dependencies.
@@ -592,6 +625,30 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
 
         _txDataLength = datalen;
     }
+    else if (action == "commissioning-start")
+    {
+        // One faithful burst, like a genuine radio module being mounted after a long
+        // button-press. All detectors already on this line ID then enter a ~15 min
+        // commissioning/ready mode (receiver-side timer) - so no gateway-side "stop".
+        _txWindowUs = ALARMLINES_TX_WINDOW_LONG_US;
+
+        size_t datalen = std::min(sizeof(_packet_base_commissioning), sizeof(_txBuffer));
+        memcpy(_txBuffer, _packet_base_commissioning, datalen);
+
+        // New Line-ID (#28-31) = the same (existing) line, network byte order like the
+        // Line-ID written below. lineId is already htonl(lineIdHostOrder).
+        memcpy(&_txBuffer[28], &lineId, sizeof(lineId));
+
+        // Current time (#32-34) from the gateway RTC, as the genuine frame carries.
+        time_t now = time(nullptr);
+        struct tm tmNow;
+        localtime_r(&now, &tmNow);
+        _txBuffer[32] = (uint8_t)tmNow.tm_hour;
+        _txBuffer[33] = (uint8_t)tmNow.tm_min;
+        _txBuffer[34] = (uint8_t)tmNow.tm_sec;
+
+        _txDataLength = datalen;
+    }
     else
     {
         ESP_LOGE(TAG, "Unknown action '%s'.", action.c_str());
@@ -623,6 +680,8 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
         state = "Fire Alarm Start";
     else if (action == "fire-alarm-stop")
         state = "Fire Alarm Stop";
+    else if (action == "commissioning-start")
+        state = "Commissioning Start";
     else
         state = action;
 
@@ -710,7 +769,7 @@ void AlarmLinesService::_addAlarmLineSubDevice(uint32_t lineId, const String &li
     sensor->setName("Current Transmission");
     HASensor *rawSensor = dev->registerDiagnostic(std::move(sensor));
 
-    // Register 4 buttons: line-test start/stop, fire-alarm start/stop
+    // Register 5 buttons: line-test start/stop, fire-alarm start/stop, commissioning start
     struct BtnDef
     {
         const char *id;
@@ -719,10 +778,11 @@ void AlarmLinesService::_addAlarmLineSubDevice(uint32_t lineId, const String &li
         const char *action;
     };
     static const BtnDef btns[] = {
-        {"linetest-start",  "Start Line Test",  "mdi:map-marker",     "line-test-start"},
-        {"linetest-stop",   "Stop Line Test",   "mdi:map-marker-off", "line-test-stop"},
-        {"firealarm-start", "Start Fire Alarm", "mdi:fire",           "fire-alarm-start"},
-        {"firealarm-stop",  "Stop Fire Alarm",  "mdi:fire-off",       "fire-alarm-stop"},
+        {"linetest-start",     "Start Line Test",     "mdi:map-marker",     "line-test-start"},
+        {"linetest-stop",      "Stop Line Test",      "mdi:map-marker-off", "line-test-stop"},
+        {"firealarm-start",    "Start Fire Alarm",    "mdi:fire",           "fire-alarm-start"},
+        {"firealarm-stop",     "Stop Fire Alarm",     "mdi:fire-off",       "fire-alarm-stop"},
+        {"commissioning-start", "Start Commissioning", "mdi:access-point",  "commissioning-start"},
     };
 
     for (const auto &b : btns)

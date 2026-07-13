@@ -619,7 +619,7 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
      * (0x08); classifying 36 B as an alarm can misread a ConfigCheckProbe response as ALARM_STOP. */
     switch (packet_data[DATAPOS_MSG_TYPE])
     {
-    case MSGTYPE_COMMISSIONING: // 0x03  (firmware: commissioning_sm)
+    case MSGTYPE_COMMISSIONING: // 0x03  (alarm-line commissioning)
         analyzed_packet->type = (data_length == LEN_COMMISSIONING_PACKET) ? HPT_COMMISSIONING : HPT_UNKNOWN;
         break;
 

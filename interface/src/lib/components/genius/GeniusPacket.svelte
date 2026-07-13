@@ -220,6 +220,14 @@
 		@apply bg-red-200 dark:bg-red-900;
 	}
 
+	:global(div.genius-packet div.packet-data-container>div[data-type='serialnumber-radiomodule-gateway']>div.packet-data-1) {
+		@apply bg-cyan-700 text-white;
+	}
+
+	:global(div.genius-packet div.packet-data-container>div[data-type='serialnumber-radiomodule-gateway']>div) {
+		@apply bg-cyan-600 text-white;
+	}
+
 	:global(div.genius-packet div.packet-data-container>div[data-type='serialnumber-smokedetector']>div.packet-data-1) {
 		@apply bg-fuchsia-400 dark:bg-fuchsia-700;
 	}
@@ -234,6 +242,14 @@
 
 	:global(div.genius-packet div.packet-data-container>div[data-type='serialnumber-smokedetector-unknown']>div) {
 		@apply bg-red-200 dark:bg-red-900;
+	}
+
+	:global(div.genius-packet div.packet-data-container>div[data-type='serialnumber-smokedetector-gateway']>div.packet-data-1) {
+		@apply bg-cyan-700 text-white;
+	}
+
+	:global(div.genius-packet div.packet-data-container>div[data-type='serialnumber-smokedetector-gateway']>div) {
+		@apply bg-cyan-600 text-white;
 	}
 
 	:global(div.genius-packet div.packet-data-container>div[data-type='line']>div.packet-data-1) {

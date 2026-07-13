@@ -32,6 +32,7 @@
 	import LineTestStop from '~icons/tabler/location-off';
 	import Flame from '~icons/tabler/flame-filled';
 	import FlameOff from '~icons/tabler/flame-off';
+	import Commission from '~icons/tabler/layout-grid-add';
 	import Manual from '~icons/tabler/forms';
 	import Automatic from '~icons/tabler/access-point';
 	import Microphone from '~icons/tabler/microphone';
@@ -57,7 +58,8 @@
 		lineTestStart: [] as boolean[],
 		lineTestStop: [] as boolean[],
 		fireAlarmStart: [] as boolean[],
-		fireAlarmStop: [] as boolean[]
+		fireAlarmStop: [] as boolean[],
+		commissioningStart: [] as boolean[]
 	});
 
 	// Avoid hiding the column before devices have loaded; default to showing it.
@@ -66,11 +68,23 @@
 			geniusDevices.devices.some((d) => hasAutomaticLineDetection(d.radioModule.model))
 	);
 
+	// Desktop row grid template (≥ md). Icon/button columns get a fixed pixel
+	// width sized to their unwrapped content so they never wrap needlessly;
+	// Name/Smoke Detectors get the (shrinkable) leftover space via minmax(0, Nfr).
+	// Fixed px + fr tracks (never max-content/auto) keep every row's columns
+	// aligned, since each row renders its own independent grid.
+	let gridColsClass = $derived(
+		hasXSeriesHardware
+			? 'grid-cols-[90px_minmax(0,1fr)_minmax(0,1.5fr)_72px_minmax(0,1.25fr)_68px]'
+			: 'grid-cols-[90px_minmax(0,1fr)_72px_minmax(0,1.25fr)_68px]'
+	);
+
 	let isActionActive = $derived(
 		activeActions.lineTestStart.some((active) => active) ||
 			activeActions.lineTestStop.some((active) => active) ||
 			activeActions.fireAlarmStart.some((active) => active) ||
-			activeActions.fireAlarmStop.some((active) => active)
+			activeActions.fireAlarmStop.some((active) => active) ||
+			activeActions.commissioningStart.some((active) => active)
 	);
 
 	function resetActiveActions() {
@@ -78,6 +92,7 @@
 		activeActions.lineTestStop.fill(false);
 		activeActions.fireAlarmStart.fill(false);
 		activeActions.fireAlarmStop.fill(false);
+		activeActions.commissioningStart.fill(false);
 	}
 
 	type NewAlarmLineEvent = {
@@ -108,6 +123,9 @@
 				break;
 			case 'fire-alarm-stop':
 				activeActions.fireAlarmStop[index] = true;
+				break;
+			case 'commissioning-start':
+				activeActions.commissioningStart[index] = true;
 				break;
 		}
 	}
@@ -349,6 +367,38 @@
 		}
 	}
 
+	function handleCommissioningStart(index: number) {
+		modals.open(ConfirmDialog, {
+			title: 'Confirm commissioning',
+			message:
+				'Start commissioning for alarm line "' +
+				alarmLines.lines[index].name +
+				'" (' +
+				alarmLines.lines[index].id +
+				')?<br />This puts <strong>all smoke detectors already on this line</strong> into ' +
+				'commissioning mode for ~15 minutes (triple-tone and green blinking every 8 seconds), ' +
+				'so you can add or re-enrol detectors. It stops automatically; there is no separate stop action.',
+			labels: {
+				cancel: { label: 'Abort', icon: Cancel },
+				confirm: { label: 'Yes', icon: Check }
+			},
+			onConfirm: async () => {
+				modals.close();
+				activeActions.commissioningStart[index] = true;
+				const success = await postAlarmLineAction(
+					alarmLines.lines[index].id,
+					'commissioning-start'
+				);
+				if (success) {
+					notifications.success('Started commissioning.', 3000);
+				} else {
+					activeActions.commissioningStart[index] = false;
+					notifications.error('Failed to start commissioning.', 3000);
+				}
+			}
+		});
+	}
+
 	function isValidAlarmLines(data: unknown): data is AlarmLines {
 		if (!data || !Array.isArray((data as AlarmLines).lines)) return false;
 		return (data as AlarmLines).lines.every(
@@ -425,7 +475,7 @@
 
 {#if $user.admin}
 	<div class="mx-0 my-1 flex flex-col space-y-4 sm:mx-8 sm:my-8">
-		<SettingsCard collapsible={false} maxwidth="max-w-3xl">
+		<SettingsCard collapsible={false} maxwidth="max-w-4xl">
 			{#snippet icon()}
 				<Ring class="h-6 w-6" />
 			{/snippet}
@@ -583,6 +633,23 @@
 											>
 												<Delete class="h-6 w-6" />
 											</button>
+											{#if !activeActions.commissioningStart[index]}
+												<button
+													class="btn btn-ghost btn-sm"
+													aria-label="Start commissioning"
+													onclick={() => {
+														(document.activeElement as HTMLElement)?.blur();
+														handleCommissioningStart(index);
+													}}
+													disabled={isActionActive || line.id === BROADCAST_ID}
+												>
+													<Commission class="h-6 w-6" />
+												</button>
+											{:else}
+												<span class="btn btn-ghost btn-sm pointer-events-none">
+													<SpinnerSmall />
+												</span>
+											{/if}
 											{#if !activeActions.lineTestStart[index]}
 												<button
 													class="btn btn-ghost btn-sm"
@@ -650,189 +717,215 @@
 								{/if}
 							{/each}
 						</div>
-						<!-- Desktop table (≥ md) -->
-						<div class="hidden md:block overflow-x-auto">
-							<table class="table w-full table-auto">
-								<thead>
-									<tr class="font-bold">
-										<th align="left">ID</th>
-										<th align="left">Name</th>
-										{#if hasXSeriesHardware}
-											<th align="left" transition:fade={{ duration: 150 }}>
-												<span class="inline-flex items-center gap-1">
-													Smoke Detectors
-													<InfoPopover label="About smoke detector assignment">
-														<p>
-															Only smoke detectors with <em>FM Basis X</em> / <em>FM Pro X</em>
-															radio module can be referenced here.
-														</p>
-													</InfoPopover>
-												</span>
-											</th>
-										{/if}
-										<th align="center">Acquisition</th>
-										<th align="right" class="pr-8">Manage</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each alarmLines.lines as line, index}
-										{#if line.id !== BROADCAST_ID || (line.id === BROADCAST_ID && page.data.features.allow_broadcast)}
-											<tr>
-												<td
-													align="left"
-													class={line.id === BROADCAST_ID ? 'text-base-content/50' : ''}
-													>{line.id}</td
-												>
-												<td
-													align="left"
-													class={line.id === BROADCAST_ID ? 'text-base-content/50' : ''}
-													>{line.name}</td
-												>
-												{#if hasXSeriesHardware}
-													<td align="left" class="text-sm" transition:fade={{ duration: 150 }}>
-														{#if !geniusDevices.isLoaded}
-															<div class="flex justify-center"><SpinnerSmall /></div>
-														{:else}
-															{@const locations = geniusDevices.devices
-																.filter(
-																	(d) =>
-																		d.registration === GeniusDeviceRegistration.Acoustic &&
-																		d.radioModule.lineId === line.id
-																)
-																.map((d) => d.location)
-																.join(', ')}
-															<span class={locations ? '' : 'flex justify-center'}
-																>{locations || '-'}</span
-															>
-														{/if}
-													</td>
-												{/if}
-												<td align="center">
-													{#if line.id != BROADCAST_ID}
-														{#if line.acquisition === AlarmLineAcquisition.Manual}
-															<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
-																<Manual class="h-6 w-6" />
-															</div>
-														{:else if line.acquisition === AlarmLineAcquisition.GeniusPacket}
-															<div
-																class="tooltip tooltip-top"
-																data-tip="Alarm line extracted from Genius radio packet"
-															>
-																<Automatic class="h-6 w-6" />
-															</div>
-														{:else if line.acquisition === AlarmLineAcquisition.Acoustic}
-															<div
-																class="tooltip tooltip-top"
-																data-tip="Alarm line discovered via acoustic device readout"
-															>
-																<Microphone class="h-6 w-6" />
-															</div>
-														{:else if line.acquisition === AlarmLineAcquisition.SignalProbe}
-															<div
-																class="tooltip tooltip-top"
-																data-tip="Alarm line discovered via signal probe"
-															>
-																<Radar class="h-6 w-6" />
-															</div>
-														{/if}
+						<!-- Desktop grid (>= md) -->
+						<div class="hidden md:block">
+							<!-- Header row -->
+							<div
+								class="grid {gridColsClass} gap-x-3 items-center border-b border-base-content/5 px-3 py-3 text-sm font-semibold text-base-content/60"
+							>
+								<div class="text-left">ID</div>
+								<div class="text-left">Name</div>
+								{#if hasXSeriesHardware}
+									<div class="text-left" transition:fade={{ duration: 150 }}>
+										Smoke
+										<span class="whitespace-nowrap">
+											Detectors <InfoPopover class="align-middle" label="About smoke detector assignment">
+												<p>
+													Only smoke detectors with <em>FM Basis X</em> / <em>FM Pro X</em>
+													radio module can be referenced here.
+												</p>
+											</InfoPopover>
+										</span>
+									</div>
+								{/if}
+								<div class="text-center">Acquisition</div>
+								<div class="text-center">Line Actions</div>
+								<div class="text-right">Manage</div>
+							</div>
+							<!-- Rows -->
+							<div class="divide-y divide-base-content/5">
+								{#each alarmLines.lines as line, index}
+									{#if line.id !== BROADCAST_ID || (line.id === BROADCAST_ID && page.data.features.allow_broadcast)}
+										<div class="grid {gridColsClass} gap-x-3 items-center px-3 py-3 text-sm">
+											<div class="text-left {line.id === BROADCAST_ID ? 'text-base-content/50' : ''}">
+												{line.id}
+											</div>
+											<div
+												class="min-w-0 break-words text-left {line.id === BROADCAST_ID
+													? 'text-base-content/50'
+													: ''}"
+											>
+												{line.name}
+											</div>
+											{#if hasXSeriesHardware}
+												<div class="min-w-0 break-words text-left" transition:fade={{ duration: 150 }}>
+													{#if !geniusDevices.isLoaded}
+														<div class="flex justify-center"><SpinnerSmall /></div>
+													{:else}
+														{@const locations = geniusDevices.devices
+															.filter(
+																(d) =>
+																	d.registration === GeniusDeviceRegistration.Acoustic &&
+																	d.radioModule.lineId === line.id
+															)
+															.map((d) => d.location)
+															.join(', ')}
+														<span class={locations ? '' : 'flex justify-center'}
+															>{locations || '-'}</span
+														>
 													{/if}
-												</td>
-												<td align="right">
-													<span class="my-auto inline-flex flex-row">
-														<div class="tooltip tooltip-left" data-tip="Edit alarm line">
-															<button
-																class="btn btn-ghost btn-circle btn-sm"
-																aria-label="Edit alarm line"
-																onclick={() => handleEdit(index)}
-																disabled={line.id === BROADCAST_ID}
-															>
-																<Edit class="h-6 w-6" />
-															</button>
+												</div>
+											{/if}
+											<div class="flex justify-center">
+												{#if line.id != BROADCAST_ID}
+													{#if line.acquisition === AlarmLineAcquisition.Manual}
+														<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
+															<Manual class="h-6 w-6" />
 														</div>
-														<div class="tooltip tooltip-left" data-tip="Delete alarm line">
-															<button
-																class="btn btn-ghost btn-circle btn-sm"
-																aria-label="Delete alarm line"
-																onclick={() => confirmDelete(index)}
-																disabled={line.id === BROADCAST_ID}
-															>
-																<Delete class="h-6 w-6" />
-															</button>
+													{:else if line.acquisition === AlarmLineAcquisition.GeniusPacket}
+														<div
+															class="tooltip tooltip-top"
+															data-tip="Alarm line extracted from Genius radio packet"
+														>
+															<Automatic class="h-6 w-6" />
 														</div>
-														{#if !activeActions.lineTestStart[index]}
-															<div class="tooltip tooltip-left" data-tip="Start line test">
-																<button
-																	class="btn btn-ghost btn-circle btn-sm"
-																	aria-label="Start line test"
-																	onclick={() => handleLineTestStart(index)}
-																	disabled={isActionActive}
-																>
-																	<LineTestStart class="h-6 w-6" />
-																</button>
-															</div>
-														{:else}
-															<span class="btn btn-ghost btn-circle btn-sm pointer-events-none">
-																<SpinnerSmall />
-															</span>
-														{/if}
-														{#if !activeActions.lineTestStop[index]}
-															<div class="tooltip tooltip-left" data-tip="Stop line test">
-																<button
-																	class="btn btn-ghost btn-circle btn-sm"
-																	aria-label="Stop line test"
-																	onclick={() => handleLineTestStop(index)}
-																	disabled={isActionActive}
-																>
-																	<LineTestStop class="h-6 w-6" />
-																</button>
-															</div>
-														{:else}
-															<span class="btn btn-ghost btn-circle btn-sm pointer-events-none">
-																<SpinnerSmall />
-															</span>
-														{/if}
-														{#if !activeActions.fireAlarmStart[index]}
-															<div
-																class="tooltip tooltip-left tooltip-error"
-																data-tip="Trigger fire alarm"
-															>
-																<button
-																	class="btn btn-ghost btn-circle btn-sm"
-																	aria-label="Trigger fire alarm"
-																	onclick={() => handleFireAlarmStart(index)}
-																	disabled={isActionActive}
-																>
-																	<Flame class="h-6 w-6 {!isActionActive ? 'text-error' : ''}" />
-																</button>
-															</div>
-														{:else}
-															<span class="btn btn-ghost btn-circle btn-sm pointer-events-none">
-																<SpinnerSmall />
-															</span>
-														{/if}
-														{#if !activeActions.fireAlarmStop[index]}
-															<div class="tooltip tooltip-left" data-tip="Stop fire alarm">
-																<button
-																	class="btn btn-ghost btn-circle btn-sm"
-																	aria-label="Stop fire alarm"
-																	onclick={() => handleFireAlarmStop(index)}
-																	disabled={isActionActive}
-																>
-																	<FlameOff class="h-6 w-6" />
-																</button>
-															</div>
-														{:else}
-															<span class="btn btn-ghost btn-circle btn-sm pointer-events-none">
-																<SpinnerSmall />
-															</span>
-														{/if}
+													{:else if line.acquisition === AlarmLineAcquisition.Acoustic}
+														<div
+															class="tooltip tooltip-top"
+															data-tip="Alarm line discovered via acoustic device readout"
+														>
+															<Microphone class="h-6 w-6" />
+														</div>
+													{:else if line.acquisition === AlarmLineAcquisition.SignalProbe}
+														<div
+															class="tooltip tooltip-top"
+															data-tip="Alarm line discovered via signal probe"
+														>
+															<Radar class="h-6 w-6" />
+														</div>
+													{/if}
+												{/if}
+											</div>
+											<div class="flex flex-wrap items-center justify-end gap-y-1">
+												<!-- Group: Commissioning -->
+												{#if !activeActions.commissioningStart[index]}
+													<div class="tooltip tooltip-left" data-tip="Start commissioning">
+														<button
+															class="btn btn-ghost btn-circle btn-sm"
+															aria-label="Start commissioning"
+															onclick={() => handleCommissioningStart(index)}
+															disabled={isActionActive || line.id === BROADCAST_ID}
+														>
+															<Commission class="h-6 w-6" />
+														</button>
+													</div>
+												{:else}
+													<span class="btn btn-ghost btn-circle btn-sm pointer-events-none">
+														<SpinnerSmall />
 													</span>
-												</td>
-											</tr>
-										{/if}
-									{/each}
-								</tbody>
-							</table>
+												{/if}
+												<!-- Group: Line test start / stop (divider travels with the group so it never wraps alone) -->
+												<div class="flex items-center">
+													<div class="w-px self-stretch bg-base-content/10"></div>
+													{#if !activeActions.lineTestStart[index]}
+														<div class="tooltip tooltip-left" data-tip="Start line test">
+															<button
+																class="btn btn-ghost btn-circle btn-sm"
+																aria-label="Start line test"
+																onclick={() => handleLineTestStart(index)}
+																disabled={isActionActive}
+															>
+																<LineTestStart class="h-6 w-6" />
+															</button>
+														</div>
+													{:else}
+														<span class="btn btn-ghost btn-circle btn-sm pointer-events-none">
+															<SpinnerSmall />
+														</span>
+													{/if}
+													{#if !activeActions.lineTestStop[index]}
+														<div class="tooltip tooltip-left" data-tip="Stop line test">
+															<button
+																class="btn btn-ghost btn-circle btn-sm"
+																aria-label="Stop line test"
+																onclick={() => handleLineTestStop(index)}
+																disabled={isActionActive}
+															>
+																<LineTestStop class="h-6 w-6" />
+															</button>
+														</div>
+													{:else}
+														<span class="btn btn-ghost btn-circle btn-sm pointer-events-none">
+															<SpinnerSmall />
+														</span>
+													{/if}
+												</div>
+												<!-- Group: Fire alarm start / stop -->
+												<div class="flex items-center">
+													<div class="w-px self-stretch bg-base-content/10"></div>
+													{#if !activeActions.fireAlarmStart[index]}
+														<div
+															class="tooltip tooltip-left tooltip-error"
+															data-tip="Trigger fire alarm"
+														>
+															<button
+																class="btn btn-ghost btn-circle btn-sm"
+																aria-label="Trigger fire alarm"
+																onclick={() => handleFireAlarmStart(index)}
+																disabled={isActionActive}
+															>
+																<Flame class="h-6 w-6 {!isActionActive ? 'text-error' : ''}" />
+															</button>
+														</div>
+													{:else}
+														<span class="btn btn-ghost btn-circle btn-sm pointer-events-none">
+															<SpinnerSmall />
+														</span>
+													{/if}
+													{#if !activeActions.fireAlarmStop[index]}
+														<div class="tooltip tooltip-left" data-tip="Stop fire alarm">
+															<button
+																class="btn btn-ghost btn-circle btn-sm"
+																aria-label="Stop fire alarm"
+																onclick={() => handleFireAlarmStop(index)}
+																disabled={isActionActive}
+															>
+																<FlameOff class="h-6 w-6" />
+															</button>
+														</div>
+													{:else}
+														<span class="btn btn-ghost btn-circle btn-sm pointer-events-none">
+															<SpinnerSmall />
+														</span>
+													{/if}
+												</div>
+											</div>
+											<div class="flex flex-wrap items-center justify-end gap-y-1">
+												<div class="tooltip tooltip-left" data-tip="Edit alarm line">
+													<button
+														class="btn btn-ghost btn-circle btn-sm"
+														aria-label="Edit alarm line"
+														onclick={() => handleEdit(index)}
+														disabled={line.id === BROADCAST_ID}
+													>
+														<Edit class="h-6 w-6" />
+													</button>
+												</div>
+												<div class="tooltip tooltip-left" data-tip="Delete alarm line">
+													<button
+														class="btn btn-ghost btn-circle btn-sm"
+														aria-label="Delete alarm line"
+														onclick={() => confirmDelete(index)}
+														disabled={line.id === BROADCAST_ID}
+													>
+														<Delete class="h-6 w-6" />
+													</button>
+												</div>
+											</div>
+										</div>
+									{/if}
+								{/each}
+							</div>
 						</div>
 					</div>
 				{/if}
@@ -840,3 +933,4 @@
 		</SettingsCard>
 	</div>
 {/if}
+

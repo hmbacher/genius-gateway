@@ -23,6 +23,14 @@ Every modal dialog now shows an icon beside its title, so add/edit/replace and i
 
 - **Title icons on all modal dialogs**: add/edit/replace flows (smoke detectors, alarm lines, users, Wi-Fi networks) show a context icon supplied by the opener, and single-purpose dialogs (device details, alarm log, wiring test, manual line entry, network scan, alarm ending) carry their own icon
 
+## Alarm-Line Commissioning Trigger
+Alarm lines can now kick off the wireless commissioning procedure (*Funk-Inbetriebnahme*) directly from the gateway, without needing to hold a physical radio-module button.
+
+- **New "Start Commissioning" alarm-line action**: broadcasts the Alarm-Line Commissioning packet (`0x03`) for the selected line - functionally identical to mounting a smoke detector whose radio-module button was held for several seconds. Every detector already on that line enters ~15 minutes of commissioning mode (triple-tone, green blink every 8 s), during which detectors can be added or re-enrolled
+- **No separate stop action**: commissioning mode is a receiver-side timer with no corresponding stop frame in the protocol, so it always runs its full ~15-minute course; the action is unavailable for the *Broadcast* line
+- **Home Assistant button**: each alarm line's HA sub-device now exposes a fifth button, "Start Commissioning", alongside the existing line-test/fire-alarm controls
+- **Alarm Lines page: new "Line Actions" column**: commissioning, line test, and fire alarm actions now live in their own column, grouped with subtle dividers and separated from "Manage" (edit/delete)
+
 ## Bugfixes
 - **"Revert change" tooltip no longer hides behind the dirty-field accent bar**: on the SPI Pin Configuration selectors (and other dirty-tracked fields), the revert tooltip rendered underneath the red dirty accent bar - daisyUI draws tooltips at `z-index: 2` while the accent bar sits at `z-10`. The revert button now establishes its own stacking context above the bar so the tooltip is fully visible
 

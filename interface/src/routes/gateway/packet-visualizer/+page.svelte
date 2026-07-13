@@ -18,6 +18,7 @@
 		WSLoggerSettings
 	} from '$lib/types/models';
 	import {geniusDevices} from '$lib/stores/geniusDevices.svelte';
+	import { GATEWAY_NAME } from '$lib/genius/entity';
 	import { PacketTypes, PacketTypeNames, MSG_TYPE_POS } from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils/misc';
 	import { deserializePacket, downloadPacketAsJson } from '$lib/utils/serialization';
@@ -40,6 +41,7 @@
 	const OFFSET_TIMESTAMP = 0; // Offset for the timestamp in the byte array
 	const OFFSET_DATA_LENGTH = 76; // Offset for the data length in the byte array
 	const OFFSET_DATA_START = 9; // Offset where the actual data starts in the byte array
+	const GATEWAY_SN = 0xfffffffe; // 4294967294 - Genius Gateway's own radio module ID (originator/forwarder of self-sent packets)
 
 	interface Props {
 		data: PageData;
@@ -318,10 +320,12 @@
 	}
 
 	function getDetectorLocationByRadioModuleSN(sn: number): string {
+		if (sn === GATEWAY_SN) return GATEWAY_NAME;
 		return geniusDevices.devices.find((device) => device.radioModule.sn === sn)?.location || 'Unknown';
 	}
 
 	function getDetectorLocationBySmokeDetectorSN(sn: number): string {
+		if (sn === GATEWAY_SN) return GATEWAY_NAME;
 		return (
 			geniusDevices.devices.find((device) => device.smokeDetector.sn === sn)?.location || 'Unknown'
 		);
