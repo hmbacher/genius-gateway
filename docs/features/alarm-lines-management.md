@@ -54,8 +54,11 @@ Indicates how the alarm line was added to the system:
 - :tabler-microphone: **Acoustic**: Alarm line was discovered via an acoustic device readout
 - :tabler-radar: **Signal probe**: Alarm line was discovered while probing directly-reachable radio modules
 
+#### Line Actions
+Buttons to trigger RF actions for the line - start commissioning, line test, and fire alarm (described in detail below).
+
 #### Manage
-Action buttons for alarm line operations (described in detail below).
+**Edit** and **delete** buttons for the alarm line entry itself.
 
 ## Initial Setup
 
@@ -180,23 +183,18 @@ Each alarm line supports several commissioning, test and diagnostic actions. The
     - Only one action can be triggered at a time across all alarm lines
     - While the Genius Gateway is actively transmitting RF packets for the triggered action, a spinner icon is shown 
 
-### :tabler-plug-connected: Start Commissioning
+### :tabler-layout-grid-add: Start Commissioning
 
 Starts the wireless commissioning (*Funk-Inbetriebnahme*) procedure for the selected alarm line. The gateway broadcasts the [Alarm Line Commissioning](../reverse-engineering/protocol-analysis.md#alarm-line-commissioning) packet (`0x03`) carrying the line's ID — over RF this does the same thing as mounting a smoke detector whose radio-module button has been held for several seconds.
 
-Every smoke detector **already assigned to this alarm line** then enters commissioning mode for about **15 minutes**, signalling with a triple-tone and green blinking of the test button every 8 seconds. During this window you can add or re-enrol detectors following the procedure in the Hekatron *Funkmodul Basis X / Pro X* manual (unmount the detector, press and hold the radio-module button until its LED is steady, re-mount it, and confirm each detector with its test button).
+Every smoke detector **already assigned to this alarm line** then enters commissioning mode for about **15 minutes**, signalling with a triple-tone and green blinking of the test button every 8 seconds. During this window you can add or re-enrol detectors following the procedure in the Hekatron *Funkmodul Basis X / Pro X* manual.
 
-!!! warning "Acoustic signalling"
-    Starting commissioning makes **all detectors already on the line** beep (triple-tone) and blink for up to 15 minutes. Trigger it only when you actually intend to commission the line.
-
-!!! note "No separate stop action"
-    Commissioning mode is a receiver-side timer on the detectors and ends on its own after ~15 minutes. There is no gateway "stop commissioning" action, because the underlying radio protocol has no corresponding stop frame. This action is unavailable for the *Broadcast* line.
-
-1. Click the :tabler-plug-connected: **Start commissioning** button
+1. Click the :tabler-layout-grid-add: **Start commissioning** button
 2. A confirmation dialog appears
 3. Click **Yes** to proceed
 4. The gateway transmits the commissioning packet [repetitively](../reverse-engineering/protocol-analysis.md#repetition) via RF
 5. The button displays a spinner while RF transmission is in progress
+6. Press the test button on every smoke detector that is signalling - both existing line members and any newly mounted ones - to confirm it and complete the commissioning sequence
 
 ### :tabler-location: Start Line Test
 
