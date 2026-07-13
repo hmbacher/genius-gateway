@@ -371,13 +371,11 @@
 		modals.open(ConfirmDialog, {
 			title: 'Confirm commissioning',
 			message:
-				'Start commissioning for alarm line "' +
+				'Start commissioning for alarm line <strong>' +
 				alarmLines.lines[index].name +
-				'" (' +
-				alarmLines.lines[index].id +
-				')?<br />This puts <strong>all smoke detectors already on this line</strong> into ' +
-				'commissioning mode for ~15 minutes (triple-tone and green blinking every 8 seconds), ' +
-				'so you can add or re-enrol detectors. It stops automatically; there is no separate stop action.',
+				'</strong> to add or re-enrol detectors?' +
+				'<p class="pt-2">This puts all smoke detectors already on this line into ' +
+				'commissioning mode for ~15 minutes (triple-tone and green blinking every 8 seconds).</p>',
 			labels: {
 				cancel: { label: 'Abort', icon: Cancel },
 				confirm: { label: 'Yes', icon: Check }
@@ -740,7 +738,7 @@
 								{/if}
 								<div class="text-center">Acquisition</div>
 								<div class="text-center">Line Actions</div>
-								<div class="text-right">Manage</div>
+								<div class="text-center">Manage</div>
 							</div>
 							<!-- Rows -->
 							<div class="divide-y divide-base-content/5">
