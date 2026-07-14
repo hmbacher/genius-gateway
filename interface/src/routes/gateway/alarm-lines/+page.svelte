@@ -544,38 +544,40 @@
 											? 'opacity-60'
 											: ''}"
 									>
-										<!-- Row 1: name · id · acquisition icon -->
-										<div class="flex items-center gap-2 overflow-hidden">
+										<!-- Row 1: name · id · acquisition icon (id+icon wrap below name as a unit) -->
+										<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
 											<span class="text-lg font-bold truncate min-w-0">{line.name}</span>
-											<span class="text-base text-base-content/40 shrink-0">#{line.id}</span>
-											{#if line.id !== BROADCAST_ID}
-												{#if line.acquisition === AlarmLineAcquisition.Manual}
-													<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
-														<Manual class="flex-shrink-0 h-6 w-6 text-base-content/50" />
-													</div>
-												{:else if line.acquisition === AlarmLineAcquisition.GeniusPacket}
-													<div
-														class="tooltip tooltip-top"
-														data-tip="Alarm line extracted from Genius radio packet"
-													>
-														<Automatic class="flex-shrink-0 h-6 w-6 text-base-content/50" />
-													</div>
-												{:else if line.acquisition === AlarmLineAcquisition.Acoustic}
-													<div
-														class="tooltip tooltip-top"
-														data-tip="Alarm line discovered via acoustic device readout"
-													>
-														<Microphone class="flex-shrink-0 h-6 w-6 text-base-content/50" />
-													</div>
-												{:else if line.acquisition === AlarmLineAcquisition.SignalProbe}
-													<div
-														class="tooltip tooltip-top"
-														data-tip="Alarm line discovered via signal probe"
-													>
-														<Radar class="flex-shrink-0 h-6 w-6 text-base-content/50" />
-													</div>
+											<div class="flex items-center gap-2 shrink-0">
+												<span class="text-base text-base-content/40 shrink-0">#{line.id}</span>
+												{#if line.id !== BROADCAST_ID}
+													{#if line.acquisition === AlarmLineAcquisition.Manual}
+														<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
+															<Manual class="flex-shrink-0 h-6 w-6 text-base-content/50" />
+														</div>
+													{:else if line.acquisition === AlarmLineAcquisition.GeniusPacket}
+														<div
+															class="tooltip tooltip-top"
+															data-tip="Alarm line extracted from Genius radio packet"
+														>
+															<Automatic class="flex-shrink-0 h-6 w-6 text-base-content/50" />
+														</div>
+													{:else if line.acquisition === AlarmLineAcquisition.Acoustic}
+														<div
+															class="tooltip tooltip-top"
+															data-tip="Alarm line discovered via acoustic device readout"
+														>
+															<Microphone class="flex-shrink-0 h-6 w-6 text-base-content/50" />
+														</div>
+													{:else if line.acquisition === AlarmLineAcquisition.SignalProbe}
+														<div
+															class="tooltip tooltip-top"
+															data-tip="Alarm line discovered via signal probe"
+														>
+															<Radar class="flex-shrink-0 h-6 w-6 text-base-content/50" />
+														</div>
+													{/if}
 												{/if}
-											{/if}
+											</div>
 										</div>
 										{#if hasXSeriesHardware}
 											<!-- Row 2: smoke detector locations -->
@@ -608,29 +610,10 @@
 											</div>
 										{/if}
 										<!-- Row 3: action buttons -->
-										<div class="flex items-center gap-0.5 border-t border-base-200 pt-1.5">
-											<button
-												class="btn btn-ghost btn-sm"
-												aria-label="Edit alarm line"
-												onclick={() => {
-													(document.activeElement as HTMLElement)?.blur();
-													handleEdit(index);
-												}}
-												disabled={line.id === BROADCAST_ID}
-											>
-												<Edit class="h-6 w-6" />
-											</button>
-											<button
-												class="btn btn-ghost btn-sm"
-												aria-label="Delete alarm line"
-												onclick={() => {
-													(document.activeElement as HTMLElement)?.blur();
-													confirmDelete(index);
-												}}
-												disabled={line.id === BROADCAST_ID}
-											>
-												<Delete class="h-6 w-6" />
-											</button>
+										<div
+											class="flex flex-wrap items-center gap-x-0.5 gap-y-1 border-t border-base-200 pt-1.5"
+										>
+											<!-- Group: Commissioning -->
 											{#if !activeActions.commissioningStart[index]}
 												<button
 													class="btn btn-ghost btn-sm"
@@ -648,68 +631,101 @@
 													<SpinnerSmall />
 												</span>
 											{/if}
-											{#if !activeActions.lineTestStart[index]}
+											<!-- Group: Line test start / stop -->
+											<div class="flex items-center">
+												<div class="w-px self-stretch bg-base-content/10"></div>
+												{#if !activeActions.lineTestStart[index]}
+													<button
+														class="btn btn-ghost btn-sm"
+														aria-label="Start line test"
+														onclick={() => {
+															(document.activeElement as HTMLElement)?.blur();
+															handleLineTestStart(index);
+														}}
+														disabled={isActionActive}
+													>
+														<LineTestStart class="h-6 w-6" />
+													</button>
+												{:else}
+													<span class="btn btn-ghost btn-sm pointer-events-none">
+														<SpinnerSmall />
+													</span>
+												{/if}
+												{#if !activeActions.lineTestStop[index]}
+													<button
+														class="btn btn-ghost btn-sm"
+														aria-label="Stop line test"
+														onclick={() => handleLineTestStop(index)}
+														disabled={isActionActive}
+													>
+														<LineTestStop class="h-6 w-6" />
+													</button>
+												{:else}
+													<span class="btn btn-ghost btn-sm pointer-events-none">
+														<SpinnerSmall />
+													</span>
+												{/if}
+											</div>
+											<!-- Group: Fire alarm start / stop -->
+											<div class="flex items-center">
+												<div class="w-px self-stretch bg-base-content/10"></div>
+												{#if !activeActions.fireAlarmStart[index]}
+													<button
+														class="btn btn-ghost btn-sm"
+														aria-label="Trigger fire alarm"
+														onclick={() => {
+															(document.activeElement as HTMLElement)?.blur();
+															handleFireAlarmStart(index);
+														}}
+														disabled={isActionActive}
+													>
+														<Flame class="h-5 w-5 {!isActionActive ? 'text-error' : ''}" />
+													</button>
+												{:else}
+													<span class="btn btn-ghost btn-sm pointer-events-none">
+														<SpinnerSmall />
+													</span>
+												{/if}
+												{#if !activeActions.fireAlarmStop[index]}
+													<button
+														class="btn btn-ghost btn-sm"
+														aria-label="Stop fire alarm"
+														onclick={() => handleFireAlarmStop(index)}
+														disabled={isActionActive}
+													>
+														<FlameOff class="h-6 w-6" />
+													</button>
+												{:else}
+													<span class="btn btn-ghost btn-sm pointer-events-none">
+														<SpinnerSmall />
+													</span>
+												{/if}
+											</div>
+											<!-- Group: Manage (Edit / Delete) -->
+											<div class="ml-auto flex items-center gap-0.5">
 												<button
 													class="btn btn-ghost btn-sm"
-													aria-label="Start line test"
+													aria-label="Edit alarm line"
 													onclick={() => {
 														(document.activeElement as HTMLElement)?.blur();
-														handleLineTestStart(index);
+														handleEdit(index);
 													}}
-													disabled={isActionActive}
+													disabled={line.id === BROADCAST_ID}
 												>
-													<LineTestStart class="h-6 w-6" />
+													<Edit class="h-6 w-6" />
 												</button>
-											{:else}
-												<span class="btn btn-ghost btn-sm pointer-events-none">
-													<SpinnerSmall />
-												</span>
-											{/if}
-											{#if !activeActions.lineTestStop[index]}
 												<button
 													class="btn btn-ghost btn-sm"
-													aria-label="Stop line test"
-													onclick={() => handleLineTestStop(index)}
-													disabled={isActionActive}
-												>
-													<LineTestStop class="h-6 w-6" />
-												</button>
-											{:else}
-												<span class="btn btn-ghost btn-sm pointer-events-none">
-													<SpinnerSmall />
-												</span>
-											{/if}
-											{#if !activeActions.fireAlarmStart[index]}
-												<button
-													class="btn btn-ghost btn-sm"
-													aria-label="Trigger fire alarm"
+													aria-label="Delete alarm line"
 													onclick={() => {
 														(document.activeElement as HTMLElement)?.blur();
-														handleFireAlarmStart(index);
+														confirmDelete(index);
 													}}
-													disabled={isActionActive}
+													disabled={line.id === BROADCAST_ID}
 												>
-													<Flame class="h-5 w-5 {!isActionActive ? 'text-error' : ''}" />
+													<Delete class="h-6 w-6" />
 												</button>
-											{:else}
-												<span class="btn btn-ghost btn-sm pointer-events-none">
-													<SpinnerSmall />
-												</span>
-											{/if}
-											{#if !activeActions.fireAlarmStop[index]}
-												<button
-													class="btn btn-ghost btn-sm"
-													aria-label="Stop fire alarm"
-													onclick={() => handleFireAlarmStop(index)}
-													disabled={isActionActive}
-												>
-													<FlameOff class="h-6 w-6" />
-												</button>
-											{:else}
-												<span class="btn btn-ghost btn-sm pointer-events-none">
-													<SpinnerSmall />
-												</span>
-											{/if}
+											</div>
 										</div>
 									</div>
 								{/if}
