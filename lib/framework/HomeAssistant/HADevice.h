@@ -49,7 +49,7 @@ class HAService;
  *
  * Each sub-device publishes its own MQTT discovery block using its own
  * identity, with topics nested under the main device's base topic:
- *   {mainBaseTopic}/{subDeviceId}/{entityId}/state
+ *   {mainBaseTopic}/{subDeviceId}/{objectId}/state
  *
  * Usage (sub-device):
  * @code
@@ -88,7 +88,7 @@ public:
     /**
      * @brief MQTT base topic for this device's entities.
      *
-     * For the main device:  {discoveryPrefix}{namespace}/{deviceId}
+     * For the main device:  {discoveryPrefix}{deviceId}
      * For a sub-device:     {mainDevice.baseTopic}/{subDeviceId}
      *
      * Entities store state at {baseTopic}/{objectId}/state and listen on

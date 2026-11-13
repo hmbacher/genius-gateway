@@ -24,8 +24,11 @@ HAService::HAService(PsychicMqttClient *mqttClient)
       _enabled(false),
       _publishTaskHandle(nullptr)
 {
-    _generateDeviceId();
-    _topicNamespace = _slugify(_deviceName);
+    // Topic identity is derived from the compile-time firmware name, never from
+    // the user-editable display name. Renaming the device in the UI therefore
+    // leaves both the MQTT topics and HA's device registry entry untouched.
+    _deviceId = _slugify(APP_NAME) + "-" + SettingValue::getUniqueId();
+    _updateLegacyTopicIdentity();
 }
 
 // Defined here (not =default in the header) so that the unique_ptr<HADevice>
@@ -89,8 +92,7 @@ void HAService::_publishTask()
 void HAService::setDeviceName(const String &name)
 {
     _deviceName = name;
-    _topicNamespace = _slugify(name);
-    _generateDeviceId();
+    _updateLegacyTopicIdentity();
     _syncMainDeviceIdentity();
 }
 
@@ -114,6 +116,8 @@ void HAService::setDiscoveryPrefix(const String &prefix)
     {
         _discoveryPrefix += "/";
     }
+    // The legacy base topic embeds the prefix, so it has to follow along.
+    _updateLegacyTopicIdentity();
 }
 
 void HAService::setEnabled(bool enabled)
@@ -133,7 +137,7 @@ bool HAService::isReady() const
 
 String HAService::getBaseTopic() const
 {
-    return _discoveryPrefix + _topicNamespace + "/" + _deviceId;
+    return _discoveryPrefix + _deviceId;
 }
 
 // ============================================================================
@@ -196,6 +200,11 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
     String payload;
     serializeJson(config, payload);
 
+    // Retire the pre-v1.5.1 config first so HA drops the old entity before the
+    // new one arrives - otherwise it would keep both and suffix the new entity
+    // ID with "_2".
+    purgeLegacyConfig(component, objectId, _deviceId);
+
     int result = _mqttClient->publish(configTopic.c_str(), 0, true, payload.c_str(), 0, false);
 
     if (result != -1)
@@ -210,12 +219,47 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
     }
 }
 
+void HAService::purgeLegacyConfig(const String &component, const String &objectId, const String &deviceId)
+{
+    // Sub-devices always used their own (unchanged) ID as node_id, so only the
+    // main device's discovery topics moved in v1.5.1.
+    if (!_legacyPurgeArmed || _legacyDeviceId.isEmpty() || deviceId != _deviceId)
+        return;
+
+    if (_mqttClient == nullptr || !_mqttClient->connected())
+        return;
+
+    String legacyTopic = _discoveryPrefix + component + "/" + _legacyDeviceId +
+                         "/" + objectId + "/config";
+    _mqttClient->publish(legacyTopic.c_str(), 0, true, "", 0, false);
+    ESP_LOGD(TAG, "Cleared legacy config topic %s", legacyTopic.c_str());
+}
+
 bool HAService::publish(const String &topic, const String &payload, int qos, bool retain, bool async)
 {
     if (_mqttClient == nullptr || !_mqttClient->connected())
         return false;
 
+    _purgeLegacyState(topic);
+
     return _mqttClient->publish(topic.c_str(), qos, retain, payload.c_str(), payload.length(), async) != -1;
+}
+
+void HAService::_purgeLegacyState(const String &topic)
+{
+    if (!_legacyPurgeArmed || _legacyBaseTopic.isEmpty())
+        return;
+
+    // Only topics under our own base topic have a legacy counterpart; discovery
+    // config topics live under {prefix}{component}/... and are handled by
+    // purgeLegacyConfig() instead.
+    const String base = getBaseTopic();
+    if (!topic.startsWith(base))
+        return;
+
+    String legacyTopic = _legacyBaseTopic + topic.substring(base.length());
+    _mqttClient->publish(legacyTopic.c_str(), 0, true, "", 0, false);
+    ESP_LOGD(TAG, "Cleared legacy state topic %s", legacyTopic.c_str());
 }
 
 void HAService::subscribe(const String &topic,
@@ -294,6 +338,15 @@ void HAService::publishAll()
             dev->publishAll();
         vTaskDelay(pdMS_TO_TICKS(1));
     }
+
+    // Everything has now been (re)published under the current topic tree, and
+    // each publish cleared its pre-v1.5.1 counterpart on the way. Nothing left
+    // to purge - stop paying for the check on every subsequent publish.
+    if (_legacyPurgeArmed)
+    {
+        ESP_LOGI(TAG, "Legacy HA topic purge complete");
+        _legacyPurgeArmed = false;
+    }
 }
 
 void HAService::unpublishAll()
@@ -345,7 +398,7 @@ HADevice *HAService::addSubDevice(std::unique_ptr<HADevice> device)
     if (id.viaDevice.isEmpty())
         id.viaDevice = _deviceId;
     if (id.topicNamespace.isEmpty())
-        id.topicNamespace = _topicNamespace + "/" + _deviceId;
+        id.topicNamespace = _deviceId;
 
     HADevice *raw = device.get();
     _subDevices.push_back(std::move(device));
@@ -393,7 +446,9 @@ void HAService::_ensureMainDevice()
     identity.model = _model;
     identity.swVersion = String(APP_VERSION);
     identity.hwVersion = String(HW_VERSION);
-    identity.topicNamespace = _topicNamespace;
+    // Empty namespace - the main device sits directly under the discovery
+    // prefix at {prefix}{deviceId}.
+    identity.topicNamespace = String();
 
     _mainDevice = std::unique_ptr<HADevice>(new HADevice(this, std::move(identity)));
 }
@@ -410,7 +465,7 @@ void HAService::_syncMainDeviceIdentity()
     id.model = _model;
     id.swVersion = String(APP_VERSION);
     id.hwVersion = String(HW_VERSION);
-    id.topicNamespace = _topicNamespace;
+    id.topicNamespace = String();
 
     IPAddress localIP = WiFi.localIP();
     if (IPUtils::isSet(localIP))
@@ -423,9 +478,18 @@ void HAService::_syncMainDeviceIdentity()
 // Private methods
 // ============================================================================
 
-void HAService::_generateDeviceId()
+void HAService::_updateLegacyTopicIdentity()
 {
-    _deviceId = _slugify(_deviceName) + "-" + SettingValue::getUniqueId();
+    const String legacyNamespace = _slugify(_deviceName);
+    const String legacyDeviceId  = legacyNamespace + "-" + SettingValue::getUniqueId();
+    const String legacyBaseTopic = _discoveryPrefix + legacyNamespace + "/" + legacyDeviceId;
+
+    // Store each value only if it actually differs - an identical value means
+    // there is nothing stale at that address to clear. The two are independent:
+    // a display name of exactly APP_NAME yields the same device ID but still a
+    // different base topic, because the old scheme carried a namespace level.
+    _legacyDeviceId  = (legacyDeviceId == _deviceId) ? String() : legacyDeviceId;
+    _legacyBaseTopic = (legacyBaseTopic == getBaseTopic()) ? String() : legacyBaseTopic;
 }
 
 String HAService::_slugify(const String &name)

@@ -1,3 +1,25 @@
+# v1.5.1
+
+## Home Assistant MQTT Topic Restructuring
+The Home Assistant topic tree carried a redundant namespace level and derived its identity from the user-editable **Device Name**, which duplicated the gateway's MAC address in every state topic and made renaming the gateway a destructive operation. Both are fixed.
+
+- **Redundant namespace level removed**: base topics collapse from `{prefix}{namespace}/{device_id}/…` to `{prefix}{device_id}/…`. The namespace was always a literal string prefix of the device ID that followed it, so it carried no information - nothing subscribed to it and Home Assistant never saw it, since discovery payloads always name their topics explicitly
+
+    ```
+    v1.5.0  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-gateway-1a2b3c4d5e6f-1a2b3c4d5e6f/genius-123/diagnostics/state
+    v1.5.1  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-123/diagnostics/state
+    ```
+
+- **MAC address no longer duplicated**: the device ID was built as `slugify(deviceName) + "-" + MAC`, while the factory-default device name already ended in the MAC - producing `genius-gateway-<mac>-<mac>`. Topic identity is now derived from the compile-time firmware name, so the MAC appears exactly once
+- **Renaming the gateway is now safe**: the **Device Name** is purely cosmetic and feeds only Home Assistant's display label. Previously it drove the topic namespace, the discovery `node_id`, and `device.identifiers`, so a rename silently re-registered the gateway as a *new* device in Home Assistant and abandoned the old one - along with all its retained discovery configs - as an unremovable ghost
+- **Sub-devices no longer go stale on rename**: a sub-device captured its topic namespace once, when it was created, and never re-synced. After a rename the gateway published under the new tree while every smoke detector kept publishing under the old one. With a stable identity this cannot happen
+- **Automatic cleanup of the old topic tree**: on the first MQTT connect after the upgrade, the gateway clears every retained discovery config and state message it previously published under the old paths, retiring each old config immediately before publishing its replacement so Home Assistant reclaims the entity ID instead of suffixing the new entity with `_2`. Smoke detectors and alarm lines are untouched by the migration - their topics never contained the device name and their `unique_id` is unchanged, so Home Assistant updates them in place and their history and automations survive
+
+See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for upgrade details and the two things worth verifying afterwards.
+
+## Documentation
+- **MQTT topic reference corrected**: the documented discovery config topic pattern (`{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/…/config`) never matched the firmware, which has always published to a flat single-level `node_id` as the Home Assistant discovery spec requires. All topic examples now reflect the actual v1.5.1 layout
+
 # v1.5.0
 
 ## Direct-Link Signal / Range Survey

@@ -121,7 +121,34 @@ Home Assistant MQTT Discovery prefix. All device discovery messages will use thi
 
 **Device Name**
 
-Name shown in Home Assistant's device registry. The factory default is `Genius Gateway <last 6 MAC digits>` (e.g. `Genius Gateway aabbcc`), so multiple units on the same network are distinguishable without any manual configuration.
+Name shown in Home Assistant's device registry. The factory default is `Genius Gateway (<device MAC>)` (e.g. `Genius Gateway (1a2b3c4d5e6f)`), so multiple units on the same network are distinguishable without any manual configuration.
+
+!!! tip "Renaming is safe"
+    The Device Name is purely cosmetic - it only sets the label Home Assistant displays. MQTT topics and the gateway's identity in HA's device registry are derived from the firmware name and the device's MAC address, so renaming never moves topics, never orphans entities, and never creates a second device in Home Assistant.
+
+    This was **not** the case up to v1.5.0, where renaming re-identified the gateway and left the previous device behind as a ghost. See the upgrade note below.
+
+!!! warning "MQTT topics changed in v1.5.1"
+    Firmware v1.5.1 restructured the Home Assistant topic tree. Base topics lost a redundant namespace level and no longer embed the MAC address twice:
+
+    ```
+    v1.5.0  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-gateway-1a2b3c4d5e6f-1a2b3c4d5e6f/…
+    v1.5.1  homeassistant/genius-gateway-1a2b3c4d5e6f/…
+    ```
+
+    **The upgrade cleans up after itself.** On the first MQTT connect after flashing v1.5.1, the gateway clears every retained discovery config and state message it previously published under the old tree - always retiring an old config immediately before publishing its replacement - so Home Assistant drops the stale entity before registering the new one.
+
+    What this means for your setup:
+
+    - **Smoke detectors and alarm lines are untouched.** Their discovery topics never contained the Device Name, and their `unique_id` is unchanged, so Home Assistant updates them in place. Entity IDs, history, and automations all survive.
+    - **The gateway's own entities** (status, free heap, core temperature, restart button, the configuration switches, the firmware update entity) are re-registered under the new device identity. Because the old configs are cleared first, they reclaim their previous entity IDs, so automations referencing them keep working and recorder history - which is keyed by entity ID - is retained.
+
+    Two things are worth checking afterwards:
+
+    - **Home Assistant** :material-arrow-right: *Settings* :material-arrow-right: *Devices & Services* :material-arrow-right: *MQTT*: if a duplicate gateway device is still listed after a restart of Home Assistant, delete it manually.
+    - **Your MQTT broker**: retained messages the gateway had published before, but no longer publishes at all (for example entities removed in an earlier firmware version), are not covered by the automatic cleanup. Browsing the broker with a tool like MQTT Explorer and deleting anything left under the old path removes the last remnants.
+
+    The automatic cleanup runs on **every boot** as long as an old-style tree could exist, so a gateway that was offline during the upgrade still cleans up whenever it next connects.
 
 **Manufacturer / Model**
 

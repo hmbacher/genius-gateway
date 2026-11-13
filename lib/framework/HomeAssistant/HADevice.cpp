@@ -28,9 +28,13 @@ HADevice::HADevice(HAService *haService, HADeviceIdentity identity)
 
 String HADevice::getBaseTopic() const
 {
-    // topicNamespace for the main device:  "my-device"
-    // topicNamespace for a sub-device:     "my-device/my-device-aabbcc"
-    // → baseTopic = {prefix}{topicNamespace}/{id}
+    // topicNamespace is empty for the main device and the main device's ID for
+    // a sub-device, giving:
+    //   main device: {prefix}{id}
+    //   sub-device:  {prefix}{mainDeviceId}/{id}
+    if (_identity.topicNamespace.isEmpty())
+        return _haService->getDiscoveryPrefix() + _identity.id;
+
     return _haService->getDiscoveryPrefix() + _identity.topicNamespace + "/" + _identity.id;
 }
 
@@ -112,6 +116,11 @@ bool HADevice::publishConfig(const String &component,
 
     String payload;
     serializeJson(config, payload);
+
+    // Retire the pre-v1.5.1 config first so HA drops the old entity before the
+    // new one arrives - otherwise it would keep both and suffix the new entity
+    // ID with "_2". No-op for sub-devices, whose node_id never changed.
+    _haService->purgeLegacyConfig(component, objectId, _identity.id);
 
     int result = _haService->getMqttClient()->publish(
         configTopic.c_str(), 0, true, payload.c_str(), 0, false);
