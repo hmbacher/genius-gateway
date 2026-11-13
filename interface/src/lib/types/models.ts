@@ -247,6 +247,21 @@ export type GeniusDevice = {
 	/** Entity-ID prefix last announced to Home Assistant. Backend-owned: the gateway
 	 *  reports it, but ignores any value a client sends. */
 	haEntityIdPrefix?: string;
+	/** Current status flags - present once the state of at least one flag is known. */
+	status?: GeniusDeviceStatus;
+};
+
+/**
+ * Current status of a device (see $lib/genius/status). Fed by status-change packets received over
+ * the air, acoustic readouts and manual resets - whichever is newest. Backend-owned.
+ */
+export type GeniusDeviceStatus = {
+	/** Active status flags (STATUS_* bits). */
+	flags: number;
+	/** Flags whose state is known - a flag the gateway never heard about is neither OK nor active. */
+	known: number;
+	/** Time of the last status change. */
+	changed?: Date;
 };
 
 export type GeniusDevices = {
@@ -258,6 +273,14 @@ export type AlarmState = {
 	isAlarming: boolean;
 };
 
+/** Payload of the `device-status` WebSocket event. */
+export type DeviceStatusEvent = {
+	/** Devices with at least one active fault. */
+	numFaulty: number;
+	/** Devices reporting a low battery. */
+	numBatteryLow: number;
+};
+
 export type VisualizerSettings = {
 	showDetails: boolean;
 	showMetadata: boolean;
@@ -266,6 +289,8 @@ export type VisualizerSettings = {
 export type PacketIdentifier = {
 	byteNr: number;
 	value: number;
+	/** If set, only these bits of the byte are compared: (data[byteNr] & mask) === value. */
+	mask?: number;
 }
 
 export type PacketType = {
@@ -290,15 +315,24 @@ export const PacketTypeNames = {
 	StopLineTest: 'Stop Line Test',
 	StartAlarm: 'Start Alarm',
 	StopAlarm: 'Stop Alarm',
+	StatusChange: 'Status Change',
 	ConfigCheckProbeRequest: 'ConfigCheckProbe Request',
 	ConfigCheckProbeResponse: 'ConfigCheckProbe Response'
 } as const;
 
+/** Names of the packet types that are a status change (alarm start/stop are its alarm-bit cases). */
+export const StatusChangePacketTypeNames: string[] = [
+	PacketTypeNames.StartAlarm,
+	PacketTypeNames.StopAlarm,
+	PacketTypeNames.StatusChange
+];
+
 // Classification keys on the message-type byte (offset 27) with packetLength as a validator -
 // the same discrimination the radio module uses. Length alone is ambiguous: typeByte 0x00 is
-// shared by Alarming (36 B) and the CommissioningProbe request (28 B), and a 36-byte frame
-// is either Alarming (0x00) or a ConfigCheckProbe response (0x08). `identifiers` carry sub-variant
-// bytes only (start/stop).
+// shared by the status change (36 B) and the CommissioningProbe request (28 B), and a 36-byte
+// frame is either a status change (0x00) or a ConfigCheckProbe response (0x08). `identifiers`
+// carry sub-variant bytes only (start/stop). First match wins - so a status change setting the
+// alarm bit is a Start Alarm, one clearing it a Stop Alarm, and any other a Status Change.
 export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.Comissioning,
@@ -349,9 +383,9 @@ export const PacketTypes: PacketType[] = [
 		cssClass: 'type-alarm-start',
 		typeByte: 0x00,
 		packetLength: 36,
-		description: 'Packet sent to start/distribute an alarm.',
+		description: 'Status change setting the alarm flag - starts/distributes an alarm.',
 		identifiers: [
-			{ byteNr: 28, value: 0x01 }, // Identifier for Alarm Start
+			{ byteNr: 28, value: 0x01, mask: 0x01 } // Alarm bit in the set mask
 		]
 	},
 	{
@@ -359,10 +393,19 @@ export const PacketTypes: PacketType[] = [
 		cssClass: 'type-alarm-stop',
 		typeByte: 0x00,
 		packetLength: 36,
-		description: 'Packet sent to stop/silence an alarm.',
+		description: 'Status change clearing the alarm flag - stops/silences an alarm.',
 		identifiers: [
-			{ byteNr: 30, value: 0x01 }, // Identifier for Alarm Stop
+			{ byteNr: 30, value: 0x01, mask: 0x01 } // Alarm bit in the cleared mask
 		]
+	},
+	{
+		name: PacketTypeNames.StatusChange,
+		cssClass: 'type-status-change',
+		typeByte: 0x00,
+		packetLength: 36,
+		description:
+			'Status change of a smoke detector - flags such as battery low, device fault, radio link fault or dismount set or cleared.',
+		identifiers: []
 	},
 	{
 		name: PacketTypeNames.ConfigCheckProbeRequest,
@@ -405,14 +448,15 @@ export type CommissioningProbeResponseInfo = {
 	requestingLocation: string;
 };
 
-export type AlarmStartInfo = {
-	startingSmokeDetector: number;
-	startingLocation: string;
-}
-
-export type AlarmStopInfo = {
-	silencingSmokeDetector: number;
-	silencingLocation: string;
+/** Decoded tail of a status-change packet (Start Alarm / Stop Alarm / Status Change). */
+export type StatusChangeInfo = {
+	/** Status flags newly set (STATUS_* bits, uint16 LE at offset 28). */
+	setMask: number;
+	/** Status flags newly cleared (uint16 LE at offset 30). */
+	clearedMask: number;
+	/** Affected smoke detector (uint32 LE at offset 32). */
+	smokeDetector: number;
+	location: string;
 }
 
 export type Packet = {
@@ -424,7 +468,7 @@ export type Packet = {
 	counter: number;
 	hash: number;
 	generalInfo: GeneralInfo | null;
-	specificInfo: CommissioningInfo | CommissioningProbeResponseInfo | AlarmStartInfo | AlarmStopInfo | null;
+	specificInfo: CommissioningInfo | CommissioningProbeResponseInfo | StatusChangeInfo | null;
 };
 
 export type AlarmLine = {

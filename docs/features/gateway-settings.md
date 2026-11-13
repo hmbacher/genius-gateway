@@ -88,7 +88,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 - Alarm packets don't update your alarm line list
 - Alarm line IDs must be added through other means
 
-**Learn more:** [Alarm Packets](../reverse-engineering/protocol-analysis.md#alarming-startstop)
+**Learn more:** [Alarm Packets](../reverse-engineering/protocol-analysis.md#status-change)
 
 #### Add alarm line ID of received line test packets automatically {#add-alarm-line-from-line-test}
 

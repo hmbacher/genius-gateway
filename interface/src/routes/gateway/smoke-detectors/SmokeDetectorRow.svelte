@@ -3,8 +3,10 @@
 	import {
 		hasReadout,
 		isStaleReadout,
-		getSmokeDetectorFaults,
-		getRadioModuleFaults
+		hasSmokeDetectorStatus,
+		hasRadioModuleStatus,
+		getCurrentSmokeDetectorFaults,
+		getCurrentRadioModuleFaults
 	} from '$lib/utils/deviceStatus';
 	import { formatDate } from '$lib/utils/formatDate';
 	import { isOldFmModule } from '$lib/genius/line';
@@ -78,8 +80,11 @@
 	const rmPresent = $derived(hasRadioModule(device.radioModule));
 	const sdReadout = $derived(hasReadout(device));
 	const stale = $derived(isStaleReadout(device));
-	const sdFaults = $derived(getSmokeDetectorFaults(device.smokeDetector));
-	const rmFaults = $derived(getRadioModuleFaults(device.radioModule));
+	// Current status: status flags (over the air / readout / manual reset) + readout-only findings
+	const sdStatus = $derived(hasSmokeDetectorStatus(device));
+	const rmStatus = $derived(hasRadioModuleStatus(device));
+	const sdFaults = $derived(getCurrentSmokeDetectorFaults(device));
+	const rmFaults = $derived(getCurrentRadioModuleFaults(device));
 	// Old FM module (FM.Basis / FM.Pro) without a manually-entered alarm line.
 	const lineRequired = $derived(
 		isOldFmModule(device.radioModule.model) && !device.radioModule.lineCharacter
@@ -194,7 +199,7 @@
 			{/if}
 			<span class="text-current/30">·</span>
 			<DetectorStatusBadge
-				hasReadout={sdReadout}
+				hasStatus={sdStatus}
 				hasFaults={sdFaults.length > 0}
 				{stale}
 				isAlarming={device.isAlarming}
@@ -216,7 +221,7 @@
 				{/if}
 				<span class="text-current/30">·</span>
 				<DetectorStatusBadge
-					hasReadout={sdReadout}
+					hasStatus={rmStatus}
 					hasFaults={rmFaults.length > 0}
 					{stale}
 					isAlarming={device.isAlarming}
@@ -272,7 +277,7 @@
 				{/if}
 			</div>
 			<DetectorStatusBadge
-				hasReadout={sdReadout}
+				hasStatus={sdStatus}
 				hasFaults={sdFaults.length > 0}
 				{stale}
 				isAlarming={device.isAlarming}
@@ -297,7 +302,7 @@
 					{/if}
 				</div>
 				<DetectorStatusBadge
-					hasReadout={sdReadout}
+					hasStatus={rmStatus}
 					hasFaults={rmFaults.length > 0}
 					{stale}
 					isAlarming={device.isAlarming}

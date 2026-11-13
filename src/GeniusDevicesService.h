@@ -43,6 +43,7 @@
 #include <Utils.hpp>
 #include <PsramAllocator.h>
 #include <AlarmPublishingSettingsService.h>
+#include <GeniusDeviceStatus.h>
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
 #include <HomeAssistant/HABinarySensor.h>
@@ -57,6 +58,7 @@
 #define GATEWAY_DEVICES_DEVICE_PATH         "/rest/gateway-devices/device"          ///< PUT: upsert single device
 #define GATEWAY_DEVICES_DEVICE_DELETE_PATH  "/rest/gateway-devices/device/delete"   ///< POST: delete single device (body: { id })
 #define GATEWAY_DEVICES_REORDER_PATH        "/rest/gateway-devices/reorder"         ///< POST: reorder (body: { order: [id...] })
+#define GATEWAY_DEVICES_RESET_STATUS_PATH   "/rest/gateway-devices/device/reset-status" ///< POST: clear a device's status flags (body: { id })
 
 // Chunked import endpoints (let arbitrarily large device lists land without holding the whole payload in heap)
 #define GATEWAY_DEVICES_IMPORT_BEGIN_PATH   "/rest/gateway-devices/import/begin"
@@ -72,6 +74,7 @@
 #define GATEWAY_MAX_ALARMS 100   ///< Maximum number of alarms supported
 
 #define ALARM_STATE_CHANGE "alarm-state-change"  ///< WebSocket event for alarm state changes
+#define DEVICE_STATUS_CHANGE "device-status-change"  ///< Update origin for status flag changes (received over the air or reset manually)
 
 #define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"  ///< Event for device discovery
 #define RSSI_SURVEY_UPDATE "rssi-survey-update"  ///< Update origin for a ConfigCheckProbe RSSI write (persist only; no HA/sub-device sync)
@@ -310,7 +313,10 @@ public:
                                    isAlarming(false),
                                    published(false),
                                    readoutTime(0),
-                                   readoutProtocolVersion(0)
+                                   readoutProtocolVersion(0),
+                                   statusFlags(0),
+                                   statusKnown(0),
+                                   statusChanged(0)
     {
     }
 
@@ -339,6 +345,14 @@ public:
         }
         if (!haEntityIdPrefix.isEmpty())
             root["haEntityIdPrefix"] = haEntityIdPrefix;
+        if (statusKnown)
+        {
+            JsonObject status = root["status"].to<JsonObject>();
+            status["flags"] = statusFlags;
+            status["known"] = statusKnown;
+            if (statusChanged > 0)
+                status["changed"] = Utils::time_t_to_iso8601(statusChanged);
+        }
     }
 
     uint32_t id;                          ///< Unique identifier for device (auto-generated, immutable)
@@ -362,6 +376,22 @@ public:
      * from the config file.
      */
     String haEntityIdPrefix;
+
+    // --- Current status (GENIUS_STATUS_* flags, alarm bit excluded) ---
+    // Fed by received status changes, acoustic readouts and manual resets - whichever is newest.
+    // A flag's value only means something once its bit is set in statusKnown: until the gateway
+    // has heard about a flag, it cannot tell "OK" from "never announced".
+    uint16_t statusFlags;                 ///< Currently active status flags
+    uint16_t statusKnown;                 ///< Flags whose current state is known
+    time_t statusChanged;                 ///< Timestamp of the last status change (0 = never)
+
+    /// Read the "status" object written by toJson(). Returns false (status untouched) if absent.
+    bool statusFromJson(JsonVariant src);
+
+    /// Take battery / detector fault / radio fault over from the acoustic readout as current
+    /// status - called when a new readout arrives, or to derive the status of a device that has
+    /// none stored yet. Returns true if the status changed.
+    bool applyReadoutStatus();
 
     /// Parse an "alarms" JsonArray into a vector, capped at GATEWAY_MAX_ALARMS.
     static std::vector<genius_device_alarm_t> parseAlarms(JsonArray jsonAlarms);
@@ -430,6 +460,27 @@ public:
     /// Get the number of devices currently alarming
     uint32_t numAlarmingDevices();
 
+    /**
+     * @brief Apply a received status change to the device with smoke detector serial @p detectorSN.
+     *
+     * Flags in @p setMask become active, flags in @p clearedMask inactive; both become known.
+     * Idempotent - repeated copies of the same change (mesh forwarding) leave the device untouched.
+     * On an actual change the device is persisted, its HA status entities are published and the
+     * update handlers run with origin DEVICE_STATUS_CHANGE.
+     *
+     * @param detectorSN  Smoke detector serial number
+     * @param setMask     Status flags newly set (alarm bit ignored)
+     * @param clearedMask Status flags newly cleared (alarm bit ignored)
+     * @return The updated device, or nullptr if nothing changed or the detector is unknown
+     */
+    const GeniusDevice *applyStatusChange(uint32_t detectorSN, uint16_t setMask, uint16_t clearedMask);
+
+    /// Number of devices with at least one active fault (GENIUS_STATUS_FAULT_MASK)
+    uint32_t numFaultyDevices();
+
+    /// Number of devices reporting a low battery
+    uint32_t numBatteryLowDevices();
+
     /// Check if a smoke detector is known/registered
     bool isSmokeDetectorKnown(uint32_t detectorSN);
 
@@ -487,6 +538,9 @@ public:
     /// Publish global alarm state to the simple alarm topic (independent of HA integration)
     void mqttPublishSimpleAlarmState();
 
+    /// Publish the smoke detectors' status summary to the simple fault topic (independent of HA integration)
+    void mqttPublishSimpleFaultState();
+
     /**
      * @brief Re-publish alarm state for all devices.
      *
@@ -526,6 +580,11 @@ public:
 
     /// Delete a single device by id.
     DeviceOpResult removeDevice(uint32_t deviceId);
+
+    /// Manually clear all status flags of a device (e.g. after the fault was fixed or the device
+    /// replaced). Flags stay known, so they read as OK afterwards. UNCHANGED if none was active.
+    /// On success, the updated device is written to `out`.
+    DeviceOpResult resetStatus(uint32_t deviceId, GeniusDevice &out);
 
     /// Reorder devices to match the given id list. The list MUST contain exactly the
     /// current device id set (no additions, no removals) - otherwise INVALID_BODY.
@@ -575,6 +634,11 @@ private:
     bool _isAlarming;      ///< Current global alarming state
     uint32_t _numAlarming; ///< Number of devices currently alarming
 
+    // Status summary tracking
+    uint32_t _numFaulty = 0;      ///< Number of devices with an active fault
+    uint32_t _numBatteryLow = 0;  ///< Number of devices reporting a low battery
+    String _lastFaultPayload;     ///< Last payload sent to the simple fault topic (publish on change only)
+
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client (for simple alarm topic)
     AlarmPublishingSettingsService *_alarmPublishingSettings; ///< Alarm-publishing settings service
@@ -587,7 +651,7 @@ private:
     struct SmokeDetectorHA {
         HADevice                                  *device;
         HABinarySensor                            *sensor;       ///< smoke alarm binary_sensor (Control)
-        std::unique_ptr<HAGroupedSensorPublisher>  diagnostics;  ///< 13 readout entities on one shared state topic
+        std::unique_ptr<HAGroupedSensorPublisher>  diagnostics;  ///< status + readout entities on one shared state topic
     };
     std::map<uint32_t, SmokeDetectorHA> _haDevices;  ///< maps device.id → HA objects
 
@@ -639,6 +703,12 @@ private:
 
     /// Update internal alarming state counters
     void _updateAlarmingState();
+
+    /// Update the status summary counters and the simple fault topic (publishes on change only)
+    void _updateStatusSummary();
+
+    /// Build the simple fault topic payload from the current device list
+    String _buildSimpleFaultPayload();
 
     // ========================================================================
     // ID Generation

@@ -110,7 +110,7 @@ constant"*).
 | `data[27]` | Length | Packet type |
 |:----------:|:------:|:------------|
 | `0x00` | 28 B | [CommissioningProbe Request](#commissioningprobe-request) |
-| `0x00` | 36 B | [Alarming (Start/Stop)](#alarming-startstop) |
+| `0x00` | 36 B | [Status Change (Alarming, Battery Low, Faults)](#status-change) |
 | `0x01` | 32 B | [CommissioningProbe Response](#commissioningprobe-response) |
 | `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
 | `0x04` | 29 B | [Line Test (Start/Stop)](#line-test-startstop) |
@@ -121,9 +121,9 @@ constant"*).
 </div>
 
 !!! note "Why the type byte matters for classification"
-    Packet length alone is ambiguous: message type `0x00` is shared by **Alarming (36 B)**
-    and the **CommissioningProbe Request (28 B)**, and a **36-byte** frame is either an **alarm
-    (`0x00`)** or a **ConfigCheckProbe response (`0x08`)** - so classifying purely by length can
+    Packet length alone is ambiguous: message type `0x00` is shared by the **Status Change (36 B)**
+    and the **CommissioningProbe Request (28 B)**, and a **36-byte** frame is either a **status
+    change (`0x00`)** or a **ConfigCheckProbe response (`0x08`)** - so classifying purely by length can
     misread a ConfigCheckProbe response as an alarm-stop. The gateway therefore classifies on
     `data[27]` with length as a validator (since v1.5.0).
 
@@ -157,7 +157,7 @@ The number of repetitions, the exact period for packet repetitions, as well as t
 | Packet Type | Repetitions<br>$N$ | Period Time<br>$T$ | Initial *Rem-TX*<br>$RT_{Start}$ | *Rem-TX* Decrement<br>$\Delta=\frac{RT_{Start}}{N - 1}$ |
 |:------------|------------:|-------:|----------------:|:---------:|
 | [Alarm Line Commissioning](#alarm-line-commissioning) | 309 x | ~10.06 ms | 6.348 (CC 18) | ~20,6 |
-| [Alarming (Start/Stop)](#alarming-startstop) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
+| [Status Change (Alarming, Battery Low, Faults)](#status-change) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
 | [Line Test (Start/Stop)](#line-test-startstop) | 370 x | ~8,40 ms | 6.348 (CC 18) | ~17,2 |
 | [CommissioningProbe Request](#commissioningprobe-request) | 26 x | ~8,19 ms | 427 (AB 01) | ~17,1 |
 | [CommissioningProbe Response](#commissioningprobe-response) | 24 x| ~9,02 ms | 427 (AB 01) | ~18,6 |
@@ -229,11 +229,28 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 
 </div>
 
-#### Alarming (Start/Stop)
+#### Status Change (Alarming, Battery Low, Faults) {#status-change}
 
-The packets described here serve to signal the detection of smoke by an individual smoke detector to all other smoke detectors of an alarm line, so that they also signal the detected smoke. The exact signaling behavior of the smoke detectors can be found in the operating instructions.
+The packets described here announce a change of a smoke detector's **status flags** to all other smoke detectors of an alarm line. The most prominent case is the detection of smoke, which makes all smoke detectors of the alarm line signal it - the exact signaling behavior can be found in the operating instructions. The same packet also announces a low battery, device faults, radio link faults and the dismounting of a smoke detector.
 
-##### Observations
+The packet carries the change as a pair of masks over the same 16-bit flag field: the flags newly **set** and the flags newly **cleared**. The flag field is the *ErrorValue* of Hekatron's FM.GW interface - the identical `set/cleared/serial` triple is forwarded 1:1 by the FM.GW serial protocol (`IndNwkStateChange`), which confirms the field semantics and supplies the flag names:
+
+<div class="pckt-table" markdown>
+
+| Flag | Name | Meaning |
+|:----:|:-----|:--------|
+| `0x0001` | Alarm | Smoke detected - alarm start (set) / alarm stop or silencing (cleared) |
+| `0x0002` | Error | Device fault |
+| `0x0004` | BattLow | Battery low |
+| `0x0008` | Radio | Radio link fault |
+| `0x0010` | Mute | A radio link or dismount fault was muted (informational) |
+| `0x0020` | Dismount | Smoke detector dismounted from its base |
+
+</div>
+
+The flags are **edge-triggered**: a radio module announces a flag once when it changes (computed as `set = ~current & new`, `cleared = current & ~new`) and never repeats it periodically. A gateway that misses the announcement - e.g. because it was offline - does not learn about the flag until the next change. The FM Basis X measures the battery itself: it is powered from the smoke detector's battery, so its own supply voltage is the detector battery.
+
+##### Observations (alarming)
 
 - Each smoke detector whose smoke sensor detects smoke sends a Start Alarming packet:
     - The `Org-SN` and `Fwd-SN` fields contain the serial number of the **radio module** of the detecting smoke detector
@@ -276,6 +293,13 @@ The packets described here serve to signal the detection of smoke by an individu
 !!! danger "Start/Stop Mutual Exclusion"
     The behavior of smoke detectors when both the `Start` field and the `Stop` field are set to `0x01` in a packet is not known.
 
+`Start` and `Stop` are the low bytes of the set and cleared masks - a Start Alarming packet is a status change setting the alarm flag `0x0001`, a Stop Alarming packet one clearing it.
+
+##### Observations (battery low and faults)
+
+- A battery warning was captured as a status change with `set = 0x0004` (BattLow), `cleared = 0x0000` and the serial of the affected smoke detector in `Detector` - mesh-forwarded like an alarm, with `Org-SN` naming the radio module of that smoke detector.
+- Device faults (`0x0002`), radio link faults (`0x0008`) and dismounting (`0x0020`) use the same packet with their own flag; a flag that recovers is announced in the cleared mask.
+
 ##### Basic properties
 
 - Overall packet length: **36 bytes**
@@ -285,9 +309,9 @@ The packets described here serve to signal the detection of smoke by an individu
 ##### Compact view (complete)
 
 ```
-Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |   28  | 29 |  30  | 31 |    32-35    |
-Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | 00 | 00 |   XX  | 00 |  XX  | 00 | XX XX XX XX |
-Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        | Start |    | Stop |    |  Detector   |
+Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |  28-29  |  30-31  |    32-35    |
+Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | 00 | 00 |  XX XX  |  XX XX  | XX XX XX XX |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        |   Set   | Cleared |  Detector   |
 ```
 
 ##### Detailed explanation (delta)
@@ -298,13 +322,17 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x00` | Type | Message type - see [Message Type Byte](#message-type-byte). |
-| 28 | 1 | `XX` | Start | Start flag<br><br>`0x01`: Starting fire alarm<br>`0x00`: Otherwise |
-| 29 | 1 | `0x00` | | Unknown, seems to be constant |
-| 30 | 1 | `XX` | Stop | Stop flag<br><br>`0x01`: Stopping or silencing alarming<br>`0x00`: Otherwise |
-| 31 | 1 | `0x00` | | Unknown, seems to be constant |
-| 32-35 | 4 | `XX XX XX XX`<br><span style="color: var(--md-typeset-a-color)">:material-alert-circle-outline: *little endian*</span> | Detector | Serial number of the smoke detector (not its radio module!) that (initially) detected smoke. |
+| 28-29 | 2 | `XX XX`<br><span style="color: var(--md-typeset-a-color)">:material-alert-circle-outline: *little endian*</span> | Set | Status flags newly **set** (see flag table above).<br><br>Low byte = former *Start* field: `0x01` starts a fire alarm. |
+| 30-31 | 2 | `XX XX`<br><span style="color: var(--md-typeset-a-color)">:material-alert-circle-outline: *little endian*</span> | Cleared | Status flags newly **cleared** (see flag table above).<br><br>Low byte = former *Stop* field: `0x01` stops or silences alarming. |
+| 32-35 | 4 | `XX XX XX XX`<br><span style="color: var(--md-typeset-a-color)">:material-alert-circle-outline: *little endian*</span> | Detector | Serial number of the smoke detector (not its radio module!) whose status changed - e.g. the one that (initially) detected smoke. |
 
 </div>
+
+!!! example "Captured battery warning"
+    ```
+    02 AE 0A 00 FF FF FF FF 00 83 5F E1 16 00 83 5F E1 15 B7 B7 AA 11 0E 26 48 00 00 00 04 00 00 00 3B F6 A5 82
+    ```
+    Type `0x00`, set `0x0004` (BattLow), cleared `0x0000`, detector `0x82A5F63B` (2191914555), originated by radio module `0x835FE116` and forwarded by `0x835FE115`.
 
 #### Line Test (Start/Stop)
 

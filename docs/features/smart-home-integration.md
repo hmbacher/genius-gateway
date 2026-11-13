@@ -8,7 +8,7 @@ Genius Gateway offers two levels of smart home integration via MQTT, allowing yo
 
 | Approach | Description | Best for |
 |----------|-------------|----------|
-| [Simple Alarm Publishing](#simple-alarm-publishing) | Basic fire alarm notifications forwarded to your smart home system without individual device tracking. | Quick setup, simple alarm notifications for all smart home systems with MQTT interface |
+| [Simple Alarm Publishing](#simple-alarm-publishing) | Basic fire alarm notifications - and optionally battery warnings and faults - forwarded to your smart home system without individual device tracking. | Quick setup, simple alarm notifications for all smart home systems with MQTT interface |
 | [Home Assistant Integration](#home-assistant-integration) |Full device integration with automatic discovery, individual detector tracking, and rich automation possibilities. | Home Assistant users, detailed monitoring, advanced automation scenarios |
 
 | Feature | Simple Alarm Publishing | Home Assistant Integration |
@@ -49,12 +49,20 @@ Simple alarm publishing provides a straightforward way to integrate fire alarm d
 
 See the [MQTT API - Global Alarm State Topic](../api/mqtt-topics.md#global-alarm-state-topic) for detailed payload format and examples.
 
+### Battery Warnings and Faults
+
+Smoke detectors also announce a **low battery**, **device faults**, **radio link faults** and **dismounting** over the air. With **simple fault publishing** enabled, the gateway publishes a status summary to a second topic whenever one of these changes: how many detectors are faulty or low on battery, and which ones with which flags.
+
+Unlike alarms, these are only tracked for smoke detectors **registered** in Genius Gateway - the status is kept per detector (see [Current Status](device-management.md#current-status)).
+
+See the [MQTT API - Global Fault State Topic](../api/mqtt-topics.md#global-fault-state-topic) for the payload format.
+
 ### Configuration Requirements
 
 To enable simple alarm publishing:
 
 1. **[Configure MQTT broker connection](../setup/connections.md#mqtt)** - Set up connection to your MQTT broker
-2. **[Enable Simple Alarm Publishing](../setup/connections.md#simple-alarm-publishing)** - Configure the alarm topic and enable publishing
+2. **[Enable Simple Alarm Publishing](../setup/connections.md#simple-alarm-publishing)** - Configure the alarm topic and enable publishing; optionally enable fault publishing as well
 3. **[(Optional) Enable unknown detector processing](gateway-settings.md#process-alerts-from-unknown-smoke-detectors)** - Allow detection of detectors not explicitly configured
 
 !!! gg "Works with Known and Unknown Detectors"
@@ -261,6 +269,7 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 - **Automatic device discovery** - No manual configuration in Home Assistant
 - **Individual detector tracking** - Monitor each detector's state separately
 - **Rich device information** - Model, manufacturer, serial number, location
+- **Live status** - Battery low, device fault, radio link fault and dismounting as reported by the detector over the air
 - **Diagnostic entities** - Detailed readout data after acoustic service
 - **Automation capabilities** - Create detector-specific automations
 - **Historical data** - Track alarm history per detector
@@ -270,9 +279,10 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 | Entity | Category | Available | Description |
 |--------|----------|-----------|-------------|
 | **Smoke Detector** (binary_sensor) | Control | Always | Alarm state `ON`/`OFF` |
-| **Battery** (binary_sensor) | Diagnostic | After readout | Battery low fault |
-| **Smoke Detector State** (binary_sensor) | Diagnostic | After readout | Internal device fault |
-| **Radio Module State** (binary_sensor) | Diagnostic | After readout | Radio network fault |
+| **Battery** (binary_sensor) | Diagnostic | Once known | Battery low |
+| **Smoke Detector State** (binary_sensor) | Diagnostic | Once known | Internal device fault |
+| **Radio Module State** (binary_sensor) | Diagnostic | Once known | Radio link fault |
+| **Dismount** (binary_sensor) | Diagnostic | Once known | Detector dismounted from its base (`tamper`) |
 | **Deinstallation Count** | Diagnostic | After readout | Lifetime deinstall count |
 | **Last Service** | Diagnostic | After readout | Timestamp of last acoustic readout |
 | **Radio Module Model** | Diagnostic | After readout | Model name (e.g. FM Basis X) |
@@ -284,10 +294,12 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 | **Alarms (3 Months)** | Diagnostic | After readout | Alarm count in last 3 months |
 | **Radio Interference** | Diagnostic | After readout | Radio interference level (%) |
 
-Diagnostic entities show as **unavailable** until the first acoustic readout is performed via the SmartSonic interface.
+The four status entities (Battery, Smoke Detector State, Radio Module State, Dismount) show the detector's [current status](device-management.md#current-status) and update **live** when the detector reports a change over the air. Each one shows as **unavailable** until its state is known - from a status the detector reported, an acoustic readout (except Dismount) or a manual reset. Smoke detectors report a flag only when it changes, so an "OK" before that would be a guess.
+
+All other diagnostic entities show as **unavailable** until the first acoustic readout is performed via the SmartSonic interface.
 
 !!! info "Shared MQTT State Topic"
-    All 13 diagnostic entities share a single MQTT state topic (`diagnostics/state`) that carries a JSON payload with all values. Availability is folded into the same payload - there is no separate availability topic. This reduces MQTT traffic and keeps the broker's retained-message store lean. See [MQTT API - Readout-Derived Diagnostic Entities](../api/mqtt-topics.md#readout-derived-diagnostic-entities) for the full payload schema.
+    All 14 diagnostic entities share a single MQTT state topic (`diagnostics/state`) that carries a JSON payload with all values. Availability is folded into the same payload - there is no separate availability topic. This reduces MQTT traffic and keeps the broker's retained-message store lean. See [MQTT API - Diagnostic Entities](../api/mqtt-topics.md#diagnostic-entities-status-and-readout) for the full payload schema.
 
 ### Home Assistant Visual Integration
 

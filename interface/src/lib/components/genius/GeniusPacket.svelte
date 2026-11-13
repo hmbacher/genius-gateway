@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Packet } from '$lib/types/models';
-	import { PacketTypeNames } from '$lib/types/models';
+	import { PacketTypeNames, StatusChangePacketTypeNames } from '$lib/types/models';
 	import GeniusPacketDataBlock from '$lib/components/genius/GeniusPacketDataBlock.svelte';
 	import GeniusPacketContentHeader from './GeniusPacketContentHeader.svelte';
 	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
@@ -10,8 +10,7 @@
 	import GeniusPacketContentLineTestStop from './GeniusPacketContentLineTestStop.svelte';
 	import GeniusPacketContentCommissioningProbeRequest from './GeniusPacketContentCommissioningProbeRequest.svelte';
 	import GeniusPacketContentCommissioningProbeResponse from './GeniusPacketContentCommissioningProbeResponse.svelte';
-	import GeniusPacketContentAlarmStart from './GeniusPacketContentAlarmStart.svelte';
-	import GeniusPacketContentAlarmStop from './GeniusPacketContentAlarmStop.svelte';
+	import GeniusPacketContentStatusChange from './GeniusPacketContentStatusChange.svelte';
 	import GeniusPacketContentConfigCheckProbeResponse from './GeniusPacketContentConfigCheckProbeResponse.svelte';
 	import IconChevronDown from '~icons/tabler/chevron-down';
 
@@ -86,10 +85,8 @@
 				<GeniusPacketContentCommissioningProbeRequest {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.CommissioningProbeResponse}
 				<GeniusPacketContentCommissioningProbeResponse {packet} {showDetails} />
-			{:else if packet.type?.name === PacketTypeNames.StartAlarm}
-				<GeniusPacketContentAlarmStart {packet} {showDetails} />
-			{:else if packet.type?.name === PacketTypeNames.StopAlarm}
-				<GeniusPacketContentAlarmStop {packet} {showDetails} />
+			{:else if packet.type && StatusChangePacketTypeNames.includes(packet.type.name)}
+				<GeniusPacketContentStatusChange {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.ConfigCheckProbeResponse}
 				<GeniusPacketContentConfigCheckProbeResponse {packet} {showDetails} />
 			{:else if packet.generalInfo && packet.data.length >= 24}
@@ -154,6 +151,10 @@
 
 	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-alarm-stop) {
 		@apply bg-green-500 dark:bg-green-700 font-normal;
+	}
+
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-status-change) {
+		@apply bg-orange-400 dark:bg-orange-700 font-normal;
 	}
 
 	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-configcheckprobe-request) {
@@ -306,6 +307,22 @@
 
 	:global(div.genius-packet div.packet-data-container>div[data-type='alarm-stop']>div) {
 		@apply bg-green-400 dark:bg-green-800;
+	}
+
+	:global(div.genius-packet div.packet-data-container>div[data-type='status-set']>div.packet-data-1) {
+		@apply bg-orange-500 dark:bg-orange-600;
+	}
+
+	:global(div.genius-packet div.packet-data-container>div[data-type='status-set']>div) {
+		@apply bg-orange-300 dark:bg-orange-800;
+	}
+
+	:global(div.genius-packet div.packet-data-container>div[data-type='status-cleared']>div.packet-data-1) {
+		@apply bg-teal-500 dark:bg-teal-600;
+	}
+
+	:global(div.genius-packet div.packet-data-container>div[data-type='status-cleared']>div) {
+		@apply bg-teal-300 dark:bg-teal-800;
 	}
 
 	:global(div.genius-packet div.packet-data-container>div[data-type='line-test-start']>div.packet-data-1) {

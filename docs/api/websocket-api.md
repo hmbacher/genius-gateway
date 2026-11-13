@@ -307,6 +307,31 @@ Global alarm state notifications
 
 ---
 
+### `device-status`
+Smoke detector status summary (battery low, faults)
+
+**Trigger:** A smoke detector's status flags change - a [status change](../reverse-engineering/protocol-analysis.md#status-change) received over the air, or a manual status reset. Repeated copies of the same change (mesh forwarding) trigger it only once.
+
+**Data Format:**
+```json
+{
+  "event": "device-status",
+  "data": {
+    "numFaulty": 1,
+    "numBatteryLow": 1
+  }
+}
+```
+
+**Fields:**
+
+- `numFaulty` - Number of smoke detectors with at least one active fault (battery low, device fault, radio link fault, dismounted)
+- `numBatteryLow` - Number of smoke detectors reporting a low battery
+
+The per-device status is part of the device list (`status` object, see [`/rest/gateway-devices`](http-api.md#device-management)); the web interface reloads it on this event.
+
+---
+
 ### `alarm-state-change`
 Individual device alarm state changes
 

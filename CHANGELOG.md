@@ -23,6 +23,17 @@ Clicking a detector card on the Overview page now opens that detector directly, 
 - **Overview works without administrator rights**: the detector list can now be read by every signed-in user (`GET /rest/gateway-devices`), so the Overview shows the cards to them as well - before, it stayed at "Loading devices..." forever. Changing detectors and ending alarms remain administrator actions
 - **One editor for all flows**: adding, editing and replacing a detector now go through one shared editor and save path (`deviceSave.svelte.ts`). A failed save no longer opens the follow-up dialogs
 
+## Battery Warnings and Fault Status over Radio
+Smoke detectors announce more than alarms over the air: the 36-byte packet the gateway already received for alarms turned out to be a generic **status change** - a pair of masks over the detector's status flags (newly set / newly cleared) plus its serial number. Alarm start/stop is just the alarm-flag case. The gateway now evaluates every flag, so a **low battery**, **device faults**, **radio link faults** and **dismounting** are picked up live (issue #23).
+
+- **Generic status-change evaluation**: the packet is classified by type and length only and evaluated flag by flag - alarm start/stop keeps its behaviour, every other flag (including ones not known yet) is stored as the device's status. A packet carrying the alarm flag together with another flag is now handled completely
+- **Current status per smoke detector**: fed by status changes received over the air, the last acoustic readout and manual resets - whichever is newest. Smoke detectors announce a flag only when it changes, so a flag the gateway has not heard about yet is **Unknown** rather than OK, and the status is persisted across restarts. On the first boot, read-out devices take their battery and fault status over from the readout
+- **Manual reset**: a new **Reset Status** button in the Device Details dialog clears all flags of a detector once the fault is fixed or the device replaced (`POST /rest/gateway-devices/device/reset-status`)
+- **Web interface**: the device list, overview and top-bar health indicator show the current status even without a readout; the Device Details dialog has a new **Current Status** section (battery, detector, radio link, mounting); a toast pops up when a detector reports a low battery or a fault (new `device-status` WebSocket event)
+- **Home Assistant**: the existing **Battery**, **Smoke Detector State** and **Radio Module State** entities now show the current status and update live; a new **Dismount** entity (`tamper`) is added. Each of them is unavailable until its state is known instead of suggesting an unconfirmed OK
+- **Simple fault publishing**: optional second topic (default `smarthome/genius-gateway/fault`) with the number of faulty and battery-low detectors and the active flags per detector, configured alongside simple alarm publishing
+- **Packet visualizer**: status changes are decoded flag by flag - labelled *Start Alarm* / *Stop Alarm* for the alarm flag and *Status Change* otherwise
+
 ## Home Assistant MQTT Topic Restructuring
 The Home Assistant topic tree carried a redundant namespace level and derived its identity from the user-editable **Device Name**, which duplicated the gateway's MAC address in every state topic and made renaming the gateway a destructive operation. Both are fixed.
 
@@ -42,6 +53,7 @@ See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/set
 
 ## Documentation
 - **MQTT topic reference corrected**: the documented discovery config topic pattern (`{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/…/config`) never matched the firmware, which has always published to a flat single-level `node_id` as the Home Assistant discovery spec requires. All topic examples now reflect the actual v1.6.0 layout
+- **Status Change packet**: the protocol analysis describes the former *Alarming* packet as the generic status change, with the full flag table and a captured battery warning
 
 ## Bugfixes
 - **Restart when a smoke detector or alarm line was added or removed while the gateway published to Home Assistant**: after every MQTT connect, and after applying the Home Assistant settings, the gateway republishes all entities in a background task - a few seconds with many detectors. Adding or deleting a detector or an alarm line during that time changed the lists that task was working on and could crash the gateway (present since v1.3.0). The Home Assistant registry is now locked per device while it is published: a change waits for the device in progress instead of pulling it away

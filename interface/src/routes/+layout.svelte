@@ -24,7 +24,8 @@
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { cc1101Status } from '$lib/stores/cc1101.svelte';
 	import { jsonDateReviver } from '$lib/utils/misc';
-	import type { GeniusDevices, AlarmState, CC1101Status } from '$lib/types/models';
+	import { activeStatusFlags, STATUS_BATTERY_LOW, STATUS_FAULT_MASK } from '$lib/genius/status';
+	import type { GeniusDevices, AlarmState, DeviceStatusEvent, CC1101Status } from '$lib/types/models';
 
 	interface Props {
 		data: LayoutData;
@@ -72,6 +73,8 @@
 		if (page.data.features.download_firmware) socket.on('otastatus', handleOTA);
 		// Genius Gateway: Listen for alarm state changes
 		socket.on<AlarmState>('alarm', handleAlarm);
+		// Genius Gateway: Listen for smoke detector status changes (battery low, faults)
+		socket.on<DeviceStatusEvent>('device-status', handleDeviceStatus);
 		// Genius Gateway: Listen for CC1101 radio lifecycle state
 		socket.on<CC1101Status>('cc1101_status', handleCC1101Status);
 	};
@@ -86,6 +89,7 @@
 		socket.off('otastatus', handleOTA);
 		// Genius Gateway: Stop listening for alarm state changes
 		socket.off('alarm', handleAlarm);
+		socket.off('device-status', handleDeviceStatus);
 		socket.off('cc1101_status', handleCC1101Status);
 	};
 
@@ -201,6 +205,20 @@
 			notifications.error('Smoke detected!', 5000);
 		}
 		// Reload Genius devices to obtain alarming ones
+		await getGeniusDevices();
+	};
+
+	const handleDeviceStatus = async (data: DeviceStatusEvent) => {
+		// Compare with the devices as known so far to tell a new problem from a resolved one
+		const active = geniusDevices.devices.map(activeStatusFlags);
+		const numBatteryLow = active.filter((f) => f & STATUS_BATTERY_LOW).length;
+		const numFaulty = active.filter((f) => f & STATUS_FAULT_MASK).length;
+		if (data.numBatteryLow > numBatteryLow) {
+			notifications.warning('A smoke detector reports a low battery.', 8000);
+		} else if (data.numFaulty > numFaulty) {
+			notifications.warning('A smoke detector reports a fault.', 8000);
+		}
+		// Reload Genius devices to obtain their new status
 		await getGeniusDevices();
 	};
 

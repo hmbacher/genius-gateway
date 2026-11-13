@@ -30,6 +30,7 @@ Authorization: Bearer <token>
 |----------|--------|------|-------------|
 | `/rest/gateway-devices` | GET | 🔒 | Read the smoke detector devices |
 | `/rest/gateway-devices` | POST | 🛡️ | Replace the smoke detector devices |
+| `/rest/gateway-devices/device/reset-status` | POST | 🛡️ | Reset a smoke detector's status flags |
 | `/rest/alarm-lines` | GET, POST | 🛡️ | Manage alarm lines (RF groups) |
 | `/rest/alarm-lines/do` | POST | 🛡️ | Execute alarm line actions |
 | `/rest/gateway-settings` | GET, POST | 🛡️ | Configure gateway behavior |
@@ -76,7 +77,12 @@ Authorization: Bearer <token>
           "endTime": "2025-01-15T10:35:00Z",
           "endingReason": 0
         }
-      ]
+      ],
+      "status": {
+        "flags": 4,
+        "known": 14,
+        "changed": "2026-11-12T10:55:53Z"
+      }
     }
   ]
 }
@@ -93,10 +99,31 @@ Authorization: Bearer <token>
 - `alarms` - History of alarm events
 - `endingReason` - How alarm ended (-1=active, 0=detector, 1=manual)
 - `haEntityIdPrefix` - Read-only, only present once set. Entity-ID prefix the gateway last announced to Home Assistant for this detector (see `rename_entity_ids` in [`/rest/haSettings`](#resthasettings)). A value sent by a client is ignored
+- `status` - [Current status](../features/device-management.md#current-status), present once the state of at least one flag is known:
+    - `flags` - Active [status flags](../reverse-engineering/protocol-analysis.md#status-change) (`0x0002` device fault, `0x0004` battery low, `0x0008` radio link fault, `0x0010` fault muted, `0x0020` dismounted)
+    - `known` - Flags whose state is known; a flag not set here was never reported and is neither OK nor active
+    - `changed` - Time of the last status change (ISO 8601)
+
+    The status is owned by the gateway: it is ignored when a device is updated, and only taken over from an import file (or derived from the readout if the file has none).
 
 **POST Request:** Same format as GET response
 
 **POST Response:** 200 OK with updated device list
+
+---
+
+#### `/rest/gateway-devices/device/reset-status`
+- **Method:** POST
+- **Auth:** 🛡️ Admin
+- **Description:** Reset all status flags of a smoke detector, e.g. after its fault was fixed or the device was replaced. The flags stay known and read as OK until the smoke detector reports a change again.
+- **Request:**
+```json
+{
+  "id": 1
+}
+```
+
+**Response:** 200 OK with the updated device (same format as one entry of the device list), 404 if no device has that `id`
 
 ---
 
@@ -201,7 +228,9 @@ Authorization: Bearer <token>
 ```json
 {
   "alarmEnabled": true,
-  "alarmTopic": "smarthome/genius-gateway/alarm"
+  "alarmTopic": "smarthome/genius-gateway/alarm",
+  "faultEnabled": true,
+  "faultTopic": "smarthome/genius-gateway/fault"
 }
 ```
 
@@ -209,6 +238,8 @@ Authorization: Bearer <token>
 
 - `alarmEnabled` - Enable alarm state publishing to a central MQTT topic
 - `alarmTopic` - MQTT topic for global alarm state
+- `faultEnabled` - Enable fault publishing (battery low, device faults) to a central MQTT topic
+- `faultTopic` - MQTT topic for the [global fault state](mqtt-topics.md#global-fault-state-topic)
 
 **POST Response:** 200 OK with updated settings
 

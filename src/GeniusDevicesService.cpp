@@ -159,6 +159,30 @@ void GeniusDevicesService::begin()
             },
             AuthenticationPredicates::IS_ADMIN));
 
+    // ---- Per-device: POST /rest/gateway-devices/device/reset-status  body: { id } ----
+    _server->on(
+        GATEWAY_DEVICES_RESET_STATUS_PATH,
+        HTTP_POST,
+        _securityManager->wrapCallback(
+            [this](PsychicRequest *request, JsonVariant &json) -> esp_err_t {
+                if (!json.is<JsonObject>() || !json["id"].is<uint32_t>())
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Missing id\"}");
+                GeniusDevice updated(GeniusSmokeDetectorInfo{}, GeniusRadioModuleInfo{}, String(), 0);
+                switch (this->resetStatus(json["id"].as<uint32_t>(), updated))
+                {
+                case DeviceOpResult::OK:
+                case DeviceOpResult::UNCHANGED:
+                    return replyDevice(request, updated);
+                case DeviceOpResult::NOT_FOUND:
+                    return replyJson(request, 404, "{\"success\":false,\"reason\":\"Device not found\"}");
+                case DeviceOpResult::INVALID_BODY:
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Invalid id\"}");
+                default:
+                    return replyJson(request, 500, "{\"success\":false}");
+                }
+            },
+            AuthenticationPredicates::IS_ADMIN));
+
     // ---- Per-device CRUD: POST /rest/gateway-devices/reorder  body: { order: [id...] } ----
     _server->on(
         GATEWAY_DEVICES_REORDER_PATH,
@@ -280,17 +304,23 @@ void GeniusDevicesService::begin()
     // Initialize cached alarm-publishing settings
     _updateAlarmPublishingSettingsCache();
 
-    /* Update alarming state after every device update */
+    // Status counters for the devices just loaded (readFromFS does not run the update handlers)
+    _updateStatusSummary();
+
+    /* Update alarming state and status summary after every device update */
     this->addUpdateHandler([&](const String &originId)
-                           { _updateAlarmingState(); },
+                           {
+                               _updateAlarmingState();
+                               _updateStatusSummary(); },
                            false);
 
-    /* Sync HA sub-devices after device list changes (not for packet-originated adds, alarm state
-     * or writes that only persist backend-owned values) */
+    /* Sync HA sub-devices after device list changes (not for packet-originated adds, alarm or
+     * status changes, or writes that only persist backend-owned values) */
     this->addUpdateHandler([&](const String &originId)
                            {
                                if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET && originId != ALARM_STATE_CHANGE &&
-                                   originId != RSSI_SURVEY_UPDATE && originId != HA_ENTITY_ID_PREFIX_UPDATE)
+                                   originId != DEVICE_STATUS_CHANGE && originId != RSSI_SURVEY_UPDATE &&
+                                   originId != HA_ENTITY_ID_PREFIX_UPDATE)
                                {
                                    _syncSmokeDetectorSubDevices();
                                    if (_haService->isReady())
@@ -307,7 +337,8 @@ void GeniusDevicesService::begin()
         _alarmPublishingSettings->addUpdateHandler([this](const String &originId)
                                                    {
                                                        this->_updateAlarmPublishingSettingsCache();
-                                                       this->mqttPublishSimpleAlarmState(); },
+                                                       this->mqttPublishSimpleAlarmState();
+                                                       this->mqttPublishSimpleFaultState(); },
                                                    false);
     }
 
@@ -494,6 +525,52 @@ bool GeniusDevicesService::resetAllAlarms()
     return updated;
 }
 
+const GeniusDevice *GeniusDevicesService::applyStatusChange(uint32_t detectorSN, uint16_t setMask, uint16_t clearedMask)
+{
+    setMask &= GENIUS_STATUS_TRACKED_MASK;
+    clearedMask &= GENIUS_STATUS_TRACKED_MASK;
+
+    GeniusDevice *updatedDevice = nullptr;
+    uint32_t deviceId = 0;
+
+    beginTransaction();
+
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (device.smokeDetector.sn != detectorSN)
+            continue;
+
+        const uint16_t flags = (device.statusFlags | setMask) & ~clearedMask;
+        const uint16_t known = device.statusKnown | setMask | clearedMask;
+        if (flags != device.statusFlags || known != device.statusKnown)
+        {
+            device.statusFlags = flags;
+            device.statusKnown = known;
+            device.statusChanged = time(nullptr);
+            updatedDevice = &device;
+            deviceId = device.id;
+
+            ESP_LOGI(GeniusDevices::TAG, "Status of smoke detector with SN '%lu' changed (set 0x%04X, cleared 0x%04X) - now 0x%04X.",
+                     detectorSN, setMask, clearedMask, flags);
+        }
+        break;
+    }
+
+    endTransaction();
+
+    if (updatedDevice)
+    {
+        callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+        // HA: battery / fault / dismount entities
+        beginTransaction();
+        _publishSmokeDetectorAttributes(deviceId);
+        endTransaction();
+    }
+
+    return updatedDevice;
+}
+
 // ============================================================================
 // Private Methods - State Management
 // ============================================================================
@@ -520,6 +597,38 @@ void GeniusDevicesService::_updateAlarmingState()
 
     if (changed)
         mqttPublishSimpleAlarmState();
+}
+
+void GeniusDevicesService::_updateStatusSummary()
+{
+    uint32_t numFaulty = 0;
+    uint32_t numBatteryLow = 0;
+
+    beginTransaction();
+    for (const GeniusDevice &device : _state.devices)
+    {
+        // Only flags whose state is known count - an unknown flag is not a fault.
+        const uint16_t active = device.statusFlags & device.statusKnown;
+        if (active & GENIUS_STATUS_FAULT_MASK)
+            numFaulty++;
+        if (active & GENIUS_STATUS_BATT_LOW)
+            numBatteryLow++;
+    }
+    _numFaulty = numFaulty;
+    _numBatteryLow = numBatteryLow;
+    endTransaction();
+
+    // The payload names devices and their locations, so it can change without the counters
+    // changing - compare the whole payload. Only worth building while publishing is enabled.
+    if (!_cachedAlarmPublishingSettings.faultEnabled)
+        return;
+
+    beginTransaction();
+    const bool payloadChanged = _buildSimpleFaultPayload() != _lastFaultPayload;
+    endTransaction();
+
+    if (payloadChanged)
+        mqttPublishSimpleFaultState();
 }
 
 // ============================================================================
@@ -567,6 +676,22 @@ uint32_t GeniusDevicesService::numAlarmingDevices()
     endTransaction();
 
     return numAlarming;
+}
+
+uint32_t GeniusDevicesService::numFaultyDevices()
+{
+    beginTransaction();
+    uint32_t numFaulty = _numFaulty;
+    endTransaction();
+    return numFaulty;
+}
+
+uint32_t GeniusDevicesService::numBatteryLowDevices()
+{
+    beginTransaction();
+    uint32_t numBatteryLow = _numBatteryLow;
+    endTransaction();
+    return numBatteryLow;
 }
 
 bool GeniusDevicesService::isSmokeDetectorKnown(uint32_t detectorSN)
@@ -678,6 +803,48 @@ std::vector<genius_device_alarm_t> GeniusDevice::parseAlarms(JsonArray jsonAlarm
     return result;
 }
 
+bool GeniusDevice::statusFromJson(JsonVariant src)
+{
+    JsonObject status = src["status"].as<JsonObject>();
+    if (status.isNull())
+        return false;
+
+    statusKnown = status["known"].as<uint16_t>() & GENIUS_STATUS_TRACKED_MASK;
+    statusFlags = status["flags"].as<uint16_t>() & statusKnown;
+    statusChanged = status["changed"].is<String>() ? Utils::iso8601_to_time_t(status["changed"].as<String>()) : 0;
+    return true;
+}
+
+bool GeniusDevice::applyReadoutStatus()
+{
+    if (readoutTime == 0)
+        return false;
+
+    uint16_t bits = GENIUS_STATUS_READOUT_MASK;
+    // Old FM modules (FM.Basis / FM.Pro) report no radio status over SmartSonic - the readout's
+    // radio fault flag is just a default there and must not mark the radio link as OK.
+    if (isOldFmModule(radioModule.model))
+        bits &= ~GENIUS_STATUS_RADIO;
+
+    uint16_t fromReadout = 0;
+    if (smokeDetector.batteryLowFault)
+        fromReadout |= GENIUS_STATUS_BATT_LOW;
+    if (smokeDetector.deviceFault)
+        fromReadout |= GENIUS_STATUS_ERROR;
+    if (radioModule.radioNetworkFault)
+        fromReadout |= GENIUS_STATUS_RADIO;
+
+    const uint16_t flags = (statusFlags & ~bits) | (fromReadout & bits);
+    const uint16_t known = statusKnown | bits;
+    if (flags == statusFlags && known == statusKnown)
+        return false;
+
+    statusFlags = flags;
+    statusKnown = known;
+    statusChanged = readoutTime;
+    return true;
+}
+
 bool GeniusDevice::buildFromJson(JsonVariant src, GeniusDevice &out)
 {
     uint32_t deviceId = src["id"].as<uint32_t>();
@@ -708,6 +875,9 @@ bool GeniusDevice::buildFromJson(JsonVariant src, GeniusDevice &out)
         out.alarms = parseAlarms(src["alarms"].as<JsonArray>());
 
     // haEntityIdPrefix is backend-owned and deliberately not read from the client's JSON.
+    // Status as stored (import); without one (new device, older export) derive it from the readout
+    if (!out.statusFromJson(src))
+        out.applyReadoutStatus();
 
     out.published = false; // new device - needs publish
     return true;
@@ -788,6 +958,9 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
         this->radioModule = newRM;
         if (src["registration"].is<int>())
             this->registration = static_cast<genius_device_registration_t>(src["registration"].as<int>());
+        // A fresh readout is the newest word on battery and faults - take them over as current
+        // status. The client's "status" object itself is ignored: status is backend-owned, like RSSI.
+        this->applyReadoutStatus();
         changed = true;
     }
 
@@ -949,6 +1122,11 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
             newDevice.readoutProtocolVersion = jsonDeviceArrItem["readoutProtocolVersion"].is<int>()
                 ? jsonDeviceArrItem["readoutProtocolVersion"].as<uint8_t>() : 0;
 
+            // Status as stored; without one derive it from the readout - on the first boot after
+            // the upgrade this gives read-out devices their battery / fault status right away.
+            if (!newDevice.statusFromJson(jsonDeviceArrItem))
+                newDevice.applyReadoutStatus();
+
             // Process alarms
             if (jsonDeviceArrItem["alarms"].is<JsonArray>())
             {
@@ -1042,6 +1220,8 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 // Upgrade registration when an acoustic readout arrives for a manually/packet-added device
                 if (jsonDeviceArrItem["registration"].is<int>())
                     updatedDevice.registration = static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>());
+                // Fresh readout: take battery and faults over as current status (status is backend-owned otherwise)
+                updatedDevice.applyReadoutStatus();
                 deviceChanged = true;
             }
 
@@ -1346,9 +1526,12 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
     sensor->setName("Smoke Detector");
     HABinarySensor *rawSensor = dev->registerControl(std::move(sensor));
 
-    // ---- Diagnostics grouped publisher - all 13 readout entities share one state topic ----
-    // Availability is folded into the JSON: {"available": bool, ...fields}
-    // Entities show "unavailable" in HA until the first acoustic readout arrives.
+    // ---- Diagnostics grouped publisher - status and readout entities share one state topic ----
+    // Availability is folded into the JSON, in two flavours:
+    //   - status entities (battery, detector/radio fault, dismount): their field is present once
+    //     the flag's state is known - from a received status change, a readout or a manual reset
+    //   - readout entities: {"available": bool}, true once an acoustic readout exists
+    // Until then, HA shows them as "unavailable" rather than suggesting an OK nobody confirmed.
     HADevice *rawDev = _haService->addSubDevice(std::move(dev));
 
     auto diag = std::make_unique<HAGroupedSensorPublisher>(
@@ -1359,16 +1542,28 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
             for (const auto &dev : _state.devices)
                 if (dev.id == devId) { d = &dev; break; }
 
-            if (!d || d->readoutTime == 0) {
+            if (!d) {
+                state["available"] = false;
+                endTransaction();
+                return;
+            }
+
+            // Status entities: current status, each flag only once known
+            const uint16_t known = d->statusKnown;
+            const uint16_t flags = d->statusFlags;
+            if (known & GENIUS_STATUS_BATT_LOW) state["battery_low"]  = (flags & GENIUS_STATUS_BATT_LOW) != 0;
+            if (known & GENIUS_STATUS_ERROR)    state["device_fault"] = (flags & GENIUS_STATUS_ERROR) != 0;
+            if (known & GENIUS_STATUS_RADIO)    state["radio_fault"]  = (flags & GENIUS_STATUS_RADIO) != 0;
+            if (known & GENIUS_STATUS_DISMOUNT) state["dismounted"]   = (flags & GENIUS_STATUS_DISMOUNT) != 0;
+
+            // Readout entities
+            if (d->readoutTime == 0) {
                 state["available"] = false;
                 endTransaction();
                 return;
             }
 
             state["available"]           = true;
-            state["battery_low"]         = d->smokeDetector.batteryLowFault;
-            state["device_fault"]        = d->smokeDetector.deviceFault;
-            state["radio_fault"]         = d->radioModule.radioNetworkFault;
             state["deinstall_count"]     = d->smokeDetector.deinstallationCount;
             state["last_readout"]        = Utils::time_t_to_iso8601(d->readoutTime);
             const char *rmName = radioModuleModelName(d->radioModule.model);
@@ -1399,24 +1594,36 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         c["availability_topic"]   = "~/diagnostics/state";
         c["availability_template"] = "{{ 'online' if value_json.available else 'offline' }}";
     };
+    // Status entities are available as soon as their own field is present (flag state known)
+    auto statusAvailConfig = [](JsonObject &c, const char *field) {
+        const String availTemplate = String("{{ 'online' if value_json.") + field + " is defined else 'offline' }}";
+        c["availability_topic"]    = "~/diagnostics/state";
+        c["availability_template"] = availTemplate;
+    };
 
     diag->addSensor("binary_sensor", "battery_low", "Battery", "", HACategory::Diagnostic,
-        [availConfig](JsonObject &c) {
+        [statusAvailConfig](JsonObject &c) {
             c["value_template"] = "{{ 'ON' if value_json.battery_low else 'OFF' }}";
             c["device_class"]   = "battery";
-            availConfig(c);
+            statusAvailConfig(c, "battery_low");
         })
     .addSensor("binary_sensor", "device_fault", "Smoke Detector State", "", HACategory::Diagnostic,
-        [availConfig](JsonObject &c) {
+        [statusAvailConfig](JsonObject &c) {
             c["value_template"] = "{{ 'ON' if value_json.device_fault else 'OFF' }}";
             c["device_class"]   = "problem";
-            availConfig(c);
+            statusAvailConfig(c, "device_fault");
         })
     .addSensor("binary_sensor", "radio_fault", "Radio Module State", "", HACategory::Diagnostic,
-        [availConfig](JsonObject &c) {
+        [statusAvailConfig](JsonObject &c) {
             c["value_template"] = "{{ 'ON' if value_json.radio_fault else 'OFF' }}";
             c["device_class"]   = "problem";
-            availConfig(c);
+            statusAvailConfig(c, "radio_fault");
+        })
+    .addSensor("binary_sensor", "dismounted", "Dismount", "", HACategory::Diagnostic,
+        [statusAvailConfig](JsonObject &c) {
+            c["value_template"] = "{{ 'ON' if value_json.dismounted else 'OFF' }}";
+            c["device_class"]   = "tamper";
+            statusAvailConfig(c, "dismounted");
         })
     .addSensor("sensor", "deinstallation_count", "Deinstallation Count", "mdi:autorenew", HACategory::Diagnostic,
         [availConfig](JsonObject &c) {
@@ -1480,7 +1687,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
     _haDevices[device.id] = {rawDev, rawSensor, std::move(diag)};
 
     // For devices added at runtime (e.g. via REST POST while MQTT is live):
-    // publishAll() sends both the discovery config for all 13 entities AND the
+    // publishAll() sends both the discovery config for all diagnostic entities AND the
     // initial state. begin() only registers a future onPublishAll callback and
     // does not publish immediately, so calling it alone would silently skip the
     // diagnostic configs for dynamically added devices.
@@ -1850,6 +2057,86 @@ void GeniusDevicesService::mqttPublishSimpleAlarmState()
     }
 }
 
+/**
+ * @brief Builds the simple fault topic payload
+ *
+ * {"numFaulty": n, "numBatteryLow": n, "devices": [{"sn": ..., "location": "...", "status": ["battery_low", ...]}]}
+ *
+ * Lists every device with at least one active status flag. Flags are named by their key from
+ * GENIUS_STATUS_FLAGS; flags not known (yet) appear as "flag_0xNNNN" so nothing is swallowed.
+ */
+String GeniusDevicesService::_buildSimpleFaultPayload()
+{
+    JsonDocument doc;
+
+    beginTransaction();
+    doc["numFaulty"] = _numFaulty;
+    doc["numBatteryLow"] = _numBatteryLow;
+    JsonArray devices = doc["devices"].to<JsonArray>();
+    for (const GeniusDevice &device : _state.devices)
+    {
+        const uint16_t active = device.statusFlags & device.statusKnown;
+        if (active == 0)
+            continue;
+
+        JsonObject entry = devices.add<JsonObject>();
+        entry["sn"] = device.smokeDetector.sn;
+        entry["location"] = device.location;
+        JsonArray flags = entry["status"].to<JsonArray>();
+        for (uint16_t bit = 1; bit != 0; bit <<= 1)
+        {
+            if (!(active & bit))
+                continue;
+            const GeniusStatusFlagInfo *info = geniusStatusFlagInfo(bit);
+            if (info)
+            {
+                flags.add(info->key);
+            }
+            else
+            {
+                char key[12];
+                snprintf(key, sizeof(key), "flag_0x%04X", bit);
+                flags.add(key);
+            }
+        }
+    }
+    endTransaction();
+
+    String payload;
+    serializeJson(doc, payload);
+    return payload;
+}
+
+/**
+ * @brief Publishes the smoke detectors' status summary to the simple fault MQTT topic
+ *
+ * Retained, so subscribers always get the current state. Independent of Home Assistant
+ * integration. Called whenever the payload changes (see _updateStatusSummary()), on MQTT
+ * connect from GeniusGateway::_mqttPublishTask() and when the publishing settings change.
+ */
+void GeniusDevicesService::mqttPublishSimpleFaultState()
+{
+    if (!_cachedAlarmPublishingSettings.faultEnabled)
+        return;
+
+    if (_mqttClient == nullptr || !_mqttClient->connected())
+        return;
+
+    if (_cachedAlarmPublishingSettings.faultTopic.isEmpty())
+    {
+        ESP_LOGE(GeniusDevices::TAG, "Fault MQTT topic is empty. Cannot publish fault state.");
+        return;
+    }
+
+    beginTransaction(); // guards _lastFaultPayload against concurrent publishers
+    String payload = _buildSimpleFaultPayload();
+    if (_mqttClient->publish(_cachedAlarmPublishingSettings.faultTopic.c_str(), 0, true, payload.c_str()) == -1)
+        ESP_LOGE(GeniusDevices::TAG, "Failed to publish simple fault state.");
+    else
+        _lastFaultPayload = payload;
+    endTransaction();
+}
+
 // ============================================================================
 // Private Methods - Settings Management
 // ============================================================================
@@ -1949,6 +2236,50 @@ GeniusDevicesService::removeDevice(uint32_t deviceId)
 
     callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
     return DeviceOpResult::OK;
+}
+
+GeniusDevicesService::DeviceOpResult
+GeniusDevicesService::resetStatus(uint32_t deviceId, GeniusDevice &out)
+{
+    if (deviceId == 0)
+        return DeviceOpResult::INVALID_BODY;
+
+    DeviceOpResult result = DeviceOpResult::NOT_FOUND;
+
+    beginTransaction();
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (device.id != deviceId)
+            continue;
+
+        if (device.statusFlags != 0)
+        {
+            ESP_LOGI(GeniusDevices::TAG, "Status of smoke detector with SN '%lu' reset manually (was 0x%04X).",
+                     device.smokeDetector.sn, device.statusFlags);
+            // Flags stay known: the user confirmed they are resolved, so they read as OK now.
+            device.statusFlags = 0;
+            device.statusChanged = time(nullptr);
+            result = DeviceOpResult::OK;
+        }
+        else
+        {
+            result = DeviceOpResult::UNCHANGED;
+        }
+        out = device;
+        break;
+    }
+    endTransaction();
+
+    if (result == DeviceOpResult::OK)
+    {
+        callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+        beginTransaction();
+        _publishSmokeDetectorAttributes(deviceId);
+        endTransaction();
+    }
+
+    return result;
 }
 
 GeniusDevicesService::DeviceOpResult

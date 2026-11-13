@@ -89,6 +89,31 @@
 		if (!$user.admin) goto('/');
 	});
 
+	/** Clear all status flags of a device (fault fixed / device replaced). The server returns the
+	 *  updated device, which replaces the local store entry. */
+	async function apiResetStatus(id: number): Promise<boolean> {
+		try {
+			const response = await fetch('/rest/gateway-devices/device/reset-status', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ id })
+			});
+			if (response.status === 200) {
+				const saved = JSON.parse(await response.text(), jsonDateReviver) as GeniusDevice;
+				const idx = geniusDevices.devices.findIndex((d) => d.id === saved.id);
+				if (idx >= 0) geniusDevices.devices[idx] = saved;
+				notifications.success('Smoke detector status reset.', 3000);
+				return true;
+			}
+			notifications.error('Resetting the smoke detector status failed.', 3000);
+			return false;
+		} catch (error) {
+			console.error('Error:', error);
+			notifications.error('Resetting the smoke detector status failed.', 3000);
+			return false;
+		}
+	}
+
 	async function apiDeleteDevice(id: number): Promise<boolean> {
 		try {
 			const response = await fetch('/rest/gateway-devices/device/delete', {
@@ -841,7 +866,29 @@
 			title: 'Device Details',
 			device: geniusDevices.devices[index],
 			onReadout: () => handleDeviceReadout(index),
-			onSetLine: () => handleEdit(index)
+			onSetLine: () => handleEdit(index),
+			onResetStatus: () => confirmResetStatus(index)
+		});
+	}
+
+	function confirmResetStatus(index: number) {
+		const device = geniusDevices.devices[index];
+		modals.close();
+		modals.open(ConfirmDialog, {
+			title: 'Reset smoke detector status',
+			message:
+				`Reset all reported faults of the smoke detector <strong>${device.smokeDetector.sn} (${device.location})</strong>?` +
+				`<br><br>Do this once the fault has been fixed or the device replaced. ` +
+				`The status then reads OK until the smoke detector reports a change again.`,
+			labels: {
+				cancel: { label: 'Cancel', icon: Cancel },
+				confirm: { label: 'Reset', icon: Check }
+			},
+			confirmClass: 'btn-warning',
+			onConfirm: async () => {
+				modals.close();
+				await apiResetStatus(device.id);
+			}
 		});
 	}
 

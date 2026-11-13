@@ -23,14 +23,14 @@ The assigned location name for each detector (e.g., "Living Room", "Bedroom"). I
 Model name and status of the smoke detector component:
 
 - **Model**: The smoke detector model (e.g., "Genius Plus X"), or "Unknown model" in italics if not yet identified
-- **Status**: Shown after acoustic readout - :tabler-circle-check:{ style="color: #4caf50" } **OK** if no faults, :tabler-alert-circle:{ style="color: #f44336" } **Fault** with fault details in tooltip, or "Status not available" if no readout has been performed. The status indicator is greyed out if the last readout is more than one year old.
+- **Status**: The [current status](#current-status) - :tabler-circle-check:{ style="color: #4caf50" } **OK** if no faults, :tabler-alert-circle:{ style="color: #f44336" } **Fault** with fault details in tooltip (e.g. battery low), or "Status not available" if the gateway has neither received a status from the smoke detector nor performed a readout. The status indicator is greyed out if the last readout is more than one year old.
 
 #### Radio Module
 Model name and status of the radio communication module:
 
 - **No radio module**: shown if the device has no radio module or serial number
 - **Model**: The radio module model (e.g., "FM Basis X"), or "Unknown model" in italics
-- **Status**: Same as smoke detector status - :tabler-circle-check:{ style="color: #4caf50" } OK / :tabler-alert-circle:{ style="color: #f44336" } Fault / not available, based on readout data
+- **Status**: Same as smoke detector status - :tabler-circle-check:{ style="color: #4caf50" } OK / :tabler-alert-circle:{ style="color: #f44336" } Fault (radio link fault) / not available
 
 #### Alarms
 Alarm statistics for the device:
@@ -243,7 +243,8 @@ Click the :tabler-list-details: **Device Details** button in a device's row to o
 ![Viewing Device Details](../assets/images/software/gg-gateway-devices-details.png)
 
 - **General** - location, registration type, and last acoustic readout timestamp. If a readout exists, the age is shown alongside the date (e.g. `15.03.2026 10:00 (37d ago)`). A :tabler-award:{ style="color: #4caf50" } icon indicates a recent readout; :tabler-calendar-exclamation:{ style="color: #f44336" } indicates a stale one (> 1 year).
-- **Smoke Detector** - model, serial number, production date and age, and (after readout) full diagnostic status: detector fault, battery, dirt forecast, chamber drift, warranty flags with individual flag breakdown, plus lifetime statistics (last self-test, last alarm, alarm counts, deinstallation count, storage hours).
+- **Current Status** - battery, detector fault, radio link and mounting, each **OK**, active, or **Unknown**, plus the time of the last change and a **Reset Status** button - see [Current Status](#current-status).
+- **Smoke Detector** - model, serial number, production date and age, and (after readout) the diagnostic status *at the last readout*: detector fault, battery, dirt forecast, chamber drift, warranty flags with individual flag breakdown, plus lifetime statistics (last self-test, last alarm, alarm counts, deinstallation count, storage hours).
 - **Radio Module** - model, serial number, and (after readout) radio status with individual state flags, interference level, alarm line ID and character, and DIP switch configuration.
 
 The dialog also provides an **Update** button (:tabler-microphone:) to trigger a new acoustic readout for that device directly, without leaving the dialog.
@@ -252,6 +253,31 @@ The same dialog opens when a detector card is clicked on the [Overview](overview
 
 !!! info "Acoustic readout internals"
     For a detailed description of the signal modulation, framing, and the full payload field reference, see [Acoustic Readout](../reverse-engineering/acoustic-readout.md) in the Reverse Engineering section.
+
+## Current Status
+
+Besides alarms, smoke detectors announce changes of their **status flags** over the air: a **low battery**, a **device fault**, a **radio link fault** and the **dismounting** of the detector from its base (see [Status Change packet](../reverse-engineering/protocol-analysis.md#status-change)). The gateway keeps the current state of each flag per detector and shows it in the device list, the Device Details dialog and the [Overview](overview.md), publishes it to [Home Assistant](smart-home-integration.md#smoke-detectors) and optionally to a [fault topic](../setup/connections.md#simple-alarm-publishing). A new battery warning or fault also pops up as a notification in the web interface.
+
+The current status combines three sources - whichever is newest wins:
+
+- **Received over the air** - the flag is set or cleared as announced by the smoke detector.
+- **Acoustic readout** - a new readout reports battery, detector fault and radio fault and takes them over (the dismount flag is only ever announced over the air).
+- **Manual reset** - see below.
+
+!!! info "Unknown until reported"
+    Smoke detectors announce a flag only when it **changes** - never periodically. Until the gateway has received a flag (or performed a readout), its state is shown as **Unknown** rather than OK: a gateway that was put into operation after a battery warning was sent cannot know about it.
+
+    For the same reason the status survives a restart of the gateway.
+
+### Resetting the status
+
+A flag stays active until the smoke detector clears it. When the fault has been fixed without the detector reporting it - typically because the device was **replaced**, as the battery of a Genius Plus X is built in - reset the status manually:
+
+1. Open the :tabler-list-details: **Device Details** dialog of the detector
+2. Click :tabler-restore: **Reset Status** in the *Current Status* section (only shown while a flag is active)
+3. Confirm the dialog
+
+All flags of the detector are cleared and read **OK** until the smoke detector reports a change again.
 
 ## Editing a Detector
 

@@ -3,11 +3,11 @@
 		Packet,
 		CommissioningInfo,
 		CommissioningProbeResponseInfo,
-		AlarmStartInfo,
-		AlarmStopInfo
+		StatusChangeInfo
 	} from '$lib/types/models';
-	import { PacketTypeNames } from '$lib/types/models';
+	import { PacketTypeNames, StatusChangePacketTypeNames } from '$lib/types/models';
 	import { entityStyleSuffix } from '$lib/genius/entity';
+	import { STATUS_ALARM, statusFlagLabels } from '$lib/genius/status';
 	import IconWifi from '~icons/tabler/wifi';
 	import IconHops from '~icons/tabler/arrow-forward-up';
 	import IconClock from '~icons/tabler/clock';
@@ -15,6 +15,8 @@
 	import IconAlarmStart from '~icons/tabler/bell';
 	import IconAlarmStop from '~icons/tabler/bell-off';
 	import IconDetector from '~icons/tabler/alarm-smoke';
+	import IconStatusSet from '~icons/tabler/alert-triangle';
+	import IconStatusCleared from '~icons/tabler/circle-check';
 
 	interface Props {
 		packet: Packet;
@@ -24,6 +26,17 @@
 
 	let typeName = $derived(packet.type?.name);
 
+	// Status change: the alarm bit is shown by the chip type, every other flag as its own chip
+	let statusInfo = $derived(
+		typeName && StatusChangePacketTypeNames.includes(typeName)
+			? (packet.specificInfo as StatusChangeInfo | null)
+			: null
+	);
+	let setLabels = $derived(statusInfo ? statusFlagLabels(statusInfo.setMask & ~STATUS_ALARM) : []);
+	let clearedLabels = $derived(
+		statusInfo ? statusFlagLabels(statusInfo.clearedMask & ~STATUS_ALARM) : []
+	);
+
 	function chipClass(value: string | undefined, base: string): string {
 		return `summary-chip ${base}${entityStyleSuffix(value)}`;
 	}
@@ -31,18 +44,37 @@
 
 {#if packet.generalInfo}
 	<div class="summary-row">
-		{#if typeName === PacketTypeNames.StartAlarm && packet.specificInfo}
-			<span class="summary-chip chip-alarm-start">
-				<IconAlarmStart class="h-4 w-4 shrink-0" />
-				<IconDetector class="h-4 w-4 shrink-0" />
-				<span class="truncate">{(packet.specificInfo as AlarmStartInfo).startingLocation}</span>
-			</span>
-		{:else if typeName === PacketTypeNames.StopAlarm && packet.specificInfo}
-			<span class="summary-chip chip-alarm-stop">
-				<IconAlarmStop class="h-4 w-4 shrink-0" />
-				<IconDetector class="h-4 w-4 shrink-0" />
-				<span class="truncate">{(packet.specificInfo as AlarmStopInfo).silencingLocation}</span>
-			</span>
+		{#if statusInfo}
+			{#if typeName === PacketTypeNames.StartAlarm}
+				<span class="summary-chip chip-alarm-start">
+					<IconAlarmStart class="h-4 w-4 shrink-0" />
+					<IconDetector class="h-4 w-4 shrink-0" />
+					<span class="truncate">{statusInfo.location}</span>
+				</span>
+			{:else if typeName === PacketTypeNames.StopAlarm}
+				<span class="summary-chip chip-alarm-stop">
+					<IconAlarmStop class="h-4 w-4 shrink-0" />
+					<IconDetector class="h-4 w-4 shrink-0" />
+					<span class="truncate">{statusInfo.location}</span>
+				</span>
+			{:else}
+				<span class="summary-chip chip-status">
+					<IconDetector class="h-4 w-4 shrink-0" />
+					<span class="truncate">{statusInfo.location}</span>
+				</span>
+			{/if}
+			{#each setLabels as label}
+				<span class="summary-chip chip-status-set">
+					<IconStatusSet class="h-4 w-4 shrink-0" />
+					<span class="truncate">{label}</span>
+				</span>
+			{/each}
+			{#each clearedLabels as label}
+				<span class="summary-chip chip-status-cleared">
+					<IconStatusCleared class="h-4 w-4 shrink-0" />
+					<span class="truncate">{label}</span>
+				</span>
+			{/each}
 		{/if}
 
 		<span class={chipClass(packet.generalInfo.firstLocation, 'chip-radio')}>
@@ -136,5 +168,17 @@
 
 	span.chip-alarm-stop {
 		@apply bg-green-400 dark:bg-green-800;
+	}
+
+	span.chip-status {
+		@apply bg-orange-200 dark:bg-orange-900;
+	}
+
+	span.chip-status-set {
+		@apply bg-orange-400 dark:bg-orange-800;
+	}
+
+	span.chip-status-cleared {
+		@apply bg-teal-300 dark:bg-teal-800;
 	}
 </style>

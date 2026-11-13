@@ -114,10 +114,10 @@ Forcing the stack into internal RAM solves the per-access latency on locals. The
 
 The only PSRAM touch on every packet is a brief read over the WebSocket client list - a handful of pointer-sized entries, sub-microsecond at PSRAM bandwidth.
 
-The alarm-handling path is rarer (only on `HPT_ALARM_START` / `HPT_ALARM_STOP`) but *does* access PSRAM-resident data:
+The status-change path is rarer (only on `HPT_STATUS_CHANGE` - alarm start/stop, battery low, faults) but *does* access PSRAM-resident data:
 
 - `isSmokeDetectorKnown()` - linear scan of the `devices` vector
-- `setAlarm()` / `resetAlarm()` - same scan plus a write to the matched entry
+- `setAlarm()` / `resetAlarm()` / `applyStatusChange()` - same scan plus a write to the matched entry
 - `mqttPublishDeviceState()` - touches `HADevice::_entities` and allocates a JSON document
 
 At 50 devices the scan reads ~10 KB from PSRAM. At ~80 MB/s QPI bandwidth that's ~125 µs vs. ~25 µs from internal SRAM - about **100 µs of overhead** per alarm event. Total alarm-handler cost is a few hundred µs, well under 5 % of the 10 ms inter-packet budget.

@@ -223,6 +223,17 @@ MQTT topic where alarm state is published when *any* smoke detector triggers an 
 !!! abstract "Global Alarm State Topic"
     See [Global Alarm State Topic](../api/mqtt-topics.md#global-alarm-state-topic) for the exact payload format.
 
+**Enable simple fault publishing**
+
+Toggle to enable/disable publishing faults reported by smoke detectors - battery low, device faults, radio link faults and dismounting - to a central topic.
+
+**Fault Topic**
+
+MQTT topic where the status summary of all smoke detectors is published whenever a smoke detector's status changes. Same syntax rules as the alarm topic.
+
+!!! abstract "Global Fault State Topic"
+    See [Global Fault State Topic](../api/mqtt-topics.md#global-fault-state-topic) for the exact payload format.
+
 ## :tabler-clock-check: Network Time (NTP)
 
 Network Time Protocol (NTP) synchronizes the device's internal clock with internet time servers, ensuring accurate timestamps for logs, alarms, and event recording.

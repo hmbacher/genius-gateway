@@ -91,7 +91,7 @@ export enum GeniusDeviceRegistration {
   Acoustic,
 }
 
-// From GeniusGateway.h
+// From GeniusPacket.h
 export enum GeniusPacketType {
   /** /< Unknown packet type */
   Unknown = -1,
@@ -101,10 +101,8 @@ export enum GeniusPacketType {
   CommissioningProbeRequest,
   /** /< CommissioningProbe response packet (smoke detector identification response) */
   CommissioningProbeResponse,
-  /** /< Alarm start packet (smoke detection notification) */
-  AlarmStart,
-  /** /< Alarm stop packet (smoke cleared or alarm silenced) */
-  AlarmStop,
+  /** /< Status change packet: set/cleared status flags of one smoke detector (alarm start/stop is the alarm-bit case) */
+  StatusChange,
   /** /< Line test start packet (line test initiation) */
   LineTestStart,
   /** /< Line test stop packet (line test completion) */
