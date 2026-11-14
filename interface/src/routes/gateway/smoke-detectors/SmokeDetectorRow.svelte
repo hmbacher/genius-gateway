@@ -6,11 +6,13 @@
 		getSmokeDetectorFaults,
 		getRadioModuleFaults
 	} from '$lib/utils/deviceStatus';
-	import { formatDate } from '$lib/utils/formatDate';
+	import { formatDate, formatDateTime, formatAgo } from '$lib/utils/formatDate';
 	import { isOldFmModule } from '$lib/genius/line';
 	import { dragHandle } from 'svelte-dnd-action';
+	import { deviceRuntime } from '$lib/stores/deviceRuntime.svelte';
 	import DetectorStatusBadge from './DetectorStatusBadge.svelte';
 	import SignalIndicator from './SignalIndicator.svelte';
+	import LinkFaultBadge from './LinkFaultBadge.svelte';
 	import { GeniusSmokeDetector, GeniusRadioModule } from '$lib/types/enums';
 	import type { GeniusRadioModuleInfo } from '$lib/types/models';
 	import Delete from '~icons/tabler/trash';
@@ -85,6 +87,20 @@
 		isOldFmModule(device.radioModule.model) && !device.radioModule.lineCharacter
 	);
 
+	// RAM-only runtime state from the gateway (last seen, live RSSI, radio link fault)
+	const runtime = $derived(deviceRuntime.byId[device.id]);
+	const lastSeenText = $derived(
+		runtime?.lastSeen ? `Last seen ${formatAgo(runtime.lastSeen, deviceRuntime.now)}` : ''
+	);
+	const lastSeenTip = $derived(runtime?.lastSeen ? formatDateTime(runtime.lastSeen) : '');
+	// Signal: a live value (frame heard from the module) wins over the persisted range-test value
+	const live = $derived(runtime?.rssiSource === 'live' ? runtime : undefined);
+	const sigRssi = $derived(live ? live.rssi : device.radioModule.rssi);
+	const sigTime = $derived(
+		live ? (live.rssiTime ?? new Date(deviceRuntime.now)) : device.radioModule.lastRangeTest
+	);
+	const sigSource = $derived(live ? 'live' : 'probe');
+
 	// Color helper for top-right service icon (resolves to text-current on
 	// alarming rows so the icon stays legible on the red bg).
 	const successColor = $derived(device.isAlarming ? 'text-current' : 'text-success');
@@ -145,10 +161,7 @@
 			{/if}
 			{#if rmPresent}
 				<div class="flex-shrink-0">
-					<SignalIndicator
-						rssi={device.radioModule.rssi}
-						lastRangeTest={device.radioModule.lastRangeTest}
-					/>
+					<SignalIndicator rssi={sigRssi} lastRangeTest={sigTime} source={sigSource} />
 				</div>
 			{/if}
 			<div class="dropdown dropdown-end flex-shrink-0">
@@ -233,8 +246,14 @@
 						<LineAlert class="h-3.5 w-3.5" /> Line required
 					</button>
 				{/if}
+				{#if runtime?.fault}
+					<LinkFaultBadge fault={runtime.fault} isAlarming={device.isAlarming} compact />
+				{/if}
 			{/if}
 		</div>
+		{#if rmPresent && lastSeenText}
+			<div class="pl-7 text-xs text-current/60" title={lastSeenTip}>{lastSeenText}</div>
+		{/if}
 	</div>
 
 	<!-- Desktop row (≥ md) -->
@@ -313,7 +332,13 @@
 						<LineAlert class="h-3.5 w-3.5" /> Line required
 					</button>
 				{/if}
-			{/if}
+			{#if runtime?.fault}
+						<LinkFaultBadge fault={runtime.fault} isAlarming={device.isAlarming} />
+					{/if}
+					{#if lastSeenText}
+						<div class="text-xs text-current/60 truncate" title={lastSeenTip}>{lastSeenText}</div>
+					{/if}
+				{/if}
 		</div>
 
 		<!-- Alarms -->
@@ -340,10 +365,7 @@
 				</div>
 			{/if}
 			{#if rmPresent}
-				<SignalIndicator
-					rssi={device.radioModule.rssi}
-					lastRangeTest={device.radioModule.lastRangeTest}
-				/>
+				<SignalIndicator rssi={sigRssi} lastRangeTest={sigTime} source={sigSource} />
 			{/if}
 		</div>
 

@@ -45,17 +45,23 @@ class AlarmPublishingSettings
 public:
     AlarmPublishingSettings()
         : alarmEnabled(false),
-          alarmTopic(DEFAULT_ALARM_PUBLISHING_TOPIC)
+          alarmTopic(DEFAULT_ALARM_PUBLISHING_TOPIC),
+          treeEnabled(false),
+          treeBaseTopic("")
     {
     }
 
     boolean alarmEnabled; ///< Enable simple alarm publishing over MQTT
     String alarmTopic;    ///< MQTT topic for alarm state
+    boolean treeEnabled;  ///< Enable the generic MQTT value tree (plain true/false/int/text topics, no JSON, no Home Assistant)
+    String treeBaseTopic; ///< Root of the value tree; empty = default "genius-gateway/{mac}"
 
     static void read(AlarmPublishingSettings &settings, JsonObject &root)
     {
         root["alarmEnabled"] = settings.alarmEnabled;
         root["alarmTopic"] = settings.alarmTopic;
+        root["treeEnabled"] = settings.treeEnabled;
+        root["treeBaseTopic"] = settings.treeBaseTopic;
 
         ESP_LOGV(AlarmPublishingSettings::TAG, "Alarm publishing settings read.");
     }
@@ -80,6 +86,26 @@ public:
             if (settings.alarmTopic != newSetting)
             {
                 settings.alarmTopic = newSetting;
+                changed = true;
+            }
+        }
+
+        if (root["treeEnabled"].is<bool>())
+        {
+            bool newSetting = root["treeEnabled"];
+            if (settings.treeEnabled != newSetting)
+            {
+                settings.treeEnabled = newSetting;
+                changed = true;
+            }
+        }
+
+        if (root["treeBaseTopic"].is<String>())
+        {
+            String newSetting = root["treeBaseTopic"];
+            if (settings.treeBaseTopic != newSetting)
+            {
+                settings.treeBaseTopic = newSetting;
                 changed = true;
             }
         }

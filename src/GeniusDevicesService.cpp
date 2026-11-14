@@ -53,6 +53,7 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
                                                                                                                                                         _haService(sveltekit->getHAService())
 {
     _importMutex = xSemaphoreCreateRecursiveMutex();
+    _rtMutex = xSemaphoreCreateMutex();
 }
 
 // ============================================================================
@@ -250,6 +251,21 @@ void GeniusDevicesService::begin()
                 }
             },
             AuthenticationPredicates::IS_ADMIN));
+    // ---- Runtime state (RAM only): GET /rest/gateway-devices/runtime ----
+    // last seen, effective RSSI and radio link fault of the devices. Never persisted.
+    _server->on(
+        GATEWAY_DEVICES_RUNTIME_PATH,
+        HTTP_GET,
+        _securityManager->wrapRequest(
+            [this](PsychicRequest *request) -> esp_err_t {
+                PsychicJsonResponse response(request, false);
+                JsonObject root = response.getRoot().to<JsonObject>();
+                JsonArray arr = root["devices"].to<JsonArray>();
+                this->runtimeToJson(arr);
+                return response.send();
+            },
+            AuthenticationPredicates::IS_ADMIN));
+
     // FSPersistence::readFromFS uses updateWithoutPropagation, so update handlers
     // (incl. writeToFS) are never triggered on load. Force a write-back here so
     // any migration changes (e.g. v0→v1 enum remapping + version field) are
@@ -261,7 +277,10 @@ void GeniusDevicesService::begin()
 
     /* Update alarming state after every device update */
     this->addUpdateHandler([&](const String &originId)
-                           { _updateAlarmingState(); },
+                           {
+                               _updateAlarmingState();
+                               _treeDirty = true; // generic MQTT value tree: alarm state / device list changed
+                           },
                            false);
 
     /* Sync HA sub-devices after device list changes (not for packet-originated adds or alarm state) */
@@ -1355,7 +1374,10 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
 
     diag->begin();
 
-    _haDevices[device.id] = {rawDev, rawSensor, std::move(diag)};
+    // Last seen / signal strength / radio link fault: RAM-only runtime state on its own state topic
+    auto link = _makeLinkPublisher(devId, rawDev);
+
+    _haDevices[device.id] = {rawDev, rawSensor, std::move(diag), std::move(link)};
 
     // For devices added at runtime (e.g. via REST POST while MQTT is live):
     // publishAll() sends both the discovery config for all 13 entities AND the
@@ -1367,6 +1389,8 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         auto &entry = _haDevices[device.id];
         if (entry.diagnostics)
             entry.diagnostics->publishAll();
+        if (entry.link)
+            entry.link->publishAll();
     }
 }
 
@@ -1377,6 +1401,8 @@ void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
     {
         if (it->second.diagnostics && _haService->isReady())
             it->second.diagnostics->unpublishAll();
+        if (it->second.link && _haService->isReady())
+            it->second.link->unpublishAll();
         _haDevices.erase(it);
     }
     _haService->removeSubDevice("genius-" + String(deviceId));
@@ -1420,6 +1446,8 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
                     it->second.device->publishAll();
                     if (it->second.diagnostics)
                         it->second.diagnostics->publishAll();
+                    if (it->second.link)
+                        it->second.link->publishAll();
                 }
             }
             device.published = true;

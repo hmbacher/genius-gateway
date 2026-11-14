@@ -7,6 +7,9 @@
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
 	import RadioSetupBanner from '$lib/components/RadioSetupBanner.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import { alarmLineNames } from '$lib/stores/alarmLineNames.svelte';
+	import { deviceRuntime } from '$lib/stores/deviceRuntime.svelte';
+	import { groupByAlarmLine, lineHex, lineKeyOf, type LineGroup } from '$lib/genius/lineGroups';
 	import AlarmEndingDialog from './AlarmEndingDialog.svelte';
 	import Info from '~icons/tabler/info-circle';
 	import BellOff from '~icons/tabler/bell-off';
@@ -49,6 +52,30 @@
 			}
 		});
 	}
+
+	function authHeaders(): Record<string, string> {
+		return {
+			Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+			'Content-Type': 'application/json'
+		};
+	}
+
+	// ── Smoke detectors grouped by alarm line (same grouping as the smoke detector list) ──
+	const groups = $derived(groupByAlarmLine(geniusDevices.devices, alarmLineNames.names));
+	// A heading only makes sense once there is at least one real alarm line
+	const showHeadings = $derived(groups.some((g) => g.key !== 0));
+	const alarmingIn = (g: LineGroup) => g.devices.filter((d) => d.isAlarming).length;
+	const faultsIn = (g: LineGroup) => g.devices.filter((d) => deviceRuntime.byId[d.id]?.fault).length;
+	const lineKey = $derived(geniusDevices.devices.map((d) => lineKeyOf(d)).join(','));
+
+	$effect(() => {
+		if (!geniusDevices.isLoaded) return;
+		void lineKey; // names are fetched again when a detector moves to another line
+		alarmLineNames.load(authHeaders());
+	});
+
+	// RAM-only runtime state of the gateway (radio link faults); never persisted
+	$effect(() => deviceRuntime.start(authHeaders()));
 </script>
 
 <div>
@@ -72,14 +99,40 @@
 						</div>
 					</div>
 				{/if}
-				{#each geniusDevices.devices as device (device.id)}
-					<a
-						href="/gateway/smoke-detectors"
-						aria-label="Open smoke detectors page"
-						class="block w-full max-w-120 hover:scale-[1.03] active:scale-[0.97] transition-transform"
-					>
-						<DeviceStatusCard detector={device} />
-					</a>
+				{#each groups as group (group.key)}
+					{#if showHeadings}
+						<!-- Alarm line heading, spans the whole grid row -->
+						<div class="col-span-full flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b border-base-300 pb-1">
+							<h2 class="text-lg font-semibold">{group.name}</h2>
+							{#if group.key !== 0}
+								<span class="font-mono text-xs text-base-content/50">{lineHex(group.key)}</span>
+							{/if}
+							<span class="text-sm text-base-content/60">
+								{group.devices.length}
+								{group.devices.length === 1 ? 'detector' : 'detectors'}
+							</span>
+							{#if alarmingIn(group) > 0}
+								<span class="badge badge-error badge-sm">{alarmingIn(group)} alarming</span>
+							{/if}
+							{#if faultsIn(group) > 0}
+								<span
+									class="badge badge-warning badge-sm"
+									title="Radio link fault reported by a detector of this line"
+								>
+									{faultsIn(group)} link {faultsIn(group) === 1 ? 'fault' : 'faults'}
+								</span>
+							{/if}
+						</div>
+					{/if}
+					{#each group.devices as device (device.id)}
+						<a
+							href="/gateway/smoke-detectors"
+							aria-label="Open smoke detectors page"
+							class="block w-full max-w-120 hover:scale-[1.03] active:scale-[0.97] transition-transform"
+						>
+							<DeviceStatusCard detector={device} />
+						</a>
+					{/each}
 				{/each}
 			{:else}
 				<div class="col-span-full">

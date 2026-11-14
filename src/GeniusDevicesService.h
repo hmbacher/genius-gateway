@@ -47,6 +47,10 @@
 #include <HomeAssistant/HABinarySensor.h>
 #include <HomeAssistant/HAGroupedSensorPublisher.h>
 #include <PsychicMqttClient.h>
+#include <GeniusDeviceRuntime.h>
+#include <GeniusMqttTree.h>
+#include <functional>
+#include <string>
 
 #define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"  ///< Configuration file path for device data
 #define GATEWAY_DEVICES_SERVICE_PATH "/rest/gateway-devices"  ///< REST API service endpoint path (bulk GET/POST)
@@ -61,6 +65,7 @@
 #define GATEWAY_DEVICES_IMPORT_CHUNK_PATH   "/rest/gateway-devices/import/chunk"
 #define GATEWAY_DEVICES_IMPORT_COMMIT_PATH  "/rest/gateway-devices/import/commit"
 #define GATEWAY_DEVICES_IMPORT_ABORT_PATH   "/rest/gateway-devices/import/abort"
+#define GATEWAY_DEVICES_RUNTIME_PATH        "/rest/gateway-devices/runtime"         ///< GET: RAM-only runtime state (last seen, RSSI, link fault) of all devices
 
 #define GATEWAY_DEVICES_IMPORT_SESSION_TTL_S 60  ///< Idle-expiry for a chunked-import session
 
@@ -450,6 +455,50 @@ public:
     /// Persist the device list once after a batch of range-test updates (single FS write).
     void persistRssiSurvey();
 
+    // ========================================================================
+    // Runtime state - RAM ONLY, NEVER written to flash
+    // (last seen, live RSSI, radio link faults; see GeniusDeviceRuntime.h)
+    // ========================================================================
+
+    /**
+     * @brief Feed one received Genius frame (first packet of a burst) into the runtime state.
+     *
+     * Updates "last seen" of the originating and the sending module, the live RSSI of the sender
+     * and the link-fault state (0x33/0x02 warning, 0x00/0x00 code 0x08 fault, code 0x10 acknowledged).
+     * Frames of unknown modules are ignored. Touches RAM only: no update handler is called, so
+     * nothing is persisted and no MQTT message is sent from the caller's (RX) task.
+     */
+    void runtimeOnFrame(const uint8_t *data, size_t len, int8_t rssiDbm);
+
+    /**
+     * @brief Housekeeping, call about once per second from a low-priority task.
+     *
+     * Expires link faults that were not received again for 48 h, publishes changed values to MQTT
+     * (throttled) and returns the ids of the devices whose runtime state changed since the last call
+     * (for the WebSocket event).
+     */
+    void runtimeTick(std::vector<uint32_t> &changedIds);
+
+    /// Serialize the runtime state into `arr`: all devices that have data, or exactly `onlyIds`.
+    void runtimeToJson(JsonArray arr, const std::vector<uint32_t> *onlyIds = nullptr);
+
+    // ========================================================================
+    // Generic MQTT value tree (plain true/false/number/text per topic; no JSON, no Home Assistant)
+    // See GeniusMqttTree.h for the topic layout. Publishes values only, never writes to flash.
+    // ========================================================================
+
+    /// Publish what changed (about once per second, from the "gd-runtime" task). Does nothing while the tree is off.
+    void treeTick();
+
+    /// Send every topic again at the next tick (call after an MQTT (re)connect).
+    void treeRequestFullPublish();
+
+    /// Something the tree publishes may have changed (e.g. the alarm line list): look again at the next tick.
+    void treeMarkDirty() { _treeDirty = true; }
+
+    /// Where the tree gets the names of the configured alarm lines (called on the "gd-runtime" task, outside of our locks).
+    void setLineNameProvider(std::function<std::vector<genius_tree::LineName>()> provider) { _treeLineNames = std::move(provider); }
+
     /**
      * @brief Synchronize HA sub-devices with current device list.
      *
@@ -564,6 +613,7 @@ private:
         HADevice                                  *device;
         HABinarySensor                            *sensor;       ///< smoke alarm binary_sensor (Control)
         std::unique_ptr<HAGroupedSensorPublisher>  diagnostics;  ///< 13 readout entities on one shared state topic
+        std::unique_ptr<HAGroupedSensorPublisher>  link;         ///< last seen / RSSI / radio link fault (RAM-only runtime state)
     };
     std::map<uint32_t, SmokeDetectorHA> _haDevices;  ///< maps device.id → HA objects
 
@@ -627,6 +677,43 @@ private:
     /// Trigger a diagnostics state publish for one device (by stable device ID).
     /// Reads all values directly from _state.devices - no separate cache needed.
     esp_err_t _publishSmokeDetectorAttributes(uint32_t deviceId);
+
+    // ------------------------------------------------------------------------
+    // Runtime state (RAM only, see GeniusDeviceRuntime.h) - implemented in GeniusDevicesRuntime.cpp
+    // Lock order: state mutex (beginTransaction) first, then _rtMutex; never publish while holding _rtMutex.
+    // ------------------------------------------------------------------------
+    genius_rt::RuntimeTable _rt;               ///< guarded by _rtMutex
+    SemaphoreHandle_t _rtMutex = nullptr;
+
+    struct RtPending
+    {
+        uint32_t id;
+        uint8_t event;       ///< changes not yet emitted as WebSocket event
+        uint8_t mqtt;        ///< changes not yet published to MQTT (throttled)
+        uint64_t mqttMs;     ///< monotonic time of the last MQTT publish (0 = never)
+        int8_t mqttRssi;     ///< RSSI at the last MQTT publish
+    };
+    std::vector<RtPending> _rtPending;         ///< guarded by _rtMutex
+    uint32_t _rtTicks = 0;
+
+    // Generic MQTT value tree: only touched by treeTick() (one task), except the two flags
+    genius_tree::Tree _tree;                   ///< what was published, change detection and throttling
+    std::string _treeRoot;                     ///< active root topic, empty = tree off
+    std::string _treeMac;                      ///< MAC without delimiters, for the default root
+    volatile bool _treeDirty = false;          ///< some value may have changed (set from any task)
+    volatile bool _treeForce = true;           ///< publish everything again (connect, switched on, root changed)
+    std::function<std::vector<genius_tree::LineName>()> _treeLineNames; ///< names of the configured alarm lines
+    bool _treePublish(const std::string &root, const std::vector<genius_tree::Message> &messages);
+
+    uint32_t _findDeviceIdByRadioSn(uint32_t radioModuleSN);   ///< 0 = not found; caller holds the state mutex
+    uint32_t _findDeviceIdByDetectorSn(uint32_t detectorSN);   ///< 0 = not found; caller holds the state mutex
+    void _rtMarkLocked(uint32_t deviceId, uint8_t change);     ///< caller holds _rtMutex
+    static int64_t _wallNow();                                  ///< wall clock seconds, 0 while the system time is not valid
+    /// Serialize one device's runtime state. Caller holds the state mutex and _rtMutex.
+    void _runtimeFillDevice(const GeniusDevice &device, JsonObject o, uint64_t nowMs, int64_t wall);
+    /// Build the HA entities (last seen, signal strength, radio link fault) on a separate state topic.
+    std::unique_ptr<HAGroupedSensorPublisher> _makeLinkPublisher(uint32_t deviceId, HADevice *owner);
+    esp_err_t _publishLinkState(uint32_t deviceId);
 
     // ========================================================================
     // Settings Management

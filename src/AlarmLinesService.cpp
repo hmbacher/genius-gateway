@@ -456,6 +456,19 @@ esp_err_t AlarmLinesService::_performAction(PsychicRequest *request, JsonVariant
 // Private Methods - Alarm Line Management
 // ============================================================================
 
+std::vector<std::pair<uint32_t, std::string>> AlarmLinesService::getLineNames()
+{
+    std::vector<std::pair<uint32_t, std::string>> names;
+
+    beginTransaction();
+    names.reserve(_state.lines.size());
+    for (const auto &line : _state.lines)
+        names.emplace_back(line.id, std::string(line.name.c_str()));
+    endTransaction();
+
+    return names;
+}
+
 bool AlarmLinesService::_alarmLineExists(uint32_t id)
 {
     bool found = false;

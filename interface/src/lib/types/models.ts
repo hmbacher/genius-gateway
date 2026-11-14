@@ -234,6 +234,42 @@ export type ConfigCheckProbeEvent = {
 	discovered?: ConfigCheckResponder[];
 };
 
+/**
+ * Radio link fault of a device (RAM-only runtime state of the gateway, never persisted).
+ * `warning` = another module was reported missing (0x33/0x02), `active` = radio network fault,
+ * `acked` = fault acknowledged on the detector. Faults vanish 48 h after the last frame about them.
+ */
+export type GeniusLinkFault = {
+	state: 'warning' | 'active' | 'acked';
+	acknowledged: boolean;
+	/** Acknowledgement seen without a known fault start (e.g. the gateway rebooted in between). */
+	startUnknown?: boolean;
+	since?: Date;
+	activeSince?: Date;
+	acknowledgedAt?: Date;
+	lastReceived?: Date;
+	/** Seconds until the fault is dropped if it is not received again. */
+	expiresInS?: number;
+	/** Radio module serial reported as missing. */
+	causeSn?: number;
+	causeDeviceId?: number;
+	causeLocation?: string;
+};
+
+/** RAM-only runtime state of one device (`GET /rest/gateway-devices/runtime`, WebSocket event `device-runtime`). */
+export type GeniusDeviceRuntime = {
+	id: number;
+	/** Last frame originated by or sent by this device's radio module. */
+	lastSeen?: Date;
+	/** Seconds since lastSeen at the time of the response (valid even if the gateway has no wall clock yet). */
+	lastSeenAgeS?: number;
+	/** Effective RSSI: `live` = last frame heard from this module (RAM), `probe` = last range test (flash). */
+	rssi?: number;
+	rssiSource?: 'live' | 'probe';
+	rssiTime?: Date;
+	fault?: GeniusLinkFault;
+};
+
 export type GeniusDevice = {
 	id: number;
 	smokeDetector: GeniusSmokeDetectorInfo;

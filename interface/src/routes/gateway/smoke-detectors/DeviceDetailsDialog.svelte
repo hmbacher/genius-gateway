@@ -11,7 +11,8 @@
 	} from '$lib/types/enums';
 	import { isStaleReadout } from '$lib/utils/deviceStatus';
 	import { isOldFmModule } from '$lib/genius/line';
-	import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
+	import { formatDate, formatDateTime, formatAge, formatAgo } from '$lib/utils/formatDate';
+	import { deviceRuntime } from '$lib/stores/deviceRuntime.svelte';
 	import DetailRow from './DetailRow.svelte';
 	import Cancel from '~icons/tabler/x';
 	import IconListDetails from '~icons/tabler/list-details';
@@ -61,6 +62,8 @@
 
 	let isSecureContext = $derived(page.url.protocol === 'https:');
 	let staleReadout = $derived(isStaleReadout(device));
+	// RAM-only runtime state of the gateway (last seen, live RSSI, radio link fault)
+	let runtime = $derived(deviceRuntime.byId[device.id]);
 
 	// Old FM modules (FM.Basis / FM.Pro) transmit only type + serial over SmartSonic;
 	// radio status, DIP switches and interference are not available, and the line must
@@ -413,6 +416,54 @@
 								value={radioModuleModelName[device.radioModule.model ?? -1] ?? 'Unknown'}
 							/>
 							<DetailRow icon={IconNumber} label="Serial Number" value={device.radioModule.sn} />
+							{#if runtime?.lastSeen}
+								<DetailRow
+									icon={IconClock}
+									label="Last seen"
+									value={`${formatDateTime(runtime.lastSeen)} (${formatAgo(runtime.lastSeen, deviceRuntime.now)})`}
+								/>
+							{/if}
+							{#if runtime?.rssi !== undefined && runtime.rssi < 0}
+								<DetailRow
+									icon={IconSignal}
+									label="Signal"
+									value={`${runtime.rssi} dBm (${runtime.rssiSource === 'live' ? 'last frame heard' : 'range test'})`}
+								/>
+							{/if}
+							{#if runtime?.fault}
+								{@const f = runtime.fault}
+								<DetailRow
+									icon={IconWarning}
+									label="Link fault"
+									value={f.state === 'warning'
+										? 'Warning: a module is missing'
+										: f.state === 'acked'
+											? 'Radio network fault (acknowledged)'
+											: 'Radio network fault'}
+								/>
+								{#if f.causeSn}
+									<DetailRow
+										icon={IconAccessPoint}
+										label="Missing module"
+										indent="sm"
+										value={f.causeLocation ? `${f.causeLocation} (${f.causeSn})` : String(f.causeSn)}
+									/>
+								{/if}
+								<DetailRow
+									icon={IconClock}
+									label="Since"
+									indent="sm"
+									value={f.startUnknown ? 'unknown' : formatDateTime(f.since)}
+								/>
+								{#if f.acknowledgedAt}
+									<DetailRow
+										icon={IconCheck}
+										label="Acknowledged"
+										indent="sm"
+										value={formatDateTime(f.acknowledgedAt)}
+									/>
+								{/if}
+							{/if}
 
 							{#snippet alarmLineRows()}
 								{#if device.radioModule.lineId}

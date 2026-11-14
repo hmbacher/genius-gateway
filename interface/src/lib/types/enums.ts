@@ -113,4 +113,12 @@ export enum GeniusPacketType {
   ConfigCheckProbeRequest,
   /** /< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status) */
   ConfigCheckProbeResponse,
+  /** /< Radio link supervision series (family 0x33, type 0x00, 28 B; not forwarded) */
+  SupervisionBeacon,
+  /** /< Radio link supervision: module missing (family 0x33, type 0x02, 32 B; payload = SN of the missing module) */
+  SupervisionMissing,
+  /** /< Radio network fault (alarm family 0x00/0x00, 36 B, code 0x08) */
+  RadioFault,
+  /** /< Radio network fault acknowledged (alarm family 0x00/0x00, 36 B, code 0x10) */
+  RadioFaultAck,
 }

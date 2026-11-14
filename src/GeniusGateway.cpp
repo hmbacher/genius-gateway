@@ -104,6 +104,7 @@ void GeniusGateway::begin()
     _alarmBlocker.begin();
     _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
     _eventSocket->registerEvent(GATEWAY_EVENT_CONFIG_CHECK_PROBE);
+    _eventSocket->registerEvent(GATEWAY_EVENT_DEVICE_RUNTIME);
 
     /* ConfigCheckProbe survey: mutex guarding the session state. The response window and
      * finalize run on the dedicated worker task created below. */
@@ -121,6 +122,17 @@ void GeniusGateway::begin()
     _geniusDevices.begin();
     /* Initialize Alarm Lines Service */
     _alarmLines.begin();
+    /* Generic MQTT value tree: per-line summary topics need the names of the configured alarm lines */
+    _geniusDevices.setLineNameProvider([this]()
+                                       {
+                                           std::vector<genius_tree::LineName> names;
+                                           for (const auto &line : _alarmLines.getLineNames())
+                                               names.push_back({line.first, line.second});
+                                           return names;
+                                       });
+    _alarmLines.addUpdateHandler([this](const String & /*originId*/)
+                                 { _geniusDevices.treeMarkDirty(); },
+                                 false);
     /* Initialize WS Logger */
     _wsLogger.begin();
     /* Initialize Packet Vizualizer Settings */
@@ -169,6 +181,17 @@ void GeniusGateway::begin()
         this,
         5,
         &_probeFinalizeTaskHandle,
+        ESP32SVELTEKIT_RUNNING_CORE);
+
+    /* Runtime housekeeping (RAM-only last seen / RSSI / link faults): expiry after 48 h, throttled MQTT
+     * publish and WebSocket event. Low priority, never writes to flash. */
+    xTaskCreatePinnedToCore(
+        _runtimeTaskImpl,
+        "gd-runtime",
+        6144,
+        this,
+        3,
+        &_runtimeTaskHandle,
         ESP32SVELTEKIT_RUNNING_CORE);
 
     /* Register endpoint to end all alarms and block new alarms for a specified amount of time */
@@ -646,20 +669,37 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
         analyzed_packet->type = (data_length == LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET) ? HPT_CONFIG_CHECK_PROBE_RESPONSE : HPT_UNKNOWN;
         break;
 
-    case MSGTYPE_ALARM_OR_COMMISSIONING_PROBE_REQ: // 0x00  - shared value, split by length
+    case MSGTYPE_ALARM_OR_COMMISSIONING_PROBE_REQ: // 0x00  - shared value, split by length (and, for 28 B / 36 B, by family and code)
         if (data_length == LEN_ALARM_PACKET) // Alarming
         {
+            const genius_rt::SupKind sup = genius_rt::classifySupervision(packet_data, data_length);
             if (packet_data[DATAPOS_ALARM_ACTIVE_FLAG] == 1)
                 analyzed_packet->type = HPT_ALARM_START;
             else if (packet_data[DATAPOS_ALARM_SILENCE_FLAG] == 1)
                 analyzed_packet->type = HPT_ALARM_STOP;
+            else if (sup == genius_rt::SupKind::RadioFault) // code 0x08 (observed: radio network fault)
+                analyzed_packet->type = HPT_RADIO_FAULT;
+            else if (sup == genius_rt::SupKind::FaultAck) // code 0x10 (observed: fault acknowledged on the detector)
+                analyzed_packet->type = HPT_RADIO_FAULT_ACK;
             else
                 analyzed_packet->type = HPT_UNKNOWN;
         }
-        else if (data_length == LEN_COMMISSIONING_PROBE_REQUEST_PACKET) // CommissioningProbe Request
-            analyzed_packet->type = HPT_COMMISSIONING_PROBE_REQUEST;
+        else if (data_length == LEN_COMMISSIONING_PROBE_REQUEST_PACKET) // CommissioningProbe Request or supervision series
+        {
+            // The daily radio link supervision series has the same type byte and length as the
+            // CommissioningProbe Request; only the family byte (0x33 instead of e.g. 0x66) tells them apart.
+            analyzed_packet->type = (genius_rt::classifySupervision(packet_data, data_length) == genius_rt::SupKind::Beacon)
+                                        ? HPT_SUPERVISION_BEACON
+                                        : HPT_COMMISSIONING_PROBE_REQUEST;
+        }
         else
             analyzed_packet->type = HPT_UNKNOWN;
+        break;
+
+    case MSGTYPE_SUPERVISION_MISSING: // 0x02  (family 0x33: "module missing", payload = SN of the missing radio module)
+        analyzed_packet->type = (genius_rt::classifySupervision(packet_data, data_length) == genius_rt::SupKind::Missing)
+                                    ? HPT_SUPERVISION_MISSING
+                                    : HPT_UNKNOWN;
         break;
 
     default:
@@ -678,6 +718,28 @@ esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_
     return ESP_OK;
 }
 
+void GeniusGateway::_runtimeTask()
+{
+    std::vector<uint32_t> changed;
+    while (1)
+    {
+        vTaskDelay(pdMS_TO_TICKS(GATEWAY_RUNTIME_TICK_MS));
+
+        changed.clear();
+        _geniusDevices.runtimeTick(changed); // expiry + throttled MQTT publish (RAM only)
+        _geniusDevices.treeTick();           // generic MQTT value tree (plain values, no JSON, no HA)
+
+        if (!changed.empty())
+        {
+            JsonDocument doc;
+            JsonObject root = doc.to<JsonObject>();
+            JsonArray devices = root["devices"].to<JsonArray>();
+            _geniusDevices.runtimeToJson(devices, &changed);
+            _eventSocket->emitEvent(GATEWAY_EVENT_DEVICE_RUNTIME, root);
+        }
+    }
+}
+
 void GeniusGateway::_mqttPublishTask()
 {
     ESP_LOGI(TAG, "HA publish task started, waiting for MQTT connect notifications.");
@@ -689,6 +751,7 @@ void GeniusGateway::_mqttPublishTask()
         ESP_LOGI(TAG, "MQTT connected - publishing all app-specific devices.");
         _geniusDevices.mqttPublishAllDevices(false); // Full republish on connect: broker state unknown after reconnect
         _geniusDevices.mqttPublishSimpleAlarmState();
+        _geniusDevices.treeRequestFullPublish(); // generic value tree: everything again, unknown values as clears
         ESP_LOGI(TAG, "HA publish complete.");
     }
 }
@@ -739,6 +802,10 @@ void GeniusGateway::_rx_packets()
                 // Only process packet if it's not a duplicate, i.e. repeated packet
                 if (!isDuplicate)
                 {
+                    /* RAM-only runtime state (last seen, live RSSI, radio link faults). Fed with every
+                     * Genius frame, also the ones whose type is not known. Never touches flash. */
+                    _geniusDevices.runtimeOnFrame(packet.data, packet.length, cc1101_packet_rssi_dbm(&packet));
+
                     genius_packet_t packet_details;
                     if (_genius_analyze_packet_data(packet.data, packet.length, &packet_details) == ESP_OK)
                     {
