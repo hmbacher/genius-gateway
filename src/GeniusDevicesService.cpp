@@ -1184,6 +1184,13 @@ static const char *radioModuleModelName(GeniusRadioModule model)
     }
 }
 
+String GeniusDevicesService::_haDeviceName(const GeniusDevice &device) const
+{
+    if (_haService->renameEntityIds() && !device.location.isEmpty())
+        return device.location;
+    return smokeDetectorModelName(device.smokeDetector.model);
+}
+
 void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device)
 {
     if (_haDevices.count(device.id))
@@ -1193,7 +1200,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
 
     HADeviceIdentity identity;
     identity.id           = "genius-" + String(devId);
-    identity.name         = smokeDetectorModelName(device.smokeDetector.model);
+    identity.name         = _haDeviceName(device);
     identity.manufacturer = "Hekatron Vertriebs GmbH";
     identity.model        = smokeDetectorModelName(device.smokeDetector.model);
     identity.serialNumber = String(device.smokeDetector.sn);
@@ -1204,6 +1211,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         identity.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
 
     auto dev = std::make_unique<HADevice>(_haService, std::move(identity));
+    dev->setEntityIdFromName(_haService->renameEntityIds() && !device.location.isEmpty());
 
     // ---- Smoke alarm binary_sensor (Control) - reads live from _state.devices ----
     auto sensor = std::make_unique<HABinarySensor>(_haService, "smoke",
@@ -1408,7 +1416,29 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
             if (it != _haDevices.end() && it->second.device != nullptr)
             {
                 HADeviceIdentity &id = it->second.device->identity();
-                id.name = smokeDetectorModelName(device.smokeDetector.model);
+                String newName = _haDeviceName(device);
+
+                // Opt-in: HA never changes an entity_id once registered. To get new IDs
+                // derived from the new name, clear the old retained discovery configs
+                // first - HA then drops the old entities and registers fresh ones when
+                // the configs are republished below (entity history is lost).
+                if (_haService->renameEntityIds() && id.name != newName && _haService->isReady())
+                {
+                    ESP_LOGI(GeniusDevices::TAG, "Renaming HA entities of device %lu: '%s' -> '%s'",
+                             (unsigned long)device.id, id.name.c_str(), newName.c_str());
+                    it->second.device->unpublishAll();
+                    if (it->second.diagnostics)
+                        it->second.diagnostics->unpublishAll();
+                    // Give HA time to finish removing the old entities before the new
+                    // configs arrive. HA remembers removed entities and restores their old
+                    // entity_id when the same unique_id comes back, so the new configs also
+                    // carry an explicit default_entity_id (see HADevice::setEntityIdFromName).
+                    vTaskDelay(pdMS_TO_TICKS(3000));
+                }
+
+                it->second.device->setEntityIdFromName(_haService->renameEntityIds() && !device.location.isEmpty());
+
+                id.name = newName;
                 id.serialNumber = String(device.smokeDetector.sn);
                 id.suggestedArea = device.location;
                 id.model = smokeDetectorModelName(device.smokeDetector.model);

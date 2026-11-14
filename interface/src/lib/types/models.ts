@@ -503,6 +503,7 @@ export type HASettings = {
 	device_name: string;
 	manufacturer: string;
 	model: string;
+	rename_entity_ids: boolean;
 };
 
 export type ReportSettings = {

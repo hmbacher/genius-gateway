@@ -226,7 +226,8 @@ Authorization: Bearer <token>
   "discovery_prefix": "homeassistant/",
   "device_name": "Genius Gateway",
   "manufacturer": "Genius Gateway Project",
-  "model": "Genius Gateway"
+  "model": "Genius Gateway",
+  "rename_entity_ids": false
 }
 ```
 
@@ -237,6 +238,7 @@ Authorization: Bearer <token>
 - `device_name` - Device name shown in Home Assistant; empty string falls back to the firmware name
 - `manufacturer` - Manufacturer label shown in Home Assistant device info
 - `model` - Model label shown in Home Assistant device info
+- `rename_entity_ids` - Opt-in (default `false`). Name detectors after their location in Home Assistant and re-create their entities (new entity IDs) when the location changes
 
 **POST Response:** 200 OK with updated settings; if MQTT is connected, updated discovery messages are published immediately
 

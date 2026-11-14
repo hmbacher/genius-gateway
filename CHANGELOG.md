@@ -31,6 +31,14 @@ Alarm lines can now kick off the wireless commissioning procedure (*Funk-Inbetri
 - **Home Assistant button**: each alarm line's HA sub-device now exposes a fifth button, "Start Commissioning", alongside the existing line-test/fire-alarm controls
 - **Alarm Lines page: new "Line Actions" column**: commissioning, line test, and fire alarm actions now live in their own column, grouped with subtle dividers and separated from "Manage" (edit/delete)
 
+## Home Assistant: Optional Entity-ID Update on Location Change
+Home Assistant never changes an entity ID once it is registered, so renaming a detector's location did not change the IDs of its entities (e.g. `sensor.julian_austausch_genius_plus_x_alarm_line`).
+
+- **New opt-in setting in the Home Assistant Integration card**: "Update entity IDs when a detector's location changes" (`rename_entity_ids` in `/rest/haSettings`, off by default, only shown while the integration is enabled)
+- **Detectors are named after their location** in Home Assistant when the setting is on (the model name is used when no location is set)
+- **On a location change** the detector's retained discovery configs are cleared and republished with an explicit `default_entity_id` built from the new name, so Home Assistant creates new entity IDs (e.g. `sensor.julian_alarm_line`). The entity history is lost and references to the old IDs must be updated
+- **With the setting off**, behavior is unchanged: the name stays the model name and only the suggested area is updated
+
 ## Bugfixes
 - **"Revert change" tooltip no longer hides behind the dirty-field accent bar**: on the SPI Pin Configuration selectors (and other dirty-tracked fields), the revert tooltip rendered underneath the red dirty accent bar - daisyUI draws tooltips at `z-index: 2` while the accent bar sits at `z-10`. The revert button now establishes its own stacking context above the bar so the tooltip is fully visible
 

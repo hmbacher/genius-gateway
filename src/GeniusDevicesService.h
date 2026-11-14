@@ -618,6 +618,15 @@ private:
     /// Add a HADevice sub-device for one smoke detector (idempotent)
     void _addSmokeDetectorSubDevice(const GeniusDevice &device);
 
+    /**
+     * @brief HA device name for a detector
+     *
+     * Model name by default. With the opt-in HA setting "rename entity IDs"
+     * enabled, the user-defined location is used (if set), so entity IDs read
+     * e.g. sensor.<location>_alarm_line instead of sensor.genius_plus_x_alarm_line.
+     */
+    String _haDeviceName(const GeniusDevice &device) const;
+
     /// Remove a HADevice sub-device for one smoke detector by stable device ID
     void _removeSmokeDetectorSubDevice(uint32_t deviceId);
 

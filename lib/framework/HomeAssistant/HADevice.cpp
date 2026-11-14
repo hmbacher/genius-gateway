@@ -23,6 +23,51 @@ HADevice::HADevice(HAService *haService, HADeviceIdentity identity)
 }
 
 // ============================================================================
+// Entity-ID helpers
+// ============================================================================
+
+/**
+ * @brief Lowercase ASCII slug for use inside an entity ID ([a-z0-9_] only)
+ *
+ * German umlauts are transliterated (ä -> ae, ß -> ss, ...), every other
+ * character outside [a-z0-9] becomes '_'. Repeated and leading/trailing
+ * underscores are collapsed/trimmed.
+ */
+static String haSlugify(String in)
+{
+    in.replace("ä", "ae");
+    in.replace("ö", "oe");
+    in.replace("ü", "ue");
+    in.replace("Ä", "ae");
+    in.replace("Ö", "oe");
+    in.replace("Ü", "ue");
+    in.replace("ß", "ss");
+
+    String out;
+    out.reserve(in.length());
+    bool lastUnderscore = true; // true at start: drops leading underscores
+    for (size_t i = 0; i < in.length(); i++)
+    {
+        char c = in[i];
+        if (c >= 'A' && c <= 'Z')
+            c = c - 'A' + 'a';
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+        {
+            out += c;
+            lastUnderscore = false;
+        }
+        else if (!lastUnderscore)
+        {
+            out += '_';
+            lastUnderscore = true;
+        }
+    }
+    if (out.endsWith("_"))
+        out.remove(out.length() - 1);
+    return out;
+}
+
+// ============================================================================
 // Identity / topic helpers
 // ============================================================================
 
@@ -89,6 +134,20 @@ bool HADevice::publishConfig(const String &component,
 
     // "~" resolves to this device's base topic inside discovery payloads.
     config["~"] = getBaseTopic();
+
+    // Opt-in: explicit entity ID derived from device + entity name (see setEntityIdFromName).
+    if (_entityIdFromName && !config["default_entity_id"].is<const char *>())
+    {
+        String deviceSlug = haSlugify(_identity.name);
+        String entitySlug = haSlugify(config["name"].is<const char *>() ? String(config["name"].as<const char *>()) : String());
+        if (!deviceSlug.isEmpty())
+        {
+            String entityId = deviceSlug;
+            if (!entitySlug.isEmpty())
+                entityId += "_" + entitySlug;
+            config["default_entity_id"] = component + "." + entityId;
+        }
+    }
 
     // Attach device identity block if not already present.
     if (!config["device"].is<JsonObject>())

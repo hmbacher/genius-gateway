@@ -136,6 +136,22 @@ public:
      */
     void setEnabled(bool enabled);
 
+    /**
+     * @brief Opt-in: name sub-devices after their user-defined label and regenerate entity IDs on rename
+     *
+     * When enabled, sub-device owners use the user-defined label (e.g. a detector's
+     * location) as the HA device name. If the label changes, the owner clears the
+     * old retained discovery configs and republishes them, so HA drops the old
+     * entity registry entries and creates new entity IDs from the new name.
+     * Entity history and references to the old IDs are lost.
+     *
+     * @param enabled true to enable
+     */
+    void setRenameEntityIds(bool enabled);
+
+    /** @brief Whether sub-device renames also regenerate entity IDs (see setRenameEntityIds) */
+    bool renameEntityIds() const { return _renameEntityIds; }
+
     // ========================================================================
     // State queries
     // ========================================================================
@@ -316,6 +332,7 @@ private:
     String _topicNamespace;
     String _discoveryPrefix;
     bool _enabled;
+    bool _renameEntityIds{false};
 
     // Publish / unpublish callbacks - keyed by ID for O(n) removal
     using CallbackEntry = std::pair<CallbackId, PublishAllCallback>;

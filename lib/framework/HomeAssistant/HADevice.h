@@ -82,6 +82,16 @@ public:
     HADeviceIdentity &identity() { return _identity; }
     const HADeviceIdentity &identity() const { return _identity; }
 
+    /**
+     * @brief Send an explicit default_entity_id with every discovery config
+     *
+     * When enabled, each entity config gets
+     * `default_entity_id = <component>.<slug(device name)>_<slug(entity name)>`.
+     * HA only honours it when it creates an entity (not for already registered
+     * ones), so it only takes effect after the old entity was removed first.
+     */
+    void setEntityIdFromName(bool enabled) { _entityIdFromName = enabled; }
+
     /** @brief Unique device identifier (HADeviceIdentity::id). */
     const String &getDeviceId() const { return _identity.id; }
 
@@ -183,6 +193,7 @@ public:
 private:
     HAService *_haService;
     HADeviceIdentity _identity;
+    bool _entityIdFromName{false};
     std::vector<std::unique_ptr<HAEntityBase>> _entities;
 
     template <class E>
