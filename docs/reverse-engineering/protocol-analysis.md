@@ -93,7 +93,7 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 | 23 | 1 | `XX` | | Sequence number - changes from one originated packet to the next. |
 | 24 | 1 | `XX` | Flags | Bit-fields: `(type & 3) << 5 \| (relay & 1) << 4 \| (fwd_class & 3) << 2 \| (flag01 & 3)`.<br>Only the **forward-class** (bits 2-3) and **flag01** (bits 0-1, `1` for commissioning and `0` for every other frame) vary; the **type** (bits 5-6) and **relay** (bit 4) fields carry a constant `0x40` (type = 2, relay = 0) on the captured firmware. Observed values: **Alarm Line Commissioning `0x45`**, Line Test / Alarming `0x48`, ConfigCheckProbe `0x40`. |
 | 25 | 1 | `0x00` | | Unknown, seems to be constant |
-| 26 | 1 | `XX` | | First byte of the message body - a **family marker**: `0x55` = ConfigCheckProbe, `0x66` = CommissioningProbe / Line test, `0x00` = alarm. The [message‑type](#message-type-byte) subtype follows at offset 27. |
+| 26 | 1 | `XX` | | First byte of the message body - a **family marker**: `0x55` = ConfigCheckProbe, `0x66` = CommissioningProbe / Line test, `0x00` = alarm, `0x33` = [radio link supervision](#radio-link-supervision) (observed). `0x11` and `0x22` were also observed (function unknown, see [Radio Link Supervision](#radio-link-supervision)). The [message‑type](#message-type-byte) subtype follows at offset 27. |
 
 </div>
 
@@ -111,7 +111,10 @@ constant"*).
 |:----------:|:------:|:------------|
 | `0x00` | 28 B | [CommissioningProbe Request](#commissioningprobe-request) |
 | `0x00` | 36 B | [Alarming (Start/Stop)](#alarming-startstop) |
+| `0x00` | 28 B, family `0x33` | [Radio link supervision series](#radio-link-supervision) *(same type byte and length as the CommissioningProbe Request, told apart by the family byte)* |
+| `0x00` | 36 B, code `0x08` / `0x10` | [Radio network fault / fault acknowledged](#radio-link-supervision) *(alarm family, code in the "Start" byte 28)* |
 | `0x01` | 32 B | [CommissioningProbe Response](#commissioningprobe-response) |
+| `0x02` | 32 B, family `0x33` | [Radio link supervision: module missing](#radio-link-supervision) |
 | `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
 | `0x04` | 29 B | [Line Test (Start/Stop)](#line-test-startstop) |
 | `0x05` | 29 B | ConfigCheckProbe probe *(tentative; not yet observed in a capture)* |
@@ -485,6 +488,24 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 | 35 | 1 | `XX` | | Trailing byte, varies per frame (checksum or metric - not confirmed) |
 
 </div>
+
+#### Radio Link Supervision
+
+Observed on a test line with two FM Pro X modules whose DIP switch *radio link supervision* was on (the radio switch mask bit `RadioLinkSupervision` of the [acoustic readout](acoustic-readout.md) mirrors it). Everything in this section comes from captures (Nov 2026); the **confidence** column says how well it is established.
+
+| Family / type | Length | Flags | Function | Confidence |
+|:---|:---:|:---:|:---|:---:|
+| `0x33` / `0x00` | 28 B | `0x20` | **Supervision series**: every module with supervision sends it once a day at a fixed time (6-8 bursts of 26 repetitions, about 2 min apart, the second module offset by a constant 6 s). Not forwarded, never answered. Presumably the heartbeat of the supervision. | medium |
+| `0x33` / `0x02` | 32 B | `0x24` | **Module missing**: bytes 28-31 (big endian) = serial number of the radio module that was not heard. Seen about 9.5 h before the fault and again 2 min before it. | medium |
+| `0x00` / `0x00` | 36 B | `0x48` | **Alarm family with code `0x08` in byte 28 = radio network fault**, code `0x10` = **fault acknowledged** (button on the detector). Bytes 32-35 (little endian) = serial number of the smoke detector (not of the radio module) that signals. The Genius Control showed "Störung der Funkvernetzung" at the time of the `0x08` frame and "quittiert" at the time of the `0x10` frame, both for the originating module. | high |
+| `0x11` / `0x00` | 30 B | `0x48` | Unknown. Long burst (about 350 repetitions), payload `b6 08`, forwarded. Seen after commissioning and after a module went missing. | low |
+| `0x11` / `0x01` | 28 B | `0x28` | Unknown. Seen once, 2 s before the fault. | low |
+| `0x22` / `0x00` | 33 B | `0x08` | Unknown. Follows every `0x11` after about 92 s, 5 changing payload bytes, forwarded. | low |
+| `0x33` / `0x01` | 28 B | `0x04` | Unknown. Seen after `0x11` / `0x22`. | low |
+
+Observed sequence when one of two modules was taken out of service: the daily series of the remaining module continues, the removed one is missing from the next series → `0x11` → `0x22` → `0x33/0x01` → `0x33/0x02` (names the missing module) → about 10.5 h after the first missed series the `0x00/0x00` radio fault (the detector starts beeping) → `0x00/0x00` acknowledgement when the button is pressed.
+
+The gateway keeps last-seen, live RSSI and these faults **in RAM only** (see `GeniusDeviceRuntime.h`); faults are dropped 48 h after the last frame about them.
 
 ## Line Addressing: FM Basis X vs. old FM Basis
 

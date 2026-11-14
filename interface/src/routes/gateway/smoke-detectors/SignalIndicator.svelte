@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatDate } from '$lib/utils/formatDate';
+	import { formatDate, formatDateTime } from '$lib/utils/formatDate';
 	import Wifi from '~icons/tabler/wifi';
 	import Wifi2 from '~icons/tabler/wifi-2';
 	import Wifi1 from '~icons/tabler/wifi-1';
@@ -11,11 +11,14 @@
 		/** Direct-link RSSI in dBm from a ConfigCheckProbe range test. `< 0` = reached; `0` (with a
 		 *  timestamp) = tested but no response. */
 		rssi?: number;
-		/** Timestamp of the last range test this module was included in. Undefined = never tested. */
+		/** Timestamp of the measurement (range test or live frame). Undefined = never measured. */
 		lastRangeTest?: Date;
+		/** Where the value comes from: `live` = last frame heard from the module (RAM-only), `probe` = last
+		 *  range test (persisted). Only used for the tooltip. */
+		source?: 'live' | 'probe';
 	}
 
-	let { rssi, lastRangeTest }: Props = $props();
+	let { rssi, lastRangeTest, source = 'probe' }: Props = $props();
 
 	// Three states surfaced to the list:
 	//  'untested'  - never included in a range test        (lastRangeTest unset)   → radar-off
@@ -42,7 +45,9 @@
 	const tip = $derived.by(() => {
 		switch (state) {
 			case 'reached':
-				return `${rssi} dBm (${qualityLabel}) · ${formatDate(lastRangeTest!)}`;
+				return source === 'live'
+					? `${rssi} dBm (${qualityLabel}) · last heard ${formatDateTime(lastRangeTest!)}`
+					: `${rssi} dBm (${qualityLabel}) · range test ${formatDate(lastRangeTest!)}`;
 			case 'unreached':
 				return `Out of direct range`;
 			default:

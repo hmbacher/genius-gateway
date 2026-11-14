@@ -270,6 +270,9 @@ public:
     /// Current inter-send pacing mode.
     TxTimingMode getTxTimingMode() const { return _txTimingMode; }
 
+    /// Snapshot of (id, name) of all configured alarm lines (taken under the state lock; used by the generic MQTT value tree)
+    std::vector<std::pair<uint32_t, std::string>> getLineNames();
+
     /// Add a new alarm line to the system
     esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET, bool toFront = false);
 

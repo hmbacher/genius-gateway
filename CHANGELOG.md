@@ -1,3 +1,31 @@
+# Unreleased
+
+## Last Seen, Live Signal and Radio Link Faults (RAM only)
+The device list now shows when each radio module was last heard, its live signal strength and radio link faults reported by the radio link supervision. **None of these values is ever written to flash**: they live in a RAM table next to the persisted device list and start empty after a reboot.
+
+- **Last seen**: time of the last frame originated by or sent by the device's radio module. Also published to MQTT / Home Assistant (`Last Seen`, at most once a minute per device)
+- **Live signal strength**: RSSI of the last frame the module transmitted itself. If no live value exists yet, the last range-test value from flash is shown instead (tooltip says which). Home Assistant: `Signal Strength` (updates on a change of 3 dB or every 10 minutes)
+- **Radio link faults** on the device that reported them: *warning* (a module was reported missing, frame `0x33/0x02`), *fault* (alarm-family frame with code `0x08`) and *acknowledged* (code `0x10`, also shown when its start is unknown, e.g. after a reboot). The missing module is shown as the cause. Faults disappear 48 h after the last frame about them. Home Assistant: `Radio Link Fault` (problem) with the fault as attributes (`state`, `acknowledged`, `since`, `acknowledgedAt`, `causeSn`, `causeLocation`, ...)
+- **New endpoint and event**: `GET /rest/gateway-devices/runtime` and the WebSocket event `device-runtime`
+- **Packet classification**: the radio link supervision series (family `0x33`, same type byte and length as the CommissioningProbe Request) is no longer mistaken for a CommissioningProbe Request; the new telegrams are documented in the protocol analysis
+- **Host-side unit tests** for the frame classifier, the runtime state machine and the value tree (`tests/native/run.ps1`)
+
+## Smoke Detector List Grouped by Alarm Line
+The smoke-detector list can now be shown in one section per alarm line (toggle in the toolbar, remembered in the browser, on by default).
+
+- **One section per alarm line**, named after the line (devices without a line under "No alarm line"), with the number of detectors and badges for detectors in alarm and for radio link faults. Sections can be collapsed
+- **The overview page** shows its detector cards grouped the same way, with the line name, ID, detector count and badges for alarms and radio link faults as heading (headings only appear once at least one real alarm line exists). The grouping and the line names are shared code (`lineGroups.ts`, `alarmLineNames` store)
+- **Reordering** still works with the drag handle, inside a section: the detectors keep their slots in the global order and only swap among themselves. Detectors are not moved between lines, because the line belongs to the radio module
+
+## Generic MQTT Value Tree
+A second, Home-Assistant-independent MQTT interface: every value of every smoke detector is published to its **own topic as a plain value** (`true` / `false`, number or text), without JSON. Switch it on with **Enable generic value tree** in the simple alarm publishing card (new settings `treeEnabled` and `treeBaseTopic`, default root `genius-gateway/<mac>`).
+
+- **Topics** `{root}/devices/{id}/...` (stable internal device ID): `alarm`, `location`, `serial/detector`, `serial/radio`, `line_id`, `last_seen`, `rssi`, `rssi_source`, `link_fault`, `link_fault_state`, `link_fault_acknowledged`, `link_fault_since`, `link_fault_cause`, readout flags; global `{root}/alarm`, `alarming_count`, `fault_count`
+- **Per alarm line summary** `{root}/lines/{lineId}/name`, `alarm`, `alarming_count`, `fault_count`, `device_count` (line ID as decimal, same value as `devices/{id}/line_id`); detectors stay under their internal ID because their line can change
+- **Change-only and throttled** publishing, unknown values are cleared (empty retained payload), everything is sent again on every MQTT (re)connect
+- The runtime values (last seen, live RSSI, link faults) are still **RAM only**, nothing is written to flash
+- Documented in the MQTT topics reference
+
 # v1.5.0
 
 ## Direct-Link Signal / Range Survey

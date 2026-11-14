@@ -957,3 +957,57 @@ Published when two smoke detectors are alarming (example):
 **:material-home-automation: Integration**
 
 This topic enables integration with *all* smart home systems that support MQTT.
+---
+
+## Generic Value Tree
+
+For systems that are not Home Assistant (openHAB, ioBroker, Node-RED, FHEM, shell scripts, ...) the gateway can publish every value of every smoke detector to its **own topic as a plain value**: `true` / `false`, a number or text. **No JSON** has to be parsed and **Home Assistant is not required**: the tree is switched on independently with **Enable generic value tree** in the same settings card as the simple alarm publishing (`treeEnabled` / `treeBaseTopic` in `/rest/alarm-publishing`).
+
+**:material-message-outline: Root topic**
+```
+genius-gateway/{device-mac}
+```
+The root can be changed (`treeBaseTopic`; empty = the default above). Smoke detectors are addressed by their **stable internal device ID** (`{id}`, the same number as in the web interface and in the HA sub-device name `genius-{id}`); the serial numbers are published as topics of their own.
+
+**:material-speedometer: QoS:** 0 &nbsp;&nbsp; **:material-content-save-outline: Retain:** true
+
+| Topic | Payload |
+|---|---|
+| `{root}/alarm` | `true` / `false`: at least one smoke detector is alarming |
+| `{root}/alarming_count` | integer |
+| `{root}/fault_count` | integer: devices with a radio link fault |
+| `{root}/devices/{id}/alarm` | `true` / `false` |
+| `{root}/devices/{id}/location` | text |
+| `{root}/devices/{id}/serial/detector` | integer: serial number of the smoke detector |
+| `{root}/devices/{id}/serial/radio` | integer: serial number of the radio module |
+| `{root}/devices/{id}/line_id` | integer: alarm line ID of the radio module |
+| `{root}/devices/{id}/last_seen` | Unix seconds: last frame originated by or sent by the radio module |
+| `{root}/devices/{id}/rssi` | integer, dBm |
+| `{root}/devices/{id}/rssi_source` | `live` (last frame heard from the module) / `probe` (last range test) |
+| `{root}/devices/{id}/link_fault` | `true` / `false` |
+| `{root}/devices/{id}/link_fault_state` | `none` / `warning` / `active` / `acked` |
+| `{root}/devices/{id}/link_fault_acknowledged` | `true` / `false` |
+| `{root}/devices/{id}/link_fault_since` | Unix seconds (absent if the start is unknown) |
+| `{root}/devices/{id}/link_fault_cause` | integer: serial number of the radio module that was reported missing |
+| `{root}/devices/{id}/battery_low`, `device_fault`, `radio_fault` | `true` / `false`, only after an acoustic readout |
+| `{root}/devices/{id}/readout_time` | Unix seconds of the last acoustic readout |
+| `{root}/lines/{lineId}/name` | text: name of the alarm line (absent if the line has no name) |
+| `{root}/lines/{lineId}/alarm` | `true` / `false`: at least one detector of the line is alarming |
+| `{root}/lines/{lineId}/alarming_count` | integer: detectors of the line in alarm |
+| `{root}/lines/{lineId}/fault_count` | integer: detectors of the line with a radio link fault |
+| `{root}/lines/{lineId}/device_count` | integer: detectors assigned to the line |
+
+`{lineId}` is the alarm line ID as plain decimal number, the same value as `devices/{id}/line_id`. A line is published if it is configured in the gateway or if a detector is assigned to it; detectors without a line and the broadcast line are not lines. The line topics are a **summary only**: detectors stay under their stable internal `{id}`, because the line of a detector can change.
+
+**:material-publish: Publishing Behavior**
+
+- **Only changes are published.** `last_seen` at most once a minute per device, `rssi` on a change of 3 dB or at the latest after 10 minutes. Alarms and faults go out immediately.
+- **An unknown value has no payload**: its retained topic is cleared (empty payload). So a missing `rssi`, `last_seen`, `link_fault_cause`, ... means "unknown", never a stale value.
+- On every (re)connect all topics are sent again, the unknown ones as clears, so no stale retained value survives a gateway restart. The runtime values (`last_seen`, live `rssi`, `link_fault*`) live in RAM only (they start unknown after a restart) and are **never written to flash**.
+- Faults disappear (`link_fault` becomes `false`, the cause is cleared) 48 h after the last frame about them.
+- Deleting a device clears all its topics. Switching the tree off, or changing the root, clears everything published under the old root.
+- Timestamps are Unix seconds and need a valid system time (NTP). Without it `last_seen`, `link_fault_since` and `readout_time` stay unknown.
+- The values are separate topics, so two of them cannot be read atomically (e.g. `link_fault` and `link_fault_state` may differ for a moment).
+
+!!! note "Not yet"
+    Commands (line test, fire alarm) are not part of the tree yet; they are only available as Home Assistant buttons and over the REST API.

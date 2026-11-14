@@ -32,6 +32,9 @@
 	import { getSmokeDetectorFaults, getRadioModuleFaults } from '$lib/utils/deviceStatus';
 	import { isOldFmModule } from '$lib/genius/line';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
+	import { deviceRuntime } from '$lib/stores/deviceRuntime.svelte';
+	import { alarmLineNames } from '$lib/stores/alarmLineNames.svelte';
+	import { groupByAlarmLine, lineHex, lineKeyOf, type LineGroup } from '$lib/genius/lineGroups';
 	import { socket } from '$lib/stores/socket';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -63,6 +66,9 @@
 	import BellRinging from '~icons/tabler/bell-ringing';
 	import BellOff from '~icons/tabler/bell-off';
 	import Radar from '~icons/tabler/radar';
+	import Folders from '~icons/tabler/folders';
+	import ChevronDown from '~icons/tabler/chevron-down';
+	import ChevronRight from '~icons/tabler/chevron-right';
 
 	interface Props {
 		data: PageData;
@@ -520,6 +526,10 @@
 		return () => socket.off('config-check-probe', handler);
 	});
 
+	// ── RAM-only runtime state: last seen, live RSSI, radio link faults ────────
+	// Never persisted by the gateway; filled from frames as they arrive (shared store, also used by the overview).
+	$effect(() => deviceRuntime.start(authHeaders()));
+
 	function handleAlarmLog(index: number) {
 		modals.open(AlarmLog, {
 			title: 'Alarms log',
@@ -533,6 +543,54 @@
 		);
 		geniusDevices.devices = reorderedDevices;
 		if (orderChanged) apiReorderDevices(reorderedDevices.map((d) => d.id));
+	}
+
+	// ── Grouping by alarm line ─────────────────────────────────────────────────
+	// The line of a device is a property of its radio module, so devices are not dragged between
+	// groups; the order inside a group is part of the global order (apiReorderDevices).
+	// The grouping itself ($lib/genius/lineGroups) is shared with the overview page.
+	let groupByLine = $state(true);
+	let collapsedLines = $state<Record<number, boolean>>({});
+
+	$effect(() => {
+		try {
+			const saved = localStorage.getItem('gg-group-by-line');
+			if (saved !== null) groupByLine = saved === '1';
+		} catch {
+			/* storage unavailable: default stays */
+		}
+	});
+
+	function toggleGroupByLine() {
+		groupByLine = !groupByLine;
+		try {
+			localStorage.setItem('gg-group-by-line', groupByLine ? '1' : '0');
+		} catch {
+			/* not remembered */
+		}
+	}
+
+	const lineKey = $derived(geniusDevices.devices.map((d) => lineKeyOf(d)).join(','));
+
+	// Names of the alarm lines; fetched again when the line assignment of a device changes
+	$effect(() => {
+		if (!geniusDevices.isLoaded) return;
+		void lineKey;
+		alarmLineNames.load(authHeaders());
+	});
+
+	const lineGroups = $derived(groupByAlarmLine(geniusDevices.devices, alarmLineNames.names));
+
+	const alarmingIn = (g: LineGroup) => g.devices.filter((d) => d.isAlarming).length;
+	const faultsIn = (g: LineGroup) => g.devices.filter((d) => deviceRuntime.byId[d.id]?.fault).length;
+	const globalIndexOf = (device: GeniusDevice) =>
+		geniusDevices.devices.findIndex((d) => d.id === device.id);
+
+	/** Reorder inside one group: the group's devices keep their slots in the global order, only swap among them. */
+	function handleGroupReorder(reordered: GeniusDevice[]) {
+		const ids = new Set(reordered.map((d) => d.id));
+		const queue = [...reordered];
+		handleDeviceReorder(geniusDevices.devices.map((d) => (ids.has(d.id) ? queue.shift()! : d)));
 	}
 
 	function handleAcousticDetection() {
@@ -1356,6 +1414,20 @@
 						<Save class="h-6 w-6" />
 					</button>
 				</div>
+				<div
+						class="tooltip tooltip-left"
+						data-tip={groupByLine ? 'Show as one list' : 'Group by alarm line'}
+					>
+						<button
+							class="btn btn-md {groupByLine ? 'btn-primary' : 'btn-outline btn-primary'}"
+							aria-label="Group smoke detectors by alarm line"
+							aria-pressed={groupByLine}
+							disabled={!geniusDevices.isLoaded}
+							onclick={toggleGroupByLine}
+						>
+							<Folders class="h-6 w-6" />
+						</button>
+					</div>
 				<div class="tooltip tooltip-left" data-tip="Generate PDF report">
 					<button
 						class="btn btn-primary btn-md"
@@ -1410,14 +1482,7 @@
 						<div class="text-right">Manage</div>
 					</div>
 
-					<!-- Draggable device list -->
-					<DraggableList
-						items={geniusDevices.devices}
-						onReorder={handleDeviceReorder}
-						useHandleMode={true}
-						class="space-y-1"
-					>
-						{#snippet children({ item: device, index }: { item: GeniusDevice; index: number })}
+					{#snippet deviceRow(device: GeniusDevice, index: number)}
 							<SmokeDetectorRow
 								{device}
 								{index}
@@ -1427,7 +1492,70 @@
 								onDetails={openDeviceDetails}
 							/>
 						{/snippet}
-					</DraggableList>
+
+						{#if groupByLine}
+							<!-- One section per alarm line -->
+							<div class="space-y-3">
+								{#each lineGroups as group (group.key)}
+									{@const alarming = alarmingIn(group)}
+									{@const faults = faultsIn(group)}
+									<section>
+										<button
+											type="button"
+											class="flex w-full items-center gap-2 rounded-box bg-base-200 px-3 py-1.5 text-left"
+											aria-expanded={!collapsedLines[group.key]}
+											onclick={() => (collapsedLines[group.key] = !collapsedLines[group.key])}
+										>
+											{#if collapsedLines[group.key]}
+												<ChevronRight class="h-5 w-5 shrink-0" />
+											{:else}
+												<ChevronDown class="h-5 w-5 shrink-0" />
+											{/if}
+											<span class="truncate font-semibold">{group.name}</span>
+											{#if group.key !== 0}
+												<span class="font-mono text-xs text-base-content/50">{lineHex(group.key)}</span>
+											{/if}
+											<span class="ml-auto shrink-0 text-sm text-base-content/60">
+												{group.devices.length}
+												{group.devices.length === 1 ? 'detector' : 'detectors'}
+											</span>
+											{#if alarming > 0}
+												<span class="badge badge-error badge-sm shrink-0">{alarming} alarming</span>
+											{/if}
+											{#if faults > 0}
+												<span class="badge badge-warning badge-sm shrink-0">
+													{faults} link {faults === 1 ? 'fault' : 'faults'}
+												</span>
+											{/if}
+										</button>
+										{#if !collapsedLines[group.key]}
+											<DraggableList
+												items={group.devices}
+												onReorder={handleGroupReorder}
+												useHandleMode={true}
+												class="mt-1 space-y-1"
+											>
+												{#snippet children({ item: device }: { item: GeniusDevice; index: number })}
+													{@render deviceRow(device, globalIndexOf(device))}
+												{/snippet}
+											</DraggableList>
+										{/if}
+									</section>
+								{/each}
+							</div>
+						{:else}
+							<!-- Draggable device list -->
+							<DraggableList
+								items={geniusDevices.devices}
+								onReorder={handleDeviceReorder}
+								useHandleMode={true}
+								class="space-y-1"
+							>
+								{#snippet children({ item: device, index }: { item: GeniusDevice; index: number })}
+									{@render deviceRow(device, index)}
+								{/snippet}
+							</DraggableList>
+						{/if}
 				</div>
 			{/if}
 		</SettingsCard>

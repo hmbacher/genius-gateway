@@ -82,6 +82,7 @@
  * genuine radio module routes on. Length disambiguates the single shared value (0x00). */
 #define MSGTYPE_ALARM_OR_COMMISSIONING_PROBE_REQ 0x00 ///< Alarming (36 B) OR CommissioningProbe Request (28 B)
 #define MSGTYPE_COMMISSIONING_PROBE_RESPONSE 0x01     ///< CommissioningProbe Response (32 B, carries Req-SN)
+#define MSGTYPE_SUPERVISION_MISSING 0x02              ///< Radio link supervision "module missing" (family 0x33, 32 B, carries the missing module's SN)
 #define MSGTYPE_COMMISSIONING 0x03          ///< Alarm-line commissioning (37 B)
 #define MSGTYPE_LINE_TEST 0x04              ///< Line test start/stop (29 B)
 #define MSGTYPE_CONFIG_CHECK_PROBE_05 0x05       ///< ConfigCheckProbe probe (29 B) - firmware-derived, provisional (not yet capture-confirmed)
@@ -98,6 +99,8 @@
 
 #define GATEWAY_EVENT_ALARM "alarm" ///< WebSocket event name for alarm notifications
 #define GATEWAY_EVENT_CONFIG_CHECK_PROBE "config-check-probe" ///< WebSocket event for ConfigCheckProbe survey progress/result
+#define GATEWAY_EVENT_DEVICE_RUNTIME "device-runtime"         ///< WebSocket event: RAM-only runtime state (last seen, RSSI, link fault) of changed devices
+#define GATEWAY_RUNTIME_TICK_MS 1000                          ///< Period of the runtime housekeeping task (expiry, MQTT, event)
 
 #define GATEWAY_ALARM_STATE_EMIT_INTERVAL_MS 1000 ///< Alarm state emission interval (1 second)
 
@@ -124,7 +127,11 @@ typedef enum genius_packet_type
   HPT_LINE_TEST_START,    ///< Line test start packet (line test initiation)
   HPT_LINE_TEST_STOP,     ///< Line test stop packet (line test completion)
   HPT_CONFIG_CHECK_PROBE_REQUEST, ///< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe)
-  HPT_CONFIG_CHECK_PROBE_RESPONSE ///< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
+  HPT_CONFIG_CHECK_PROBE_RESPONSE, ///< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
+  HPT_SUPERVISION_BEACON,  ///< Radio link supervision series (family 0x33, type 0x00, 28 B; not forwarded)
+  HPT_SUPERVISION_MISSING, ///< Radio link supervision: module missing (family 0x33, type 0x02, 32 B; payload = SN of the missing module)
+  HPT_RADIO_FAULT,         ///< Radio network fault (alarm family 0x00/0x00, 36 B, code 0x08)
+  HPT_RADIO_FAULT_ACK      ///< Radio network fault acknowledged (alarm family 0x00/0x00, 36 B, code 0x10)
 } genius_packet_type_t;
 
 typedef struct genius_packet_t
@@ -235,6 +242,15 @@ private:
 
   /// Serialize a responder list into a JSON array (shared by the WS result + discovered GET)
   static void _respondersToJson(const std::vector<config_check_responder_t> &list, JsonArray arr);
+
+  /// Runtime housekeeping (about once per second): expires link faults (48 h), publishes the RAM-only
+  /// runtime state to MQTT (throttled) and emits the changes as WebSocket event. Never touches flash.
+  void _runtimeTask();
+
+  /// Static wrapper for the runtime housekeeping task
+  static void _runtimeTaskImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_runtimeTask(); }
+
+  TaskHandle_t _runtimeTaskHandle = nullptr; ///< Handle for the runtime housekeeping task
 
   /// Main packet reception loop
   void _rx_packets();
