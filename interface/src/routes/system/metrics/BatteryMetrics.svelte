@@ -13,11 +13,11 @@
 	Chart.register(...registerables);
 	Chart.register(LuxonAdapter);
 
-	let heapChartElement: HTMLCanvasElement = $state();
+	let heapChartElement: HTMLCanvasElement | undefined = $state();
 	let heapChart: Chart;
 
 	onMount(() => {
-		heapChart = new Chart(heapChartElement, {
+		heapChart = new Chart(heapChartElement!, {
 			type: 'line',
 			data: {
 				labels: $batteryHistory.timestamp,

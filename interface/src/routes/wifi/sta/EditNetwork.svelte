@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ModalProps } from 'svelte-modals';
 	import { modals } from 'svelte-modals';
 	import { fly, slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
@@ -9,8 +10,7 @@
 	import Cancel from '~icons/tabler/x';
 	import Set from '~icons/tabler/check';
 
-	interface Props {
-		isOpen: boolean;
+	interface Props extends ModalProps {
 		title: string;
 		networkEditable?: KnownNetworkItem;
 		onSaveNetwork: any;
