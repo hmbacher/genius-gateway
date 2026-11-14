@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import type { GeniusDevice } from '$lib/types/models';
 	import { modals } from 'svelte-modals';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { user } from '$lib/stores/user';
@@ -8,6 +9,9 @@
 	import RadioSetupBanner from '$lib/components/RadioSetupBanner.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import AlarmEndingDialog from './AlarmEndingDialog.svelte';
+	import DeviceDetailsDialog from './gateway/smoke-detectors/DeviceDetailsDialog.svelte';
+	import { openEditDevice } from './gateway/smoke-detectors/deviceSave.svelte';
+	import AlarmLog from './gateway/smoke-detectors/AlarmLog.svelte';
 	import Info from '~icons/tabler/info-circle';
 	import BellOff from '~icons/tabler/bell-off';
 
@@ -16,6 +20,23 @@
 	}
 
 	let { data }: Props = $props();
+
+	/**
+	 * Opens the clicked detector on top of the Overview: the alarm log for alarming devices,
+	 * the (read-only) details dialog for all others. Readout and "set line" stay on the
+	 * Smoke Detectors page, so the user never leaves the Overview.
+	 */
+	function openDevice(device: GeniusDevice) {
+		if (device.isAlarming) {
+			modals.open(AlarmLog, { title: 'Alarms log', geniusDevice: device });
+		} else {
+			modals.open(DeviceDetailsDialog, {
+				title: 'Device Details',
+				device,
+				onEdit: () => openEditDevice(device)
+			});
+		}
+	}
 
 	async function postEndAlarms(blockingTime: number) {
 		try {
@@ -73,13 +94,23 @@
 					</div>
 				{/if}
 				{#each geniusDevices.devices as device (device.id)}
-					<a
-						href="/gateway/smoke-detectors"
-						aria-label="Open smoke detectors page"
-						class="block w-full max-w-120 hover:scale-[1.03] active:scale-[0.97] transition-transform"
-					>
-						<DeviceStatusCard detector={device} />
-					</a>
+					{#if $user.admin}
+						<button
+							type="button"
+							onclick={() => openDevice(device)}
+							aria-label={device.isAlarming
+								? `Open alarm log of ${device.location}`
+								: `Open details of ${device.location}`}
+							class="block w-full max-w-120 cursor-pointer text-left hover:scale-[1.03] active:scale-[0.97] transition-transform"
+						>
+							<DeviceStatusCard detector={device} />
+						</button>
+					{:else}
+						<!-- Details and alarm log are admin-only, so non-admins get a plain, non-clickable card. -->
+						<div class="block w-full max-w-120">
+							<DeviceStatusCard detector={device} />
+						</div>
+					{/if}
 				{/each}
 			{:else}
 				<div class="col-span-full">
