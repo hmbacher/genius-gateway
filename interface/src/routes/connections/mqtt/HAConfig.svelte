@@ -20,7 +20,8 @@
 		discovery_prefix: 'homeassistant/',
 		device_name: '',
 		manufacturer: '',
-		model: ''
+		model: '',
+		rename_entity_ids: false
 	});
 
 	async function getHASettings() {
@@ -170,6 +171,31 @@
 					</DirtyField>
 					<FieldError show={modelError} message="Model is limited to 64 characters." />
 				</div>
+
+				{#if f.current.enabled}
+				<div class="flex items-center w-full" transition:slide|local={{ duration: 300, easing: cubicOut }}>
+					<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('rename_entity_ids') ? 'w-1 mr-2' : 'w-0'}"></div>
+					<label class="label cursor-pointer justify-start gap-2 items-center">
+						<input type="checkbox" class="checkbox checkbox-primary shrink-0" bind:checked={f.current.rename_entity_ids} />
+						<div class="flex items-center gap-2">
+							<span>Update entity IDs when a detector's location changes</span>
+							<DirtyMarker dirty={f.isDirty('rename_entity_ids')} onrevert={() => f.revert('rename_entity_ids')} />
+						</div>
+					</label>
+				</div>
+				{#if f.current.rename_entity_ids}
+					<div class="alert alert-warning shadow-lg" transition:slide|local={{ duration: 300, easing: cubicOut }}>
+						<Info class="h-6 w-6 shrink-0 stroke-current" />
+						<span
+							>Detectors are named after their location in Home Assistant. When the location changes, the
+							detector's entities are removed and re-created so Home Assistant generates new entity IDs. The
+							history of the old entities is NOT carried over (the new entities start without history), and
+							automations or dashboards that use the old IDs must be updated. To keep the history, leave this
+							option off and rename the entity IDs inside Home Assistant instead.</span
+						>
+					</div>
+				{/if}
+				{/if}
 			</div>
 			<div class="divider mb-2 mt-0"></div>
 			<div class="mx-4 flex flex-wrap justify-end gap-2">

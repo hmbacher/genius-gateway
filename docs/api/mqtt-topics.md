@@ -635,7 +635,8 @@ homeassistant/genius-gateway-aabbcc/genius-1746234159/...
 - `state_topic` - Plain string `ON` / `OFF`
 - `entity_picture` - Detector icon URL (omitted if no valid IP)
 - `device.identifiers` - Stable device ID (`genius-{device_id}`)
-- `device.name` / `device.model` - Smoke detector model name (e.g. `"Genius Plus X"`)
+- `device.model` - Smoke detector model name (e.g. `"Genius Plus X"`)
+- `device.name` - Smoke detector model name; the detector's location instead if the *Update entity IDs when a detector's location changes* option is enabled
 - `device.suggested_area` - Populated from the detector's configured location
 - `device.via_device` - Links this sub-device to the main gateway device
 

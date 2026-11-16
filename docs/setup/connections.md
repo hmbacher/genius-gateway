@@ -150,6 +150,17 @@ Name shown in Home Assistant's device registry. The factory default is `Genius G
 
     The automatic cleanup runs on **every boot** as long as an old-style tree could exist, so a gateway that was offline during the upgrade still cleans up whenever it next connects.
 
+**Update entity IDs when a detector's location changes**
+
+Opt-in, off by default, and only shown while the integration is enabled. Home Assistant never changes an entity ID after it was first registered, so renaming a detector's location normally leaves IDs such as `sensor.julian_austausch_genius_plus_x_alarm_line` untouched.
+
+With this option enabled, detectors are named after their location in Home Assistant (the model name is used if no location is set). When the location of a detector changes, the gateway removes its entities from Home Assistant and publishes them again together with an explicit entity ID built from the new name (e.g. `sensor.julian_alarm_line`). This needs a Home Assistant version that supports `default_entity_id` in MQTT discovery (tested with 2026.11).
+
+!!! warning "History and references are lost"
+    The old entities are removed and new ones are created, so **their recorded history (and long-term statistics) is not carried over**: Home Assistant stores history per entity ID, and the new entities start empty. The old history stays under the old IDs. Zigbee2MQTT's "Update Home Assistant entity ID" rename behaves the same way. Automations, scripts and dashboards that reference the old entity IDs must be updated. Two detectors with the same location get a numeric suffix (`_2`) from Home Assistant.
+
+    To keep the history, leave this option off and rename the entity IDs in Home Assistant itself (device page, entity settings, *Recreate entity IDs* / change the entity ID). Home Assistant then migrates the history to the new ID.
+
 **Manufacturer / Model**
 
 Optional labels shown in the Home Assistant device info panel. Useful for multi-gateway deployments to distinguish individual units.

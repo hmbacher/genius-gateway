@@ -126,6 +126,11 @@ void HAService::setEnabled(bool enabled)
     ESP_LOGI(TAG, "HA integration %s", enabled ? "enabled" : "disabled");
 }
 
+void HAService::setRenameEntityIds(bool enabled)
+{
+    _renameEntityIds = enabled;
+}
+
 // ============================================================================
 // State queries
 // ============================================================================
