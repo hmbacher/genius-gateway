@@ -26,7 +26,7 @@
 	let hasPsramData = $derived(Math.max(...$analytics.psram_size) > 0);
 
 	onMount(() => {
-		heapChart = new Chart(heapChartElement, {
+		heapChart = new Chart(heapChartElement!, {
 			type: 'line',
 			data: {
 				labels: $analytics.uptime,
@@ -102,7 +102,7 @@
 		
 		// Only create PSRAM chart if PSRAM data is available
 		if (hasPsramData) {
-			psramChart = new Chart(psramChartElement, {
+			psramChart = new Chart(psramChartElement!, {
 			type: 'line',
 			data: {
 				labels: $analytics.uptime,
@@ -169,7 +169,7 @@
 		});
 		}
 		
-		filesystemChart = new Chart(filesystemChartElement, {
+		filesystemChart = new Chart(filesystemChartElement!, {
 			type: 'line',
 			data: {
 				labels: $analytics.uptime,
@@ -234,7 +234,7 @@
 				}
 			}
 		});
-		temperatureChart = new Chart(temperatureChartElement, {
+		temperatureChart = new Chart(temperatureChartElement!, {
 			type: 'line',
 			data: {
 				labels: $analytics.uptime,
@@ -309,19 +309,19 @@
 		heapChart.data.datasets[0].data = $analytics.used_heap;
 		heapChart.data.datasets[1].data = $analytics.max_alloc_heap;
 		heapChart.update('none');
-		heapChart.options.scales.y.max = Math.round(Math.max(...$analytics.total_heap));
+		heapChart.options.scales!.y!.max = Math.round(Math.max(...$analytics.total_heap));
 
 		if (hasPsramData) {
 			psramChart.data.labels = $analytics.uptime;
 			psramChart.data.datasets[0].data = $analytics.used_psram;
 			psramChart.update('none');
-			psramChart.options.scales.y.max = Math.round(Math.max(...$analytics.psram_size));
+			psramChart.options.scales!.y!.max = Math.round(Math.max(...$analytics.psram_size));
 		}
 
 		filesystemChart.data.labels = $analytics.uptime;
 		filesystemChart.data.datasets[0].data = $analytics.fs_used;
 		filesystemChart.update('none');
-		filesystemChart.options.scales.y.max = Math.round(Math.max(...$analytics.fs_total));
+		filesystemChart.options.scales!.y!.max = Math.round(Math.max(...$analytics.fs_total));
 
 		temperatureChart.data.labels = $analytics.uptime;
 		temperatureChart.data.datasets[0].data = $analytics.core_temp;

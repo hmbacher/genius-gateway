@@ -30,7 +30,8 @@
 	import { socket } from '$lib/stores/socket';
 	import { APP_VERSION_FULL } from '$lib/version';
 
-	let systemInformation: SystemInformation = $state();
+	// Loaded before the status page renders, so it is treated as always defined.
+	let systemInformation = $state<SystemInformation>() as SystemInformation;
 
 	async function getSystemStatus() {
 		try {

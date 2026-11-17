@@ -40,7 +40,8 @@
 		task,
 		onSuccess,
 		onAborted,
-		onError
+		onError,
+		...modalProps
 	}: Props = $props();
 
 	let phase = $state<'pending' | 'progress' | 'success' | 'error' | 'aborted'>('pending');
@@ -155,6 +156,7 @@
 
 <ProgressDialog
 	{isOpen}
+	{...modalProps}
 	{title}
 	{phase}
 	{progress}

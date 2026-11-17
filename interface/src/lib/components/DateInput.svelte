@@ -8,7 +8,9 @@
       
     let internal = $state()
   
+    /** @param {import('dayjs').ConfigType} x */
     const input = (x) => (internal = dayjs(x).format(format))
+    /** @param {import('dayjs').ConfigType} x */
     const output = (x) => (date = dayjs(x, format).toDate())
   
     run(() => {
