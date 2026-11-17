@@ -14,6 +14,7 @@
 	import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 	import DetailRow from './DetailRow.svelte';
 	import Cancel from '~icons/tabler/x';
+	import Edit from '~icons/tabler/pencil';
 	import IconListDetails from '~icons/tabler/list-details';
 	import Microphone from '~icons/tabler/microphone';
 	import MicrophoneOff from '~icons/tabler/microphone-off';
@@ -53,9 +54,11 @@
 		device: GeniusDevice;
 		onReadout?: () => void;
 		onSetLine?: () => void;
+		/** Switch from this read-only view to the edit dialog. Pencil is hidden when unset. */
+		onEdit?: () => void;
 	}
 
-	let { isOpen, title, device, onReadout, onSetLine }: Props = $props();
+	let { isOpen, title, device, onReadout, onSetLine, onEdit }: Props = $props();
 
 	const titleId = `device-details-title-${Math.random().toString(36).slice(2)}`;
 
@@ -183,13 +186,29 @@
 				<h2 id={titleId} class="text-base-content flex items-center gap-2 text-2xl font-bold">
 					<IconListDetails class="text-primary h-7 w-7 flex-shrink-0" />{title}
 				</h2>
-				<button
-					class="btn btn-ghost btn-circle btn-sm"
-					aria-label="Close"
-					onclick={() => modals.close()}
-				>
-					<Cancel class="h-5 w-5" />
-				</button>
+				<div class="flex items-center gap-1">
+					{#if onEdit}
+						<div class="tooltip tooltip-left" data-tip="Edit smoke detector">
+							<button
+								class="btn btn-ghost btn-circle btn-sm"
+								aria-label="Edit smoke detector"
+								onclick={() => {
+									modals.close();
+									onEdit?.();
+								}}
+							>
+								<Edit class="h-5 w-5" />
+							</button>
+						</div>
+					{/if}
+					<button
+						class="btn btn-ghost btn-circle btn-sm"
+						aria-label="Close"
+						onclick={() => modals.close()}
+					>
+						<Cancel class="h-5 w-5" />
+					</button>
+				</div>
 			</div>
 
 			<div class="divider my-2"></div>
