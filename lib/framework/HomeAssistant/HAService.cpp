@@ -14,6 +14,7 @@
 
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
+#include <HomeAssistant/HAUtils.h>
 
 HAService::HAService(PsychicMqttClient *mqttClient)
     : _mqttClient(mqttClient),
@@ -27,7 +28,7 @@ HAService::HAService(PsychicMqttClient *mqttClient)
     // Topic identity is derived from the compile-time firmware name, never from
     // the user-editable display name. Renaming the device in the UI therefore
     // leaves both the MQTT topics and HA's device registry entry untouched.
-    _deviceId = _slugify(APP_NAME) + "-" + SettingValue::getUniqueId();
+    _deviceId = HAUtils::slugify(APP_NAME, '-', false) + "-" + SettingValue::getUniqueId();
     _updateLegacyTopicIdentity();
 }
 
@@ -485,7 +486,7 @@ void HAService::_syncMainDeviceIdentity()
 
 void HAService::_updateLegacyTopicIdentity()
 {
-    const String legacyNamespace = _slugify(_deviceName);
+    const String legacyNamespace = HAUtils::slugify(_deviceName, '-', false);
     const String legacyDeviceId  = legacyNamespace + "-" + SettingValue::getUniqueId();
     const String legacyBaseTopic = _discoveryPrefix + legacyNamespace + "/" + legacyDeviceId;
 
@@ -495,40 +496,4 @@ void HAService::_updateLegacyTopicIdentity()
     // different base topic, because the old scheme carried a namespace level.
     _legacyDeviceId  = (legacyDeviceId == _deviceId) ? String() : legacyDeviceId;
     _legacyBaseTopic = (legacyBaseTopic == getBaseTopic()) ? String() : legacyBaseTopic;
-}
-
-String HAService::_slugify(const String &name)
-{
-    String slug = name;
-    slug.toLowerCase();
-
-    // Replace spaces and underscores with dashes
-    slug.replace(" ", "-");
-    slug.replace("_", "-");
-
-    // Remove any characters that aren't alphanumeric or dash
-    String clean;
-    clean.reserve(slug.length());
-    for (unsigned int i = 0; i < slug.length(); i++)
-    {
-        char c = slug.charAt(i);
-        if (isalnum(c) || c == '-')
-        {
-            clean += c;
-        }
-    }
-
-    // Remove consecutive dashes
-    while (clean.indexOf("--") >= 0)
-    {
-        clean.replace("--", "-");
-    }
-
-    // Remove leading/trailing dashes
-    while (clean.startsWith("-"))
-        clean = clean.substring(1);
-    while (clean.endsWith("-"))
-        clean = clean.substring(0, clean.length() - 1);
-
-    return clean;
 }

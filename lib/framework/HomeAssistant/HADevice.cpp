@@ -14,57 +14,13 @@
 
 #include <HomeAssistant/HADevice.h>
 #include <HomeAssistant/HAService.h>
+#include <HomeAssistant/HAUtils.h>
 #include <IPUtils.h>
 
 HADevice::HADevice(HAService *haService, HADeviceIdentity identity)
     : _haService(haService),
       _identity(std::move(identity))
 {
-}
-
-// ============================================================================
-// Entity-ID helpers
-// ============================================================================
-
-/**
- * @brief Lowercase ASCII slug for use inside an entity ID ([a-z0-9_] only)
- *
- * German umlauts are transliterated (ä -> ae, ß -> ss, ...), every other
- * character outside [a-z0-9] becomes '_'. Repeated and leading/trailing
- * underscores are collapsed/trimmed.
- */
-static String haSlugify(String in)
-{
-    in.replace("ä", "ae");
-    in.replace("ö", "oe");
-    in.replace("ü", "ue");
-    in.replace("Ä", "ae");
-    in.replace("Ö", "oe");
-    in.replace("Ü", "ue");
-    in.replace("ß", "ss");
-
-    String out;
-    out.reserve(in.length());
-    bool lastUnderscore = true; // true at start: drops leading underscores
-    for (size_t i = 0; i < in.length(); i++)
-    {
-        char c = in[i];
-        if (c >= 'A' && c <= 'Z')
-            c = c - 'A' + 'a';
-        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
-        {
-            out += c;
-            lastUnderscore = false;
-        }
-        else if (!lastUnderscore)
-        {
-            out += '_';
-            lastUnderscore = true;
-        }
-    }
-    if (out.endsWith("_"))
-        out.remove(out.length() - 1);
-    return out;
 }
 
 // ============================================================================
@@ -142,8 +98,8 @@ bool HADevice::publishConfig(const String &component,
     // Opt-in: explicit entity ID derived from device + entity name (see setEntityIdFromName).
     if (_entityIdFromName && !config["default_entity_id"].is<const char *>())
     {
-        String deviceSlug = haSlugify(_identity.name);
-        String entitySlug = haSlugify(config["name"].is<const char *>() ? String(config["name"].as<const char *>()) : String());
+        const String deviceSlug = HAUtils::slugify(_identity.name);
+        const String entitySlug = HAUtils::slugify(String(config["name"] | ""));
         if (!deviceSlug.isEmpty())
         {
             String entityId = deviceSlug;

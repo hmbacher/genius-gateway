@@ -406,9 +406,4 @@ private:
      * retained payload there so the stale retained tree drains itself.
      */
     void _purgeLegacyState(const String &topic);
-
-    /**
-     * @brief Create a URL-safe slug: "My Device Name" → "my-device-name"
-     */
-    static String _slugify(const String &name);
 };
