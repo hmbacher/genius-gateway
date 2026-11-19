@@ -637,6 +637,7 @@ homeassistant/genius-gateway-aabbcc/genius-1746234159/...
 - `device.identifiers` - Stable device ID (`genius-{device_id}`)
 - `device.model` - Smoke detector model name (e.g. `"Genius Plus X"`)
 - `device.name` - Smoke detector model name; the detector's location instead if the *Update entity IDs when a detector's location changes* option is enabled
+- `default_entity_id` - Only sent while that option is enabled (not part of the example above): explicit entity ID `<domain>.<prefix>_<entity>`, e.g. `binary_sensor.living_room_smoke_detector`. The prefix is the detector's location reduced to `[a-z0-9_]` or, without a usable location, `genius_<serial number>`. All entities of the detector, including the diagnostic ones, carry it. When the prefix changes, the gateway clears the retained config topics of the detector (empty payload, QoS 1), waits 3 s and publishes them again
 - `device.suggested_area` - Populated from the detector's configured location
 - `device.via_device` - Links this sub-device to the main gateway device
 
