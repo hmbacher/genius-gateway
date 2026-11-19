@@ -244,6 +244,9 @@ export type GeniusDevice = {
 	alarms: GeniusAlarm[];
 	readoutTime?: Date;
 	readoutProtocolVersion?: number;
+	/** Entity-ID prefix last announced to Home Assistant. Backend-owned: the gateway
+	 *  reports it, but ignores any value a client sends. */
+	haEntityIdPrefix?: string;
 };
 
 export type GeniusDevices = {
@@ -504,6 +507,31 @@ export type HASettings = {
 	manufacturer: string;
 	model: string;
 	rename_entity_ids: boolean;
+};
+
+/** Progress of a Home Assistant entity-ID rename. `sent` is the final state: Home
+ *  Assistant does not acknowledge the change. `deferred` means there is no MQTT
+ *  connection and the rename is caught up on the next connect. */
+export type HaEntityRenameState =
+	| 'started'
+	| 'removing'
+	| 'waiting'
+	| 'publishing'
+	| 'sent'
+	| 'deferred'
+	| 'failed';
+
+/** Payload of the `ha-entity-rename` WebSocket event. */
+export type HaEntityRenameEvent = {
+	state: HaEntityRenameState;
+	/** Number of smoke detectors renamed in this batch. */
+	count: number;
+};
+
+/** Latest rename state held on the client; `state` is null until an event arrived. */
+export type HaEntityRenameStatus = {
+	state: HaEntityRenameState | null;
+	count: number;
 };
 
 export type ReportSettings = {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -18,7 +19,8 @@
 		StaticSystemInformation,
 		WifiSettings,
 		ConfigCheckProbeEvent,
-		ConfigCheckResponder
+		ConfigCheckResponder,
+		HASettings
 	} from '$lib/types/models';
 	import {
 		GeniusDeviceRegistration,
@@ -33,6 +35,7 @@
 	import { isOldFmModule } from '$lib/genius/line';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { socket } from '$lib/stores/socket';
+	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import DraggableList from '$lib/components/DraggableList.svelte';
@@ -330,10 +333,35 @@
 		});
 	}
 
+	// ── Home Assistant entity-ID rename ────────────────────────────────────────
+	// With the HA option "update entity IDs" on, saving a changed location makes the gateway
+	// rename that detector's entities. The editor warns about it beforehand; the gateway
+	// reports the rename itself through a WebSocket event (progress dialog, or an info dialog
+	// when it had to be deferred).
+	let haRenamesEntityIds = $state(false);
+
+	async function loadHaRenameOption() {
+		try {
+			const response = await fetch('/rest/haSettings', { method: 'GET', headers: authHeaders() });
+			if (response.status === 200) {
+				const settings = (await response.json()) as HASettings;
+				haRenamesEntityIds = settings.enabled && settings.rename_entity_ids;
+			}
+		} catch (error) {
+			console.error('Failed to load the Home Assistant settings:', error);
+		}
+	}
+
+	onMount(() => {
+		loadHaRenameOption();
+		return watchHaEntityRename();
+	});
+
 	function handleEdit(index: number) {
 		modals.open(EditSmokeDetector, {
 			title: 'Edit smoke detector',
 			titleIcon: Edit,
+			haRenamesEntityIds,
 			//geniusDevice: { ...geniusDevices.devices[index] }, // Shallow Copy
 			geniusDevice: $state.snapshot(geniusDevices.devices[index]), // Deep copy
 			onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
@@ -851,6 +879,7 @@
 						modals.open(EditSmokeDetector, {
 							title: 'Replace smoke detector',
 							titleIcon: Replace,
+							haRenamesEntityIds,
 							geniusDevice: newDevice,
 							saveButtonLabel: 'Replace',
 							onSaveGeniusDevice: async (editedDevice: GeniusDevice) => {
