@@ -28,6 +28,7 @@
  */
 
 #include <GeniusDevicesService.h>
+#include <HomeAssistant/HAUtils.h>
 #include <WiFi.h>
 #include <esp_random.h>
 #include <Utils.hpp>
@@ -50,7 +51,9 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
                                                                                                                                                         _numAlarming(0),
                                                                                                                                                         _mqttClient(mqttClient),
                                                                                                                                                         _alarmPublishingSettings(alarmPublishingSettings),
-                                                                                                                                                        _haService(sveltekit->getHAService())
+                                                                                                                                                        _haService(sveltekit->getHAService()),
+                                                                                                                                                        _haSettingsService(sveltekit->getHASettingsService()),
+                                                                                                                                                        _eventSocket(sveltekit->getSocket())
 {
     _importMutex = xSemaphoreCreateRecursiveMutex();
 }
@@ -76,6 +79,10 @@ static esp_err_t replyDevice(PsychicRequest *request, GeniusDevice &device)
 
 void GeniusDevicesService::begin()
 {
+    // Register the event before the slow device load below: a WebSocket client that
+    // reconnects early can then subscribe without an "unregistered event" warning.
+    _eventSocket->registerEvent(HA_ENTITY_RENAME_EVENT);
+
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
 
@@ -89,6 +96,18 @@ void GeniusDevicesService::begin()
         this,
         4,
         &_postCommitTaskHandle,
+        ESP32SVELTEKIT_RUNNING_CORE);
+
+    // Spawn the HA entity-ID rename task - it sleeps on a notification and runs the
+    // remove / wait / re-publish cycle outside the HTTP task, the RX path and the
+    // state mutex (see _runEntityIdRename()).
+    xTaskCreatePinnedToCore(
+        _haRenameTaskImpl,
+        "gd-ha-rename",
+        6144,
+        this,
+        4,
+        &_haRenameTaskHandle,
         ESP32SVELTEKIT_RUNNING_CORE);
 
     // ---- Per-device CRUD: PUT /rest/gateway-devices/device (upsert by id) ----
@@ -264,10 +283,12 @@ void GeniusDevicesService::begin()
                            { _updateAlarmingState(); },
                            false);
 
-    /* Sync HA sub-devices after device list changes (not for packet-originated adds or alarm state) */
+    /* Sync HA sub-devices after device list changes (not for packet-originated adds, alarm state
+     * or writes that only persist backend-owned values) */
     this->addUpdateHandler([&](const String &originId)
                            {
-                               if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET && originId != ALARM_STATE_CHANGE && originId != RSSI_SURVEY_UPDATE)
+                               if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET && originId != ALARM_STATE_CHANGE &&
+                                   originId != RSSI_SURVEY_UPDATE && originId != HA_ENTITY_ID_PREFIX_UPDATE)
                                {
                                    _syncSmokeDetectorSubDevices();
                                    if (_haService->isReady())
@@ -288,8 +309,23 @@ void GeniusDevicesService::begin()
                                                    false);
     }
 
-    /* Register sub-devices for devices already loaded from FS */
-    _syncSmokeDetectorSubDevices();
+    /* Re-evaluate all detectors when the HA settings change: the "rename entity IDs" option
+     * decides their display name and whether their entity IDs are managed. This handler is
+     * registered after the one HASettingsService adds in its constructor, so HAService already
+     * carries the new values when it runs. The work is handed to the rename task - the settings
+     * are applied from the HTTP task, which must not publish dozens of discovery configs. */
+    if (_haSettingsService != nullptr)
+    {
+        _haSettingsService->addUpdateHandler([this](const String &originId)
+                                             {
+                                                 _haSyncRequested = true;
+                                                 _requestEntityIdRename(); },
+                                             false);
+    }
+
+    /* Register sub-devices for devices already loaded from FS. MQTT is not up yet, so a pending
+     * entity-ID rename is not requested here - the first connect runs the comparison again. */
+    _syncSmokeDetectorSubDevices(false);
 
     // Heap snapshot after all HA sub-devices are constructed - useful for verifying
     // PSRAM-routing sdkconfig changes actually moved allocations off internal RAM.
@@ -327,6 +363,9 @@ bool GeniusDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
 
     // Set registration type
     newDevice.registration = GDR_GENIUS_PACKET;
+    // A detector first seen in a packet has no entities in Home Assistant yet: its first
+    // publish already carries the right entity IDs, so there is nothing to rename later.
+    newDevice.haEntityIdPrefix = _entityIdPrefixFor(newDevice);
     // Add the new device to the state
     _state.devices.push_back(newDevice);
 
@@ -666,6 +705,8 @@ bool GeniusDevice::buildFromJson(JsonVariant src, GeniusDevice &out)
     if (src["alarms"].is<JsonArray>())
         out.alarms = parseAlarms(src["alarms"].as<JsonArray>());
 
+    // haEntityIdPrefix is backend-owned and deliberately not read from the client's JSON.
+
     out.published = false; // new device - needs publish
     return true;
 }
@@ -683,6 +724,7 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
     // RSSI is backend-owned telemetry (written only by the ConfigCheckProbe survey), never by a
     // client edit. Preserve the current value across this merge so a location/identity edit that
     // round-trips the device object can't clobber a fresh probe measurement.
+    // The same holds for haEntityIdPrefix, which this merge never reads from the JSON.
     const int8_t keepRssi = this->radioModule.rssi;
     const time_t keepLastRangeTest = this->radioModule.lastRangeTest;
     time_t newReadoutTime = src["readoutTime"].is<String>()
@@ -923,6 +965,11 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                         .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
                 }
             }
+
+            // The entity-ID prefix announced to Home Assistant is backend-owned: restore it
+            // from the config file, never accept it from a client.
+            if (originId == GATEWAY_DEVICES_FILE)
+                newDevice.haEntityIdPrefix = jsonDeviceArrItem["haEntityIdPrefix"] | "";
 
             // Mark for republishing
             newDevice.published = false;
@@ -1191,6 +1238,71 @@ String GeniusDevicesService::_haDeviceName(const GeniusDevice &device) const
     return smokeDetectorModelName(device.smokeDetector.model);
 }
 
+String GeniusDevicesService::_entityIdPrefixFor(const GeniusDevice &device) const
+{
+    if (!_haService->renameEntityIds())
+        return String();
+
+    // The placeholder given to a detector that was added from a radio packet is not a
+    // location - several such detectors would otherwise compete for the same IDs.
+    String prefix;
+    if (device.location != GENIUS_DEVICE_DEFAULT_LOCATION)
+        prefix = HAUtils::slugify(device.location);
+
+    if (prefix.isEmpty())
+    {
+        // No usable location: fall back to something unique, so the detector still gets an
+        // explicit ID and the location-based IDs are freed. The serial number is what the
+        // user can read off the detector.
+        if (device.smokeDetector.sn != 0)
+            prefix = "genius_" + String(device.smokeDetector.sn);
+        else
+            prefix = "genius_device_" + String(device.id);
+    }
+    return prefix;
+}
+
+bool GeniusDevicesService::_isEntityIdRenamePending(const GeniusDevice &device) const
+{
+    return _haService->isEnabled() && _haService->renameEntityIds() &&
+           _entityIdPrefixFor(device) != device.haEntityIdPrefix;
+}
+
+bool GeniusDevicesService::_applySmokeDetectorIdentity(HADevice &haDevice, const GeniusDevice &device) const
+{
+    HADeviceIdentity &id = haDevice.identity();
+    bool changed = false;
+
+    auto assign = [&changed](String &field, const String &value)
+    {
+        if (field != value)
+        {
+            field = value;
+            changed = true;
+        }
+    };
+
+    assign(id.name, _haDeviceName(device));
+    assign(id.serialNumber, String(device.smokeDetector.sn));
+    assign(id.suggestedArea, device.location);
+    assign(id.model, String(smokeDetectorModelName(device.smokeDetector.model)));
+
+    // Kept current, but not a reason to republish on its own: the IP is not known at boot,
+    // and HAService republishes every device on connect anyway.
+    IPAddress localIP = WiFi.localIP();
+    if (IPUtils::isSet(localIP))
+        id.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
+
+    const String prefix = _entityIdPrefixFor(device);
+    if (haDevice.entityIdPrefix() != prefix)
+    {
+        haDevice.setEntityIdPrefix(prefix);
+        changed = true;
+    }
+
+    return changed;
+}
+
 void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device)
 {
     if (_haDevices.count(device.id))
@@ -1211,7 +1323,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         identity.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
 
     auto dev = std::make_unique<HADevice>(_haService, std::move(identity));
-    dev->setEntityIdPrefix((_haService->renameEntityIds() && !device.location.isEmpty()) ? device.location : String());
+    dev->setEntityIdPrefix(_entityIdPrefixFor(device));
 
     // ---- Smoke alarm binary_sensor (Control) - reads live from _state.devices ----
     auto sensor = std::make_unique<HABinarySensor>(_haService, "smoke",
@@ -1390,8 +1502,11 @@ void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
     _haService->removeSubDevice("genius-" + String(deviceId));
 }
 
-void GeniusDevicesService::_syncSmokeDetectorSubDevices()
+void GeniusDevicesService::_syncSmokeDetectorSubDevices(bool requestRename)
 {
+    bool renamePending = false;
+    std::vector<uint32_t> republish;
+
     beginTransaction();
 
     for (uint32_t deviceId : _state.deletedDeviceIds)
@@ -1400,64 +1515,238 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
 
     for (GeniusDevice &device : _state.devices)
     {
-        if (!_haDevices.count(device.id))
+        // HA never changes an entity_id once registered. Whether a detector's entities
+        // have to be removed and created again is decided by comparing the prefix last
+        // announced to HA with the one the detector should have - for every detector,
+        // on every sync.
+        const bool needsRename = _isEntityIdRenamePending(device);
+        renamePending = renamePending || needsRename;
+
+        auto it = _haDevices.find(device.id);
+        if (it == _haDevices.end())
         {
             _addSmokeDetectorSubDevice(device);
             device.published = true;
             vTaskDelay(pdMS_TO_TICKS(1));
+            continue;
         }
-        else if (!device.published)
+
+        if (it->second.device == nullptr)
+            continue;
+
+        // Config changed (e.g. location or serial number) or the HA settings changed the
+        // display name - update the existing HADevice identity in place and republish its
+        // discovery. Avoids remove+re-add, which causes HA to ignore the new
+        // suggested_area because its device registry entry persists (Bug 2).
+        const bool identityChanged = _applySmokeDetectorIdentity(*it->second.device, device);
+        if (!device.published || identityChanged)
         {
-            // Config changed (e.g. location or serial number) - update the
-            // existing HADevice identity in place and republish its discovery.
-            // Avoids remove+re-add, which causes HA to ignore the new
-            // suggested_area because its device registry entry persists (Bug 2).
-            auto it = _haDevices.find(device.id);
-            if (it != _haDevices.end() && it->second.device != nullptr)
-            {
-                HADeviceIdentity &id = it->second.device->identity();
-                String newName = _haDeviceName(device);
-
-                // Opt-in: HA never changes an entity_id once registered. To get new IDs
-                // derived from the new name, clear the old retained discovery configs
-                // first - HA then drops the old entities and registers fresh ones when
-                // the configs are republished below (entity history is lost).
-                if (_haService->renameEntityIds() && id.name != newName && _haService->isReady())
-                {
-                    ESP_LOGI(GeniusDevices::TAG, "Renaming HA entities of device %lu: '%s' -> '%s'",
-                             (unsigned long)device.id, id.name.c_str(), newName.c_str());
-                    it->second.device->unpublishAll();
-                    if (it->second.diagnostics)
-                        it->second.diagnostics->unpublishAll();
-                    // Give HA time to finish removing the old entities before the new
-                    // configs arrive. HA remembers removed entities and restores their old
-                    // entity_id when the same unique_id comes back, so the new configs also
-                    // carry an explicit default_entity_id (see HADevice::setEntityIdPrefix).
-                    vTaskDelay(pdMS_TO_TICKS(3000));
-                }
-
-                it->second.device->setEntityIdPrefix((_haService->renameEntityIds() && !device.location.isEmpty()) ? device.location : String());
-
-                id.name = newName;
-                id.serialNumber = String(device.smokeDetector.sn);
-                id.suggestedArea = device.location;
-                id.model = smokeDetectorModelName(device.smokeDetector.model);
-                IPAddress localIP = WiFi.localIP();
-                if (IPUtils::isSet(localIP))
-                    id.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
-                if (_haService->isReady())
-                {
-                    it->second.device->publishAll();
-                    if (it->second.diagnostics)
-                        it->second.diagnostics->publishAll();
-                }
-            }
+            // A detector with a pending rename is published by the rename task, after its
+            // old configs were cleared - publishing it here as well would only double the
+            // traffic.
+            if (!needsRename)
+                republish.push_back(device.id);
             device.published = true;
-            vTaskDelay(pdMS_TO_TICKS(1));
         }
     }
 
     endTransaction();
+
+    // Publish detector by detector, taking the mutex for each one separately, so the alarm
+    // path is not locked out for the whole list.
+    for (uint32_t deviceId : republish)
+    {
+        _publishSmokeDetectorDiscovery(deviceId);
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+
+    if (renamePending && requestRename)
+        _requestEntityIdRename();
+}
+
+bool GeniusDevicesService::_publishSmokeDetectorDiscovery(uint32_t deviceId, String *announcedPrefix)
+{
+    bool published = false;
+
+    beginTransaction();
+
+    auto it = _haDevices.find(deviceId);
+    if (it != _haDevices.end() && it->second.device != nullptr && _haService->isReady())
+    {
+        HADevice *haDevice = it->second.device;
+        const uint32_t failuresBefore = haDevice->configPublishFailures();
+
+        if (announcedPrefix != nullptr)
+            *announcedPrefix = haDevice->entityIdPrefix();
+
+        haDevice->publishAll();
+        if (it->second.diagnostics)
+            it->second.diagnostics->publishAll();
+
+        published = _haService->isReady() && haDevice->configPublishFailures() == failuresBefore;
+    }
+
+    endTransaction();
+
+    return published;
+}
+
+// ============================================================================
+// Private Methods - HA Entity-ID Rename
+// ============================================================================
+
+void GeniusDevicesService::_requestEntityIdRename()
+{
+    if (_haRenameTaskHandle != nullptr)
+        xTaskNotifyGive(_haRenameTaskHandle);
+}
+
+void GeniusDevicesService::_haRenameTask()
+{
+    ESP_LOGI(GeniusDevices::TAG, "HA entity-ID rename task started.");
+    while (true)
+    {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        // The HA settings were applied: refresh name and entity-ID prefix of every detector
+        // here instead of in the HTTP task. The sync does not notify this task again -
+        // the rename below picks up whatever it left pending.
+        if (_haSyncRequested.exchange(false))
+        {
+            ESP_LOGI(GeniusDevices::TAG, "HA settings applied - refreshing detector identities.");
+            _syncSmokeDetectorSubDevices(false);
+        }
+
+        _runEntityIdRename();
+    }
+}
+
+void GeniusDevicesService::_emitEntityRenameEvent(const char *state, uint32_t count)
+{
+    JsonDocument jsonDoc;
+    JsonObject jsonRoot = jsonDoc.to<JsonObject>();
+    jsonRoot["state"] = state;
+    jsonRoot["count"] = count;
+    _eventSocket->emitEvent(HA_ENTITY_RENAME_EVENT, jsonRoot);
+}
+
+void GeniusDevicesService::_runEntityIdRename()
+{
+    // ---- Collect the detectors whose announced prefix differs from the desired one ----
+    std::vector<uint32_t> targets;
+
+    beginTransaction();
+    for (const GeniusDevice &device : _state.devices)
+    {
+        if (_isEntityIdRenamePending(device) && _haDevices.count(device.id))
+            targets.push_back(device.id);
+    }
+    endTransaction();
+
+    if (targets.empty())
+        return;
+
+    const uint32_t count = targets.size();
+
+    if (!_haService->isReady())
+    {
+        // Nothing can be sent now. The prefixes stay as they are, so the comparison on the
+        // next MQTT connect finds the same detectors again - also across a reboot.
+        ESP_LOGI(GeniusDevices::TAG, "HA entity-ID rename of %lu detector(s) deferred until MQTT is connected.",
+                 (unsigned long)count);
+        _emitEntityRenameEvent("deferred", count);
+        return;
+    }
+
+    ESP_LOGI(GeniusDevices::TAG, "Renaming the HA entities of %lu detector(s).", (unsigned long)count);
+    _emitEntityRenameEvent("started", count);
+
+    // ---- Step 1: clear the retained discovery configs, so HA removes the entities ----
+    // The HADevices already carry the new identity (written by the sync), so a concurrent
+    // HAService::publishAll() would publish the new configs too - still correct for HA,
+    // which queues a config behind a running removal of the same topic.
+    // QoS 1: a removal that got lost would leave the old entity ID in place.
+    _emitEntityRenameEvent("removing", count);
+    for (uint32_t deviceId : targets)
+    {
+        beginTransaction();
+        auto it = _haDevices.find(deviceId);
+        if (it != _haDevices.end() && it->second.device != nullptr)
+        {
+            it->second.device->unpublishAll(1);
+            if (it->second.diagnostics)
+                it->second.diagnostics->unpublishAll(1);
+        }
+        endTransaction();
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+
+    if (!_haService->isReady())
+    {
+        ESP_LOGW(GeniusDevices::TAG, "MQTT connection lost while removing HA entities - the rename is repeated on the next connect.");
+        _emitEntityRenameEvent("failed", count);
+        return;
+    }
+
+    // ---- Step 2: give HA time to finish the removal - without holding the mutex ----
+    // HA remembers removed entities and restores their old entity_id when the same
+    // unique_id comes back, unless the new config carries a different default_entity_id.
+    _emitEntityRenameEvent("waiting", count);
+    vTaskDelay(pdMS_TO_TICKS(HA_ENTITY_RENAME_SETTLE_MS));
+
+    // ---- Step 3: publish again and remember what was announced ----
+    _emitEntityRenameEvent("publishing", count);
+    uint32_t sent = 0;
+    bool prefixStored = false;
+    for (uint32_t deviceId : targets)
+    {
+        // One transaction per detector keeps publishing and bookkeeping together while
+        // leaving the mutex free between detectors.
+        beginTransaction();
+
+        String announced;
+        const bool published = _publishSmokeDetectorDiscovery(deviceId, &announced);
+
+        auto device = std::find_if(_state.devices.begin(), _state.devices.end(),
+                                   [deviceId](const GeniusDevice &d) { return d.id == deviceId; });
+        if (device == _state.devices.end())
+        {
+            sent++; // deleted while the cycle ran - nothing left to rename
+        }
+        else if (published)
+        {
+            sent++;
+            // Store the prefix the configs were actually published with. It may differ from
+            // the one this cycle started with (location edited again during the wait) or be
+            // empty (option switched off meanwhile) - then the detector is unmanaged and the
+            // stored prefix stays untouched.
+            if (!announced.isEmpty() && device->haEntityIdPrefix != announced)
+            {
+                device->haEntityIdPrefix = announced;
+                prefixStored = true;
+            }
+        }
+
+        endTransaction();
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+
+    // One flash write for the whole batch. The origin keeps the sync handler from running again.
+    if (prefixStored)
+        callUpdateHandlers(HA_ENTITY_ID_PREFIX_UPDATE);
+
+    if (sent == count)
+    {
+        // HA does not acknowledge discovery messages: "sent" is all that can be claimed.
+        ESP_LOGI(GeniusDevices::TAG, "New HA entity IDs of %lu detector(s) sent.", (unsigned long)count);
+        _emitEntityRenameEvent("sent", count);
+    }
+    else
+    {
+        ESP_LOGW(GeniusDevices::TAG, "HA entity-ID rename incomplete (%lu of %lu detector(s) published) - the rest is repeated on the next connect.",
+                 (unsigned long)sent, (unsigned long)count);
+        _emitEntityRenameEvent("failed", count);
+    }
 }
 
 esp_err_t GeniusDevicesService::_publishSmokeDetectorAttributes(uint32_t deviceId)
@@ -1573,6 +1862,9 @@ GeniusDevicesService::upsertDevice(JsonVariant deviceJson, GeniusDevice &out)
             endTransaction();
             return DeviceOpResult::INVALID_BODY;
         }
+        // A detector that is new to the gateway has no entities in Home Assistant yet: its
+        // first publish already carries the right entity IDs, so there is nothing to rename.
+        newDevice.haEntityIdPrefix = _entityIdPrefixFor(newDevice);
         _state.devices.push_back(std::move(newDevice));
         out = _state.devices.back();
         stateChanged = true;
@@ -1783,6 +2075,17 @@ GeniusDevicesService::importCommit(const String &token)
                                            [&oldDevice](const GeniusDevice &s) { return s.id == oldDevice.id; });
         if (!stagedHasSameId)
             _state.deletedDeviceIds.push_back(oldDevice.id);
+    }
+
+    // The import file is client data and never carries a trusted entity-ID prefix. Detectors
+    // that stay keep what was last announced to Home Assistant; all others start empty, so
+    // their entity IDs are reconciled (they may already exist in HA from an earlier setup).
+    for (auto &staged : _importSession.staging)
+    {
+        auto existing = std::find_if(_state.devices.begin(), _state.devices.end(),
+                                     [&staged](const GeniusDevice &d) { return d.id == staged.id; });
+        if (existing != _state.devices.end())
+            staged.haEntityIdPrefix = existing->haEntityIdPrefix;
     }
 
     _state.devices.clear();

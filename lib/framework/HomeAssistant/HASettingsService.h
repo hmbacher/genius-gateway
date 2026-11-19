@@ -91,8 +91,10 @@ public:
  * change the new values are pushed into HAService and - if MQTT is connected
  * - a full republish is triggered so HA discovery picks up the change.
  *
- * rename_entity_ids (opt-in) makes sub-devices follow their user-defined label
- * and regenerates their HA entity IDs when it changes (see HAService::setRenameEntityIds).
+ * rename_entity_ids (opt-in) lets the entity IDs of sub-devices follow their
+ * user-defined label (see HAService::setRenameEntityIds). The flag is only
+ * passed on; sub-device owners that act on it add their own update handler to
+ * this service, which runs after the values were pushed into HAService.
  *
  * An empty device_name falls back to APP_NAME so that the field can be left
  * blank in the UI to use the firmware's compile-time name.
