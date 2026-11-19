@@ -19,13 +19,20 @@
 
 HADevice::HADevice(HAService *haService, HADeviceIdentity identity)
     : _haService(haService),
-      _identity(std::move(identity))
+      _identity(std::move(identity)),
+      _configPublishFailures(0)
 {
 }
 
 // ============================================================================
 // Identity / topic helpers
 // ============================================================================
+
+void HADevice::setEntityIdPrefix(const String &prefix)
+{
+    // Slugifying is idempotent, so a ready-made prefix passes through unchanged.
+    _entityIdPrefix = HAUtils::slugify(prefix);
+}
 
 String HADevice::getBaseTopic() const
 {
@@ -58,7 +65,7 @@ void HADevice::publishAll()
     }
 }
 
-void HADevice::unpublishAll()
+void HADevice::unpublishAll(int qos)
 {
     if (_haService == nullptr || !_haService->isReady())
         return;
@@ -77,7 +84,7 @@ void HADevice::unpublishAll()
         // no slashes allowed per MQTT discovery spec).
         String configTopic = _haService->getDiscoveryPrefix() + entity->component() +
                              "/" + _identity.id + "/" + entity->objectId() + "/config";
-        _haService->publish(configTopic, String(), 0, true, false);
+        _haService->publish(configTopic, String(), qos, true, false);
     }
 }
 
@@ -90,23 +97,22 @@ bool HADevice::publishConfig(const String &component,
                              JsonDocument &config)
 {
     if (_haService == nullptr || !_haService->isReady())
+    {
+        _configPublishFailures++;
         return false;
+    }
 
     // "~" resolves to this device's base topic inside discovery payloads.
     config["~"] = getBaseTopic();
 
-    // Opt-in: explicit entity ID derived from device + entity name (see setEntityIdFromName).
-    if (_entityIdFromName && !config["default_entity_id"].is<const char *>())
+    // Explicit entity ID "<component>.<prefix>_<slug(entity name)>" (see setEntityIdPrefix).
+    if (!_entityIdPrefix.isEmpty() && !config["default_entity_id"].is<const char *>())
     {
-        const String deviceSlug = HAUtils::slugify(_identity.name);
+        String entityId = _entityIdPrefix;
         const String entitySlug = HAUtils::slugify(String(config["name"] | ""));
-        if (!deviceSlug.isEmpty())
-        {
-            String entityId = deviceSlug;
-            if (!entitySlug.isEmpty())
-                entityId += "_" + entitySlug;
-            config["default_entity_id"] = component + "." + entityId;
-        }
+        if (!entitySlug.isEmpty())
+            entityId += "_" + entitySlug;
+        config["default_entity_id"] = component + "." + entityId;
     }
 
     // Attach device identity block if not already present.
@@ -150,6 +156,7 @@ bool HADevice::publishConfig(const String &component,
     {
         ESP_LOGE("HADevice", "Failed to publish %s/%s config for device '%s'",
                  component.c_str(), objectId.c_str(), _identity.id.c_str());
+        _configPublishFailures++;
         return false;
     }
 }

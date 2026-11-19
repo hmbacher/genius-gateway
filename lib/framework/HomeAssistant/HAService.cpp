@@ -23,6 +23,7 @@ HAService::HAService(PsychicMqttClient *mqttClient)
       _model(""),
       _discoveryPrefix(HA_DEFAULT_DISCOVERY_PREFIX),
       _enabled(false),
+      _renameEntityIds(false),
       _publishTaskHandle(nullptr)
 {
     // Topic identity is derived from the compile-time firmware name, never from

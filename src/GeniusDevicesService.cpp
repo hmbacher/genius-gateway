@@ -1211,7 +1211,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         identity.configurationUrl = "http://" + localIP.toString() + "/gateway/smoke-detectors";
 
     auto dev = std::make_unique<HADevice>(_haService, std::move(identity));
-    dev->setEntityIdFromName(_haService->renameEntityIds() && !device.location.isEmpty());
+    dev->setEntityIdPrefix((_haService->renameEntityIds() && !device.location.isEmpty()) ? device.location : String());
 
     // ---- Smoke alarm binary_sensor (Control) - reads live from _state.devices ----
     auto sensor = std::make_unique<HABinarySensor>(_haService, "smoke",
@@ -1432,11 +1432,11 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices()
                     // Give HA time to finish removing the old entities before the new
                     // configs arrive. HA remembers removed entities and restores their old
                     // entity_id when the same unique_id comes back, so the new configs also
-                    // carry an explicit default_entity_id (see HADevice::setEntityIdFromName).
+                    // carry an explicit default_entity_id (see HADevice::setEntityIdPrefix).
                     vTaskDelay(pdMS_TO_TICKS(3000));
                 }
 
-                it->second.device->setEntityIdFromName(_haService->renameEntityIds() && !device.location.isEmpty());
+                it->second.device->setEntityIdPrefix((_haService->renameEntityIds() && !device.location.isEmpty()) ? device.location : String());
 
                 id.name = newName;
                 id.serialNumber = String(device.smokeDetector.sn);

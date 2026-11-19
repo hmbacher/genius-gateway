@@ -124,8 +124,10 @@ public:
      * Remove all entities from HA by sending empty retained payloads to every
      * discovery config topic and the shared state topic. Mirrors HADevice::unpublishAll().
      * No-op if HAService is not ready.
+     *
+     * @param qos MQTT QoS for the empty payloads (see HADevice::unpublishAll()).
      */
-    void unpublishAll();
+    void unpublishAll(int qos = 0);
 
 protected:
     struct Sensor

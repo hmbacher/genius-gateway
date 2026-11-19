@@ -142,19 +142,21 @@ public:
     void setEnabled(bool enabled);
 
     /**
-     * @brief Opt-in: name sub-devices after their user-defined label and regenerate entity IDs on rename
+     * @brief Opt-in: let sub-device entity IDs follow the user-defined label
      *
-     * When enabled, sub-device owners use the user-defined label (e.g. a detector's
-     * location) as the HA device name. If the label changes, the owner clears the
-     * old retained discovery configs and republishes them, so HA drops the old
-     * entity registry entries and creates new entity IDs from the new name.
-     * Entity history and references to the old IDs are lost.
+     * This service only stores the flag. Sub-device owners read it via
+     * renameEntityIds() and are responsible for the rest: naming the HA device
+     * after the label (e.g. a detector's location), sending explicit entity
+     * IDs (HADevice::setEntityIdPrefix) and, when the label changes, clearing
+     * the retained discovery configs before publishing them again so HA adopts
+     * the new entity IDs. References to the old IDs in automations, scripts
+     * and dashboards have to be updated by the user.
      *
      * @param enabled true to enable
      */
     void setRenameEntityIds(bool enabled);
 
-    /** @brief Whether sub-device renames also regenerate entity IDs (see setRenameEntityIds) */
+    /** @brief Whether sub-device entity IDs follow the user-defined label (see setRenameEntityIds) */
     bool renameEntityIds() const { return _renameEntityIds; }
 
     // ========================================================================
@@ -354,7 +356,7 @@ private:
     String _model;
     String _discoveryPrefix;
     bool _enabled;
-    bool _renameEntityIds{false};
+    bool _renameEntityIds;
 
     // Pre-v1.5.1 topic identity, remembered only while it differs from the
     // current one. Empty means "nothing stale to clear". See _purgeLegacyState().
