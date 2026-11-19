@@ -24,6 +24,10 @@ Usage:
   python test_ha_integration.py --gg-host 192.168.178.133 --gg-password admin \
       --ha-host 192.168.178.10 --ha-token "eyJ..." --filter "TC0[789]"
 
+  # Entity-ID rename tests on a gateway with real detectors (renames their HA entity IDs!)
+  python test_ha_integration.py --gg-host 192.168.178.133 --gg-password admin \
+      --ha-host 192.168.178.10 --ha-token "eyJ..." --filter "TC8[1-7]" --rename-entity-ids
+
 Requires:
   pip install requests
 """
@@ -1377,11 +1381,301 @@ def tc80():
                   {"sessionId": resp2.json()["sessionId"]})
 
 # ---------------------------------------------------------------------------
+# CATEGORY 11: HA entity-ID rename (HA option "rename_entity_ids")
+# ---------------------------------------------------------------------------
+#
+# With the option on, the gateway gives every detector explicit HA entity IDs
+# "<domain>.<prefix>_<entity>" and renames the entities (remove, wait 3 s,
+# publish again) whenever the prefix changes. The prefix last announced to HA
+# is reported per device as the read-only field "haEntityIdPrefix", which lets
+# these tests follow a rename over REST alone; the HA assertions on top need
+# --ha-token.
+#
+# Switching the option on renames ALL detectors of the gateway, real ones
+# included, and switching it off again does not rename them back. The category
+# therefore only runs if that cannot happen, or if --rename-entity-ids allows it.
+
+_rename_checked     = False
+_rename_skip_reason = None
+_allow_rename_real  = False
+
+def get_ha_settings() -> dict:
+    return invoke_gg("GET", "/rest/haSettings")
+
+def set_rename_option(enabled: bool) -> None:
+    settings = get_ha_settings()
+    if bool(settings.get("rename_entity_ids")) != enabled:
+        settings["rename_entity_ids"] = enabled
+        invoke_gg("POST", "/rest/haSettings", settings)
+
+def _rename_tests_skip_reason():
+    """Why the rename tests must not run on this gateway, or None if they may."""
+    global _rename_checked, _rename_skip_reason
+    if _rename_checked:
+        return _rename_skip_reason
+    _rename_checked = True
+    try:
+        settings = get_ha_settings()
+        if "rename_entity_ids" not in settings:
+            _rename_skip_reason = "firmware has no rename_entity_ids option"
+        elif not settings.get("enabled"):
+            _rename_skip_reason = "HA integration is disabled on the gateway"
+        elif not invoke_gg("GET", "/rest/mqttStatus").get("connected"):
+            _rename_skip_reason = "gateway is not connected to the MQTT broker"
+        elif (not settings.get("rename_entity_ids") and get_real_devices()
+              and not _allow_rename_real):
+            _rename_skip_reason = ("option is off and real detectors exist - their HA entity IDs "
+                                   "would be renamed; pass --rename-entity-ids to allow that")
+    except Exception as e:
+        _rename_skip_reason = f"HA settings not readable: {e}"
+    return _rename_skip_reason
+
+def with_rename_option(enabled: bool, body) -> None:
+    """Run body() with the option forced to `enabled`, then remove the test devices and
+    restore the option - also if body() raises."""
+    reason = _rename_tests_skip_reason()
+    if reason:
+        write_skip(f"entity-ID rename test ({reason})")
+        return
+    original = bool(get_ha_settings().get("rename_entity_ids"))
+    try:
+        set_rename_option(enabled)
+        body()
+    finally:
+        reset_test_devices()
+        set_rename_option(original)
+
+def get_prefix(id_: int):
+    return get_prop(get_test_device(id_), "haEntityIdPrefix")
+
+def assert_prefix(id_: int, expected, label: str, timeout_sec: int = 45) -> None:
+    """Poll until the gateway reports `expected` as the prefix last announced to HA.
+    A rename takes at least 3 s (the pause) plus the publishing of 14 entities."""
+    deadline = time.time() + timeout_sec
+    val = get_prefix(id_)
+    while val != expected and time.time() < deadline:
+        time.sleep(1)
+        val = get_prefix(id_)
+    assert_equal(val, expected, label)
+
+def set_location(id_: int, location: str) -> None:
+    devs = get_devices()
+    for d in devs:
+        if d.get("id") == id_:
+            d["location"] = location
+    set_devices(devs)
+
+def ha_entity(entity_id: str):
+    """(known, state object): known is False for a 404, None if HA could not be asked."""
+    try:
+        resp = requests.get(
+            f"{_ha_base}/api/states/{entity_id}",
+            headers={"Authorization": f"Bearer {_ha_token}"},
+            timeout=10,
+        )
+    except Exception:
+        return None, None
+    if resp.status_code == 200:
+        return True, resp.json()
+    if resp.status_code == 404:
+        return False, None
+    return None, None
+
+def assert_ha_entity_present(entity_id: str, label: str, timeout_sec: int = 30) -> None:
+    if not _ha_token:
+        write_skip(f"HA: {label} (no token)")
+        return
+    deadline = time.time() + timeout_sec
+    known, _ = ha_entity(entity_id)
+    while known is not True and time.time() < deadline:
+        time.sleep(1)
+        known, _ = ha_entity(entity_id)
+    assert_true(known is True, f"HA: {label} ({entity_id})")
+
+def assert_ha_entity_absent(entity_id: str, label: str, timeout_sec: int = 30) -> None:
+    """The entity ID must be unknown to HA (404). Stricter than assert_ha_entity_gone(),
+    which also accepts an entity that still exists but is unavailable."""
+    if not _ha_token:
+        write_skip(f"HA: {label} (no token)")
+        return
+    deadline = time.time() + timeout_sec
+    known, _ = ha_entity(entity_id)
+    while known is not False and time.time() < deadline:
+        time.sleep(1)
+        known, _ = ha_entity(entity_id)
+    assert_true(known is False, f"HA: {label} ({entity_id})")
+
+def new_ha_entities(pattern: str, timeout_sec: int = 30) -> list:
+    """Entity IDs matching pattern that were not in the snapshot; waits for the first one."""
+    if not _ha_token:
+        return []
+    deadline = time.time() + timeout_sec
+    while True:
+        found = sorted(s["entity_id"] for s in get_ha_states()
+                       if s["entity_id"] not in _ha_snapshot and re.search(pattern, s["entity_id"]))
+        if found or time.time() >= deadline:
+            return found
+        time.sleep(1)
+
+SMOKE_ENTITY_RE = r"^binary_sensor\..*smoke_detector(_\d+)?$"
+
+def tc81():
+    """Option off: a location change leaves the entity IDs untouched."""
+    def body():
+        save_ha_snapshot()
+        reset_test_devices([new_acoustic_device(900151, "Rename Off A")])
+        before = new_ha_entities(SMOKE_ENTITY_RE)
+        if _ha_token:
+            assert_equal(len(before), 1, f"HA: one smoke entity registered ({before})")
+
+        set_location(900151, "Rename Off B")
+        time.sleep(8)  # longer than a rename cycle would take
+
+        got = get_test_device(900151)
+        assert_equal(get_prop(got, "location"), "Rename Off B", "location updated")
+        assert_null(get_prop(got, "haEntityIdPrefix"), "no prefix announced while the option is off")
+        if _ha_token:
+            assert_equal(new_ha_entities(SMOKE_ENTITY_RE, 0), before, "HA: entity ID unchanged")
+        else:
+            write_skip("HA: entity ID unchanged (no token)")
+    with_rename_option(False, body)
+
+def tc82():
+    """Option on: a location change removes the old IDs and creates the new ones."""
+    def body():
+        reset_test_devices([new_acoustic_device(900152, "Rename Start")])
+        assert_prefix(900152, "rename_start", "prefix announced after add")
+        assert_ha_entity_present("binary_sensor.rename_start_smoke_detector", "smoke entity under first ID")
+        assert_ha_entity_present("sensor.rename_start_alarm_line", "diagnostic entity under first ID")
+
+        set_location(900152, "Rename Target")
+        assert_prefix(900152, "rename_target", "prefix follows the new location")
+        assert_ha_entity_present("binary_sensor.rename_target_smoke_detector", "smoke entity under new ID")
+        assert_ha_entity_present("sensor.rename_target_alarm_line", "diagnostic entity under new ID")
+        assert_ha_entity_absent("binary_sensor.rename_start_smoke_detector", "old smoke entity ID gone")
+        assert_ha_entity_absent("sensor.rename_start_alarm_line", "old diagnostic entity ID gone")
+        assert_ha_entity_absent("binary_sensor.rename_target_smoke_detector_2", "no _2 duplicate")
+    with_rename_option(True, body)
+
+def tc83():
+    """Switching the option on renames all detectors in one batch."""
+    devices = {900153: ("Batch One", "batch_one"),
+               900154: ("Batch Two", "batch_two"),
+               900155: ("Batch Three", "batch_three")}
+    def body():
+        reset_test_devices([new_acoustic_device(i, loc) for i, (loc, _) in devices.items()])
+        time.sleep(5)
+        for i in devices:
+            assert_null(get_prefix(i), f"{i}: no prefix while the option is off")
+
+        set_rename_option(True)
+        for i, (_, slug) in devices.items():
+            assert_prefix(i, slug, f"{i}: prefix announced after switching the option on")
+        for _, slug in devices.values():
+            assert_ha_entity_present(f"binary_sensor.{slug}_smoke_detector", f"{slug}: smoke entity renamed")
+    with_rename_option(False, body)
+
+def tc84():
+    """A cleared location falls back to the serial-number prefix."""
+    def body():
+        d = new_acoustic_device(900156, "Fallback Room")
+        sn = d["smokeDetector"]["sn"]
+        reset_test_devices([d])
+        assert_prefix(900156, "fallback_room", "prefix from the location")
+        assert_ha_entity_present("binary_sensor.fallback_room_smoke_detector", "smoke entity under location ID")
+
+        set_location(900156, "")
+        assert_prefix(900156, f"genius_{sn}", "prefix falls back to the serial number")
+        assert_ha_entity_present(f"binary_sensor.genius_{sn}_smoke_detector", "smoke entity under serial ID")
+        assert_ha_entity_absent("binary_sensor.fallback_room_smoke_detector", "location-based ID freed")
+
+        # Serial number 0: the internal device ID takes over.
+        resp = invoke_gg_raw("PUT", "/rest/gateway-devices/device", new_minimal_device(900157, ""))
+        assert_equal(resp.status_code, 200, "PUT device without location and serial number")
+        assert_equal(resp.json().get("haEntityIdPrefix"), "genius_device_900157",
+                     "prefix falls back to the device ID")
+    with_rename_option(True, body)
+
+def tc85():
+    """An edit that keeps the prefix (other case, other punctuation) triggers no rename."""
+    def body():
+        entity_id = "binary_sensor.same_slug_smoke_detector"
+        reset_test_devices([new_acoustic_device(900158, "Same Slug")])
+        assert_prefix(900158, "same_slug", "prefix announced after add")
+        assert_ha_entity_present(entity_id, "smoke entity registered")
+        _, before = ha_entity(entity_id) if _ha_token else (None, None)
+
+        set_location(900158, "SAME  slug!")
+        time.sleep(8)  # a rename cycle would have removed and re-created the entity by now
+
+        got = get_test_device(900158)
+        assert_equal(get_prop(got, "location"), "SAME  slug!", "location updated")
+        assert_equal(get_prop(got, "haEntityIdPrefix"), "same_slug", "prefix unchanged")
+        if before:
+            _, after = ha_entity(entity_id)
+            # last_changed only moves when the state value changes; a removed and
+            # re-created entity starts with a new one.
+            assert_equal(get_prop(after, "last_changed"), before.get("last_changed"),
+                         "HA: entity not re-created (last_changed unchanged)")
+        else:
+            write_skip("HA: entity not re-created (no token)")
+    with_rename_option(True, body)
+
+def tc86():
+    """Prefix slugs match what Home Assistant would generate; unusable locations fall back."""
+    cases = [
+        ("Küche", "kuche"),
+        ("Straße 5", "strasse_5"),
+        ("Café Élysée", "cafe_elysee"),
+        ("Łódź", "lodz"),
+        ("Bad/WC 2.OG", "bad_wc_2_og"),
+        ("  --Flur (EG)--  ", "flur_eg"),
+    ]
+    def body():
+        set_devices(get_real_devices())
+        id_ = 900160
+        for location, slug in cases:
+            resp = invoke_gg_raw("PUT", "/rest/gateway-devices/device", new_acoustic_device(id_, location))
+            assert_equal(resp.json().get("haEntityIdPrefix"), slug, f"{location!r} -> {slug}")
+            id_ += 1
+        for location in ("---", "Unknown location"):
+            d = new_acoustic_device(id_, location)
+            resp = invoke_gg_raw("PUT", "/rest/gateway-devices/device", d)
+            assert_equal(resp.json().get("haEntityIdPrefix"), f"genius_{d['smokeDetector']['sn']}",
+                         f"{location!r} -> serial-number fallback")
+            id_ += 1
+    with_rename_option(True, body)
+
+def tc87():
+    """The announced prefix is backend-owned: a value sent by a client is ignored."""
+    def body():
+        set_devices(get_real_devices())
+        d = new_acoustic_device(900170, "Trusted Room")
+        d["haEntityIdPrefix"] = "forged"
+        resp = invoke_gg_raw("PUT", "/rest/gateway-devices/device", d)
+        assert_equal(resp.json().get("haEntityIdPrefix"), "trusted_room", "ignored on create (PUT)")
+
+        d = resp.json()
+        d["haEntityIdPrefix"] = "forged_again"
+        d["radioModule"]["lineNumber"] = 2
+        resp = invoke_gg_raw("PUT", "/rest/gateway-devices/device", d)
+        assert_equal(resp.json().get("haEntityIdPrefix"), "trusted_room", "ignored on update (PUT)")
+
+        devs = get_devices()
+        for dev in devs:
+            if dev.get("id") == 900170:
+                dev["haEntityIdPrefix"] = "forged_bulk"
+                dev["radioModule"]["lineNumber"] = 3
+        set_devices(devs)
+        assert_equal(get_prefix(900170), "trusted_room", "ignored on bulk POST")
+    with_rename_option(True, body)
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    global _gg_password, _ha_token, _filter_re, _gg_base, _ha_base
+    global _gg_password, _ha_token, _filter_re, _gg_base, _ha_base, _allow_rename_real
 
     parser = argparse.ArgumentParser(
         description="Integration tests for Genius Gateway HA/MQTT device integration",
@@ -1399,6 +1693,9 @@ def main() -> None:
                         help="Long-lived HA access token; omit to skip HA checks")
     parser.add_argument("--filter",      default=".*", dest="filter_re", metavar="REGEX",
                         help="Run only tests whose name matches this regex")
+    parser.add_argument("--rename-entity-ids", action="store_true",
+                        help="Let TC81-TC87 switch the HA option 'rename_entity_ids' on although "
+                             "real detectors exist. Their HA entity IDs are renamed and stay renamed.")
     args = parser.parse_args()
 
     gg_host      = args.gg_host or ""
@@ -1408,6 +1705,7 @@ def main() -> None:
     ha_user      = args.ha_user
     _ha_token    = args.ha_token
     _filter_re   = args.filter_re
+    _allow_rename_real = args.rename_entity_ids
 
     # Interactive prompts when credentials are missing
     if not gg_host or not _gg_password:
@@ -1556,6 +1854,15 @@ def main() -> None:
     run_test("TC78 Chunked import  - concurrent begin returns 409",         tc78)
     run_test("TC79 Chunked import  - bad sessionId returns 410",            tc79)
     run_test("TC80 Chunked import  - abort discards staging, slot freed",   tc80)
+
+    write_section("CATEGORY 11 - HA Entity-ID Rename")
+    run_test("TC81 Option off  - location change leaves entity IDs untouched", tc81)
+    run_test("TC82 Option on  - location change renames the entities",        tc82)
+    run_test("TC83 Option switched on  - all detectors renamed",              tc83)
+    run_test("TC84 Location cleared  - serial-number prefix",                 tc84)
+    run_test("TC85 Same prefix after edit  - no rename",                      tc85)
+    run_test("TC86 Prefix slugs and fallbacks",                               tc86)
+    run_test("TC87 Client-supplied prefix is ignored",                        tc87)
 
     # Summary
     print("\n")

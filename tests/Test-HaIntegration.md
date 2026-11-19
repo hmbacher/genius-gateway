@@ -1,7 +1,7 @@
 # HA Integration Test Suite - Detailed Reference
 
 **Script:** `tests/test_ha_integration.py`  
-**Total automated tests:** 65 (TC01–TC65)  
+**Total automated tests:** 65 (TC01–TC65), plus TC81-TC87 for the HA entity-ID rename  
 **Manual verification appendix:** see [Section 10](#section-10--manual-ha-ui-verification)
 
 ---
@@ -34,6 +34,7 @@ python tests/test_ha_integration.py --filter "TC5[89]|TC6[0-5]"   # ordering onl
 | `--ha-port` | `8123` | Home Assistant port |
 | `--ha-token` | _(empty)_ | Long-lived HA access token - HA assertions are skipped if omitted |
 | `--filter` | `.*` | Regex against test names; only matching tests execute |
+| `--rename-entity-ids` | _(off)_ | Allow TC81-TC87 to switch the HA option `rename_entity_ids` on although real detectors exist. Their HA entity IDs are renamed and stay renamed - see [Category 11](#category-11---ha-entity-id-rename) |
 
 ## Obtaining a Home Assistant long-lived access token
 
@@ -1174,6 +1175,148 @@ The web UI presents devices in a drag-and-drop list. The device order is submitt
 
 ---
 
+## Category 11 - HA Entity-ID Rename
+
+These tests cover the Home Assistant option *Update entity IDs when a detector's location changes* (`rename_entity_ids` in `/rest/haSettings`). With the option on, every detector gets explicit entity IDs `<domain>.<prefix>_<entity>`, and the gateway renames the entities (remove, wait 3 s, publish again) whenever the prefix changes.
+
+The prefix last announced to Home Assistant is reported per device in the read-only field `haEntityIdPrefix`. It is only stored after the new discovery configs were published, so the tests can follow a rename over REST alone. The HA assertions on top need `--ha-token`.
+
+**Preconditions - the whole category is skipped unless all hold:**
+
+- the firmware knows the option,
+- the HA integration is enabled on the gateway,
+- the gateway is connected to the MQTT broker,
+- the option is already on, **or** the gateway has no real detectors, **or** `--rename-entity-ids` was passed.
+
+> **Warning:** Switching the option on renames the HA entities of **all** detectors, real ones included, and switching it off again does not rename them back. Without `--rename-entity-ids` the tests refuse to do that on a gateway with real detectors.
+
+Every test restores the option to its original value and removes its test devices, also when it fails.
+
+---
+
+### TC81 - Option off - location change leaves entity IDs untouched
+
+**What is tested:** With the option off the gateway does not manage entity IDs: a location change neither announces a prefix nor changes an entity ID.
+
+**How the test is performed:**
+1. Force the option off and take an HA snapshot.
+2. Add device 900151 with `location="Rename Off A"`.
+3. Record the smoke-detector entity that appears in HA.
+4. Change the location to `"Rename Off B"` and wait 8 s (longer than a rename cycle).
+5. GET the device and list the new smoke-detector entities again.
+
+**Expected result:**
+- `location` = `"Rename Off B"`.
+- `haEntityIdPrefix` is absent.
+- HA: exactly the same smoke-detector entity ID as before the change.
+
+---
+
+### TC82 - Option on - location change renames the entities
+
+**What is tested:** A location change removes the entities under the old IDs and creates them under the new ones, for the smoke sensor and the diagnostic entities alike.
+
+**How the test is performed:**
+1. Force the option on.
+2. Add device 900152 with `location="Rename Start"` and wait for `haEntityIdPrefix = "rename_start"`.
+3. Change the location to `"Rename Target"` and wait for `haEntityIdPrefix = "rename_target"`.
+
+**Expected result:**
+- After step 2, HA knows `binary_sensor.rename_start_smoke_detector` and `sensor.rename_start_alarm_line`.
+- After step 3, HA knows `binary_sensor.rename_target_smoke_detector` and `sensor.rename_target_alarm_line`.
+- The two `rename_start` IDs are unknown to HA (404).
+- `binary_sensor.rename_target_smoke_detector_2` does not exist.
+
+---
+
+### TC83 - Option switched on - all detectors renamed
+
+**What is tested:** Applying the HA settings with the option newly switched on renames all detectors in one batch.
+
+**How the test is performed:**
+1. Force the option off.
+2. Add devices 900153-900155 with the locations `"Batch One"`, `"Batch Two"`, `"Batch Three"` and wait 5 s.
+3. Switch the option on via `POST /rest/haSettings`.
+4. Wait for the prefixes of all three devices.
+
+**Expected result:**
+- After step 2 none of the devices has a `haEntityIdPrefix`.
+- After step 4 the prefixes are `batch_one`, `batch_two`, `batch_three`.
+- HA knows `binary_sensor.batch_one_smoke_detector`, `binary_sensor.batch_two_smoke_detector` and `binary_sensor.batch_three_smoke_detector`.
+
+---
+
+### TC84 - Location cleared - serial-number prefix
+
+**What is tested:** A detector without a usable location still gets explicit IDs, built from its serial number, so the location-based IDs are freed. With serial number 0 the internal device ID is used.
+
+**How the test is performed:**
+1. Force the option on.
+2. Add device 900156 (serial number 80900156) with `location="Fallback Room"` and wait for the prefix `fallback_room`.
+3. Set the location to `""` and wait for the prefix `genius_80900156`.
+4. `PUT` a minimal device 900157 with an empty location and serial number 0.
+
+**Expected result:**
+- After step 3, HA knows `binary_sensor.genius_80900156_smoke_detector`, and `binary_sensor.fallback_room_smoke_detector` is unknown (404).
+- The response of step 4 carries `haEntityIdPrefix = "genius_device_900157"`.
+
+---
+
+### TC85 - Same prefix after edit - no rename
+
+**What is tested:** An edit that changes the location text but not the resulting prefix does not remove and re-create the entities.
+
+**How the test is performed:**
+1. Force the option on.
+2. Add device 900158 with `location="Same Slug"` and wait for the prefix `same_slug`.
+3. Read `last_changed` of `binary_sensor.same_slug_smoke_detector` from HA.
+4. Change the location to `"SAME  slug!"` and wait 8 s.
+5. Read the device and `last_changed` again.
+
+**Expected result:**
+- `location` = `"SAME  slug!"`, `haEntityIdPrefix` still `same_slug`.
+- HA: `last_changed` is identical to step 3. It only moves when the state value changes; a removed and re-created entity starts with a new one.
+
+---
+
+### TC86 - Prefix slugs and fallbacks
+
+**What is tested:** The prefix is built the way Home Assistant builds entity IDs itself, and locations without any letter or digit fall back to the serial number. REST-only: a device created with `PUT` adopts its prefix directly, because nothing exists in HA yet.
+
+**How the test is performed:**
+1. Force the option on.
+2. `PUT` one new device per location and read `haEntityIdPrefix` from the response.
+
+**Expected result:**
+
+| Location | `haEntityIdPrefix` |
+|----------|--------------------|
+| `Küche` | `kuche` |
+| `Straße 5` | `strasse_5` |
+| `Café Élysée` | `cafe_elysee` |
+| `Łódź` | `lodz` |
+| `Bad/WC 2.OG` | `bad_wc_2_og` |
+| `  --Flur (EG)--  ` | `flur_eg` |
+| `---` | `genius_<serial number>` |
+| `Unknown location` (placeholder of packet-discovered devices) | `genius_<serial number>` |
+
+---
+
+### TC87 - Client-supplied prefix is ignored
+
+**What is tested:** `haEntityIdPrefix` is backend-owned. A client cannot make the gateway believe that a rename has already happened.
+
+**How the test is performed:**
+1. Force the option on.
+2. `PUT` a new device 900170 (`location="Trusted Room"`) that carries `haEntityIdPrefix = "forged"`.
+3. `PUT` the same device again with another change and `haEntityIdPrefix = "forged_again"`.
+4. Send the device list via `POST /rest/gateway-devices` with `haEntityIdPrefix = "forged_bulk"` for that device.
+
+**Expected result:**
+- The prefix is `trusted_room` after every step.
+
+---
+
 ## Section 10 - Manual HA UI Verification
 
 The following checks require a human to look at the Home Assistant interface. They cannot be automated via the REST API.
@@ -1296,11 +1439,92 @@ The device page should contain:
 
 ---
 
+### MV-09 - Entity-ID rename while MQTT is disconnected
+
+**Precondition:** HA integration enabled, option *Update entity IDs when a detector's location changes* on, at least one detector whose entities exist in HA.
+
+**Procedure:**
+1. Stop the MQTT broker (or block the gateway's access to it) and wait until the web interface shows MQTT as disconnected.
+2. Edit the detector and change its location. Check the warning below the location field, then save.
+3. Start the broker again and wait for the gateway to reconnect.
+4. Open HA → Settings → Devices & Services → Entities and filter for the old and the new location.
+
+**Expected result:**
+- Step 2: the warning slides in as soon as the location differs from the saved one. After saving, an info dialog says that the entity IDs are updated on the next MQTT connect. No progress dialog appears.
+- Step 3: if the smoke detector page is open, the progress dialog runs through its three steps and ends with *Sent to Home Assistant*.
+- Step 4: all entities of the detector carry the new prefix; no entity with the old prefix and no `_2` entity is left.
+- `GET /rest/gateway-devices` shows the new `haEntityIdPrefix` only after step 3.
+
+---
+
+### MV-10 - Reboot between the change and the reconnect
+
+**Precondition:** As MV-09.
+
+**Procedure:**
+1. Stop the MQTT broker and change a detector's location as in MV-09.
+2. Restart the gateway while the broker is still down.
+3. Start the broker and wait for the gateway to connect.
+4. Check the entities in HA.
+
+**Expected result:**
+- The rename survives the restart: after step 3 the entities carry the new prefix.
+- The serial log shows `Renaming the HA entities of 1 detector(s).` after the MQTT connect.
+
+---
+
+### MV-11 - Alarm during the 3 s pause is not delayed
+
+**Precondition:** Option on, at least two detectors, a way to trigger a real alarm packet (test button of a detector on a known alarm line).
+
+**Procedure:**
+1. Open the serial log.
+2. Change the location of one detector and save, so a rename cycle starts.
+3. While the progress dialog shows *Step 2 of 3*, trigger the alarm.
+
+**Expected result:**
+- The log line `Alarm started for smoke detector with SN ...` appears immediately, not after the pause has ended.
+- The alarm shows in the web interface and in HA without noticeable delay.
+
+---
+
+### MV-12 - Entity history under the new ID
+
+**Precondition:** A detector whose smoke sensor has recorded history in HA (e.g. an alarm in the past days). Option on.
+
+**Procedure:**
+1. Note the entity ID of the smoke sensor and open its history in HA.
+2. Change the detector's location in the gateway and wait for the progress dialog to finish.
+3. Open the history of the smoke sensor under its new entity ID, with a time range that covers the old events.
+
+**Expected result:**
+- Open question this check settles: the Home Assistant source suggests that the removed entity is restored from the entity registry and renamed, which would carry the history over. Record whether the old events are visible under the new ID, and adjust the wording in the web interface, the documentation and the changelog accordingly.
+
+---
+
+### MV-13 - Upgrade from a firmware without the option
+
+**Precondition:** A gateway on a firmware before v1.6.0 with detectors registered in HA. For the `_2` check: a gateway still on a firmware before v1.5.1.
+
+**Procedure:**
+1. Note the entity IDs of two detectors and of the gateway's own entities in HA.
+2. Flash the new firmware and wait for the MQTT connect.
+3. Check the HA Integration card and the entities in HA.
+4. Switch the option on, apply, and follow the progress dialog.
+
+**Expected result:**
+- Step 3: the option is off, the detectors keep their model name and all entity IDs are unchanged. `GET /rest/gateway-devices` shows no `haEntityIdPrefix`.
+- Step 3, upgrade from before v1.5.1 only: watch the gateway's own entities for duplicates with a `_2` suffix. The topic migration of v1.5.1 clears the old config and publishes the new one back to back on different topics, where Home Assistant's per-topic queue does not help.
+- Step 4: the entities of all detectors carry their location-based prefix; no old IDs and no `_2` entities remain.
+
+---
+
 ## Automation coverage summary
 
 | Layer | Automated | Notes |
 |-------|-----------|-------|
 | REST API - device CRUD and field round-trips | Yes (100 %) | TC01–TC65 |
 | HA entity state (`on`/`off`/`unavailable`) | Yes, when `--ha-token` is provided | Polls with 60 s retry |
+| HA entity-ID rename (prefix bookkeeping, old/new entity IDs) | Yes | TC81-TC87; entity IDs need `--ha-token`. Offline catch-up, reboot, alarm latency, history and upgrade: manual, MV-09 to MV-13 |
 | MQTT retained discovery payloads | No | Requires `mosquitto_sub` or `paho-mqtt` |
 | HA visual rendering (colours, icons, history) | No - manual | See Section 10 |
