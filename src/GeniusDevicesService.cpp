@@ -1384,6 +1384,14 @@ void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
 
 void GeniusDevicesService::_syncSmokeDetectorSubDevices()
 {
+    // Lock order: HA registry lock first, state mutex second. HAService::publishAll()
+    // runs in its own task, holds the registry lock per device and calls the state
+    // readers below, which take the state mutex. Entering the transaction first and
+    // asking for the registry lock afterwards (as removeSubDevice() and the destructor
+    // of the diagnostics publisher do) could deadlock with it. Waiting for the registry
+    // lock out here also keeps the state mutex - and with it the alarm path - free
+    // while a publishAll() is busy with a device.
+    HAService::Lock haLock(_haService);
     beginTransaction();
 
     for (uint32_t deviceId : _state.deletedDeviceIds)

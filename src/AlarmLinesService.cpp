@@ -824,6 +824,9 @@ void AlarmLinesService::_removeAlarmLineSubDevice(uint32_t lineId)
 
 void AlarmLinesService::_syncAlarmLineSubDevices()
 {
+    // Lock order: HA registry lock first, state mutex second - see
+    // GeniusDevicesService::_syncSmokeDetectorSubDevices().
+    HAService::Lock haLock(_haService);
     beginTransaction();
 
     // Remove sub-devices for lines deleted via HTTP (populated by AlarmLines::update)
@@ -923,8 +926,13 @@ esp_err_t AlarmLinesService::_removeAlarmLine(uint32_t id)
 
     ESP_LOGI(TAG, "Removed alarm line with id %lu", id);
 
-    // Unpublish HA entities for this alarm line
-    _removeAlarmLineSubDevice(id);
+    // Unpublish HA entities for this alarm line (lock order as in _syncAlarmLineSubDevices())
+    {
+        HAService::Lock haLock(_haService);
+        beginTransaction();
+        _removeAlarmLineSubDevice(id);
+        endTransaction();
+    }
 
     callUpdateHandlers(ALARMLINES_ORIGIN_ID);
 

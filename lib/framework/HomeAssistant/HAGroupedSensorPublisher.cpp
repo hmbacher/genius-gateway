@@ -29,6 +29,9 @@ HAGroupedSensorPublisher::HAGroupedSensorPublisher(HAService *haService,
 
 HAGroupedSensorPublisher::~HAGroupedSensorPublisher()
 {
+    // The callbacks run under the registry lock: taking it here waits for a
+    // publishAll() that is in the middle of this publisher.
+    HAService::Lock guard(_haService);
     *_alive = false;
     if (_haService != nullptr)
     {
