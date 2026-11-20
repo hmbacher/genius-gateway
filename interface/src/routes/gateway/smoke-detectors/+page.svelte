@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -18,7 +19,8 @@
 		StaticSystemInformation,
 		WifiSettings,
 		ConfigCheckProbeEvent,
-		ConfigCheckResponder
+		ConfigCheckResponder,
+		HASettings
 	} from '$lib/types/models';
 	import {
 		GeniusDeviceRegistration,
@@ -33,6 +35,7 @@
 	import { isOldFmModule } from '$lib/genius/line';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { socket } from '$lib/stores/socket';
+	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import DraggableList from '$lib/components/DraggableList.svelte';
@@ -305,6 +308,36 @@
 		});
 	}
 
+	// ── Home Assistant entity-ID rename ────────────────────────────────────────
+	// With the HA option "update entity IDs" on, saving a changed location makes the gateway
+	// rename that detector's entities. The editor warns about it beforehand; the gateway
+	// reports the rename itself through a WebSocket event (progress dialog, or an info dialog
+	// when it had to be deferred).
+	let haRenamesEntityIds = $state(false);
+
+	// Called when the page loads and again right before the editor opens: the option can be
+	// changed elsewhere (another tab, REST) while this page stays open, and the editor's
+	// warning has to match what saving will really do. If the request fails, the last known
+	// value stays.
+	async function loadHaRenameOption() {
+		try {
+			const response = await fetch('/rest/haSettings', { method: 'GET', headers: authHeaders() });
+			if (response.status === 200) {
+				const settings = (await response.json()) as HASettings;
+				haRenamesEntityIds = settings.enabled && settings.rename_entity_ids;
+			}
+		} catch (error) {
+			console.error('Failed to load the Home Assistant settings:', error);
+		}
+	}
+
+	onMount(() => {
+		loadHaRenameOption();
+		return watchHaEntityRename();
+	});
+
+	// The shared editor of the overview cards does not know the rename option yet - the
+	// next commit moves the option into it.
 	function handleEdit(index: number) {
 		openEditDevice(geniusDevices.devices[index]);
 	}
@@ -668,7 +701,7 @@
 						cancel: { label: 'Cancel', icon: Cancel },
 						confirm: { label: 'Replace', icon: Check }
 					},
-					onConfirm: () => {
+					onConfirm: async () => {
 						// Keep location and position, but reset alarms
 						newDevice.id = existing.id;
 						newDevice.location = existing.location;
@@ -677,9 +710,11 @@
 						// rotary line so the installer doesn't have to recall/re-enter it.
 						preserveManualLineIfSameModule(newDevice, existing);
 						modals.close();
+						await loadHaRenameOption();
 						modals.open(EditSmokeDetector, {
 							title: 'Replace smoke detector',
 							titleIcon: Replace,
+							haRenamesEntityIds,
 							geniusDevice: newDevice,
 							saveButtonLabel: 'Replace',
 							onSaveGeniusDevice: async (editedDevice: GeniusDevice) => {

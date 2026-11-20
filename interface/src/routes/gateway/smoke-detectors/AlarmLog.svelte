@@ -33,11 +33,11 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby={titleId}
-		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center overflow-y-auto"
+		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
 		transition:fly={{ y: 50 }}
 	>
 		<div
-			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex min-w-fit max-w-md flex-col justify-between p-4 shadow-lg md:w-[28rem]"
+			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex max-h-full min-w-fit max-w-md flex-col justify-between p-4 shadow-lg md:w-[28rem]"
 		>
 			<h2
 				id={titleId}
@@ -46,19 +46,19 @@
 				<Logs class="text-primary h-7 w-7 flex-shrink-0" />{title}
 			</h2>
 
-			<div class="divider my-2"></div>
+			<div class="divider my-2 shrink-0"></div>
 
 			<span class="inline-flex items-center">
 				<BellRinging class="mr-2 h-6 w-6" />
 				<span class="text-xl font-semibold">Alarms of device <em>{geniusDevice.location}</em></span>
 			</span>
 
-			<div class="divider my-2"></div>
+			<div class="divider my-2 shrink-0"></div>
 
 			{#if geniusDevice.alarms.length === 0}
 				<div class="text-center text-base-content">No alarms</div>
 			{:else}
-				<div class="max-h-160 overflow-x-auto">
+				<div class="max-h-160 min-h-0 overflow-x-auto overscroll-contain">
 					<table class="table w-full table-pin-rows">
 						<thead>
 							<tr class="font-bold">
@@ -110,7 +110,7 @@
 				</div>
 			{/if}
 
-			<div class="divider my-2"></div>
+			<div class="divider my-2 shrink-0"></div>
 
 			<div class="flex justify-end gap-2">
 				<button

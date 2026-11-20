@@ -163,7 +163,7 @@ build_flags =
 10 devices is a conservative ceiling that leaves headroom for TLS, MQTT, and WebSocket buffers without fragmentation pressure. If you have a no-PSRAM board and never expect to manage more than a handful of detectors, the default settings are otherwise correct - no further reconfiguration is required.
 
 !!! warning "Boards without PSRAM are not the supported target"
-    The default environment (`seeed-xiao-esp32s3`) and the `esp32-s3-devkitc-1-n8r2` variant both have PSRAM. The no-PSRAM `esp32-s3-devkitc-1` environment is kept building and running for development boards that lack PSRAM, but the project is designed around the PSRAM-backed memory model and the full 50-device design target requires PSRAM.
+    The default environment (`gg-v1_0`, based on `seeed-xiao-esp32s3`) and the `esp32-s3-devkitc-1-n8r2` variant both have PSRAM. The no-PSRAM `esp32-s3-devkitc-1` environment is kept building and running for development boards that lack PSRAM, but the project is designed around the PSRAM-backed memory model and the full 50-device design target requires PSRAM.
 
 ## :tabler-bug: Diagnosing memory pressure
 

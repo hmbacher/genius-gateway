@@ -113,6 +113,8 @@ To register a new Genius smoke detector:
     ***Location***  
     Enter a descriptive name for the detector's location (1-40 characters). This helps identify the device in the list and alarm notifications.
 
+    If the Home Assistant option [*Update entity IDs when a detector's location changes*](../setup/connections.md#home-assistant-integration) is enabled, changing the location of an existing detector renames its entities in Home Assistant. A warning below the field points this out before you save, and a progress dialog follows the rename afterwards.
+
     ***Smoke Detector Component***
 
     - **Model**: Select the smoke detector model (currently *Genius Plus X*)

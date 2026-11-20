@@ -50,8 +50,23 @@ def find_latest_timestamp_for_app():
     )
 
 
+def output_file_has_app():
+    # A WWWData.h without the index.html route is a stub left behind by a
+    # failed or interrupted interface build. Its mtime is newer than every
+    # source file, so the timestamp check alone would keep it forever and
+    # every following firmware build would ship without a web UI (the device
+    # then answers every URI with PsychicHttp's "That URI does not exist.").
+    try:
+        return 'handler("/index.html"' in Path(output_file).read_text(errors="ignore")
+    except OSError:
+        return False
+
+
 def should_regenerate_output_file():
     if not flag_exists("EMBED_WWW") or not exists(output_file):
+        return True
+    if not output_file_has_app():
+        print("WWWData.h contains no embedded interface (previous interface build failed?), regenerating")
         return True
     last_source_change = find_latest_timestamp_for_app()
     last_build = getmtime(output_file)
@@ -75,6 +90,20 @@ def flag_exists(flag):
         if (define == flag or (isinstance(define, list) and define[0] == flag)):
             return True
     return False
+
+
+def abort_build(message):
+    # Never leave a half-baked WWWData.h behind: drop it so the next build
+    # starts the interface build again instead of trusting its timestamp.
+    if exists(output_file):
+        os.remove(output_file)
+    print(f"Error: {message}", file=sys.stderr)
+    env.Exit(1)
+
+
+def execute_or_abort(command):
+    if env.Execute(command) != 0:
+        abort_build(f"interface build step failed: '{command}'")
 
 
 def get_package_manager():
@@ -108,7 +137,7 @@ def build_webapp():
     if exists(build_dir):
         rmtree(build_dir)
     os.chdir(interface_dir)
-    env.Execute(f"{package_manager} install")
+    execute_or_abort(f"{package_manager} install")
     # Pass APP_VERSION to the Vite plugin so it can stamp the combined
     # APP_VERSION_FULL into version.ts (frontend) and AppVersion.h (firmware).
     os.environ["APP_VERSION"] = get_app_version()
@@ -119,8 +148,10 @@ def build_webapp():
     if flag_exists("EMBED_WWW"):
         os.environ["EMBED_WWW"] = "1"
     print(f"Building with APP_VERSION={os.environ['APP_VERSION']}")
-    env.Execute(f"{package_manager} run build")
+    execute_or_abort(f"{package_manager} run build")
     os.chdir("..")
+    if not exists(os.path.join(build_dir, "index.html")):
+        abort_build(f"interface build produced no {build_dir}/index.html")
 
 
 def embed_webapp():
@@ -133,7 +164,10 @@ def embed_webapp():
 
 def build_progmem():
     mimetypes.init()
-    with open(output_file, "w") as progmem:
+    # Write to a temp file and swap it in at the end, so an interrupted
+    # conversion never leaves a truncated WWWData.h with a fresh mtime.
+    tmp_file = output_file + ".tmp"
+    with open(tmp_file, "w") as progmem:
         progmem.write("#include <functional>\n")
         progmem.write("#include <Arduino.h>\n")
 
@@ -179,6 +213,8 @@ def build_progmem():
 
         progmem.write("\t\t}\n")
         progmem.write("};\n\n")
+
+    os.replace(tmp_file, output_file)
 
 
 def add_app_to_filesystem():

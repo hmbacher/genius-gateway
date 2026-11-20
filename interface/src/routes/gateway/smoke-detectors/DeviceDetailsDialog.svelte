@@ -176,11 +176,11 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby={titleId}
-		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center overflow-y-auto"
+		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
 		transition:fly={{ y: 50 }}
 	>
 		<div
-			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex w-full max-w-lg flex-col justify-between p-4 shadow-lg"
+			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex max-h-full w-full max-w-lg flex-col justify-between p-4 shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<h2 id={titleId} class="text-base-content flex items-center gap-2 text-2xl font-bold">
@@ -211,9 +211,9 @@
 				</div>
 			</div>
 
-			<div class="divider my-2"></div>
+			<div class="divider my-2 shrink-0"></div>
 
-			<div class="max-h-[70vh] overflow-y-auto space-y-4 pr-1">
+			<div class="max-h-[70vh] min-h-0 overflow-y-auto overscroll-contain space-y-4 pr-1">
 				<!-- General -->
 				<div>
 					<span class="block bg-base-200 px-2 py-1 rounded-sm text-base font-semibold">General</span
@@ -556,7 +556,7 @@
 			</div>
 
 			<!-- Footer -->
-			<div class="divider my-2"></div>
+			<div class="divider my-2 shrink-0"></div>
 			<div class="flex justify-end gap-2">
 				<button class="btn btn-neutral text-neutral-content btn-sm" onclick={() => modals.close()}>
 					<Cancel class="h-5 w-5" />

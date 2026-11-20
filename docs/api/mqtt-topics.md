@@ -68,12 +68,17 @@ The gateway device publishes:
 
 **Topic Structure:**
 ```
-{discovery_prefix}genius-gateway/{gateway_device_id}
+{discovery_prefix}{gateway_device_id}
 ```
 
 !!! tip "Gateway Device ID Format"
     The `gateway_device_id` follows the format `genius-gateway-{device-mac}`, where `device-mac` is the device's MAC address with lowercase hex digits and without any delimiters.  
     E.g.: `1A:2B:3C:4D:5E:6F` :material-arrow-right: `genius-gateway-1a2b3c4d5e6f`
+
+    It is derived from the **firmware name**, not from the **Device Name** configured under [Home Assistant Integration](../setup/connections.md#home-assistant-integration). The Device Name is purely cosmetic - it sets the label shown in Home Assistant and never affects topics or the device's identity in HA's registry, so renaming the gateway is always safe.
+
+!!! warning "Changed in v1.5.1"
+    Up to v1.5.0 the base topic carried a redundant namespace level and derived both that namespace and the device ID from the (user-editable) Device Name, producing paths like `homeassistant/genius-gateway-1a2b3c4d5e6f/genius-gateway-1a2b3c4d5e6f-1a2b3c4d5e6f/...`. Both levels collapsed into a single `{gateway_device_id}` in v1.5.1. See [Home Assistant Integration](../setup/connections.md#home-assistant-integration) for what happens on upgrade.
 
 ---
 
@@ -95,7 +100,7 @@ The gateway device publishes:
 **:material-code-json: Payload**
 ```json
 {
-  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "~": "homeassistant/genius-gateway-1a2b3c4d5e6f",
   "name": "Status",
   "unique_id": "genius-gateway-1a2b3c4d5e6f_status",
   "state_topic": "~/status/state",
@@ -130,7 +135,7 @@ The gateway device publishes:
   - `sw_version` - Current firmware version
   - `configuration_url` - Web interface URL (only included if gateway has valid IP)
 
-**State Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/status/state`
+**State Topic:** `{discovery_prefix}{gateway_device_id}/status/state`
 
 **:material-code-json: State Payload**
 ```json
@@ -176,7 +181,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 **:material-code-json: Config Payload**
 ```json
 {
-  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "~": "homeassistant/genius-gateway-1a2b3c4d5e6f",
   "name": "Free Heap",
   "unique_id": "genius-gateway-1a2b3c4d5e6f_free_heap",
   "state_topic": "~/diagnostics/state",
@@ -209,7 +214,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 **:material-code-json: Config Payload**
 ```json
 {
-  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "~": "homeassistant/genius-gateway-1a2b3c4d5e6f",
   "name": "Core Temperature",
   "unique_id": "genius-gateway-1a2b3c4d5e6f_core_temp",
   "state_topic": "~/diagnostics/state",
@@ -229,10 +234,10 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 
 **:material-message-outline: Topic**
 ```
-{discovery_prefix}genius-gateway/{gateway_device_id}/diagnostics/state
+{discovery_prefix}{gateway_device_id}/diagnostics/state
 ```
 
-**Example:** `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/diagnostics/state`
+**Example:** `homeassistant/genius-gateway-1a2b3c4d5e6f/diagnostics/state`
 
 **:material-information-outline: Description:** Combined state topic for both diagnostic sensors
 
@@ -273,13 +278,13 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 
 **:material-message-outline: Config Topic**
 ```
-{discovery_prefix}button/{topicNamespace}/{gateway_device_id}/restart/config
+{discovery_prefix}button/{gateway_device_id}/restart/config
 ```
 
-**Example:** `homeassistant/button/genius-gateway/genius-gateway-1a2b3c4d5e6f/restart/config`
+**Example:** `homeassistant/button/genius-gateway-1a2b3c4d5e6f/restart/config`
 
-!!! tip "`topicNamespace` format"
-    `topicNamespace` is the slugified device name, e.g. `genius-gateway`. Together with the device ID, the config topic node becomes `genius-gateway/genius-gateway-1a2b3c4d5e6f`. This scoping ensures entities from different gateway instances never collide on a shared MQTT broker.
+!!! tip "Discovery `node_id`"
+    Home Assistant requires the discovery `node_id` to be a single topic level, so config topics always use the flat `{gateway_device_id}` (or, for sub-devices, `genius-{device_id}`) - never a nested path. Because the device ID already embeds the gateway's MAC address, entities from different gateway instances never collide on a shared MQTT broker.
 
 **:material-information-outline: Description:** Button entity for remotely restarting the gateway
 
@@ -290,7 +295,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 **:material-code-json: Config Payload**
 ```json
 {
-  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "~": "homeassistant/genius-gateway-1a2b3c4d5e6f",
   "name": "Restart",
   "unique_id": "genius-gateway-1a2b3c4d5e6f_restart",
   "command_topic": "~/restart/command",
@@ -309,7 +314,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 - `icon` - Restart icon for visual identification
 - No `entity_category` - Restart appears under **Controls** on the HA device page
 
-**Command Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/restart/command`
+**Command Topic:** `{discovery_prefix}{gateway_device_id}/restart/command`
 
 **:material-code-json: Command Payload**
 ```
@@ -353,7 +358,7 @@ Four switches provide remote control of gateway configuration settings that affe
 **:material-code-json: Config Payload Example (Alert on Unknown Detectors)**
 ```json
 {
-  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "~": "homeassistant/genius-gateway-1a2b3c4d5e6f",
   "name": "Alert on Unknown Detectors",
   "unique_id": "genius-gateway-1a2b3c4d5e6f_alert_unknown",
   "state_topic": "~/gateway/state",
@@ -376,7 +381,7 @@ Four switches provide remote control of gateway configuration settings that affe
 
 **Central State Topic:**
 ```
-{discovery_prefix}genius-gateway/{gateway_device_id}/gateway/state
+{discovery_prefix}{gateway_device_id}/gateway/state
 ```
 
 **:material-code-json: State Payload (JSON with all switches)**
@@ -391,14 +396,14 @@ Four switches provide remote control of gateway configuration settings that affe
 
 **Individual Command Topics:**
 ```
-{discovery_prefix}genius-gateway/{gateway_device_id}/gateway/{objectId}/set
+{discovery_prefix}{gateway_device_id}/gateway/{objectId}/set
 ```
 
 **Examples:**
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/alert_unknown/set`
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/line_commissioning/set`
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/line_alarm/set`
-- `homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f/gateway/line_test/set`
+- `homeassistant/genius-gateway-1a2b3c4d5e6f/gateway/alert_unknown/set`
+- `homeassistant/genius-gateway-1a2b3c4d5e6f/gateway/line_commissioning/set`
+- `homeassistant/genius-gateway-1a2b3c4d5e6f/gateway/line_alarm/set`
+- `homeassistant/genius-gateway-1a2b3c4d5e6f/gateway/line_test/set`
 
 **:material-code-json: Command Payloads**
 
@@ -457,7 +462,7 @@ The gateway publishes an update entity that integrates with Home Assistant's upd
 **:material-code-json: Config Payload**
 ```json
 {
-  "~": "homeassistant/genius-gateway/genius-gateway-1a2b3c4d5e6f",
+  "~": "homeassistant/genius-gateway-1a2b3c4d5e6f",
   "name": "Firmware Update",
   "unique_id": "genius-gateway-1a2b3c4d5e6f_firmware_update",
   "state_topic": "~/update/state",
@@ -482,7 +487,7 @@ The gateway publishes an update entity that integrates with Home Assistant's upd
 - `title` - Update entity title
 - `entity_category` - Category (`config` for configuration entities)
 
-**State Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/update/state`
+**State Topic:** `{discovery_prefix}{gateway_device_id}/update/state`
 
 **:material-code-json: State Payload**
 
@@ -513,7 +518,7 @@ When update is available:
 - `title` - Human-readable update title
 - `release_url` - URL to GitHub releases page
 
-**Command Topic:** `{discovery_prefix}genius-gateway/{gateway_device_id}/update/install`
+**Command Topic:** `{discovery_prefix}{gateway_device_id}/update/install`
 
 **:material-code-json: Command Payload**
 ```
@@ -573,12 +578,12 @@ Readout-derived entities (all except the main smoke sensor) report as **unavaila
 
 All smoke detector topics are nested under the main gateway base topic. The sub-device identifier is based on the **stable internal device ID** (not the serial number), so topics remain stable across serial-number corrections:
 ```
-{discovery_prefix}{main_namespace}/{main_device_id}/genius-{device_id}/...
+{discovery_prefix}{main_device_id}/genius-{device_id}/...
 ```
 
 For example, with the default prefix and gateway device ID `genius-gateway-aabbcc`:
 ```
-homeassistant/genius-gateway/genius-gateway-aabbcc/genius-1746234159/...
+homeassistant/genius-gateway-aabbcc/genius-1746234159/...
 ```
 
 !!! tip "Device ID vs Serial Number"
@@ -604,7 +609,7 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-1746234159/...
 **:material-code-json: Config Payload**
 ```json
 {
-  "~": "homeassistant/genius-gateway/genius-gateway-aabbcc/genius-1746234159",
+  "~": "homeassistant/genius-gateway-aabbcc/genius-1746234159",
   "name": "Smoke Detector",
   "unique_id": "genius-1746234159_smoke",
   "device_class": "smoke",
@@ -630,7 +635,9 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-1746234159/...
 - `state_topic` - Plain string `ON` / `OFF`
 - `entity_picture` - Detector icon URL (omitted if no valid IP)
 - `device.identifiers` - Stable device ID (`genius-{device_id}`)
-- `device.name` / `device.model` - Smoke detector model name (e.g. `"Genius Plus X"`)
+- `device.model` - Smoke detector model name (e.g. `"Genius Plus X"`)
+- `device.name` - Smoke detector model name; the detector's location instead if the *Update entity IDs when a detector's location changes* option is enabled
+- `default_entity_id` - Only sent while that option is enabled (not part of the example above): explicit entity ID `<domain>.<prefix>_<entity>`, e.g. `binary_sensor.living_room_smoke_detector`. The prefix is the detector's location reduced to `[a-z0-9_]` or, without a usable location, `genius_<serial number>`. All entities of the detector, including the diagnostic ones, carry it. When the prefix changes, the gateway clears the retained config topics of the detector (empty payload, QoS 1), waits 3 s and publishes them again
 - `device.suggested_area` - Populated from the detector's configured location
 - `device.via_device` - Links this sub-device to the main gateway device
 
@@ -688,7 +695,7 @@ availability_template: "{{ 'online' if value_json.available else 'offline' }}"
 
 **Discovery Config Topic Pattern:**
 ```
-{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/genius-{device_id}/{object_id}/config
+{discovery_prefix}{component}/genius-{device_id}/{object_id}/config
 ```
 
 **Diagnostic binary_sensor entities** (`value_template` extracts a boolean as `ON`/`OFF`):
@@ -746,12 +753,12 @@ Each configured alarm line is published as an **HA sub-device** nested under the
 
 All alarm line topics are nested under the main gateway base topic:
 ```
-{discovery_prefix}{main_namespace}/{main_device_id}/genius-alarmline-{line_id}/...
+{discovery_prefix}{main_device_id}/genius-alarmline-{line_id}/...
 ```
 
 For example, with the default prefix and a gateway device ID `genius-gateway-aabbcc`:
 ```
-homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/...
+homeassistant/genius-gateway-aabbcc/genius-alarmline-123456789/...
 ```
 
 ---
@@ -760,7 +767,7 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/..
 
 **:material-message-outline: Topic Pattern**
 ```
-{discovery_prefix}button/{topicNamespace}/{gateway_device_id}/genius-alarmline-{line_id}/{object_id}/config
+{discovery_prefix}button/genius-alarmline-{line_id}/{object_id}/config
 ```
 
 **:material-information-outline: Description:** Configuration messages for Home Assistant button discovery
@@ -779,13 +786,13 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/..
 **:material-code-json: Example Payload (Start Line Test)**
 ```json
 {
-  "~": "homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789",
+  "~": "homeassistant/genius-gateway-aabbcc/genius-alarmline-123456789",
   "name": "Start Line Test",
   "unique_id": "genius-alarmline-123456789_linetest-start",
   "command_topic": "~/linetest-start/set",
   "icon": "mdi:map-marker",
   "availability": [{
-    "topic": "homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/state",
+    "topic": "homeassistant/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/state",
     "value_template": "{% if value == 'Nothing' %}online{% else %}offline{% endif %}"
   }],
   "availability_mode": "all",
@@ -859,17 +866,17 @@ homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/..
 
 **:material-message-outline: Config Topic**
 ```
-{discovery_prefix}sensor/{topicNamespace}/{gateway_device_id}/genius-alarmline-{line_id}/transmission/config
+{discovery_prefix}sensor/genius-alarmline-{line_id}/transmission/config
 ```
 
-**Example:** `homeassistant/sensor/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/config`
+**Example:** `homeassistant/sensor/genius-alarmline-123456789/transmission/config`
 
 **:material-message-outline: State Topic**
 ```
 {main_base_topic}/genius-alarmline-{line_id}/transmission/state
 ```
 
-**Example:** `homeassistant/genius-gateway/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/state`
+**Example:** `homeassistant/genius-gateway-aabbcc/genius-alarmline-123456789/transmission/state`
 
 **:material-information-outline: Description:** Current transmission status of the alarm line (plain string, not JSON)
 
