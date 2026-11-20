@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
 	import { modals, type ModalProps } from 'svelte-modals';
 	import ProgressDialog from '$lib/components/ProgressDialog.svelte';
 	import type { HaEntityRenameStatus } from '$lib/types/models';
@@ -10,11 +9,9 @@
 	interface Props extends ModalProps {
 		/** Live state of the rename cycle; updated from the `ha-entity-rename` WebSocket event. */
 		status: HaEntityRenameStatus;
-		/** Called once the dialog is gone, however it was closed. */
-		onClosed?: () => void;
 	}
 
-	let { isOpen, status, onClosed, ...modalProps }: Props = $props();
+	let { isOpen, status, ...modalProps }: Props = $props();
 
 	type View = {
 		phase: 'pending' | 'progress' | 'success' | 'error';
@@ -67,8 +64,6 @@
 				return { phase: 'pending', message: 'Preparing...' };
 		}
 	});
-
-	onDestroy(() => onClosed?.());
 </script>
 
 <ProgressDialog
