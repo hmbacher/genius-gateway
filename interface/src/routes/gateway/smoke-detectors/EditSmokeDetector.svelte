@@ -420,8 +420,10 @@
 					/>
 					<FieldError show={locationError} message="Please set a location of length between {minLocationLength} and {maxLocationLength} characters." />
 					{#if locationRenamesEntities}
-						<div transition:slide|local={{ duration: 300, easing: cubicOut }}>
-							<div class="alert alert-warning mt-2 gap-2 p-2">
+						<!-- w-0 + min-w-full: fill the dialog without widening it. The dialog sizes
+						     itself to its content (min-w-fit), so a long line would stretch it. -->
+						<div class="w-0 min-w-full" transition:slide|local={{ duration: 300, easing: cubicOut }}>
+							<div class="alert alert-warning mt-2 items-start gap-2 p-2">
 								<IconWarning class="h-5 w-5 shrink-0 mt-0.5" />
 								<span class="text-sm"
 									>Saving renames this detector's entities in Home Assistant. Automations,
