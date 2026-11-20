@@ -24,10 +24,10 @@ The health indicator icon in the navigation bar reflects the overall system stat
 
 The Overview page displays all registered smoke detectors in a responsive grid layout. Each card opens the clicked detector right on top of the Overview, without leaving the page:
 
-- **Normal cards** open the **Device Details** dialog of that detector (no readout/set-line there). A pencil in its header switches to the edit dialog; saving behaves exactly as on the Smoke Detectors page.
-- **Alarming cards** open the **Alarm Log** of that detector instead.
+- **Normal cards** open the **Device Details** dialog of that detector (no readout/set-line there). Administrators find an **Edit** button (:tabler-pencil:) in its footer that switches to the edit dialog; saving behaves exactly as on the Smoke Detectors page.
+- **Alarming cards** open the **Alarm Log** of that detector instead. Its **Details** button (:tabler-list-details:) leads on to Device Details.
 
-Acoustic readout and changing the alarm line remain on the [Device Management](device-management.md) page. Details and alarm log are only available to administrators, so for other users the cards are shown without a click action.
+Acoustic readout and changing the alarm line remain on the [Device Management](device-management.md) page. Users without administrator rights can open both dialogs, but are not offered the edit action.
 
 ### Card Color States
 

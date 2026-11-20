@@ -248,6 +248,8 @@ Click the :tabler-list-details: **Device Details** button in a device's row to o
 
 The dialog also provides an **Update** button (:tabler-microphone:) to trigger a new acoustic readout for that device directly, without leaving the dialog.
 
+The same dialog opens when a detector card is clicked on the [Overview](overview.md#device-status-grid). There it has no **Update** button; administrators get an **Edit** button (:tabler-pencil:) instead, which switches to the [edit dialog](#editing-a-detector).
+
 !!! info "Acoustic readout internals"
     For a detailed description of the signal modulation, framing, and the full payload field reference, see [Acoustic Readout](../reverse-engineering/acoustic-readout.md) in the Reverse Engineering section.
 

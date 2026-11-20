@@ -14,6 +14,14 @@ Home Assistant builds an entity ID once, when an entity is first registered, and
 
 See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for details and limitations.
 
+## Overview Cards Open the Clicked Detector
+Clicking a detector card on the Overview page now opens that detector directly, on top of the Overview, instead of switching to the device list.
+
+- **Device Details / Alarm Log on click**: normal cards open the read-only **Device Details** dialog of the clicked detector, alarming cards open its **Alarm Log**. A **Details** button in the Alarm Log leads on to Device Details. Acoustic readout and changing the alarm line stay on the Smoke Detectors page
+- **Edit from the Overview**: administrators get an **Edit** button in the footer of Device Details that switches to the **Edit smoke detector** dialog. Saving runs the same follow-ups as on the Smoke Detectors page (fault warning, manual line entry for old FM modules, offer to add an unknown alarm line) and shows the same warning before a location change renames Home Assistant entities
+- **Read-only for other users**: users without administrator rights can open Device Details and the Alarm Log, but are not offered the edit action (the old link bounced them straight back to the Overview)
+- **One editor for all flows**: adding, editing and replacing a detector now go through one shared editor and save path (`deviceSave.svelte.ts`). A failed save no longer opens the follow-up dialogs
+
 # v1.5.1
 
 ## Home Assistant MQTT Topic Restructuring
@@ -51,13 +59,6 @@ Measure how well each radio module is heard **directly** by the gateway - bypass
 - **Progress and result dialogs**: live progress while probing, then a summary of which modules answered and how strongly
 - **New "SignalProbe" alarm-line acquisition source**: a device's alarm line can be acquired/confirmed from a direct-range survey response, alongside the existing sources
 - **PDF report "Direct Link (Signal / Range Test)" section**: exported reports now include a per-device signal/range-test section with the measured RSSI and timestamp
-
-## Overview Cards Open the Clicked Detector
-Clicking a detector card on the Overview page now opens that detector directly, on top of the Overview, instead of switching to the device list.
-
-- **Device Details / Alarm Log on click**: normal cards open the read-only **Device Details** dialog of the clicked detector, alarming cards open its **Alarm Log**. Acoustic readout and changing the alarm line stay on the Smoke Detectors page
-- **Edit pencil in Device Details**: a pencil in the dialog header switches to the **Edit smoke detector** dialog, both from the Overview and from the Smoke Detectors page. Saving runs the same follow-ups everywhere (fault warning, manual line entry for old FM modules, offer to add an unknown alarm line); the shared save logic moved to `deviceSave.svelte.ts`
-- **Cards are plain for non-admins**: details and alarm log are admin-only, so these users see non-clickable cards (the old link bounced them straight back to the Overview)
 
 ## Robust Packet Classification by Message-Type Byte
 Packets are now identified by the radio module's on-air **message-type byte** (offset 27), with packet length used only as a validator - replacing the previous length-only heuristic.
