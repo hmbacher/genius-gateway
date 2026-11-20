@@ -68,11 +68,11 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby={titleId}
-		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center overflow-y-auto"
+		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
 		transition:fly={{ y: 50 }}
 	>
 		<div
-			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex min-w-fit max-w-md flex-col justify-between p-4 shadow-lg md:w-[28rem]"
+			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex max-h-full min-w-fit max-w-md flex-col justify-between overflow-y-auto overscroll-contain p-4 shadow-lg *:shrink-0 md:w-[28rem]"
 		>
 			<h2
 				id={titleId}
