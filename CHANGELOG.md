@@ -20,6 +20,9 @@ See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/set
 ## Documentation
 - **MQTT topic reference corrected**: the documented discovery config topic pattern (`{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/…/config`) never matched the firmware, which has always published to a flat single-level `node_id` as the Home Assistant discovery spec requires. All topic examples now reflect the actual v1.5.1 layout
 
+## Bugfixes
+- **Alarms reached Home Assistant up to ~15 seconds late after a detector was saved**: MQTT messages that the gateway queues (states and diagnostics) left at only one message per second. Saving a detector republishes the diagnostics of all detectors, so an alarm received right after it had to wait behind them - about one second per detector. The gateway itself always registered the alarm at once; only the way to MQTT was held up. The queue is now drained at up to 50 messages per second. Applies to the `gg-v1_0`, `seeed-xiao-esp32s3` and `esp32-s3-devkitc-1-n8r2` builds
+
 # v1.5.0
 
 ## Direct-Link Signal / Range Survey
