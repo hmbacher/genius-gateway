@@ -1666,6 +1666,9 @@ void GeniusDevicesService::_runEntityIdRename()
     // HAService::publishAll() would publish the new configs too - still correct for HA,
     // which queues a config behind a running removal of the same topic.
     // QoS 1: a removal that got lost would leave the old entity ID in place.
+    // The retained diagnostics state stays on the broker: HA reads it the moment the
+    // entities are back, so they do not sit at "unavailable" until the republished state
+    // has trickled through the MQTT outbox.
     _emitEntityRenameEvent("removing", count);
     for (uint32_t deviceId : targets)
     {
@@ -1675,7 +1678,7 @@ void GeniusDevicesService::_runEntityIdRename()
         {
             it->second.device->unpublishAll(1);
             if (it->second.diagnostics)
-                it->second.diagnostics->unpublishAll(1);
+                it->second.diagnostics->unpublishAll(1, true);
         }
         endTransaction();
         vTaskDelay(pdMS_TO_TICKS(1));
