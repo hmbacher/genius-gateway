@@ -4,6 +4,18 @@
 > session without the original context. Delete it in the last commit before
 > this branch is merged to `main`.
 
+## 0. State on 2026-11-20
+
+- Everything in sections 3 and 4 is done. Decisions: edit action as a footer button, shown
+  only when Device Details is opened from the Overview; browser tests removed; details and
+  alarm log open for every user, editing for administrators; alarming cards open the Alarm
+  Log, which offers a "Details" button when opened from the Overview.
+- The branch contains `release/v1.6.0` (merged in) and goes back into it with a merge commit.
+- Checked in a browser against the real gateway through the frontend dev server: 35 checks
+  passed (cards, edit with entity-ID rename, failing save, alarming card, list page, phone
+  width). Not checked: a non-admin login, and the firmware build with this frontend.
+- Left to do: section 7 on the flashed build, then delete this file.
+
 ## 1. Status
 
 - Branch: `feat/overview-card-dialogs` (integration branch, not `main`).
