@@ -45,7 +45,12 @@
 	const modelError = $derived((f.current.model ?? '').length > 64);
 	const hasError = $derived(discoveryPrefixError || deviceNameError || manufacturerError || modelError);
 
+	// True while the settings are being sent: switching the integration off removes every
+	// entity from Home Assistant before the gateway answers, which takes a few seconds.
+	let applying = $state(false);
+
 	async function postHASettings() {
+		applying = true;
 		try {
 			const response = await fetch('/rest/haSettings', {
 				method: 'POST',
@@ -63,12 +68,14 @@
 			}
 		} catch (error) {
 			console.error('Error:', error);
+		} finally {
+			applying = false;
 		}
 		return;
 	}
 
 	function handleSubmit() {
-		if (!hasError) {
+		if (!hasError && !applying) {
 			postHASettings();
 		}
 	}
@@ -173,8 +180,15 @@
 			</div>
 			<div class="divider mb-2 mt-0"></div>
 			<div class="mx-4 flex flex-wrap justify-end gap-2">
-				<button class="btn btn-primary" disabled={!f.anyDirty || hasError} type="submit"
-					>Apply Settings</button
+				<button
+					class="btn btn-primary"
+					disabled={!f.anyDirty || hasError || applying}
+					type="submit"
+				>
+					{#if applying}
+						<span class="loading loading-spinner loading-sm"></span>
+					{/if}
+					Apply Settings</button
 				>
 			</div>
 		</form>

@@ -64,22 +64,30 @@ void HASettingsService::_applyToHAService()
         _haService->setDiscoveryPrefix(_state.discoveryPrefix);
     }
 
-    // Remove from HA before disabling - must happen while MQTT is still connected
     if (wasReady && !_state.enabled)
     {
+        // Remove from HA before disabling - must happen while MQTT is still connected.
+        // The lock keeps a publishAll() that is running in the publish task from sending
+        // anything between the removal and the switch-off.
+        HAService::Lock guard(_haService);
         _haService->unpublishAll();
+        _haService->setEnabled(false);
     }
-
-    _haService->setEnabled(_state.enabled);
+    else
+    {
+        _haService->setEnabled(_state.enabled);
+    }
 
     ESP_LOGI(TAG, "Applied HA settings (enabled=%d, prefix=%s, device=%s)",
              _state.enabled,
              _state.discoveryPrefix.c_str(),
              name.c_str());
 
-    // Republish on settings change if MQTT is connected
+    // Republish on settings change if MQTT is connected. Handed to the publish task:
+    // this usually runs in an HTTP request, which a full publish would hold up for
+    // seconds.
     if (_haService->isReady())
     {
-        _haService->publishAll();
+        _haService->requestPublishAll();
     }
 }

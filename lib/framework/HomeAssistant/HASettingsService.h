@@ -82,7 +82,9 @@ public:
  * Persists user-facing HA configuration (enabled, discovery prefix, device
  * identity) and bridges it to the framework HAService. On every settings
  * change the new values are pushed into HAService and - if MQTT is connected
- * - a full republish is triggered so HA discovery picks up the change.
+ * - a full republish is triggered so HA discovery picks up the change. The
+ * republish runs in the publish task of HAService, not in the task that
+ * changed the settings (usually an HTTP request).
  *
  * An empty device_name falls back to APP_NAME so that the field can be left
  * blank in the UI to use the firmware's compile-time name.
