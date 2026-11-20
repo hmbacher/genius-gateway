@@ -10,7 +10,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import AlarmEndingDialog from './AlarmEndingDialog.svelte';
 	import DeviceDetailsDialog from './gateway/smoke-detectors/DeviceDetailsDialog.svelte';
-	import { openEditDevice } from './gateway/smoke-detectors/deviceSave.svelte';
+	import { openDeviceEditor } from './gateway/smoke-detectors/deviceSave.svelte';
 	import AlarmLog from './gateway/smoke-detectors/AlarmLog.svelte';
 	import Info from '~icons/tabler/info-circle';
 	import BellOff from '~icons/tabler/bell-off';
@@ -33,7 +33,7 @@
 			modals.open(DeviceDetailsDialog, {
 				title: 'Device Details',
 				device,
-				onEdit: () => openEditDevice(device)
+				onEdit: () => openDeviceEditor(device)
 			});
 		}
 	}

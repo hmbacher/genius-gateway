@@ -13,14 +13,12 @@
 		GeniusDevice,
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
-		AlarmLines,
 		AlarmLine,
 		ReportSettings,
 		StaticSystemInformation,
 		WifiSettings,
 		ConfigCheckProbeEvent,
-		ConfigCheckResponder,
-		HASettings
+		ConfigCheckResponder
 	} from '$lib/types/models';
 	import {
 		GeniusDeviceRegistration,
@@ -41,7 +39,6 @@
 	import DraggableList from '$lib/components/DraggableList.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
-	import EditSmokeDetector from './EditSmokeDetector.svelte';
 	import AlarmLog from './AlarmLog.svelte';
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
 	import DeviceImportDialog from './DeviceImportDialog.svelte';
@@ -50,19 +47,16 @@
 	import EditAlarmLine from '../alarm-lines/EditAlarmLine.svelte';
 	import PdfReportDialog from './PdfReportDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
+	import { apiPutDevice, afterDeviceSaved, openDeviceEditor } from './deviceSave.svelte';
 	import {
 		authHeaders,
-		apiPutDevice,
-		afterDeviceSaved,
 		fetchAlarmLines,
 		fetchRegisteredLineIds,
-		postAlarmLines,
-		openEditDevice
-	} from './deviceSave.svelte';
+		postAlarmLines
+	} from './restApi';
 	import { matchAcousticResult, matchAcousticUpdate } from './acousticMatch';
 	import DeleteAll from '~icons/tabler/trash-x';
 	import Add from '~icons/tabler/circle-plus';
-	import Edit from '~icons/tabler/pencil';
 	import Replace from '~icons/tabler/replace';
 	import SmokeDetector from '~icons/custom-icons/smoke-detector-m';
 	import Cancel from '~icons/tabler/x';
@@ -310,49 +304,17 @@
 
 	// ── Home Assistant entity-ID rename ────────────────────────────────────────
 	// With the HA option "update entity IDs" on, saving a changed location makes the gateway
-	// rename that detector's entities. The editor warns about it beforehand; the gateway
-	// reports the rename itself through a WebSocket event (progress dialog, or an info dialog
-	// when it had to be deferred).
-	let haRenamesEntityIds = $state(false);
+	// rename that detector's entities. The editor warns about it beforehand (see
+	// openDeviceEditor); the gateway reports the rename itself through a WebSocket event
+	// (progress dialog, or an info dialog when it had to be deferred).
+	onMount(() => watchHaEntityRename());
 
-	// Called when the page loads and again right before the editor opens: the option can be
-	// changed elsewhere (another tab, REST) while this page stays open, and the editor's
-	// warning has to match what saving will really do. If the request fails, the last known
-	// value stays.
-	async function loadHaRenameOption() {
-		try {
-			const response = await fetch('/rest/haSettings', { method: 'GET', headers: authHeaders() });
-			if (response.status === 200) {
-				const settings = (await response.json()) as HASettings;
-				haRenamesEntityIds = settings.enabled && settings.rename_entity_ids;
-			}
-		} catch (error) {
-			console.error('Failed to load the Home Assistant settings:', error);
-		}
-	}
-
-	onMount(() => {
-		loadHaRenameOption();
-		return watchHaEntityRename();
-	});
-
-	// The shared editor of the overview cards does not know the rename option yet - the
-	// next commit moves the option into it.
 	function handleEdit(index: number) {
-		openEditDevice(geniusDevices.devices[index]);
+		openDeviceEditor(geniusDevices.devices[index]);
 	}
 
 	function handleNewGeniusDevice() {
-		modals.open(EditSmokeDetector, {
-			title: 'Add smoke detector',
-			titleIcon: Add,
-			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				await apiPutDevice(newGeniusDevice);
-				modals.close();
-				afterDeviceSaved(newGeniusDevice);
-			}
-		});
-		//
+		openDeviceEditor(undefined, { title: 'Add smoke detector', titleIcon: Add });
 	}
 
 	// ── ConfigCheckProbe signal survey ─────────────────────────────────────────
@@ -478,16 +440,10 @@
 			isAlarming: false,
 			alarms: []
 		};
-		modals.open(EditSmokeDetector, {
+		openDeviceEditor(device, {
 			title: 'Add discovered device',
 			titleIcon: Add,
-			geniusDevice: device,
-			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				const saved = await apiPutDevice(newGeniusDevice);
-				modals.close();
-				if (saved) onAdded();
-				afterDeviceSaved(newGeniusDevice);
-			}
+			onSaved: onAdded
 		});
 	}
 
@@ -701,7 +657,7 @@
 						cancel: { label: 'Cancel', icon: Cancel },
 						confirm: { label: 'Replace', icon: Check }
 					},
-					onConfirm: async () => {
+					onConfirm: () => {
 						// Keep location and position, but reset alarms
 						newDevice.id = existing.id;
 						newDevice.location = existing.location;
@@ -710,18 +666,10 @@
 						// rotary line so the installer doesn't have to recall/re-enter it.
 						preserveManualLineIfSameModule(newDevice, existing);
 						modals.close();
-						await loadHaRenameOption();
-						modals.open(EditSmokeDetector, {
+						openDeviceEditor(newDevice, {
 							title: 'Replace smoke detector',
 							titleIcon: Replace,
-							haRenamesEntityIds,
-							geniusDevice: newDevice,
-							saveButtonLabel: 'Replace',
-							onSaveGeniusDevice: async (editedDevice: GeniusDevice) => {
-								await apiPutDevice(editedDevice);
-								modals.close();
-								afterDeviceSaved(editedDevice);
-							}
+							saveButtonLabel: 'Replace'
 						});
 					}
 				});
@@ -757,18 +705,14 @@
 	}
 
 	function acousticAddNew(device: GeniusDevice, saveButtonLabel: string = 'Add', idsToDeleteFirst: number[] = []) {
-		modals.open(EditSmokeDetector, {
+		openDeviceEditor(device, {
 			title: 'Add smoke detector',
 			titleIcon: Add,
-			geniusDevice: device,
 			saveButtonLabel,
-			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				// Cross-match path: clean up superseded devices first. Not atomic across requests -
-				// if a delete fails mid-flight the user sees the error and can retry.
+			// Cross-match path: clean up superseded devices first. Not atomic across requests -
+			// if a delete fails mid-flight the user sees the error and can retry.
+			beforeSave: async () => {
 				for (const id of idsToDeleteFirst) await apiDeleteDevice(id);
-				await apiPutDevice(newGeniusDevice);
-				modals.close();
-				afterDeviceSaved(newGeniusDevice);
 			}
 		});
 	}

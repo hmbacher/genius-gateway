@@ -1,19 +1,16 @@
 /**
- * Shared save pipeline for smoke detectors.
+ * Shared editor and save pipeline for smoke detectors.
  *
- * Used by the smoke-detector list page and by the Overview (start page), so that editing a
- * detector behaves identically no matter where the edit dialog was opened from:
+ * Used by the smoke-detector list page and by the Overview (start page), so that adding or
+ * editing a detector behaves identically no matter where the editor was opened from:
  * PUT the device, warn about faults, then either route old FM modules to manual line entry
  * or offer to register a newly seen alarm line.
  */
-import { get } from 'svelte/store';
+import type { Component } from 'svelte';
 import { modals } from 'svelte-modals';
-import { page } from '$app/state';
-import { user } from '$lib/stores/user';
 import { notifications } from '$lib/components/toasts/notifications';
 import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
-import type { AlarmLine, AlarmLines, GeniusDevice } from '$lib/types/models';
-import { AlarmLineAcquisition } from '$lib/types/enums';
+import type { GeniusDevice, HASettings } from '$lib/types/models';
 import { jsonDateReviver } from '$lib/utils/misc';
 import { getSmokeDetectorFaults, getRadioModuleFaults } from '$lib/utils/deviceStatus';
 import { isOldFmModule } from '$lib/genius/line';
@@ -21,16 +18,10 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 import InfoDialog from '$lib/components/InfoDialog.svelte';
 import EditSmokeDetector from './EditSmokeDetector.svelte';
 import ManualLineEntry from './ManualLineEntry.svelte';
+import { authHeaders, fetchRegisteredLineIds, registerAlarmLine } from './restApi';
 import Cancel from '~icons/tabler/x';
 import Check from '~icons/tabler/check';
 import Edit from '~icons/tabler/pencil';
-
-export function authHeaders(): Record<string, string> {
-	return {
-		Authorization: page.data.features.security ? 'Bearer ' + get(user).bearer_token : 'Basic',
-		'Content-Type': 'application/json'
-	};
-}
 
 /** Upsert a single device. Server returns the canonical device on success; the local store
  *  entry is replaced so anything the server normalized propagates back into the UI. */
@@ -56,68 +47,6 @@ export async function apiPutDevice(device: GeniusDevice): Promise<boolean> {
 		notifications.error('Saving smoke detector failed.', 3000);
 		return false;
 	}
-}
-
-/** Fetch the IDs of the alarm lines currently configured on the gateway (empty on failure). */
-export async function fetchRegisteredLineIds(): Promise<number[]> {
-	const alarmLines = await fetchAlarmLines();
-	return alarmLines ? alarmLines.lines.map((l) => l.id >>> 0) : [];
-}
-
-/** Fetch the full alarm-line set (null on failure). */
-export async function fetchAlarmLines(): Promise<AlarmLines | null> {
-	try {
-		const response = await fetch('/rest/alarm-lines', {
-			method: 'GET',
-			headers: authHeaders()
-		});
-		return JSON.parse(await response.text(), jsonDateReviver) as AlarmLines;
-	} catch (error) {
-		console.error('Error fetching alarm lines:', error);
-		return null;
-	}
-}
-
-/** Persist the alarm-line set. Returns true on success. */
-export async function postAlarmLines(alarmLines: AlarmLines): Promise<boolean> {
-	try {
-		const response = await fetch('/rest/alarm-lines', {
-			method: 'POST',
-			headers: authHeaders(),
-			body: JSON.stringify(alarmLines)
-		});
-		if (response.status === 200) {
-			notifications.success('Alarm line added.', 3000);
-			return true;
-		}
-		notifications.error('Failed to add alarm line.', 3000);
-		return false;
-	} catch (error) {
-		console.error('Error:', error);
-		notifications.error('Failed to add alarm line.', 3000);
-		return false;
-	}
-}
-
-/** Register an alarm line by ID with a default name (no editor). Refetches first so a concurrent
- *  edit isn't clobbered and an already-present line is treated as success. Used by the device-add
- *  confirm flow; the probe dialog uses openAddAlarmLine (list page) to let the user name the line. */
-export async function registerAlarmLine(lineId: number): Promise<boolean> {
-	// 0x00000000 = unassigned (ALARMLINES_ID_NONE), 0xFFFFFFFF = broadcast - neither is a user line
-	if (!lineId || lineId === 0xffffffff) return false;
-	const alarmLines = await fetchAlarmLines();
-	if (!alarmLines) {
-		notifications.error('Failed to add alarm line.', 3000);
-		return false;
-	}
-	if (alarmLines.lines.some((l) => l.id === lineId)) return true;
-	const newLine: AlarmLine = {
-		id: lineId,
-		name: `Line ${lineId}`,
-		created: new Date(),
-		acquisition: AlarmLineAcquisition.Acoustic
-	};
-	return postAlarmLines({ ...alarmLines, lines: [...alarmLines.lines, newLine] });
 }
 
 /** Check if the device's alarm line ID is already configured; if not, offer to add it */
@@ -204,16 +133,76 @@ export function afterDeviceSaved(device: GeniusDevice) {
 	});
 }
 
-/** Open the edit dialog for a device (by id) and run the full save pipeline on save. */
-export function openEditDevice(device: GeniusDevice) {
+// ── Home Assistant entity-ID rename ────────────────────────────────────────────
+// With the HA option "update entity IDs" on, saving a changed location makes the gateway
+// rename that detector's entities. The editor warns about it beforehand; the gateway reports
+// the rename itself through a WebSocket event (see watchHaEntityRename).
+
+/** Last known answer; kept if a later request fails. */
+let haRenamesEntityIds = false;
+
+/**
+ * Ask the gateway whether a changed location renames the Home Assistant entities.
+ *
+ * Asked again right before the editor opens: the option can be changed elsewhere (another
+ * tab, REST) while a page stays open, and the editor's warning has to match what saving will
+ * really do.
+ */
+async function loadHaRenameOption(): Promise<boolean> {
+	try {
+		const response = await fetch('/rest/haSettings', { method: 'GET', headers: authHeaders() });
+		if (response.status === 200) {
+			const settings = (await response.json()) as HASettings;
+			haRenamesEntityIds = settings.enabled && settings.rename_entity_ids;
+		}
+	} catch (error) {
+		console.error('Failed to load the Home Assistant settings:', error);
+	}
+	return haRenamesEntityIds;
+}
+
+export interface DeviceEditorOptions {
+	/** Dialog title. Default: "Edit smoke detector". */
+	title?: string;
+	/** Icon left of the title, matching the button that opened the editor. Default: pencil. */
+	titleIcon?: Component<{ class?: string }>;
+	/** Label of the save button. Default: the editor's own ("Save"). */
+	saveButtonLabel?: string;
+	/** Runs right before the device is saved, e.g. to delete the devices it replaces. */
+	beforeSave?: () => Promise<void>;
+	/** Runs after a successful save, before the follow-up dialogs. */
+	onSaved?: (device: GeniusDevice) => void;
+}
+
+/**
+ * Open the smoke detector editor and run the full save pipeline when the user saves.
+ *
+ * @param device Detector to edit, or the pre-filled data of a new one. Omit it for an empty editor.
+ *
+ * A failed save closes the editor and stops there - no follow-up dialogs for a device the
+ * gateway did not store.
+ */
+export async function openDeviceEditor(device?: GeniusDevice, options: DeviceEditorOptions = {}) {
+	// Copy first: the device list may change while the HA option is being fetched.
+	const copy = device ? $state.snapshot(device) : undefined;
+
+	// Only a detector the gateway already knows can have entities to rename.
+	const exists = copy !== undefined && geniusDevices.devices.some((d) => d.id === copy.id);
+	const warnOnRename = exists ? await loadHaRenameOption() : false;
+
 	modals.open(EditSmokeDetector, {
-		title: 'Edit smoke detector',
-		titleIcon: Edit,
-		geniusDevice: $state.snapshot(device), // Deep copy
-		onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
-			await apiPutDevice(editedGeniusDevice);
+		title: options.title ?? 'Edit smoke detector',
+		titleIcon: options.titleIcon ?? Edit,
+		haRenamesEntityIds: warnOnRename,
+		geniusDevice: copy,
+		...(options.saveButtonLabel ? { saveButtonLabel: options.saveButtonLabel } : {}),
+		onSaveGeniusDevice: async (edited: GeniusDevice) => {
+			await options.beforeSave?.();
+			const saved = await apiPutDevice(edited);
 			modals.close();
-			afterDeviceSaved(editedGeniusDevice);
+			if (!saved) return;
+			options.onSaved?.(edited);
+			afterDeviceSaved(edited);
 		}
 	});
 }
