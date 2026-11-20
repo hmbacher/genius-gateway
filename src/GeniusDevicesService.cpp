@@ -1750,6 +1750,12 @@ void GeniusDevicesService::_runEntityIdRename()
                  (unsigned long)sent, (unsigned long)count);
         _emitEntityRenameEvent("failed", count);
     }
+
+    // A full cycle is the deepest this task ever goes (JSON document, MQTT publish, log
+    // formatting). Report what is left, so a stack that got too tight shows in the log
+    // before it overflows.
+    ESP_LOGI(GeniusDevices::TAG, "HA entity-ID rename task: %u bytes of stack never used.",
+             (unsigned)uxTaskGetStackHighWaterMark(nullptr));
 }
 
 esp_err_t GeniusDevicesService::_publishSmokeDetectorAttributes(uint32_t deviceId)
