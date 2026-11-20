@@ -1502,7 +1502,7 @@ void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
     _haService->removeSubDevice("genius-" + String(deviceId));
 }
 
-void GeniusDevicesService::_syncSmokeDetectorSubDevices(bool requestRename)
+void GeniusDevicesService::_syncSmokeDetectorSubDevices(bool requestRename, std::vector<uint32_t> *deferredRepublish)
 {
     bool renamePending = false;
     std::vector<uint32_t> republish;
@@ -1563,6 +1563,13 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices(bool requestRename)
     endTransaction();
     _haService->unlock();
 
+    if (deferredRepublish != nullptr)
+    {
+        // The caller publishes them, after it has done what is more urgent.
+        *deferredRepublish = std::move(republish);
+        republish.clear();
+    }
+
     // Publish detector by detector, taking the mutex for each one separately, so the alarm
     // path is not locked out for the whole list.
     for (uint32_t deviceId : republish)
@@ -1622,13 +1629,32 @@ void GeniusDevicesService::_haRenameTask()
         // The HA settings were applied: refresh name and entity-ID prefix of every detector
         // here instead of in the HTTP task. The sync does not notify this task again -
         // the rename below picks up whatever it left pending.
+        std::vector<uint32_t> republish;
         if (_haSyncRequested.exchange(false))
         {
             ESP_LOGI(GeniusDevices::TAG, "HA settings applied - refreshing detector identities.");
-            _syncSmokeDetectorSubDevices(false);
+            _syncSmokeDetectorSubDevices(false, &republish);
         }
 
         _runEntityIdRename();
+
+        // Detectors that keep their entity IDs but changed otherwise - the rename option
+        // changes the display name of every detector. They are sent after the rename, so
+        // the progress of the rename shows up at once instead of after dozens of configs.
+        for (uint32_t deviceId : republish)
+        {
+            // A location edited in the meantime made a rename pending: the next cycle
+            // publishes that detector, after its old configs were cleared.
+            beginTransaction();
+            auto device = std::find_if(_state.devices.begin(), _state.devices.end(),
+                                       [deviceId](const GeniusDevice &d) { return d.id == deviceId; });
+            const bool publish = device != _state.devices.end() && !_isEntityIdRenamePending(*device);
+            endTransaction();
+
+            if (publish)
+                _publishSmokeDetectorDiscovery(deviceId);
+            vTaskDelay(pdMS_TO_TICKS(1));
+        }
     }
 }
 

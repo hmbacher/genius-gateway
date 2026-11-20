@@ -707,8 +707,12 @@ private:
      * @param requestRename Wake the rename task if a rename is pending. False
      *                      at boot (MQTT is not up yet; the connect runs the
      *                      comparison again) and when called by the task itself.
+     * @param deferredRepublish Optional: receives the IDs of the detectors that
+     *                      changed instead of republishing them here. The caller
+     *                      publishes them (used by the rename task, which runs
+     *                      the rename first).
      */
-    void _syncSmokeDetectorSubDevices(bool requestRename = true);
+    void _syncSmokeDetectorSubDevices(bool requestRename = true, std::vector<uint32_t> *deferredRepublish = nullptr);
 
     /**
      * @brief Publish the discovery configs and states of one detector

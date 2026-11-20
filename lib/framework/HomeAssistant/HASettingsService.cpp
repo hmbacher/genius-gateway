@@ -51,6 +51,20 @@ void HASettingsService::_applyToHAService()
 
     bool wasReady = _haService->isReady();
 
+    // The rename option appears in none of the discovery configs published from here. If
+    // it is the only setting that changed, the sub-device owners that act on it publish
+    // what they need (see the class description). Sending everything from here first
+    // would only keep them waiting - and send their devices as the old setting had them.
+    const bool onlyRenameOptionChanged = _hasApplied &&
+                                         _state.renameEntityIds != _applied.renameEntityIds &&
+                                         _state.enabled == _applied.enabled &&
+                                         _state.discoveryPrefix == _applied.discoveryPrefix &&
+                                         _state.deviceName == _applied.deviceName &&
+                                         _state.manufacturer == _applied.manufacturer &&
+                                         _state.model == _applied.model;
+    _applied = _state;
+    _hasApplied = true;
+
     // Empty device_name falls back to APP_NAME (compile-time firmware name)
     String name = _state.deviceName.isEmpty() ? String(APP_NAME) : _state.deviceName;
 
@@ -79,7 +93,7 @@ void HASettingsService::_applyToHAService()
              name.c_str());
 
     // Republish on settings change if MQTT is connected
-    if (_haService->isReady())
+    if (_haService->isReady() && !onlyRenameOptionChanged)
     {
         _haService->publishAll();
     }

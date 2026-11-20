@@ -94,7 +94,9 @@ public:
  * rename_entity_ids (opt-in) lets the entity IDs of sub-devices follow their
  * user-defined label (see HAService::setRenameEntityIds). The flag is only
  * passed on; sub-device owners that act on it add their own update handler to
- * this service, which runs after the values were pushed into HAService.
+ * this service, which runs after the values were pushed into HAService. They
+ * also republish their devices themselves: a change of this flag alone does
+ * not trigger the full republish.
  *
  * An empty device_name falls back to APP_NAME so that the field can be left
  * blank in the UI to use the firmware's compile-time name.
@@ -115,6 +117,8 @@ private:
     HttpEndpoint<HASettings> _httpEndpoint;
     FSPersistence<HASettings> _fsPersistence;
     HAService *_haService;
+    HASettings _applied;      ///< Settings as last pushed into HAService (valid if _hasApplied)
+    bool _hasApplied = false; ///< false until the settings were applied for the first time
 
     void _applyToHAService();
 };
