@@ -55,14 +55,14 @@ function handleEvent(event: HaEntityRenameEvent) {
 
 		// The gateway decides whether a rename runs; the client never predicts it.
 		progressOpen = true;
-		openWhenIdle('progress', () =>
-			modals.open(HaEntityRenameDialog, {
-				status,
-				onClosed: () => {
-					progressOpen = false;
-				}
-			})
-		);
+		// open() resolves once the dialog is closed, however that happens. The dialog must not
+		// report it from onDestroy: reading a prop during teardown makes svelte-modals look up
+		// the dialog in a stack it has already left.
+		openWhenIdle('progress', () => {
+			void modals.open(HaEntityRenameDialog, { status }).then(() => {
+				progressOpen = false;
+			});
+		});
 	} else if (event.state === 'deferred' && !deferredOpen) {
 		// No MQTT connection: nothing was sent and there is no progress to show. A dialog
 		// instead of a toast, because the user has to know the rename is still outstanding.
