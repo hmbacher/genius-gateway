@@ -16,18 +16,19 @@ let deferredOpen = false;
 // Dialogs waiting for the screen to be free. An event usually arrives while the dialog
 // that triggered the rename (e.g. the detector editor) is still open and about to close
 // itself with modals.close() - opening on top of it would get the wrong dialog closed.
-let queue: (() => void)[] = [];
+type QueuedDialog = { kind: 'progress' | 'deferred'; open: () => void };
+let queue: QueuedDialog[] = [];
 let queueTimer: ReturnType<typeof setInterval> | undefined;
 
 function drainQueue(): boolean {
 	while (queue.length > 0 && modals.stack.length === 0) {
-		queue.shift()?.();
+		queue.shift()?.open();
 	}
 	return queue.length === 0;
 }
 
-function openWhenIdle(open: () => void) {
-	queue.push(open);
+function openWhenIdle(kind: QueuedDialog['kind'], open: () => void) {
+	queue.push({ kind, open });
 	if (queueTimer !== undefined || drainQueue()) return;
 	queueTimer = setInterval(() => {
 		if (drainQueue()) {
@@ -41,10 +42,20 @@ function handleEvent(event: HaEntityRenameEvent) {
 	status.state = event.state;
 	status.count = event.count;
 
-	if (event.state === 'started' && !progressOpen) {
+	if (event.state === 'started') {
+		// The rename is running now. A notice about a deferred rename that is still waiting
+		// for the screen to be free (e.g. behind a dialog left open in a background tab) is
+		// out of date and must not pop up afterwards.
+		if (queue.some((queued) => queued.kind === 'deferred')) {
+			queue = queue.filter((queued) => queued.kind !== 'deferred');
+			deferredOpen = false;
+		}
+
+		if (progressOpen) return;
+
 		// The gateway decides whether a rename runs; the client never predicts it.
 		progressOpen = true;
-		openWhenIdle(() =>
+		openWhenIdle('progress', () =>
 			modals.open(HaEntityRenameDialog, {
 				status,
 				onClosed: () => {
@@ -57,7 +68,7 @@ function handleEvent(event: HaEntityRenameEvent) {
 		// instead of a toast, because the user has to know the rename is still outstanding.
 		deferredOpen = true;
 		const detectors = event.count === 1 ? '1 smoke detector' : `${event.count} smoke detectors`;
-		openWhenIdle(() =>
+		openWhenIdle('deferred', () =>
 			modals.open(InfoDialog, {
 				title: 'Entity IDs not updated yet',
 				message: `The MQTT connection is down, so the new Home Assistant entity IDs of <strong>${detectors}</strong> have not been sent.<br><br>The gateway catches up automatically on the next MQTT connect, also after a restart.`,
