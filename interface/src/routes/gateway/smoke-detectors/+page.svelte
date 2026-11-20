@@ -340,6 +340,10 @@
 	// when it had to be deferred).
 	let haRenamesEntityIds = $state(false);
 
+	// Called when the page loads and again right before the editor opens: the option can be
+	// changed elsewhere (another tab, REST) while this page stays open, and the editor's
+	// warning has to match what saving will really do. If the request fails, the last known
+	// value stays.
 	async function loadHaRenameOption() {
 		try {
 			const response = await fetch('/rest/haSettings', { method: 'GET', headers: authHeaders() });
@@ -357,13 +361,15 @@
 		return watchHaEntityRename();
 	});
 
-	function handleEdit(index: number) {
+	async function handleEdit(index: number) {
+		// Copy first: the list may change while the option is being fetched.
+		const device = $state.snapshot(geniusDevices.devices[index]); // Deep copy
+		await loadHaRenameOption();
 		modals.open(EditSmokeDetector, {
 			title: 'Edit smoke detector',
 			titleIcon: Edit,
 			haRenamesEntityIds,
-			//geniusDevice: { ...geniusDevices.devices[index] }, // Shallow Copy
-			geniusDevice: $state.snapshot(geniusDevices.devices[index]), // Deep copy
+			geniusDevice: device,
 			onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
 				await apiPutDevice(editedGeniusDevice);
 				modals.close();
@@ -867,7 +873,7 @@
 						cancel: { label: 'Cancel', icon: Cancel },
 						confirm: { label: 'Replace', icon: Check }
 					},
-					onConfirm: () => {
+					onConfirm: async () => {
 						// Keep location and position, but reset alarms
 						newDevice.id = existing.id;
 						newDevice.location = existing.location;
@@ -876,6 +882,7 @@
 						// rotary line so the installer doesn't have to recall/re-enter it.
 						preserveManualLineIfSameModule(newDevice, existing);
 						modals.close();
+						await loadHaRenameOption();
 						modals.open(EditSmokeDetector, {
 							title: 'Replace smoke detector',
 							titleIcon: Replace,
