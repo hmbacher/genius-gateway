@@ -1475,12 +1475,12 @@ The device page should contain:
 
 ### MV-11 - Alarm during the 3 s pause is not delayed
 
-**Precondition:** Option on, at least two detectors, a way to trigger a real alarm packet (test button of a detector on a known alarm line).
+**Precondition:** Option on, at least two detectors, a transmitter that sends the alarm frame of a known detector on request (for example a second CC1101 board replaying a captured frame). A detector's test button is not suitable, it cannot be timed to the pause.
 
 **Procedure:**
 1. Open the serial log.
 2. Change the location of one detector and save, so a rename cycle starts.
-3. While the progress dialog shows *Step 2 of 3*, trigger the alarm.
+3. While the progress dialog shows *Step 2 of 3* (`ha-entity-rename` reports `waiting`), send the alarm frame.
 
 **Expected result:**
 - The log line `Alarm started for smoke detector with SN ...` appears immediately, not after the pause has ended.
