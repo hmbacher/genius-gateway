@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import type { GeniusDevice } from '$lib/types/models';
 	import { modals } from 'svelte-modals';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { user } from '$lib/stores/user';
+	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
 	import RadioSetupBanner from '$lib/components/RadioSetupBanner.svelte';
@@ -21,6 +23,13 @@
 
 	let { data }: Props = $props();
 
+	// Editing a location here can make the gateway rename the detector's Home Assistant
+	// entities; it reports that through a WebSocket event (progress dialog). Only administrators
+	// can edit, so only they need to watch for it on this page.
+	onMount(() => {
+		if ($user.admin) return watchHaEntityRename();
+	});
+
 	/**
 	 * Opens the clicked detector on top of the Overview: the alarm log for alarming devices,
 	 * the (read-only) details dialog for all others. Readout and "set line" stay on the
@@ -28,14 +37,28 @@
 	 */
 	function openDevice(device: GeniusDevice) {
 		if (device.isAlarming) {
-			modals.open(AlarmLog, { title: 'Alarms log', geniusDevice: device });
-		} else {
-			modals.open(DeviceDetailsDialog, {
-				title: 'Device Details',
-				device,
-				onEdit: () => openDeviceEditor(device)
+			modals.open(AlarmLog, {
+				title: 'Alarms log',
+				geniusDevice: device,
+				onDetails: () => openDetails(device)
 			});
+		} else {
+			openDetails(device);
 		}
+	}
+
+	/** Device Details are read-only and open for every user; editing is for administrators. */
+	function openDetails(device: GeniusDevice) {
+		modals.open(DeviceDetailsDialog, {
+			title: 'Device Details',
+			device,
+			onEdit: $user.admin ? () => openDeviceEditor(device) : undefined
+		});
+	}
+
+	/** Name of a detector for screen readers; the location may be empty. */
+	function deviceName(device: GeniusDevice): string {
+		return device.location || `detector ${device.smokeDetector.sn}`;
 	}
 
 	async function postEndAlarms(blockingTime: number) {
@@ -94,23 +117,16 @@
 					</div>
 				{/if}
 				{#each geniusDevices.devices as device (device.id)}
-					{#if $user.admin}
-						<button
-							type="button"
-							onclick={() => openDevice(device)}
-							aria-label={device.isAlarming
-								? `Open alarm log of ${device.location}`
-								: `Open details of ${device.location}`}
-							class="block w-full max-w-120 cursor-pointer text-left hover:scale-[1.03] active:scale-[0.97] transition-transform"
-						>
-							<DeviceStatusCard detector={device} />
-						</button>
-					{:else}
-						<!-- Details and alarm log are admin-only, so non-admins get a plain, non-clickable card. -->
-						<div class="block w-full max-w-120">
-							<DeviceStatusCard detector={device} />
-						</div>
-					{/if}
+					<button
+						type="button"
+						onclick={() => openDevice(device)}
+						aria-label={device.isAlarming
+							? `Open alarm log of ${deviceName(device)}`
+							: `Open details of ${deviceName(device)}`}
+						class="block w-full max-w-120 cursor-pointer text-left hover:scale-[1.03] active:scale-[0.97] transition-transform"
+					>
+						<DeviceStatusCard detector={device} />
+					</button>
 				{/each}
 			{:else}
 				<div class="col-span-full">

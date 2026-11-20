@@ -841,8 +841,7 @@
 			title: 'Device Details',
 			device: geniusDevices.devices[index],
 			onReadout: () => handleDeviceReadout(index),
-			onSetLine: () => handleEdit(index),
-			onEdit: () => handleEdit(index)
+			onSetLine: () => handleEdit(index)
 		});
 	}
 

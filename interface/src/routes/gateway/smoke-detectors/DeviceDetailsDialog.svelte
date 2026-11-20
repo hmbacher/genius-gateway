@@ -54,7 +54,8 @@
 		device: GeniusDevice;
 		onReadout?: () => void;
 		onSetLine?: () => void;
-		/** Switch from this read-only view to the edit dialog. Pencil is hidden when unset. */
+		/** Switch from this read-only view to the edit dialog. When set, the footer shows an
+		 *  "Edit" button. Passed where no edit action is at hand otherwise (Overview). */
 		onEdit?: () => void;
 	}
 
@@ -186,29 +187,13 @@
 				<h2 id={titleId} class="text-base-content flex items-center gap-2 text-2xl font-bold">
 					<IconListDetails class="text-primary h-7 w-7 flex-shrink-0" />{title}
 				</h2>
-				<div class="flex items-center gap-1">
-					{#if onEdit}
-						<div class="tooltip tooltip-left" data-tip="Edit smoke detector">
-							<button
-								class="btn btn-ghost btn-circle btn-sm"
-								aria-label="Edit smoke detector"
-								onclick={() => {
-									modals.close();
-									onEdit?.();
-								}}
-							>
-								<Edit class="h-5 w-5" />
-							</button>
-						</div>
-					{/if}
-					<button
-						class="btn btn-ghost btn-circle btn-sm"
-						aria-label="Close"
-						onclick={() => modals.close()}
-					>
-						<Cancel class="h-5 w-5" />
-					</button>
-				</div>
+				<button
+					class="btn btn-ghost btn-circle btn-sm"
+					aria-label="Close"
+					onclick={() => modals.close()}
+				>
+					<Cancel class="h-5 w-5" />
+				</button>
 			</div>
 
 			<div class="divider my-2 shrink-0"></div>
@@ -562,6 +547,18 @@
 					<Cancel class="h-5 w-5" />
 					Close
 				</button>
+				{#if onEdit}
+					<button
+						class="btn btn-primary text-primary-content btn-sm"
+						onclick={() => {
+							modals.close();
+							onEdit?.();
+						}}
+					>
+						<Edit class="h-5 w-5" />
+						Edit
+					</button>
+				{/if}
 				{#if onReadout}
 					<button
 						class={isSecureContext
