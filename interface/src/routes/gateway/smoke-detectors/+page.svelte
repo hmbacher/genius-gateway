@@ -13,14 +13,12 @@
 		GeniusDevice,
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
-		AlarmLines,
 		AlarmLine,
 		ReportSettings,
 		StaticSystemInformation,
 		WifiSettings,
 		ConfigCheckProbeEvent,
-		ConfigCheckResponder,
-		HASettings
+		ConfigCheckResponder
 	} from '$lib/types/models';
 	import {
 		GeniusDeviceRegistration,
@@ -41,20 +39,24 @@
 	import DraggableList from '$lib/components/DraggableList.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
-	import EditSmokeDetector from './EditSmokeDetector.svelte';
 	import AlarmLog from './AlarmLog.svelte';
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
 	import DeviceImportDialog from './DeviceImportDialog.svelte';
 	import DeviceDetailsDialog from './DeviceDetailsDialog.svelte';
 	import ProbeProgressDialog from './ProbeProgressDialog.svelte';
 	import EditAlarmLine from '../alarm-lines/EditAlarmLine.svelte';
-	import ManualLineEntry from './ManualLineEntry.svelte';
 	import PdfReportDialog from './PdfReportDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
+	import { apiPutDevice, afterDeviceSaved, openDeviceEditor } from './deviceSave.svelte';
+	import {
+		authHeaders,
+		fetchAlarmLines,
+		fetchRegisteredLineIds,
+		postAlarmLines
+	} from './restApi';
 	import { matchAcousticResult, matchAcousticUpdate } from './acousticMatch';
 	import DeleteAll from '~icons/tabler/trash-x';
 	import Add from '~icons/tabler/circle-plus';
-	import Edit from '~icons/tabler/pencil';
 	import Replace from '~icons/tabler/replace';
 	import SmokeDetector from '~icons/custom-icons/smoke-detector-m';
 	import Cancel from '~icons/tabler/x';
@@ -86,39 +88,6 @@
 	$effect(() => {
 		if (!$user.admin) goto('/');
 	});
-
-	function authHeaders(): Record<string, string> {
-		return {
-			Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-			'Content-Type': 'application/json'
-		};
-	}
-
-	/** Upsert a single device. Server returns the canonical device on success; the local store
-	 *  entry is replaced so anything the server normalized propagates back into the UI. */
-	async function apiPutDevice(device: GeniusDevice): Promise<boolean> {
-		try {
-			const response = await fetch('/rest/gateway-devices/device', {
-				method: 'PUT',
-				headers: authHeaders(),
-				body: JSON.stringify(device)
-			});
-			if (response.status === 200) {
-				const saved = JSON.parse(await response.text(), jsonDateReviver) as GeniusDevice;
-				const idx = geniusDevices.devices.findIndex((d) => d.id === saved.id);
-				if (idx >= 0) geniusDevices.devices[idx] = saved;
-				else geniusDevices.devices = [...geniusDevices.devices, saved];
-				notifications.success('Smoke detector saved.', 3000);
-				return true;
-			}
-			notifications.error('Saving smoke detector failed.', 3000);
-			return false;
-		} catch (error) {
-			console.error('Error:', error);
-			notifications.error('Saving smoke detector failed.', 3000);
-			return false;
-		}
-	}
 
 	async function apiDeleteDevice(id: number): Promise<boolean> {
 		try {
@@ -335,60 +304,17 @@
 
 	// ── Home Assistant entity-ID rename ────────────────────────────────────────
 	// With the HA option "update entity IDs" on, saving a changed location makes the gateway
-	// rename that detector's entities. The editor warns about it beforehand; the gateway
-	// reports the rename itself through a WebSocket event (progress dialog, or an info dialog
-	// when it had to be deferred).
-	let haRenamesEntityIds = $state(false);
+	// rename that detector's entities. The editor warns about it beforehand (see
+	// openDeviceEditor); the gateway reports the rename itself through a WebSocket event
+	// (progress dialog, or an info dialog when it had to be deferred).
+	onMount(() => watchHaEntityRename());
 
-	// Called when the page loads and again right before the editor opens: the option can be
-	// changed elsewhere (another tab, REST) while this page stays open, and the editor's
-	// warning has to match what saving will really do. If the request fails, the last known
-	// value stays.
-	async function loadHaRenameOption() {
-		try {
-			const response = await fetch('/rest/haSettings', { method: 'GET', headers: authHeaders() });
-			if (response.status === 200) {
-				const settings = (await response.json()) as HASettings;
-				haRenamesEntityIds = settings.enabled && settings.rename_entity_ids;
-			}
-		} catch (error) {
-			console.error('Failed to load the Home Assistant settings:', error);
-		}
-	}
-
-	onMount(() => {
-		loadHaRenameOption();
-		return watchHaEntityRename();
-	});
-
-	async function handleEdit(index: number) {
-		// Copy first: the list may change while the option is being fetched.
-		const device = $state.snapshot(geniusDevices.devices[index]); // Deep copy
-		await loadHaRenameOption();
-		modals.open(EditSmokeDetector, {
-			title: 'Edit smoke detector',
-			titleIcon: Edit,
-			haRenamesEntityIds,
-			geniusDevice: device,
-			onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
-				await apiPutDevice(editedGeniusDevice);
-				modals.close();
-				afterDeviceSaved(editedGeniusDevice);
-			}
-		});
+	function handleEdit(index: number) {
+		openDeviceEditor(geniusDevices.devices[index]);
 	}
 
 	function handleNewGeniusDevice() {
-		modals.open(EditSmokeDetector, {
-			title: 'Add smoke detector',
-			titleIcon: Add,
-			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				await apiPutDevice(newGeniusDevice);
-				modals.close();
-				afterDeviceSaved(newGeniusDevice);
-			}
-		});
-		//
+		openDeviceEditor(undefined, { title: 'Add smoke detector', titleIcon: Add });
 	}
 
 	// ── ConfigCheckProbe signal survey ─────────────────────────────────────────
@@ -514,16 +440,10 @@
 			isAlarming: false,
 			alarms: []
 		};
-		modals.open(EditSmokeDetector, {
+		openDeviceEditor(device, {
 			title: 'Add discovered device',
 			titleIcon: Add,
-			geniusDevice: device,
-			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				const saved = await apiPutDevice(newGeniusDevice);
-				modals.close();
-				if (saved) onAdded();
-				afterDeviceSaved(newGeniusDevice);
-			}
+			onSaved: onAdded
 		});
 	}
 
@@ -625,86 +545,6 @@
 		} as GeniusDevice;
 	}
 
-	/** Fetch the IDs of the alarm lines currently configured on the gateway (empty on failure). */
-	async function fetchRegisteredLineIds(): Promise<number[]> {
-		try {
-			const response = await fetch('/rest/alarm-lines', {
-				method: 'GET',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				}
-			});
-			const alarmLines: AlarmLines = JSON.parse(await response.text(), jsonDateReviver);
-			return alarmLines.lines.map((l) => l.id >>> 0);
-		} catch (error) {
-			console.error('Error fetching alarm lines:', error);
-			return [];
-		}
-	}
-
-	/** Fetch the full alarm-line set (null on failure). */
-	async function fetchAlarmLines(): Promise<AlarmLines | null> {
-		try {
-			const response = await fetch('/rest/alarm-lines', {
-				method: 'GET',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				}
-			});
-			return JSON.parse(await response.text(), jsonDateReviver) as AlarmLines;
-		} catch (error) {
-			console.error('Error fetching alarm lines:', error);
-			return null;
-		}
-	}
-
-	/** Persist the alarm-line set. Returns true on success. */
-	async function postAlarmLines(alarmLines: AlarmLines): Promise<boolean> {
-		try {
-			const response = await fetch('/rest/alarm-lines', {
-				method: 'POST',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify(alarmLines)
-			});
-			if (response.status === 200) {
-				notifications.success('Alarm line added.', 3000);
-				return true;
-			}
-			notifications.error('Failed to add alarm line.', 3000);
-			return false;
-		} catch (error) {
-			console.error('Error:', error);
-			notifications.error('Failed to add alarm line.', 3000);
-			return false;
-		}
-	}
-
-	/** Register an alarm line by ID with a default name (no editor). Refetches first so a concurrent
-	 *  edit isn't clobbered and an already-present line is treated as success. Used by the device-add
-	 *  confirm flow; the probe dialog uses {@link openAddAlarmLine} to let the user name the line. */
-	async function registerAlarmLine(lineId: number): Promise<boolean> {
-		// 0x00000000 = unassigned (ALARMLINES_ID_NONE), 0xFFFFFFFF = broadcast - neither is a user line
-		if (!lineId || lineId === 0xffffffff) return false;
-		const alarmLines = await fetchAlarmLines();
-		if (!alarmLines) {
-			notifications.error('Failed to add alarm line.', 3000);
-			return false;
-		}
-		if (alarmLines.lines.some((l) => l.id === lineId)) return true;
-		const newLine: AlarmLine = {
-			id: lineId,
-			name: `Line ${lineId}`,
-			created: new Date(),
-			acquisition: AlarmLineAcquisition.Acoustic
-		};
-		return postAlarmLines({ ...alarmLines, lines: [...alarmLines.lines, newLine] });
-	}
-
 	/** Open the alarm-line editor pre-seeded with a probe-discovered line ID (default name "Line <id>"),
 	 *  mirroring the device-add flow which opens the device editor. The discovered ID is locked
 	 *  (acquisition = SignalProbe) so only the name is edited. Calls onRegistered after a successful
@@ -737,62 +577,6 @@
 					lines: [...alarmLines.lines, newAlarmLine]
 				});
 				if (ok) onRegistered?.();
-			}
-		});
-	}
-
-	/** Check if the device's alarm line ID is already configured; if not, offer to add it */
-	async function checkAndOfferAlarmLine(device: GeniusDevice) {
-		const lineId = device.radioModule.lineId;
-		// 0x00000000 = unassigned (ALARMLINES_ID_NONE), 0xFFFFFFFF = broadcast - neither is a user line
-		if (!lineId || lineId === 0xffffffff) return;
-
-		const registeredIds = await fetchRegisteredLineIds();
-		if (registeredIds.includes(lineId >>> 0)) return;
-
-		modals.open(ConfirmDialog, {
-			title: 'Unknown Alarm Line detected',
-			message: `The device contains Alarm Line ID ${lineId} which is not yet configured. Would you like to add it?`,
-			labels: {
-				cancel: { label: 'Skip', icon: Cancel },
-				confirm: { label: 'Add alarm line', icon: Check }
-			},
-			onConfirm: async () => {
-				await registerAlarmLine(lineId);
-				modals.close();
-			}
-		});
-	}
-
-	/** Old FM module that still has no manually-entered alarm line - needs attention. */
-	function needsManualLineEntry(device: GeniusDevice): boolean {
-		return isOldFmModule(device.radioModule.model) && !device.radioModule.lineCharacter;
-	}
-
-	/** Open the manual line-entry dialog for an old FM module and persist the chosen line. */
-	function offerManualLineEntry(device: GeniusDevice) {
-		modals.open(ManualLineEntry, {
-			title: 'Set alarm line',
-			geniusDevice: device,
-			saveButtonLabel: 'Save line',
-			onSave: async (updated: GeniusDevice) => {
-				const ok = await apiPutDevice(updated);
-				modals.close();
-				if (ok) notifications.success('Alarm line set.', 3000);
-			}
-		});
-	}
-
-	/**
-	 * Post-save follow-ups after a readout/add: warn on faults, then either route old
-	 * modules to manual line entry or offer to add a newly-seen alarm line.
-	 */
-	function afterDeviceSaved(device: GeniusDevice) {
-		checkAndWarnDiagnostics(device, () => {
-			if (needsManualLineEntry(device)) {
-				offerManualLineEntry(device);
-			} else {
-				checkAndOfferAlarmLine(device);
 			}
 		});
 	}
@@ -873,7 +657,7 @@
 						cancel: { label: 'Cancel', icon: Cancel },
 						confirm: { label: 'Replace', icon: Check }
 					},
-					onConfirm: async () => {
+					onConfirm: () => {
 						// Keep location and position, but reset alarms
 						newDevice.id = existing.id;
 						newDevice.location = existing.location;
@@ -882,18 +666,10 @@
 						// rotary line so the installer doesn't have to recall/re-enter it.
 						preserveManualLineIfSameModule(newDevice, existing);
 						modals.close();
-						await loadHaRenameOption();
-						modals.open(EditSmokeDetector, {
+						openDeviceEditor(newDevice, {
 							title: 'Replace smoke detector',
 							titleIcon: Replace,
-							haRenamesEntityIds,
-							geniusDevice: newDevice,
-							saveButtonLabel: 'Replace',
-							onSaveGeniusDevice: async (editedDevice: GeniusDevice) => {
-								await apiPutDevice(editedDevice);
-								modals.close();
-								afterDeviceSaved(editedDevice);
-							}
+							saveButtonLabel: 'Replace'
 						});
 					}
 				});
@@ -929,18 +705,14 @@
 	}
 
 	function acousticAddNew(device: GeniusDevice, saveButtonLabel: string = 'Add', idsToDeleteFirst: number[] = []) {
-		modals.open(EditSmokeDetector, {
+		openDeviceEditor(device, {
 			title: 'Add smoke detector',
 			titleIcon: Add,
-			geniusDevice: device,
 			saveButtonLabel,
-			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				// Cross-match path: clean up superseded devices first. Not atomic across requests -
-				// if a delete fails mid-flight the user sees the error and can retry.
+			// Cross-match path: clean up superseded devices first. Not atomic across requests -
+			// if a delete fails mid-flight the user sees the error and can retry.
+			beforeSave: async () => {
 				for (const id of idsToDeleteFirst) await apiDeleteDevice(id);
-				await apiPutDevice(newGeniusDevice);
-				modals.close();
-				afterDeviceSaved(newGeniusDevice);
 			}
 		});
 	}
@@ -1038,34 +810,6 @@
 	}
 
 	const isSecureContext = $derived(page.url.protocol === 'https:');
-
-	function checkAndWarnDiagnostics(device: GeniusDevice, onDismiss: () => void): void {
-		if (!device.readoutTime) {
-			onDismiss();
-			return;
-		}
-		const faults = [
-			...getSmokeDetectorFaults(device.smokeDetector),
-			...getRadioModuleFaults(device.radioModule)
-		];
-		if (faults.length === 0) {
-			onDismiss();
-			return;
-		}
-		modals.open(InfoDialog, {
-			title: 'Smoke Detector Fault Detected',
-			message:
-				'<ul>' +
-				faults.map((f) => '<li>' + f + '</li>').join('') +
-				'</ul>' +
-				'<br><strong>This smoke detector is malfunctioning and should be replaced as soon as possible.</strong>',
-			variant: 'error',
-			onDismiss: () => {
-				modals.close();
-				onDismiss();
-			}
-		});
-	}
 
 	function checkImportedDeviceFaults(devices: GeniusDevice[]): void {
 		const faulty = devices

@@ -14,6 +14,14 @@ Home Assistant builds an entity ID once, when an entity is first registered, and
 
 See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for details and limitations.
 
+## Overview Cards Open the Clicked Detector
+Clicking a detector card on the Overview page now opens that detector directly, on top of the Overview, instead of switching to the device list.
+
+- **Device Details / Alarm Log on click**: normal cards open the read-only **Device Details** dialog of the clicked detector, alarming cards open its **Alarm Log**. A **Details** button in the Alarm Log leads on to Device Details. Acoustic readout and changing the alarm line stay on the Smoke Detectors page
+- **Edit from the Overview**: administrators get an **Edit** button in the footer of Device Details that switches to the **Edit smoke detector** dialog. Saving runs the same follow-ups as on the Smoke Detectors page (fault warning, manual line entry for old FM modules, offer to add an unknown alarm line) and shows the same warning before a location change renames Home Assistant entities
+- **Read-only for other users**: users without administrator rights can open Device Details and the Alarm Log, but are not offered the edit action (the old link bounced them straight back to the Overview)
+- **One editor for all flows**: adding, editing and replacing a detector now go through one shared editor and save path (`deviceSave.svelte.ts`). A failed save no longer opens the follow-up dialogs
+
 # v1.5.1
 
 ## Home Assistant MQTT Topic Restructuring

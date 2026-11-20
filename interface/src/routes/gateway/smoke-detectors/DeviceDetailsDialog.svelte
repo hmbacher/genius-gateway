@@ -14,6 +14,7 @@
 	import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 	import DetailRow from './DetailRow.svelte';
 	import Cancel from '~icons/tabler/x';
+	import Edit from '~icons/tabler/pencil';
 	import IconListDetails from '~icons/tabler/list-details';
 	import Microphone from '~icons/tabler/microphone';
 	import MicrophoneOff from '~icons/tabler/microphone-off';
@@ -53,9 +54,12 @@
 		device: GeniusDevice;
 		onReadout?: () => void;
 		onSetLine?: () => void;
+		/** Switch from this read-only view to the edit dialog. When set, the footer shows an
+		 *  "Edit" button. Passed where no edit action is at hand otherwise (Overview). */
+		onEdit?: () => void;
 	}
 
-	let { isOpen, title, device, onReadout, onSetLine }: Props = $props();
+	let { isOpen, title, device, onReadout, onSetLine, onEdit }: Props = $props();
 
 	const titleId = `device-details-title-${Math.random().toString(36).slice(2)}`;
 
@@ -543,6 +547,18 @@
 					<Cancel class="h-5 w-5" />
 					Close
 				</button>
+				{#if onEdit}
+					<button
+						class="btn btn-primary text-primary-content btn-sm"
+						onclick={() => {
+							modals.close();
+							onEdit?.();
+						}}
+					>
+						<Edit class="h-5 w-5" />
+						Edit
+					</button>
+				{/if}
 				{#if onReadout}
 					<button
 						class={isSecureContext

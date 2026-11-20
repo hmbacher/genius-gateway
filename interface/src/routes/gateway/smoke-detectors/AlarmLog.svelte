@@ -6,6 +6,7 @@
 	import { formatDateTimeSeconds } from '$lib/utils/formatDate';
 	import Cancel from '~icons/tabler/x';
 	import Logs from '~icons/tabler/logs';
+	import Details from '~icons/tabler/list-details';
 	import BellRinging from '~icons/tabler/bell-ringing';
 	import Start from '~icons/tabler/arrow-bar-right';
 	import End from '~icons/tabler/arrow-bar-to-right';
@@ -18,9 +19,11 @@
 	interface Props extends ModalProps {
 		title: string;
 		geniusDevice: GeniusDevice;
+		/** When set, the footer offers a "Details" button that closes the log and calls this. */
+		onDetails?: () => void;
 	}
 
-	let { isOpen, title, geniusDevice }: Props = $props();
+	let { isOpen, title, geniusDevice, onDetails }: Props = $props();
 
 	const titleId = `alarm-log-title-${Math.random().toString(36).slice(2)}`;
 
@@ -123,6 +126,19 @@
 					<Cancel class="h-5 w-5" />
 					<span>Close</span>
 				</button>
+				{#if onDetails}
+					<button
+						class="btn btn-primary text-primary-content inline-flex items-center"
+						onclick={() => {
+							modals.close();
+							onDetails?.();
+						}}
+						type="button"
+					>
+						<Details class="h-5 w-5" />
+						<span>Details</span>
+					</button>
+				{/if}
 			</div>
 		</div>
 	</div>
