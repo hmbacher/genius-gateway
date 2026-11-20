@@ -38,6 +38,7 @@ See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/set
 
 ## Bugfixes
 - **Restart when a smoke detector or alarm line was added or removed while the gateway published to Home Assistant**: after every MQTT connect, and after applying the Home Assistant settings, the gateway republishes all entities in a background task - a few seconds with many detectors. Adding or deleting a detector or an alarm line during that time changed the lists that task was working on and could crash the gateway (present since v1.3.0). The Home Assistant registry is now locked per device while it is published: a change waits for the device in progress instead of pulling it away
+- **Web interface held up for seconds after applying the Home Assistant settings**: the gateway republished every entity before it answered the request, so **Apply Settings** showed no reaction for about five seconds with a dozen detectors. The republish now runs in the background and the gateway answers at once. The button shows a spinner and is locked while a request is under way - switching the integration off still removes all entities before the gateway answers
 
 # v1.5.0
 

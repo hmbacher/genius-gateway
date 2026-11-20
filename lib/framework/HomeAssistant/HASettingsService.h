@@ -89,7 +89,9 @@ public:
  * Persists user-facing HA configuration (enabled, discovery prefix, device
  * identity) and bridges it to the framework HAService. On every settings
  * change the new values are pushed into HAService and - if MQTT is connected
- * - a full republish is triggered so HA discovery picks up the change.
+ * - a full republish is triggered so HA discovery picks up the change. The
+ * republish runs in the publish task of HAService, not in the task that
+ * changed the settings (usually an HTTP request).
  *
  * rename_entity_ids (opt-in) lets the entity IDs of sub-devices follow their
  * user-defined label (see HAService::setRenameEntityIds). The flag is only

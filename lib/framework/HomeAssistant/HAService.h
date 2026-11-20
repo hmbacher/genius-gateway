@@ -96,7 +96,8 @@ public:
      *
      * Starts a persistent publish task that blocks on a task notification and
      * calls publishAll() when woken. Registers an MQTT onConnect handler that
-     * notifies (wakes) this task on every (re)connect.
+     * notifies (wakes) this task on every (re)connect. requestPublishAll()
+     * wakes it as well.
      *
      * Routing publishAll() through a dedicated task - instead of calling it
      * directly from the MQTT event callback - keeps the MQTT event thread free,
@@ -308,11 +309,29 @@ public:
     void publishAll();
 
     /**
+     * @brief Have the publish task run publishAll()
+     *
+     * Returns at once; the publishing happens in the task started by begin().
+     * For callers that must not be held up by a full publish - an HTTP request
+     * handler, for example. A request that arrives while a publish-all is
+     * running leads to one more run afterwards, so the last request always
+     * gets a complete publish with the settings current at that time.
+     * Before begin() was called there is no task: publishAll() then runs in
+     * the calling task.
+     */
+    void requestPublishAll();
+
+    /**
      * @brief Remove all registered entities from Home Assistant
      *
      * Sends empty retained payloads to every discovery topic so HA deletes
      * the device and all its entities. Must be called while isReady() is true
      * (i.e. before setEnabled(false)).
+     *
+     * To switch the integration off, hold the registry lock (see Lock) around
+     * unpublishAll() and setEnabled(false): a publishAll() that is running in
+     * the publish task then cannot publish anything in between and stops as
+     * soon as it sees the service disabled.
      */
     void unpublishAll();
 
