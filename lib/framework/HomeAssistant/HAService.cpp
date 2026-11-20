@@ -22,7 +22,8 @@ HAService::HAService(PsychicMqttClient *mqttClient)
       _model(""),
       _discoveryPrefix(HA_DEFAULT_DISCOVERY_PREFIX),
       _enabled(false),
-      _publishTaskHandle(nullptr)
+      _publishTaskHandle(nullptr),
+      _registryMutex(xSemaphoreCreateRecursiveMutex())
 {
     // Topic identity is derived from the compile-time firmware name, never from
     // the user-editable display name. Renaming the device in the UI therefore
@@ -86,11 +87,30 @@ void HAService::_publishTask()
 }
 
 // ============================================================================
+// Registry lock
+// ============================================================================
+
+void HAService::lock()
+{
+    if (_registryMutex != nullptr)
+        xSemaphoreTakeRecursive(_registryMutex, portMAX_DELAY);
+}
+
+void HAService::unlock()
+{
+    if (_registryMutex != nullptr)
+        xSemaphoreGiveRecursive(_registryMutex);
+}
+
+// ============================================================================
 // Configuration
 // ============================================================================
 
+// The setters change strings that publishAll() reads in its own task.
+
 void HAService::setDeviceName(const String &name)
 {
+    Lock guard(this);
     _deviceName = name;
     _updateLegacyTopicIdentity();
     _syncMainDeviceIdentity();
@@ -98,18 +118,21 @@ void HAService::setDeviceName(const String &name)
 
 void HAService::setManufacturer(const String &manufacturer)
 {
+    Lock guard(this);
     _manufacturer = manufacturer;
     _syncMainDeviceIdentity();
 }
 
 void HAService::setModel(const String &model)
 {
+    Lock guard(this);
     _model = model;
     _syncMainDeviceIdentity();
 }
 
 void HAService::setDiscoveryPrefix(const String &prefix)
 {
+    Lock guard(this);
     _discoveryPrefix = prefix;
     // Ensure prefix ends with /
     if (!_discoveryPrefix.endsWith("/"))
@@ -278,6 +301,7 @@ void HAService::subscribe(const String &topic,
 
 HAService::CallbackId HAService::onPublishAll(PublishAllCallback callback)
 {
+    Lock guard(this);
     CallbackId id = _nextCallbackId++;
     _publishCallbacks.emplace_back(id, std::move(callback));
     return id;
@@ -285,6 +309,7 @@ HAService::CallbackId HAService::onPublishAll(PublishAllCallback callback)
 
 HAService::CallbackId HAService::onUnpublishAll(PublishAllCallback callback)
 {
+    Lock guard(this);
     CallbackId id = _nextCallbackId++;
     _unpublishCallbacks.emplace_back(id, std::move(callback));
     return id;
@@ -292,6 +317,7 @@ HAService::CallbackId HAService::onUnpublishAll(PublishAllCallback callback)
 
 void HAService::removePublishAllCallback(CallbackId id)
 {
+    Lock guard(this);
     auto it = std::find_if(_publishCallbacks.begin(), _publishCallbacks.end(),
                            [id](const CallbackEntry &e) { return e.first == id; });
     if (it != _publishCallbacks.end())
@@ -300,6 +326,7 @@ void HAService::removePublishAllCallback(CallbackId id)
 
 void HAService::removeUnpublishAllCallback(CallbackId id)
 {
+    Lock guard(this);
     auto it = std::find_if(_unpublishCallbacks.begin(), _unpublishCallbacks.end(),
                            [id](const CallbackEntry &e) { return e.first == id; });
     if (it != _unpublishCallbacks.end())
@@ -317,25 +344,55 @@ void HAService::publishAll()
         return;
     }
 
-    ESP_LOGI(TAG, "Publishing all HA entities (%d callbacks, main+%d sub-devices)",
-             _publishCallbacks.size(), (int)_subDevices.size());
-
-    for (auto &[id, callback] : _publishCallbacks)
+    // Remember what is registered right now, then publish it piece by piece. The
+    // registry lock is held per callback and per device only: another task that adds
+    // or removes a device waits for one of them at most, never for the whole run.
+    std::vector<CallbackId> callbackIds;
+    std::vector<const HADevice *> subDevices;
     {
-        if (callback) callback();
+        Lock guard(this);
+        callbackIds.reserve(_publishCallbacks.size());
+        for (const CallbackEntry &entry : _publishCallbacks)
+            callbackIds.push_back(entry.first);
+        subDevices.reserve(_subDevices.size());
+        for (const auto &dev : _subDevices)
+            subDevices.push_back(dev.get());
+    }
+
+    ESP_LOGI(TAG, "Publishing all HA entities (%d callbacks, main+%d sub-devices)",
+             (int)callbackIds.size(), (int)subDevices.size());
+
+    for (CallbackId id : callbackIds)
+    {
+        _invokeCallback(_publishCallbacks, id);
         vTaskDelay(pdMS_TO_TICKS(1));
     }
 
-    if (_mainDevice)
     {
-        _syncMainDeviceIdentity();
-        _mainDevice->publishAll();
+        Lock guard(this);
+        if (_mainDevice)
+        {
+            _syncMainDeviceIdentity();
+            _mainDevice->publishAll();
+        }
     }
 
-    for (auto &dev : _subDevices)
+    for (const HADevice *candidate : subDevices)
     {
-        if (dev)
-            dev->publishAll();
+        {
+            Lock guard(this);
+            // Publish the device only if it is still registered - it may have been
+            // removed, and destroyed, since the list was taken. The pointer is merely
+            // compared here, never dereferenced.
+            for (auto &dev : _subDevices)
+            {
+                if (dev.get() == candidate)
+                {
+                    dev->publishAll();
+                    break;
+                }
+            }
+        }
         vTaskDelay(pdMS_TO_TICKS(1));
     }
 
@@ -360,22 +417,59 @@ void HAService::unpublishAll()
         return;
     }
 
+    // Same pattern as publishAll(): take the lists, then work through them with the
+    // registry lock held per callback and per device.
+    std::vector<CallbackId> callbackIds;
+    std::vector<const HADevice *> subDevices;
+    {
+        Lock guard(this);
+        callbackIds.reserve(_unpublishCallbacks.size());
+        for (const CallbackEntry &entry : _unpublishCallbacks)
+            callbackIds.push_back(entry.first);
+        subDevices.reserve(_subDevices.size());
+        for (const auto &dev : _subDevices)
+            subDevices.push_back(dev.get());
+    }
+
     ESP_LOGI(TAG, "Unpublishing all HA entities (%d callbacks, main+%d sub-devices)",
-             _unpublishCallbacks.size(), (int)_subDevices.size());
+             (int)callbackIds.size(), (int)subDevices.size());
 
-    for (auto &[id, callback] : _unpublishCallbacks)
+    for (CallbackId id : callbackIds)
+        _invokeCallback(_unpublishCallbacks, id);
+
     {
-        if (callback) callback();
+        Lock guard(this);
+        if (_mainDevice)
+            _mainDevice->unpublishAll();
     }
 
-    if (_mainDevice)
-        _mainDevice->unpublishAll();
-
-    for (auto &dev : _subDevices)
+    for (const HADevice *candidate : subDevices)
     {
-        if (dev)
-            dev->unpublishAll();
+        Lock guard(this);
+        for (auto &dev : _subDevices)
+        {
+            if (dev.get() == candidate)
+            {
+                dev->unpublishAll();
+                break;
+            }
+        }
     }
+}
+
+void HAService::_invokeCallback(const std::vector<CallbackEntry> &callbacks, CallbackId id)
+{
+    Lock guard(this);
+
+    auto it = std::find_if(callbacks.begin(), callbacks.end(),
+                           [id](const CallbackEntry &e) { return e.first == id; });
+    if (it == callbacks.end() || !it->second)
+        return; // deregistered since the list was taken
+
+    // Run a copy: the callback may register or remove callbacks itself, which would
+    // move or destroy the vector element it is running from.
+    PublishAllCallback callback = it->second;
+    callback();
 }
 
 // ============================================================================
@@ -384,6 +478,7 @@ void HAService::unpublishAll()
 
 HADevice &HAService::mainDevice()
 {
+    Lock guard(this);
     _ensureMainDevice();
     return *_mainDevice;
 }
@@ -392,6 +487,8 @@ HADevice *HAService::addSubDevice(std::unique_ptr<HADevice> device)
 {
     if (!device)
         return nullptr;
+
+    Lock guard(this);
 
     // Wire in the main device relationship if not already set by the caller.
     HADeviceIdentity &id = device->identity();
@@ -419,6 +516,10 @@ HADevice *HAService::addSubDevice(std::unique_ptr<HADevice> device)
 
 bool HAService::removeSubDevice(const String &deviceId)
 {
+    // Holding the lock makes this wait for a publishAll() that is busy with the
+    // device, so the device is never destroyed underneath it.
+    Lock guard(this);
+
     for (auto it = _subDevices.begin(); it != _subDevices.end(); ++it)
     {
         if (*it && (*it)->getDeviceId() == deviceId)

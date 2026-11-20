@@ -54,10 +54,15 @@ void HASettingsService::_applyToHAService()
     // Empty device_name falls back to APP_NAME (compile-time firmware name)
     String name = _state.deviceName.isEmpty() ? String(APP_NAME) : _state.deviceName;
 
-    _haService->setDeviceName(name);
-    _haService->setManufacturer(_state.manufacturer);
-    _haService->setModel(_state.model);
-    _haService->setDiscoveryPrefix(_state.discoveryPrefix);
+    {
+        // One step for publishAll(), which may be running in its own task: it sees
+        // either the old settings or the new ones, not a mix.
+        HAService::Lock guard(_haService);
+        _haService->setDeviceName(name);
+        _haService->setManufacturer(_state.manufacturer);
+        _haService->setModel(_state.model);
+        _haService->setDiscoveryPrefix(_state.discoveryPrefix);
+    }
 
     // Remove from HA before disabling - must happen while MQTT is still connected
     if (wasReady && !_state.enabled)

@@ -32,6 +32,9 @@ HAEntityBase::HAEntityBase(HAService *haService,
 
 HAEntityBase::~HAEntityBase()
 {
+    // The publish callback of a standalone entity runs under the registry lock.
+    // Taking it here waits for a run that is in progress before the entity goes away.
+    HAService::Lock guard(_haService);
     *_alive = false;
 }
 

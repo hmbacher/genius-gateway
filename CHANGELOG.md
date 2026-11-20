@@ -20,6 +20,9 @@ See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/set
 ## Documentation
 - **MQTT topic reference corrected**: the documented discovery config topic pattern (`{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/…/config`) never matched the firmware, which has always published to a flat single-level `node_id` as the Home Assistant discovery spec requires. All topic examples now reflect the actual v1.5.1 layout
 
+## Bugfixes
+- **Restart when a smoke detector or alarm line was added or removed while the gateway published to Home Assistant**: after every MQTT connect, and after applying the Home Assistant settings, the gateway republishes all entities in a background task - a few seconds with many detectors. Adding or deleting a detector or an alarm line during that time changed the lists that task was working on and could crash the gateway (present since v1.3.0). The Home Assistant registry is now locked per device while it is published: a change waits for the device in progress instead of pulling it away
+
 # v1.5.0
 
 ## Direct-Link Signal / Range Survey

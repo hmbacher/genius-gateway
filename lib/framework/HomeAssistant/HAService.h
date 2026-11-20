@@ -24,6 +24,9 @@
 #include <memory>
 #include <vector>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
 #include <HomeAssistant/HADeviceIdentity.h>
 
 class HADevice;
@@ -262,6 +265,12 @@ public:
      */
     CallbackId onUnpublishAll(PublishAllCallback callback);
 
+    /**
+     * @brief Deregister a callback
+     *
+     * Returns only after a run of that callback that is in progress in another
+     * task has finished, so the object behind it can be destroyed right after.
+     */
     void removePublishAllCallback(CallbackId id);
     void removeUnpublishAllCallback(CallbackId id);
 
@@ -272,6 +281,11 @@ public:
      * and asks the main HADevice (and any sub-devices) to publish their
      * entities. Only executes if HA integration is enabled and MQTT is
      * connected.
+     *
+     * The registry lock (see Lock) is taken per callback and per device, not
+     * for the whole sequence: other tasks can add or remove devices while a
+     * publish-all runs and wait for one device at most. A device or callback
+     * that was removed in the meantime is skipped.
      */
     void publishAll();
 
@@ -283,6 +297,69 @@ public:
      * (i.e. before setEnabled(false)).
      */
     void unpublishAll();
+
+    // ========================================================================
+    // Registry lock
+    // ========================================================================
+
+    /**
+     * @brief Scoped lock on the registry of HA objects
+     *
+     * The registry is everything publishAll() walks: the publish/unpublish
+     * callbacks, the main device and the sub-devices with their entities.
+     * publishAll() runs in its own task, so adding, removing or modifying
+     * those objects from another task has to be serialised with it.
+     *
+     * HAService takes the lock itself in addSubDevice(), removeSubDevice(),
+     * onPublishAll(), onUnpublishAll(), the remove...Callback() functions and
+     * the identity setters. Project code takes it explicitly whenever it
+     *  - changes a registered device in place (e.g. HADevice::identity()), or
+     *  - destroys an object whose callback publishAll() may be running.
+     *
+     * Lock order: take this lock BEFORE any mutex that a state reader or a
+     * publish callback takes (typically the mutex of a StatefulService).
+     * publishAll() holds the lock while it calls them; a task that already
+     * holds such a mutex and then asks for this lock can deadlock with it.
+     * So lock first, then enter the transaction:
+     *
+     * @code
+     * HAService::Lock haLock(_haService);
+     * beginTransaction();
+     * // add / remove sub-devices, update identities ...
+     * endTransaction();
+     * @endcode
+     *
+     * The lock is recursive. publish(), publishConfig() and the state
+     * publishers do not need it.
+     *
+     * Never take it in an MQTT event callback (onConnect, a command or message
+     * handler): publishAll() publishes synchronously while holding it, and a
+     * synchronous publish cannot complete while the MQTT event task is blocked.
+     */
+    class Lock
+    {
+    public:
+        explicit Lock(HAService *service) : _service(service)
+        {
+            if (_service != nullptr)
+                _service->lock();
+        }
+        ~Lock()
+        {
+            if (_service != nullptr)
+                _service->unlock();
+        }
+        Lock(const Lock &) = delete;
+        Lock &operator=(const Lock &) = delete;
+
+    private:
+        HAService *_service;
+    };
+
+    /** Take the registry lock (recursive). Prefer the scoped Lock. */
+    void lock();
+    /** Release the registry lock. */
+    void unlock();
 
     // ========================================================================
     // Devices
@@ -360,10 +437,20 @@ private:
     /** Refresh the main device's identity to mirror current HAService state. */
     void _syncMainDeviceIdentity();
 
+    /**
+     * Run the callback registered under `id`, if it still is. Holds the registry
+     * lock for the duration, so a concurrent deregistration waits for it.
+     */
+    void _invokeCallback(const std::vector<CallbackEntry> &callbacks, CallbackId id);
+
     // Persistent publish task (started by begin())
     TaskHandle_t _publishTaskHandle;
     static void _publishTaskImpl(void *param);
     void _publishTask();
+
+    // Serialises the registry (callbacks, main device, sub-devices) between the
+    // publish task and the tasks that add, remove or modify HA objects. See Lock.
+    SemaphoreHandle_t _registryMutex;
 
     /**
      * @brief Recompute the pre-v1.5.1 topic identity from the display name.
