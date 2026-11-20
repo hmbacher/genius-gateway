@@ -106,7 +106,8 @@
 					<Spinner text="Loading devices..." />
 				</div>
 			{:else if geniusDevices.devices.length > 0}
-				{#if geniusDevices.isAlarming}
+				{#if geniusDevices.isAlarming && $user.admin}
+					<!-- Ending alarms is an administrator action; other users only watch. -->
 					<div class="col-span-full">
 						<div class="tooltip tooltip-left" data-tip="End all alarms">
 							<button class="btn btn-primary btn-wide" onclick={handleEndAlarms}>
