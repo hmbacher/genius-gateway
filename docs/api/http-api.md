@@ -28,7 +28,8 @@ Authorization: Bearer <token>
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/rest/gateway-devices` | GET, POST | 🛡️ | Manage smoke detector devices |
+| `/rest/gateway-devices` | GET | 🔒 | Read the smoke detector devices |
+| `/rest/gateway-devices` | POST | 🛡️ | Replace the smoke detector devices |
 | `/rest/alarm-lines` | GET, POST | 🛡️ | Manage alarm lines (RF groups) |
 | `/rest/alarm-lines/do` | POST | 🛡️ | Execute alarm line actions |
 | `/rest/gateway-settings` | GET, POST | 🛡️ | Configure gateway behavior |
@@ -47,8 +48,8 @@ Authorization: Bearer <token>
 
 #### `/rest/gateway-devices`
 - **Methods:** GET, POST
-- **Auth:** 🛡️ Admin
-- **Description:** Manage registered smoke detector devices
+- **Auth:** GET 🔒 User, POST 🛡️ Admin
+- **Description:** Manage registered smoke detector devices. Every signed-in user can read the list (the Overview page shows it); changing it requires administrator privileges
 
 **GET Response:**
 ```json

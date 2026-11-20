@@ -39,7 +39,9 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
                                                                                                                                                                       sveltekit->getServer(),
                                                                                                                                                                       GATEWAY_DEVICES_SERVICE_PATH,
                                                                                                                                                                       sveltekit->getSecurityManager(),
-                                                                                                                                                                      AuthenticationPredicates::IS_ADMIN),
+                                                                                                                                                                      AuthenticationPredicates::IS_ADMIN,
+                                                                                                                                                                      // The Overview shows the detectors to every signed-in user; only reading is opened up
+                                                                                                                                                                      AuthenticationPredicates::IS_AUTHENTICATED),
                                                                                                                                                         _fsPersistence(GeniusDevices::read,
                                                                                                                                                                        GeniusDevices::update,
                                                                                                                                                                        this,
