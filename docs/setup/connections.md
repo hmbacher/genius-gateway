@@ -177,7 +177,7 @@ The option needs Home Assistant 2025.10 or newer, which introduced `default_enti
 !!! warning "References to the old entity IDs"
     Automations, scripts and dashboards that use the old entity IDs must be updated - Home Assistant does not adjust them.
 
-    According to the Home Assistant source code, an entity that is removed and comes back is restored from the entity registry and then renamed, so its recorded history should follow the new ID. This has not been confirmed in practice yet. If the history matters to you, check one detector after the first rename.
+    The recorded history and the long-term statistics are kept: Home Assistant restores a removed entity from its entity registry and renames it, so the old data appears under the new ID. This was verified with Home Assistant 2026.10.
 
     Two detectors with the same location ask for the same entity IDs. Home Assistant then appends `_2` to the IDs of the one it registers second.
 

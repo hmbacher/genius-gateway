@@ -10,7 +10,7 @@ Home Assistant builds an entity ID once, when an entity is first registered, and
 - **Missed renames are caught up**: the gateway persists per detector which IDs it last announced to Home Assistant. A rename that could not be sent because MQTT was down is carried out on the next connect, also after a restart
 - **Alarm handling is never held up**: the rename runs in its own task. The web server, the packet receiver and the alarm path are not blocked while the gateway waits for Home Assistant
 - **Web interface**: the detector editor warns before a location change renames entities; a progress dialog follows the three steps (remove, wait, publish) and ends with "Sent to Home Assistant", since Home Assistant does not acknowledge the rename; without an MQTT connection a dialog explains that the rename is caught up later (new `ha-entity-rename` WebSocket event)
-- **References to the old entity IDs** in automations, scripts and dashboards must be updated. Requires Home Assistant 2025.10 or newer
+- **References to the old entity IDs** in automations, scripts and dashboards must be updated. The recorded history and the long-term statistics follow the new IDs. Requires Home Assistant 2025.10 or newer
 
 See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for details and limitations.
 

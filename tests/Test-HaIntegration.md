@@ -1498,7 +1498,7 @@ The device page should contain:
 3. Open the history of the smoke sensor under its new entity ID, with a time range that covers the old events.
 
 **Expected result:**
-- Open question this check settles: the Home Assistant source suggests that the removed entity is restored from the entity registry and renamed, which would carry the history over. Record whether the old events are visible under the new ID, and adjust the wording in the web interface, the documentation and the changelog accordingly.
+- The old events are visible under the new entity ID, and the old ID has no history left. Home Assistant restores the removed entity from its entity registry and renames it, which carries the history and the long-term statistics over (verified with Home Assistant 2026.10.1).
 
 ---
 
