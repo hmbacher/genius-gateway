@@ -39,6 +39,10 @@
 #define FACTORY_HA_MODEL ""
 #endif
 
+#ifndef FACTORY_HA_RENAME_ENTITY_IDS
+#define FACTORY_HA_RENAME_ENTITY_IDS false
+#endif
+
 #define HA_SETTINGS_FILE "/config/haSettings.json"
 #define HA_SETTINGS_SERVICE_PATH "/rest/haSettings"
 
@@ -50,6 +54,7 @@ public:
     String deviceName;
     String manufacturer;
     String model;
+    bool renameEntityIds;
 
     static void read(HASettings &settings, JsonObject &root)
     {
@@ -58,6 +63,7 @@ public:
         root["device_name"] = settings.deviceName;
         root["manufacturer"] = settings.manufacturer;
         root["model"] = settings.model;
+        root["rename_entity_ids"] = settings.renameEntityIds;
     }
 
     static StateUpdateResult update(JsonObject &root, HASettings &settings, const String &originId)
@@ -67,6 +73,7 @@ public:
         settings.deviceName = root["device_name"] | SettingValue::format(FACTORY_HA_DEVICE_NAME);
         settings.manufacturer = root["manufacturer"] | FACTORY_HA_MANUFACTURER;
         settings.model = root["model"] | FACTORY_HA_MODEL;
+        settings.renameEntityIds = root["rename_entity_ids"] | FACTORY_HA_RENAME_ENTITY_IDS;
 
         if (!settings.discoveryPrefix.endsWith("/"))
         {
@@ -83,6 +90,11 @@ public:
  * identity) and bridges it to the framework HAService. On every settings
  * change the new values are pushed into HAService and - if MQTT is connected
  * - a full republish is triggered so HA discovery picks up the change.
+ *
+ * rename_entity_ids (opt-in) lets the entity IDs of sub-devices follow their
+ * user-defined label (see HAService::setRenameEntityIds). The flag is only
+ * passed on; sub-device owners that act on it add their own update handler to
+ * this service, which runs after the values were pushed into HAService.
  *
  * An empty device_name falls back to APP_NAME so that the field can be left
  * blank in the UI to use the firmware's compile-time name.

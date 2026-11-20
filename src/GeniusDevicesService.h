@@ -30,6 +30,7 @@
 #ifndef GeniusDevicesService_h
 #define GeniusDevicesService_h
 
+#include <atomic>
 #include <map>
 #include <vector>
 #include <EventSocket.h>
@@ -46,6 +47,7 @@
 #include <HomeAssistant/HADevice.h>
 #include <HomeAssistant/HABinarySensor.h>
 #include <HomeAssistant/HAGroupedSensorPublisher.h>
+#include <HomeAssistant/HASettingsService.h>
 #include <PsychicMqttClient.h>
 
 #define GATEWAY_DEVICES_FILE "/config/gateway-devices.json"  ///< Configuration file path for device data
@@ -73,7 +75,11 @@
 
 #define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"  ///< Event for device discovery
 #define RSSI_SURVEY_UPDATE "rssi-survey-update"  ///< Update origin for a ConfigCheckProbe RSSI write (persist only; no HA/sub-device sync)
+#define HA_ENTITY_ID_PREFIX_UPDATE "ha-entity-id-prefix-update"  ///< Update origin for storing the entity-ID prefix announced to HA (persist only; no HA/sub-device sync)
 #define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"  ///< Default location for new devices
+
+#define HA_ENTITY_RENAME_EVENT "ha-entity-rename"  ///< WebSocket event reporting the progress of a Home Assistant entity-ID rename
+#define HA_ENTITY_RENAME_SETTLE_MS 3000            ///< Pause between removing and re-publishing entities, so HA finishes the removal first
 
 #define GATEWAY_DEVICES_CONFIG_VERSION 2  ///< Current config file version (for JSON migration support)
 
@@ -331,6 +337,8 @@ public:
             root["readoutTime"] = Utils::time_t_to_iso8601(readoutTime);
             root["readoutProtocolVersion"] = readoutProtocolVersion;
         }
+        if (!haEntityIdPrefix.isEmpty())
+            root["haEntityIdPrefix"] = haEntityIdPrefix;
     }
 
     uint32_t id;                          ///< Unique identifier for device (auto-generated, immutable)
@@ -343,6 +351,17 @@ public:
     bool published;                       ///< Whether current device config has been published via MQTT
     time_t readoutTime;                   ///< SmartSonic readout timestamp (0 = no readout performed)
     uint8_t readoutProtocolVersion;       ///< SmartSonic protocol version (valid when readoutTime > 0)
+
+    /**
+     * @brief Entity-ID prefix last announced to Home Assistant (empty = none announced)
+     *
+     * Backend-owned bookkeeping for the "rename entity IDs" option: a rename is
+     * pending while this differs from the prefix the detector should have. It
+     * is persisted so a rename that could not be sent survives a reboot, shows
+     * up read-only in the REST output and is never taken from a client - only
+     * from the config file.
+     */
+    String haEntityIdPrefix;
 
     /// Parse an "alarms" JsonArray into a vector, capped at GATEWAY_MAX_ALARMS.
     static std::vector<genius_device_alarm_t> parseAlarms(JsonArray jsonAlarms);
@@ -458,6 +477,9 @@ public:
      * MQTT (re)connect - this function only needs to be called when the device
      * list changes.
      *
+     * Detectors whose Home Assistant entity IDs have to be renamed are handed to
+     * the rename task; this call returns without waiting for it.
+     *
      * @param onlyUnpublished Ignored - sync is always idempotent (kept for API compatibility)
      */
     void mqttPublishAllDevices(bool onlyUnpublished = true);
@@ -558,6 +580,8 @@ private:
     AlarmPublishingSettingsService *_alarmPublishingSettings; ///< Alarm-publishing settings service
     AlarmPublishingSettings _cachedAlarmPublishingSettings;   ///< Cached copy of alarm-publishing settings
     HAService *_haService;                            ///< HA service
+    HASettingsService *_haSettingsService;            ///< HA settings service (source of the "rename entity IDs" option)
+    EventSocket *_eventSocket;                        ///< WebSocket event channel (rename progress)
 
     // HA sub-device tracking
     struct SmokeDetectorHA {
@@ -597,6 +621,18 @@ private:
     void _postCommitTask();
     static void _postCommitTaskImpl(void *ctx) { static_cast<GeniusDevicesService *>(ctx)->_postCommitTask(); }
 
+    // ------------------------------------------------------------------------
+    // HA entity-ID rename task
+    // ------------------------------------------------------------------------
+    // Home Assistant only adopts a new entity ID when the entity is removed and
+    // created again, with a pause in between. That cycle runs here, never in the
+    // HTTP task or the packet RX path and never while the state mutex is held -
+    // the mutex is shared with the alarm path, which must not stall for seconds.
+    TaskHandle_t _haRenameTaskHandle = nullptr;
+    std::atomic<bool> _haSyncRequested{false}; ///< Set when the HA settings changed: the task re-syncs all detectors first
+    void _haRenameTask();
+    static void _haRenameTaskImpl(void *ctx) { static_cast<GeniusDevicesService *>(ctx)->_haRenameTask(); }
+
     // ========================================================================
     // State Management
     // ========================================================================
@@ -618,11 +654,90 @@ private:
     /// Add a HADevice sub-device for one smoke detector (idempotent)
     void _addSmokeDetectorSubDevice(const GeniusDevice &device);
 
+    /**
+     * @brief HA device display name for a detector
+     *
+     * Model name by default. With the opt-in HA setting "rename entity IDs"
+     * enabled, the user-defined location is used (if set). A changed display
+     * name alone is published in place and needs no rename cycle.
+     */
+    String _haDeviceName(const GeniusDevice &device) const;
+
+    /**
+     * @brief Entity-ID prefix a detector should have in Home Assistant
+     *
+     * Empty while the "rename entity IDs" option is off: the detector is not
+     * managed and HA generates the IDs itself. With the option on it is the
+     * slug of the location or, without a usable location, `genius_<serial>`
+     * (`genius_device_<id>` if the serial number is 0), so every detector gets
+     * an explicit ID and a cleared location frees the location-based IDs.
+     * "Without a usable location" covers an empty location, one without any
+     * letter or digit and the GENIUS_DEVICE_DEFAULT_LOCATION placeholder.
+     *
+     * Entity IDs are built as `<component>.<prefix>_<slug(entity name)>`.
+     */
+    String _entityIdPrefixFor(const GeniusDevice &device) const;
+
+    /**
+     * @brief Whether the entity IDs of a detector still have to be renamed in HA
+     *
+     * True while the option is on, the integration is enabled and the prefix
+     * last announced differs from the desired one. This one comparison covers a
+     * changed location, a change made while MQTT was down, a reboot in between
+     * and the option being switched on.
+     */
+    bool _isEntityIdRenamePending(const GeniusDevice &device) const;
+
+    /**
+     * @brief Write the current identity of a detector into its HADevice
+     * @return true if name, serial number, area, model or entity-ID prefix changed
+     */
+    bool _applySmokeDetectorIdentity(HADevice &haDevice, const GeniusDevice &device) const;
+
     /// Remove a HADevice sub-device for one smoke detector by stable device ID
     void _removeSmokeDetectorSubDevice(uint32_t deviceId);
 
-    /// Sync the HA sub-device list with the current _state.devices list
-    void _syncSmokeDetectorSubDevices();
+    /**
+     * @brief Sync the HA sub-device list with the current _state.devices list
+     *
+     * Adds and removes sub-devices, refreshes the identity of all others and
+     * republishes those that changed. Never waits: detectors with a pending
+     * entity-ID rename are left to the rename task.
+     *
+     * @param requestRename Wake the rename task if a rename is pending. False
+     *                      at boot (MQTT is not up yet; the connect runs the
+     *                      comparison again) and when called by the task itself.
+     */
+    void _syncSmokeDetectorSubDevices(bool requestRename = true);
+
+    /**
+     * @brief Publish the discovery configs and states of one detector
+     *
+     * Holds the state mutex for this one detector only.
+     *
+     * @param deviceId Stable device ID
+     * @param announcedPrefix Optional: receives the entity-ID prefix the configs were published with
+     * @return true if everything was handed to the MQTT client
+     */
+    bool _publishSmokeDetectorDiscovery(uint32_t deviceId, String *announcedPrefix = nullptr);
+
+    /// Wake the rename task (cheap; safe from any task)
+    void _requestEntityIdRename();
+
+    /**
+     * @brief Rename the HA entities of all detectors with a pending rename, in one batch
+     *
+     * Clears the retained discovery configs of all of them, waits once, publishes
+     * them again and then stores the announced prefixes with a single flash
+     * write. Reports progress via the HA_ENTITY_RENAME_EVENT WebSocket event.
+     * Without an MQTT connection nothing is sent ("deferred"); the comparison
+     * runs again on the next connect. If the connection drops half-way the
+     * prefixes are not stored, so the next connect repeats the cycle.
+     */
+    void _runEntityIdRename();
+
+    /// Emit HA_ENTITY_RENAME_EVENT with the given state and detector count
+    void _emitEntityRenameEvent(const char *state, uint32_t count);
 
     /// Trigger a diagnostics state publish for one device (by stable device ID).
     /// Reads all values directly from _state.devices - no separate cache needed.

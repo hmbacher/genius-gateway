@@ -1,3 +1,19 @@
+# v1.6.0
+
+## Home Assistant: Entity IDs Follow the Detector Location
+Home Assistant builds an entity ID once, when an entity is first registered, and never changes it afterwards - renaming a detector's location in the gateway left IDs such as `sensor.hallway_genius_plus_x_alarm_line` behind. A new opt-in setting makes the entity IDs follow the location (#24).
+
+- **New opt-in setting in the Home Assistant Integration card**: "Update entity IDs when a detector's location changes" (`rename_entity_ids` in `/rest/haSettings`, off by default). With the setting off nothing changes
+- **Detectors are named after their location** in Home Assistant, and every detector gets explicit entity IDs such as `sensor.living_room_alarm_line`. Without a usable location the serial number is used instead (`sensor.genius_12345678_alarm_line`), so clearing a location frees the location-based IDs
+- **Changing a location renames the entities of that detector**: the gateway clears the detector's retained discovery configs, waits a few seconds and publishes them again with an explicit `default_entity_id`. An edit that does not change the resulting IDs triggers nothing
+- **Switching the setting on renames all detectors at once**, as a single batch
+- **Missed renames are caught up**: the gateway persists per detector which IDs it last announced to Home Assistant. A rename that could not be sent because MQTT was down is carried out on the next connect, also after a restart
+- **Alarm handling is never held up**: the rename runs in its own task. The web server, the packet receiver and the alarm path are not blocked while the gateway waits for Home Assistant
+- **Web interface**: the detector editor warns before a location change renames entities; a progress dialog follows the three steps (remove, wait, publish) and ends with "Sent to Home Assistant", since Home Assistant does not acknowledge the rename; without an MQTT connection a dialog explains that the rename is caught up later (new `ha-entity-rename` WebSocket event)
+- **References to the old entity IDs** in automations, scripts and dashboards must be updated. The recorded history and the long-term statistics follow the new IDs. Requires Home Assistant 2025.10 or newer
+
+See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for details and limitations.
+
 # v1.5.1
 
 ## Home Assistant MQTT Topic Restructuring

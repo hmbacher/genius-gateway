@@ -144,6 +144,24 @@ public:
      */
     void setEnabled(bool enabled);
 
+    /**
+     * @brief Opt-in: let sub-device entity IDs follow the user-defined label
+     *
+     * This service only stores the flag. Sub-device owners read it via
+     * renameEntityIds() and are responsible for the rest: naming the HA device
+     * after the label (e.g. a detector's location), sending explicit entity
+     * IDs (HADevice::setEntityIdPrefix) and, when the label changes, clearing
+     * the retained discovery configs before publishing them again so HA adopts
+     * the new entity IDs. References to the old IDs in automations, scripts
+     * and dashboards have to be updated by the user.
+     *
+     * @param enabled true to enable
+     */
+    void setRenameEntityIds(bool enabled);
+
+    /** @brief Whether sub-device entity IDs follow the user-defined label (see setRenameEntityIds) */
+    bool renameEntityIds() const { return _renameEntityIds; }
+
     // ========================================================================
     // State queries
     // ========================================================================
@@ -415,6 +433,7 @@ private:
     String _model;
     String _discoveryPrefix;
     bool _enabled;
+    bool _renameEntityIds;
 
     // Pre-v1.5.1 topic identity, remembered only while it differs from the
     // current one. Empty means "nothing stale to clear". See _purgeLegacyState().
@@ -476,9 +495,4 @@ private:
      * retained payload there so the stale retained tree drains itself.
      */
     void _purgeLegacyState(const String &topic);
-
-    /**
-     * @brief Create a URL-safe slug: "My Device Name" → "my-device-name"
-     */
-    static String _slugify(const String &name);
 };

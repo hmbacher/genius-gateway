@@ -157,6 +157,34 @@ Optional labels shown in the Home Assistant device info panel. Useful for multi-
 !!! tip "Build-time Model Customization"
     If `-D HW_VERSION=\"...\"` is set in the build flags, it is automatically appended to the model default (e.g. `Genius Gateway v1.0`).
 
+**Update entity IDs when a detector's location changes**
+
+Opt-in, off by default. Home Assistant builds an entity ID once, when an entity is first registered, and never changes it afterwards. Renaming a detector's location in the gateway therefore leaves IDs such as `sensor.hallway_genius_plus_x_alarm_line` untouched.
+
+With this option enabled:
+
+- **Detectors are named after their location** in Home Assistant instead of their model. The model name is used when no location is set.
+- **Every detector gets explicit entity IDs** of the form `<domain>.<location>_<entity>`, for example `binary_sensor.living_room_smoke_detector` or `sensor.living_room_alarm_line`. The location is reduced the way Home Assistant does it itself: lower case, letters with diacritics become their base letter (`Küche` :material-arrow-right: `kuche`, `ß` :material-arrow-right: `ss`), everything else becomes an underscore.
+- **Changing a location renames the entities of that detector.** The gateway removes them from Home Assistant, waits a few seconds and publishes them again with the new IDs. A progress dialog in the web interface shows the three steps.
+- **Switching the option on renames all detectors at once**, as a single batch.
+- **A detector without a usable location** gets IDs based on its serial number, e.g. `sensor.genius_12345678_alarm_line`. Clearing a location therefore frees the location-based IDs. The same holds for a location without any letter or digit and for detectors that still carry the placeholder *Unknown location*.
+- **A rename is never lost while MQTT is down.** The gateway remembers per detector which IDs it last announced. If a rename cannot be sent, the web interface says so, and the gateway catches up on the next MQTT connect - also after a restart.
+
+An edit that does not change the resulting IDs (e.g. `Kitchen` to `kitchen`) does not trigger a rename. With the option off nothing changes: detectors keep their model name and Home Assistant generates the entity IDs itself.
+
+The option needs Home Assistant 2025.10 or newer, which introduced `default_entity_id` in MQTT discovery.
+
+!!! warning "References to the old entity IDs"
+    Automations, scripts and dashboards that use the old entity IDs must be updated - Home Assistant does not adjust them.
+
+    The recorded history and the long-term statistics are kept: Home Assistant restores a removed entity from its entity registry and renames it, so the old data appears under the new ID. This was verified with Home Assistant 2026.10.
+
+    Two detectors with the same location ask for the same entity IDs. Home Assistant then appends `_2` to the IDs of the one it registers second.
+
+!!! note "Limitations"
+    - **Home Assistant does not confirm the rename.** MQTT discovery has no acknowledgement, so the gateway knows that the new IDs were sent, not that they were applied. The progress dialog therefore ends with *Sent to Home Assistant*.
+    - **Home Assistant must be running.** The gateway can only tell whether the MQTT broker is reachable, not whether Home Assistant is listening. If a rename is sent while the broker is up but Home Assistant is down, Home Assistant misses the removal, finds the entities still registered when it starts again and keeps the old IDs. The gateway does not repeat the rename in this case. Use *Recreate entity IDs* on the device page in Home Assistant, or change the location once more.
+
 **Applying Changes**
 
 Click **Apply Settings** to save. Changes take effect immediately - if MQTT is connected, updated discovery messages are published automatically. Disabling the integration removes the device from Home Assistant immediately (see warning above).

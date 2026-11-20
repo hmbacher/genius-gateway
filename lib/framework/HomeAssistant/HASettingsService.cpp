@@ -62,6 +62,7 @@ void HASettingsService::_applyToHAService()
         _haService->setManufacturer(_state.manufacturer);
         _haService->setModel(_state.model);
         _haService->setDiscoveryPrefix(_state.discoveryPrefix);
+        _haService->setRenameEntityIds(_state.renameEntityIds);
     }
 
     // Remove from HA before disabling - must happen while MQTT is still connected

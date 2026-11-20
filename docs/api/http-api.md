@@ -91,6 +91,7 @@ Authorization: Bearer <token>
 - `registration` - How device was added (0=built-in, 1=packet, 2=manual)
 - `alarms` - History of alarm events
 - `endingReason` - How alarm ended (-1=active, 0=detector, 1=manual)
+- `haEntityIdPrefix` - Read-only, only present once set. Entity-ID prefix the gateway last announced to Home Assistant for this detector (see `rename_entity_ids` in [`/rest/haSettings`](#resthasettings)). A value sent by a client is ignored
 
 **POST Request:** Same format as GET response
 
@@ -226,7 +227,8 @@ Authorization: Bearer <token>
   "discovery_prefix": "homeassistant/",
   "device_name": "Genius Gateway",
   "manufacturer": "Genius Gateway Project",
-  "model": "Genius Gateway"
+  "model": "Genius Gateway",
+  "rename_entity_ids": false
 }
 ```
 
@@ -237,8 +239,9 @@ Authorization: Bearer <token>
 - `device_name` - Device name shown in Home Assistant; empty string falls back to the firmware name
 - `manufacturer` - Manufacturer label shown in Home Assistant device info
 - `model` - Model label shown in Home Assistant device info
+- `rename_entity_ids` - Opt-in (default `false`). Name detectors after their location in Home Assistant and let their entity IDs follow it: every detector gets explicit entity IDs, and a changed location removes and re-creates that detector's entities under the new IDs. Switching the option on renames all detectors at once
 
-**POST Response:** 200 OK with updated settings; if MQTT is connected, updated discovery messages are published immediately
+**POST Response:** 200 OK with updated settings; if MQTT is connected, updated discovery messages are published immediately. The response does not wait for an entity-ID rename - its progress is reported through the [`ha-entity-rename`](websocket-api.md#ha-entity-rename) WebSocket event
 
 ---
 

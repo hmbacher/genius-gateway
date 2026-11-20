@@ -46,6 +46,9 @@
 		geniusDevice?: GeniusDevice;
 		saveButtonLabel?: string;
 		titleIcon?: Component<{ class?: string }>;
+		/** True while the gateway renames Home Assistant entity IDs on a location change
+		 *  (HA integration enabled and the "update entity IDs" option switched on). */
+		haRenamesEntityIds?: boolean;
 	}
 
 	let {
@@ -54,6 +57,7 @@
 		onSaveGeniusDevice,
 		saveButtonLabel = 'Save',
 		titleIcon: TitleIcon,
+		haRenamesEntityIds = false,
 		geniusDevice: _geniusDevice = {
 			id: 0,
 			smokeDetector: {
@@ -77,6 +81,10 @@
 	let geniusDevice = $state(_geniusDevice);
 
 	const titleId = `edit-smoke-detector-title-${Math.random().toString(36).slice(2)}`;
+
+	// Location the detector is currently saved with; undefined for a detector that does
+	// not exist yet. Looked up before a new device gets its ID assigned below.
+	const savedLocation = geniusDevices.devices.find((d) => d.id === _geniusDevice.id)?.location;
 
 	// Generate unique device ID with collision detection
 	function generateUniqueDeviceId(): number {
@@ -172,6 +180,13 @@
 			isNaN(geniusDevice.smokeDetector.productionDate.getTime())
 	);
 	const locationError = $derived(!hasLength(geniusDevice.location, minLocationLength, maxLocationLength));
+
+	// Saving a changed location makes the gateway remove and re-create this detector's
+	// entities in Home Assistant. The texts are compared, not the entity-ID slugs, so the
+	// warning can show for an edit that ends up not changing the IDs (e.g. upper/lower case).
+	const locationRenamesEntities = $derived(
+		haRenamesEntityIds && savedLocation !== undefined && geniusDevice.location !== savedLocation
+	);
 	const hasErrors = $derived(
 		smokeDetectorSNRangeError ||
 			smokeDetectorSNDuplicateError ||
@@ -404,6 +419,19 @@
 						id="location"
 					/>
 					<FieldError show={locationError} message="Please set a location of length between {minLocationLength} and {maxLocationLength} characters." />
+					{#if locationRenamesEntities}
+						<!-- w-0 + min-w-full: fill the dialog without widening it. The dialog sizes
+						     itself to its content (min-w-fit), so a long line would stretch it. -->
+						<div class="w-0 min-w-full" transition:slide|local={{ duration: 300, easing: cubicOut }}>
+							<div class="alert alert-warning mt-2 items-start gap-2 p-2">
+								<IconWarning class="h-5 w-5 shrink-0 mt-0.5" />
+								<span class="text-sm"
+									>Saving renames this detector's entities in Home Assistant. Automations,
+									scripts and dashboards that use the old entity IDs must be updated.</span
+								>
+							</div>
+						</div>
+					{/if}
 				</div>
 
 				<div class="divider my-2"></div>

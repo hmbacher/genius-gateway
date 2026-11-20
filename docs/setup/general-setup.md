@@ -6,14 +6,15 @@ Choose either the [experimental setup](../hardware.md#experimental-setup) to tes
 
 ## Build and Install Software
 
-### IDE und Plugins
+### IDE and Plugins
 
 The project is based on the [PlatformIO :material-open-in-new:](https://platformio.org/){ target=_blank } build system. Unfortunately, PlatformIO does not support [Espressif Arduino 3.x :material-open-in-new:](https://github.com/espressif/arduino-esp32){ target=_blank }. 
 
-Fortunately, there is [piorduino :material-open-in-new:](https://github.com/pioarduino){ target=_blank }: a community-maintained fork of the PlatformIO IDE for Visual Studio Code that provides support for Espressif microcontrollers, especially the newer ESP32 boards and the latest Arduino Core for them.
+Fortunately, there is [pioarduino :material-open-in-new:](https://github.com/pioarduino){ target=_blank }: a community-maintained fork of the PlatformIO IDE for Visual Studio Code that provides support for Espressif microcontrollers, especially the newer ESP32 boards and the latest Arduino Core for them.
 
 1. Download and install [Microsoft VSCode :material-open-in-new:](https://code.visualstudio.com/){ target=_blank }.
 2. Install [Pioarduino IDE (pioarduino) :material-open-in-new:](https://marketplace.visualstudio.com/items?itemName=pioarduino.pioarduino-ide&ssr=false#review-details){ target=_blank } extension from within VSCode.
+3. Install [Node.js :material-open-in-new:](https://nodejs.org/){ target=_blank } (a current LTS version). The firmware build also builds the web interface, which requires Node.js.
 
 ### Clone GitHub Project
 
@@ -25,7 +26,7 @@ Fortunately, there is [piorduino :material-open-in-new:](https://github.com/pioa
 2. Open the project in VSCode  
     ```bash
     cd genius-gateway
-    vscode .
+    code .
     ```
 
 ### Configuration
@@ -37,52 +38,37 @@ Choose the board you are working with in `platformio.ini` file by (un)commenting
 [platformio]
 description = Genius Gateway - A gateway for Hekatron Genius Plus X smoke detectors
 data_dir = data
-extra_configs = 
+extra_configs =
 	factory_settings.ini
 	features.ini
-    config.ini
 ;default_envs = esp32-s3-devkitc-1
 ;default_envs = esp32-s3-devkitc-1-n8r2
-default_envs = seeed-xiao-esp32s3
+;default_envs = seeed-xiao-esp32s3
+default_envs = gg-v1_0
 ```
 
-!!! note "No PSRAM used"
-    Since PSRAM is not necessary or not used by Genius Gateway, it is not necessary to create variants of `esp32-s3-devkitc-1` (e.g., `esp32-s3-devkitc-1-n8r2`).
+| Environment | Board |
+| --- | --- |
+| `gg-v1_0` | Genius Gateway PCB 1.0 (Seeed XIAO ESP32-S3, 8 MB PSRAM) with its CC1101 wiring as a preset |
+| `seeed-xiao-esp32s3` | Seeed XIAO ESP32-S3 (8 MB PSRAM) with custom wiring |
+| `esp32-s3-devkitc-1-n8r2` | ESP32-S3-DevKitC-1 with 2 MB PSRAM |
+| `esp32-s3-devkitc-1` | ESP32-S3-DevKitC-1 without PSRAM |
+
+!!! note "PSRAM"
+    Genius Gateway is designed around boards with PSRAM. The `esp32-s3-devkitc-1` environment builds and runs without PSRAM, but is limited to 10 devices. See [Memory Considerations](../development/memory.md) for details.
 
 #### SPI bus wiring
 
-Depending on the technical setup, the SPI bus-related signal lines may need to be adjusted. This is done via the `config.ini` file:  
-```ini
-[config]
-build_flags = 
-  ; --- Espressif ESP32S3 DevKit-C 1 ---
-  ; -D CONFIG_CSN_GPIO=45   ; blue
-  ; -D CONFIG_MISO_GPIO=11  ; yellow
-  ; -D CONFIG_GDO0_GPIO=47  ; gray
-  ; -D CONFIG_MOSI_GPIO=13  ; brown
-  ; -D CONFIG_SCK_GPIO=12   ; white
-  ; -D GPIO_TEST1=21
-  ; -D GPIO_TEST2=14
-  ; --- XIAO ESP32S3 & Genius Gateway PCB 1.0 ---
-  -D CONFIG_CSN_GPIO=5
-  -D CONFIG_MISO_GPIO=8
-  -D CONFIG_GDO0_GPIO=6
-  -D CONFIG_MOSI_GPIO=9
-  -D CONFIG_SCK_GPIO=7
-  -D GPIO_TEST1=1
-  -D GPIO_TEST2=2
-  -D GPIO_TEST3=3
-  -D GPIO_TEST4=4
-  ; Common
-  -D HOST_ID=1
-```
+The SPI bus and GDO signal pins of the CC1101 are not set at build time. They are configured at runtime in the web interface, see [Pin Configuration](system.md#pin-configuration).
+
+The `gg-v1_0` environment already contains the wiring of the Genius Gateway PCB as a preset, so no pin configuration is needed there. All other environments start without a pin assignment, which has to be set once after the first startup.
 
 #### More build options
 
-The platformio.ini file is the main file for controlling the software build. It references three additional files whose content is evaluated by the build system:
+The platformio.ini file is the main file for controlling the software build. It references two additional files whose content is evaluated by the build system:
+
 - `features.ini`
-- `factory-settings.ini`
-- `config.ini`
+- `factory_settings.ini`
 
 !!! critical
     Settings can be made in the listed files that affect the build and the later functionality of the Genius Gateway.

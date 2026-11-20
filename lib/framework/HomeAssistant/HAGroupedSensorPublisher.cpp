@@ -115,19 +115,20 @@ String HAGroupedSensorPublisher::_sharedStateTopicAbs() const
     return _haService->getBaseTopic() + "/" + _topicSuffix + "/state";
 }
 
-void HAGroupedSensorPublisher::unpublishAll()
+void HAGroupedSensorPublisher::unpublishAll(int qos, bool keepState)
 {
     if (_haService == nullptr || !_haService->isReady())
         return;
 
-    _haService->publish(_sharedStateTopicAbs(), String(), 0, true, false);
+    if (!keepState)
+        _haService->publish(_sharedStateTopicAbs(), String(), qos, true, false);
 
     String id = _deviceId();
     for (const auto &sensor : _sensors)
     {
         String configTopic = _haService->getDiscoveryPrefix() + sensor.component +
                              "/" + id + "/" + sensor.objectId + "/config";
-        _haService->publish(configTopic, String(), 0, true, false);
+        _haService->publish(configTopic, String(), qos, true, false);
     }
 }
 
