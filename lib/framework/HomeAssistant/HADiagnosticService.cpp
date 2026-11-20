@@ -42,6 +42,11 @@ HADiagnosticService::HADiagnosticService(HAService *haService)
                        c["unit_of_measurement"] = "°C";
                        c["device_class"]        = "temperature";
                        c["state_class"]         = "measurement";
+                   })
+        .addSensor("sensor", "reset_reason", "Last Reset Reason", "mdi:restart-alert", HACategory::Diagnostic, // NEU
+                   [](JsonObject &c)
+                   {
+                       c["value_template"] = "{{value_json.reset_reason}}";
                    });
 
     if (_haService != nullptr)
@@ -95,6 +100,24 @@ void HADiagnosticService::_readDiagnosticState(JsonObject &state)
     state["state"] = "online";
     state["free_heap_percent"] = freeHeapPercent;
     state["core_temp"] = temperatureRead();
+
+    // NEU: last reset reason
+    const char *resetReason = "unknown";
+    switch (esp_reset_reason())
+    {
+    case ESP_RST_POWERON:   resetReason = "power_on"; break;
+    case ESP_RST_EXT:       resetReason = "external_pin"; break;
+    case ESP_RST_SW:        resetReason = "software"; break;
+    case ESP_RST_PANIC:     resetReason = "panic"; break;
+    case ESP_RST_INT_WDT:   resetReason = "interrupt_watchdog"; break;
+    case ESP_RST_TASK_WDT:  resetReason = "task_watchdog"; break;
+    case ESP_RST_WDT:       resetReason = "other_watchdog"; break;
+    case ESP_RST_DEEPSLEEP: resetReason = "deep_sleep"; break;
+    case ESP_RST_BROWNOUT:  resetReason = "brownout"; break;
+    case ESP_RST_SDIO:      resetReason = "sdio"; break;
+    default: break;
+    }
+    state["reset_reason"] = resetReason;
 }
 
 void HADiagnosticService::_diagnosticSensorTimerCallback(TimerHandle_t timer)
