@@ -1,5 +1,7 @@
 #include <EventSocket.h>
 
+#include <lwip/sockets.h>
+
 SemaphoreHandle_t clientSubscriptionsMutex = xSemaphoreCreateMutex();
 
 EventSocket::EventSocket(PsychicHttpServer *server,
@@ -34,8 +36,31 @@ void EventSocket::registerEvent(String event)
     }
 }
 
+void EventSocket::setSendTimeout(int socket, uint32_t timeoutMs)
+{
+    struct timeval timeout;
+    timeout.tv_sec = timeoutMs / 1000;
+    timeout.tv_usec = (timeoutMs % 1000) * 1000;
+    if (setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) != 0)
+    {
+        ESP_LOGW(SVK_TAG, "ws[%d] could not set the send timeout (errno %d)", socket, errno);
+    }
+}
+
+void EventSocket::removeSubscriptions(const std::vector<int> &sockets)
+{
+    for (auto &event_subscriptions : client_subscriptions)
+    {
+        for (int socket : sockets)
+        {
+            event_subscriptions.second.remove(socket);
+        }
+    }
+}
+
 void EventSocket::onWSOpen(PsychicWebSocketClient *client)
 {
+    setSendTimeout(client->socket(), EVENT_SOCKET_SEND_TIMEOUT_MS);
     ESP_LOGI(SVK_TAG, "ws[%s][%u] connect", client->remoteIP().toString().c_str(), client->socket());
 }
 
@@ -80,7 +105,11 @@ esp_err_t EventSocket::onFrame(PsychicWebSocketRequest *request, httpd_ws_frame 
                 // only subscribe to events that are registered
                 if (isEventValid(doc["data"].as<String>()))
                 {
+                    // The lists are walked by emitEvent() in other tasks. The callbacks run
+                    // without the mutex: they usually emit the current state themselves.
+                    xSemaphoreTake(clientSubscriptionsMutex, portMAX_DELAY);
                     client_subscriptions[doc["data"]].push_back(request->client()->socket());
+                    xSemaphoreGive(clientSubscriptionsMutex);
                     handleSubscribeCallbacks(doc["data"], String(request->client()->socket()));
                 }
                 else
@@ -90,7 +119,9 @@ esp_err_t EventSocket::onFrame(PsychicWebSocketRequest *request, httpd_ws_frame 
             }
             else if (event == "unsubscribe")
             {
+                xSemaphoreTake(clientSubscriptionsMutex, portMAX_DELAY);
                 client_subscriptions[doc["data"]].remove(request->client()->socket());
+                xSemaphoreGive(clientSubscriptionsMutex);
             }
             else
             {
@@ -143,41 +174,54 @@ void EventSocket::emitEvent(String event, JsonObject &jsonObject, const char *or
     // null terminate the string
     output[len] = '\0';
 
+#if FT_ENABLED(EVENT_USE_JSON)
+    const httpd_ws_type_t frameType = HTTPD_WS_TYPE_TEXT;
+#else
+    const httpd_ws_type_t frameType = HTTPD_WS_TYPE_BINARY;
+#endif
+
+    // Sockets to drop afterwards - the list must not change while it is walked.
+    std::vector<int> gone;   // no client behind the subscription any more
+    std::vector<int> failed; // client did not take the frame in time
+
+    auto sendTo = [&](int subscription)
+    {
+        auto *client = _socket.getClient(subscription);
+        if (!client)
+        {
+            gone.push_back(subscription);
+            return;
+        }
+        ESP_LOGV(SVK_TAG, "Emitting event: %s to %s[%u], Message[%d]: %s", event, client->remoteIP().toString().c_str(), client->socket(), len, output);
+        if (client->sendMessage(frameType, output, len) != ESP_OK)
+        {
+            // The send timed out or the connection is broken. A frame may have gone out
+            // half-way, so the connection cannot be used any more either way.
+            ESP_LOGW(SVK_TAG, "ws[%d] did not take event '%s' - disconnecting the client", subscription, event.c_str());
+            failed.push_back(subscription);
+            client->close();
+        }
+    };
+
     // if onlyToSameOrigin == true, send the message back to the origin
     if (onlyToSameOrigin && originSubscriptionId > 0)
     {
-        auto *client = _socket.getClient(originSubscriptionId);
-        if (client)
-        {
-            ESP_LOGV(SVK_TAG, "Emitting event: %s to %s[%u], Message[%d]: %s", event, client->remoteIP().toString().c_str(), client->socket(), len, output);
-#if FT_ENABLED(EVENT_USE_JSON)
-            client->sendMessage(HTTPD_WS_TYPE_TEXT, output, len);
-#else
-            client->sendMessage(HTTPD_WS_TYPE_BINARY, output, len);
-#endif
-        }
+        sendTo(originSubscriptionId);
     }
     else
     { // else send the message to all other clients
-
-        for (int subscription : client_subscriptions[event])
+        for (int subscription : subscriptions)
         {
             if (subscription == originSubscriptionId)
                 continue;
-            auto *client = _socket.getClient(subscription);
-            if (!client)
-            {
-                subscriptions.remove(subscription);
-                continue;
-            }
-            ESP_LOGV(SVK_TAG, "Emitting event: %s to %s[%u], Message[%d]: %s", event, client->remoteIP().toString().c_str(), client->socket(), len, output);
-#if FT_ENABLED(EVENT_USE_JSON)
-            client->sendMessage(HTTPD_WS_TYPE_TEXT, output, len);
-#else
-            client->sendMessage(HTTPD_WS_TYPE_BINARY, output, len);
-#endif
+            sendTo(subscription);
         }
     }
+
+    // A client that failed once is not waited for again: it loses all its subscriptions now,
+    // not only when the HTTP server gets round to closing the connection.
+    removeSubscriptions(gone);
+    removeSubscriptions(failed);
 
     delete[] output;
     xSemaphoreGive(clientSubscriptionsMutex);
