@@ -101,9 +101,12 @@
 			}
 		});
 
-		setInterval(() => {
-			updateData(), 5000;
-		});
+		const timer = setInterval(updateData, 5000);
+
+		return () => {
+			clearInterval(timer);
+			heapChart.destroy();
+		};
 	});
 
 	function updateData() {

@@ -14,7 +14,7 @@
 	let heapChart: Chart;
 
 	let psramChartElement: HTMLCanvasElement | undefined = $state();
-	let psramChart: Chart;
+	let psramChart: Chart | undefined;
 
 	let filesystemChartElement: HTMLCanvasElement | undefined = $state();
 	let filesystemChart: Chart;
@@ -100,8 +100,10 @@
 			}
 		});
 		
-		// Only create PSRAM chart if PSRAM data is available
-		if (hasPsramData) {
+		// The PSRAM chart needs PSRAM data: its canvas is only rendered then. On a page
+		// load the data may arrive after this component was mounted, so the chart is
+		// created here or by the update timer below, whichever sees the canvas first.
+		const createPsramChart = () => {
 			psramChart = new Chart(psramChartElement!, {
 			type: 'line',
 			data: {
@@ -167,8 +169,9 @@
 				}
 			}
 		});
-		}
-		
+		};
+		if (hasPsramData) createPsramChart();
+
 		filesystemChart = new Chart(filesystemChartElement!, {
 			type: 'line',
 			data: {
@@ -299,9 +302,18 @@
 				}
 			}
 		});
-		setInterval(() => {
-			updateData(), 2000;
-		});
+		const timer = setInterval(() => {
+			if (hasPsramData && !psramChart && psramChartElement) createPsramChart();
+			updateData();
+		}, 2000);
+
+		return () => {
+			clearInterval(timer);
+			heapChart.destroy();
+			psramChart?.destroy();
+			filesystemChart.destroy();
+			temperatureChart.destroy();
+		};
 	});
 
 	function updateData() {
@@ -311,7 +323,7 @@
 		heapChart.update('none');
 		heapChart.options.scales!.y!.max = Math.round(Math.max(...$analytics.total_heap));
 
-		if (hasPsramData) {
+		if (hasPsramData && psramChart) {
 			psramChart.data.labels = $analytics.uptime;
 			psramChart.data.datasets[0].data = $analytics.used_psram;
 			psramChart.update('none');
