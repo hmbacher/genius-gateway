@@ -37,7 +37,7 @@ export default function viteLittleFS(): Plugin[] {
 				}
 
 				rollupOptions.output = next;
-      }
-    }
-  ]
+			}
+		}
+	];
 }

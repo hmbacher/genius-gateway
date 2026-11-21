@@ -37,7 +37,7 @@
 
 	type menuItem = {
 		title: string;
-		icon: Component<any>;
+		icon: Component<{ class?: string }>;
 		href?: string;
 		feature: boolean;
 		active?: boolean;
@@ -46,7 +46,7 @@
 
 	type subMenuItem = {
 		title: string;
-		icon: Component<any>;
+		icon: Component<{ class?: string }>;
 		href: string;
 		feature: boolean;
 		active: boolean;

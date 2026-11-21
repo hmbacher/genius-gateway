@@ -711,10 +711,10 @@ class TunerProcessor extends AudioWorkletProcessor {
 		try {
 			this.pipeline = new TunerPipeline(
 				{
-					onLog: (/** @type {string} */ msg) => this.port.postMessage({ type: 'log', message: msg }),
-					onSync: (/** @type {{ quality: number, pattern: number }} */ info) => this.port.postMessage({ type: 'sync', info }),
-					onFrame: (/** @type {string[]} */ hexBytes) => this.port.postMessage({ type: 'frame', hexBytes }),
-					onError: (/** @type {string} */ msg) => this.port.postMessage({ type: 'error', message: msg })
+					onLog: (msg) => this.port.postMessage({ type: 'log', message: msg }),
+					onSync: (info) => this.port.postMessage({ type: 'sync', info }),
+					onFrame: (hexBytes) => this.port.postMessage({ type: 'frame', hexBytes }),
+					onError: (msg) => this.port.postMessage({ type: 'error', message: msg })
 				},
 				this.targetRate
 			);
