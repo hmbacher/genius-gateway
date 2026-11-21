@@ -4,6 +4,23 @@
 > session without the original context. Delete it in the last commit before
 > this branch is merged to `main`.
 
+## 0. State on 2026-11-21
+
+- Sections 4.1 and 4.2 are done. `ConnectionDebugger.svelte` is deleted (maintainer's decision).
+  `npm run check` reports 0 errors with the locked versions, also on a checkout that has not
+  been built (`src/lib/version.d.ts` declares the generated `version.ts`).
+- The branch contains `release/v1.6.0` (merged in) and goes back into it with a merge commit.
+- Vite plugin: a frontend build without `EMBED_WWW` produces the same file names with the
+  rewritten plugin as with the one from `main` (10 files, none longer than 31 characters).
+- Browser test against the real gateway through the frontend dev server: Wi-Fi scan and edit
+  network, edit user, system status, metrics charts, NTP, menu, device import (REST calls
+  intercepted) and the acoustic readout (test WAV as fake microphone over HTTPS) - 34 checks
+  passed.
+- Found on the way and fixed in its own commit: the metrics charts ran an update timer without
+  an interval that was never cleared, and the PSRAM chart was missing after a direct page load.
+- Mirrored to the framework fork (`collect/upstream-enhancements`), including the metrics fix.
+- Left to do: a look at the flashed build, then delete this file.
+
 ## 1. Status
 
 - Branch: `chore/svelte-check-errors` (integration branch, not `main`).
