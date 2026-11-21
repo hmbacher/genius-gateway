@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ModalProps } from 'svelte-modals';
 	import { onMount, onDestroy } from 'svelte';
 	import { modals } from 'svelte-modals';
 	import { fly } from 'svelte/transition';
@@ -10,8 +11,7 @@
 
 	// provided by <Modals />
 
-	interface Props {
-		isOpen: boolean;
+	interface Props extends ModalProps {
 		title: string;
 		onSaveUser: any;
 		titleIcon?: any;
