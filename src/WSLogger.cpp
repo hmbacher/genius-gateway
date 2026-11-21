@@ -60,6 +60,8 @@ void WSLogger::begin()
     // Registring event handler for WebSocket event OnOpen
     _webSocket.onOpen([this](PsychicWebSocketClient *client)
                       {
+        // Packets are pushed from the reception task - see logPacket()
+        EventSocket::setSendTimeout(client->socket(), WEB_SOCKET_LOGGER_SEND_TIMEOUT_MS);
         transmitId(client);
 
         ESP_LOGI(WSLogger::TAG, "ws[%s][%u] connect", client->remoteIP().toString().c_str(), client->socket());
@@ -96,7 +98,32 @@ void WSLogger::logPacket(cc1101_packet_t *packet)
     if (!_settings.isEnabled())
         return;
 
-    _webSocket.sendAll(HTTPD_WS_TYPE_BINARY, packet, sizeof(cc1101_packet_t));
+    // Not sendAll(): it stops at the first client that fails and leaves that client connected,
+    // so every further packet would wait for it again - in the task that receives the radio
+    // packets.
+    std::vector<int> stillDropped;
+    for (PsychicClient *client : _webSocket.getClientList())
+    {
+        if (client->_friend == nullptr)
+            continue;
+
+        const int socket = client->socket();
+        if (std::find(_droppedSockets.begin(), _droppedSockets.end(), socket) != _droppedSockets.end())
+        {
+            stillDropped.push_back(socket); // disconnect is under way - do not wait for it again
+            continue;
+        }
+
+        auto *wsClient = static_cast<PsychicWebSocketClient *>(client->_friend);
+        if (wsClient->sendMessage(HTTPD_WS_TYPE_BINARY, packet, sizeof(cc1101_packet_t)) != ESP_OK)
+        {
+            ESP_LOGW(WSLogger::TAG, "ws[%d] did not take a packet - disconnecting the client", socket);
+            stillDropped.push_back(socket);
+            client->close();
+        }
+    }
+    // Forget sockets that are closed by now; their number may be handed out again.
+    _droppedSockets = std::move(stillDropped);
 }
 
 void WSLogger::transmitId(PsychicWebSocketClient *client)

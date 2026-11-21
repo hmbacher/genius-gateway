@@ -34,6 +34,7 @@
 #define WEB_SOCKET_LOGGER_ORIGIN "wslogger"                   ///< WebSocket logger origin identifier
 #define WEB_SOCKET_LOGGER_ORIGIN_CLIENT_ID_PREFIX "wslogger:" ///< Client ID prefix for logger connections
 #define WEB_SOCKET_LOGGER_PATH "/ws/logger"                   ///< WebSocket endpoint path
+#define WEB_SOCKET_LOGGER_SEND_TIMEOUT_MS 1000                ///< Longest wait for one client to take a packet
 
 /// WebSocket logger for streaming CC1101 packets to connected clients
 class WSLogger
@@ -47,7 +48,13 @@ public:
     /// Generate client ID for WebSocket connection
     String clientId(PsychicWebSocketClient *client);
 
-    /// Log CC1101 packet to all connected WebSocket clients
+    /**
+     * @brief Log CC1101 packet to all connected WebSocket clients
+     *
+     * Called from the packet reception task for every packet. A client that does not take
+     * the packet within WEB_SOCKET_LOGGER_SEND_TIMEOUT_MS is disconnected, so reception
+     * stands still for that time at most, once per unresponsive client.
+     */
     void logPacket(cc1101_packet_t *packet);
 
 private:
@@ -57,6 +64,7 @@ private:
     PsychicHttpServer *_server;         ///< HTTP server instance
     PsychicWebSocketHandler _webSocket; ///< WebSocket handler
     WSLoggerSettingsService _settings;  ///< Logger settings service
+    std::vector<int> _droppedSockets;   ///< Clients being disconnected after a failed send (reception task only)
 
     /// Send client ID to newly connected client
     void transmitId(PsychicWebSocketClient *client);
