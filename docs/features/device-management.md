@@ -113,6 +113,8 @@ To register a new Genius smoke detector:
     ***Location***  
     Enter a descriptive name for the detector's location (1-40 characters). This helps identify the device in the list and alarm notifications.
 
+    If the Home Assistant option [*Update entity IDs when a detector's location changes*](../setup/connections.md#home-assistant-integration) is enabled, changing the location of an existing detector renames its entities in Home Assistant. A warning below the field points this out before you save, and a progress dialog follows the rename afterwards.
+
     ***Smoke Detector Component***
 
     - **Model**: Select the smoke detector model (currently *Genius Plus X*)
@@ -245,6 +247,8 @@ Click the :tabler-list-details: **Device Details** button in a device's row to o
 - **Radio Module** - model, serial number, and (after readout) radio status with individual state flags, interference level, alarm line ID and character, and DIP switch configuration.
 
 The dialog also provides an **Update** button (:tabler-microphone:) to trigger a new acoustic readout for that device directly, without leaving the dialog.
+
+The same dialog opens when a detector card is clicked on the [Overview](overview.md#device-status-grid). There it has no **Update** button; administrators get an **Edit** button (:tabler-pencil:) instead, which switches to the [edit dialog](#editing-a-detector).
 
 !!! info "Acoustic readout internals"
     For a detailed description of the signal modulation, framing, and the full payload field reference, see [Acoustic Readout](../reverse-engineering/acoustic-readout.md) in the Reverse Engineering section.

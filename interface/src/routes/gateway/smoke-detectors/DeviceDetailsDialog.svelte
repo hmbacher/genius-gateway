@@ -14,6 +14,7 @@
 	import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 	import DetailRow from './DetailRow.svelte';
 	import Cancel from '~icons/tabler/x';
+	import Edit from '~icons/tabler/pencil';
 	import IconListDetails from '~icons/tabler/list-details';
 	import Microphone from '~icons/tabler/microphone';
 	import MicrophoneOff from '~icons/tabler/microphone-off';
@@ -53,9 +54,12 @@
 		device: GeniusDevice;
 		onReadout?: () => void;
 		onSetLine?: () => void;
+		/** Switch from this read-only view to the edit dialog. When set, the footer shows an
+		 *  "Edit" button. Passed where no edit action is at hand otherwise (Overview). */
+		onEdit?: () => void;
 	}
 
-	let { isOpen, title, device, onReadout, onSetLine }: Props = $props();
+	let { isOpen, title, device, onReadout, onSetLine, onEdit }: Props = $props();
 
 	const titleId = `device-details-title-${Math.random().toString(36).slice(2)}`;
 
@@ -173,11 +177,11 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby={titleId}
-		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center overflow-y-auto"
+		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
 		transition:fly={{ y: 50 }}
 	>
 		<div
-			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex w-full max-w-lg flex-col justify-between p-4 shadow-lg"
+			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex max-h-full w-full max-w-lg flex-col justify-between p-4 shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<h2 id={titleId} class="text-base-content flex items-center gap-2 text-2xl font-bold">
@@ -192,9 +196,9 @@
 				</button>
 			</div>
 
-			<div class="divider my-2"></div>
+			<div class="divider my-2 shrink-0"></div>
 
-			<div class="max-h-[70vh] overflow-y-auto space-y-4 pr-1">
+			<div class="max-h-[70vh] min-h-0 overflow-y-auto overscroll-contain space-y-4 pr-1">
 				<!-- General -->
 				<div>
 					<span class="block bg-base-200 px-2 py-1 rounded-sm text-base font-semibold">General</span
@@ -537,12 +541,24 @@
 			</div>
 
 			<!-- Footer -->
-			<div class="divider my-2"></div>
+			<div class="divider my-2 shrink-0"></div>
 			<div class="flex justify-end gap-2">
 				<button class="btn btn-neutral text-neutral-content btn-sm" onclick={() => modals.close()}>
 					<Cancel class="h-5 w-5" />
 					Close
 				</button>
+				{#if onEdit}
+					<button
+						class="btn btn-primary text-primary-content btn-sm"
+						onclick={() => {
+							modals.close();
+							onEdit?.();
+						}}
+					>
+						<Edit class="h-5 w-5" />
+						Edit
+					</button>
+				{/if}
 				{#if onReadout}
 					<button
 						class={isSecureContext

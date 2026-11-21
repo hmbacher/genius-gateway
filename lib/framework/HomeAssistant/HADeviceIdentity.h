@@ -28,8 +28,10 @@
  * to expose the framework's primary device. Sub-devices (e.g., one per
  * remote sensor) populate their own HADeviceIdentity.
  *
- * `topicNamespace` is the slugified namespace used inside the MQTT base
- * topic - it does NOT appear in the discovery payload, only in topic paths.
+ * `topicNamespace` is the namespace the MQTT base topic nests under - it does
+ * NOT appear in the discovery payload, only in topic paths. Empty for the main
+ * device (which sits directly under the discovery prefix); set to the main
+ * device's ID for sub-devices.
  */
 class HADeviceIdentity
 {

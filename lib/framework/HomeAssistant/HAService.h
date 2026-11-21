@@ -24,6 +24,9 @@
 #include <memory>
 #include <vector>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
 #include <HomeAssistant/HADeviceIdentity.h>
 
 class HADevice;
@@ -93,7 +96,8 @@ public:
      *
      * Starts a persistent publish task that blocks on a task notification and
      * calls publishAll() when woken. Registers an MQTT onConnect handler that
-     * notifies (wakes) this task on every (re)connect.
+     * notifies (wakes) this task on every (re)connect. requestPublishAll()
+     * wakes it as well.
      *
      * Routing publishAll() through a dedicated task - instead of calling it
      * directly from the MQTT event callback - keeps the MQTT event thread free,
@@ -108,6 +112,11 @@ public:
 
     /**
      * @brief Set the device display name for Home Assistant
+     *
+     * Purely cosmetic - this feeds `device.name` in the discovery payload only.
+     * MQTT topics and the device identity are derived from APP_NAME, so
+     * renaming is safe and never moves topics or re-registers the device.
+     *
      * @param name Device name (e.g., "Genius Gateway")
      */
     void setDeviceName(const String &name);
@@ -136,6 +145,24 @@ public:
      */
     void setEnabled(bool enabled);
 
+    /**
+     * @brief Opt-in: let sub-device entity IDs follow the user-defined label
+     *
+     * This service only stores the flag. Sub-device owners read it via
+     * renameEntityIds() and are responsible for the rest: naming the HA device
+     * after the label (e.g. a detector's location), sending explicit entity
+     * IDs (HADevice::setEntityIdPrefix) and, when the label changes, clearing
+     * the retained discovery configs before publishing them again so HA adopts
+     * the new entity IDs. References to the old IDs in automations, scripts
+     * and dashboards have to be updated by the user.
+     *
+     * @param enabled true to enable
+     */
+    void setRenameEntityIds(bool enabled);
+
+    /** @brief Whether sub-device entity IDs follow the user-defined label (see setRenameEntityIds) */
+    bool renameEntityIds() const { return _renameEntityIds; }
+
     // ========================================================================
     // State queries
     // ========================================================================
@@ -156,8 +183,8 @@ public:
      * @brief Get the base topic for state/command topics
      *
      * Used as MQTT "~" abbreviation base in discovery configs.
-     * Format: {discoveryPrefix}{topicNamespace}/{deviceId}
-     * Example: "homeassistant/genius-gateway/genius-gateway-aabbcc"
+     * Format: {discoveryPrefix}{deviceId}
+     * Example: "homeassistant/genius-gateway-aabbcc"
      */
     String getBaseTopic() const;
 
@@ -191,6 +218,24 @@ public:
      * @return true if publish succeeded
      */
     bool publishConfig(const String &component, const String &objectId, JsonDocument &config);
+
+    /**
+     * @brief Clear the pre-v1.5.1 discovery config topic for an entity.
+     *
+     * Up to v1.5.0 the discovery node_id was derived from the user-editable
+     * display name, so upgrading moves every main-device config topic. Called
+     * right after a successful config publish, this sends an empty retained
+     * payload to the topic the entity used to live at, so Home Assistant drops
+     * the stale duplicate instead of showing it as an unavailable ghost.
+     *
+     * No-op for sub-devices (their node_id never contained the display name)
+     * and once the first full publishAll() after boot has completed.
+     *
+     * @param component HA component type the config was published under
+     * @param objectId  Entity object ID
+     * @param deviceId  node_id the config was published under
+     */
+    void purgeLegacyConfig(const String &component, const String &objectId, const String &deviceId);
 
     /**
      * @brief Publish to a specific MQTT topic
@@ -239,6 +284,12 @@ public:
      */
     CallbackId onUnpublishAll(PublishAllCallback callback);
 
+    /**
+     * @brief Deregister a callback
+     *
+     * Returns only after a run of that callback that is in progress in another
+     * task has finished, so the object behind it can be destroyed right after.
+     */
     void removePublishAllCallback(CallbackId id);
     void removeUnpublishAllCallback(CallbackId id);
 
@@ -249,8 +300,26 @@ public:
      * and asks the main HADevice (and any sub-devices) to publish their
      * entities. Only executes if HA integration is enabled and MQTT is
      * connected.
+     *
+     * The registry lock (see Lock) is taken per callback and per device, not
+     * for the whole sequence: other tasks can add or remove devices while a
+     * publish-all runs and wait for one device at most. A device or callback
+     * that was removed in the meantime is skipped.
      */
     void publishAll();
+
+    /**
+     * @brief Have the publish task run publishAll()
+     *
+     * Returns at once; the publishing happens in the task started by begin().
+     * For callers that must not be held up by a full publish - an HTTP request
+     * handler, for example. A request that arrives while a publish-all is
+     * running leads to one more run afterwards, so the last request always
+     * gets a complete publish with the settings current at that time.
+     * Before begin() was called there is no task: publishAll() then runs in
+     * the calling task.
+     */
+    void requestPublishAll();
 
     /**
      * @brief Remove all registered entities from Home Assistant
@@ -258,8 +327,76 @@ public:
      * Sends empty retained payloads to every discovery topic so HA deletes
      * the device and all its entities. Must be called while isReady() is true
      * (i.e. before setEnabled(false)).
+     *
+     * To switch the integration off, hold the registry lock (see Lock) around
+     * unpublishAll() and setEnabled(false): a publishAll() that is running in
+     * the publish task then cannot publish anything in between and stops as
+     * soon as it sees the service disabled.
      */
     void unpublishAll();
+
+    // ========================================================================
+    // Registry lock
+    // ========================================================================
+
+    /**
+     * @brief Scoped lock on the registry of HA objects
+     *
+     * The registry is everything publishAll() walks: the publish/unpublish
+     * callbacks, the main device and the sub-devices with their entities.
+     * publishAll() runs in its own task, so adding, removing or modifying
+     * those objects from another task has to be serialised with it.
+     *
+     * HAService takes the lock itself in addSubDevice(), removeSubDevice(),
+     * onPublishAll(), onUnpublishAll(), the remove...Callback() functions and
+     * the identity setters. Project code takes it explicitly whenever it
+     *  - changes a registered device in place (e.g. HADevice::identity()), or
+     *  - destroys an object whose callback publishAll() may be running.
+     *
+     * Lock order: take this lock BEFORE any mutex that a state reader or a
+     * publish callback takes (typically the mutex of a StatefulService).
+     * publishAll() holds the lock while it calls them; a task that already
+     * holds such a mutex and then asks for this lock can deadlock with it.
+     * So lock first, then enter the transaction:
+     *
+     * @code
+     * HAService::Lock haLock(_haService);
+     * beginTransaction();
+     * // add / remove sub-devices, update identities ...
+     * endTransaction();
+     * @endcode
+     *
+     * The lock is recursive. publish(), publishConfig() and the state
+     * publishers do not need it.
+     *
+     * Never take it in an MQTT event callback (onConnect, a command or message
+     * handler): publishAll() publishes synchronously while holding it, and a
+     * synchronous publish cannot complete while the MQTT event task is blocked.
+     */
+    class Lock
+    {
+    public:
+        explicit Lock(HAService *service) : _service(service)
+        {
+            if (_service != nullptr)
+                _service->lock();
+        }
+        ~Lock()
+        {
+            if (_service != nullptr)
+                _service->unlock();
+        }
+        Lock(const Lock &) = delete;
+        Lock &operator=(const Lock &) = delete;
+
+    private:
+        HAService *_service;
+    };
+
+    /** Take the registry lock (recursive). Prefer the scoped Lock. */
+    void lock();
+    /** Release the registry lock. */
+    void unlock();
 
     // ========================================================================
     // Devices
@@ -285,8 +422,8 @@ public:
      * The following identity fields are set automatically if not already
      * filled by the caller:
      *   - viaDevice     → set to the main device's ID
-     *   - topicNamespace → set so the base topic nests under the main device:
-     *                      {mainNamespace}/{mainDeviceId}
+     *   - topicNamespace → set to the main device's ID, so the base topic nests
+     *                      under it: {prefix}{mainDeviceId}/{subDeviceId}
      *
      * @param device  HADevice to add (ownership transferred)
      * @return Raw pointer valid for the lifetime of this HAService (or until
@@ -313,9 +450,15 @@ private:
     String _deviceName;
     String _manufacturer;
     String _model;
-    String _topicNamespace;
     String _discoveryPrefix;
     bool _enabled;
+    bool _renameEntityIds;
+
+    // Pre-v1.5.1 topic identity, remembered only while it differs from the
+    // current one. Empty means "nothing stale to clear". See _purgeLegacyState().
+    String _legacyDeviceId;
+    String _legacyBaseTopic;
+    bool _legacyPurgeArmed{true};
 
     // Publish / unpublish callbacks - keyed by ID for O(n) removal
     using CallbackEntry = std::pair<CallbackId, PublishAllCallback>;
@@ -332,23 +475,43 @@ private:
     /** Refresh the main device's identity to mirror current HAService state. */
     void _syncMainDeviceIdentity();
 
+    /**
+     * Run the callback registered under `id`, if it still is. Holds the registry
+     * lock for the duration, so a concurrent deregistration waits for it.
+     */
+    void _invokeCallback(const std::vector<CallbackEntry> &callbacks, CallbackId id);
+
     // Persistent publish task (started by begin())
     TaskHandle_t _publishTaskHandle;
     static void _publishTaskImpl(void *param);
     void _publishTask();
 
-    /**
-     * @brief Generate the device ID from APP_NAME and MAC address
-     *
-     * Creates a slug from the device name and appends the unique ID:
-     * "My Device Name" → "my-device-name-aabbcc"
-     */
-    void _generateDeviceId();
+    // Serialises the registry (callbacks, main device, sub-devices) between the
+    // publish task and the tasks that add, remove or modify HA objects. See Lock.
+    SemaphoreHandle_t _registryMutex;
 
     /**
-     * @brief Generate the topic namespace from device name
+     * @brief Recompute the pre-v1.5.1 topic identity from the display name.
      *
-     * Creates a URL-safe slug: "My Device Name" → "my-device-name"
+     * Up to v1.5.0 both the namespace and the device ID were slugs of the
+     * user-editable display name:
+     *   namespace = slugify(deviceName)
+     *   deviceId  = slugify(deviceName) + "-" + uniqueId
+     *   baseTopic = {prefix}{namespace}/{deviceId}
+     *
+     * The display name still persists across the upgrade, so the old topics
+     * are exactly reproducible - which is what lets the first publish after
+     * the upgrade clean them up. Each of the two values is stored only if it
+     * actually differs from its current counterpart.
      */
-    static String _slugify(const String &name);
+    void _updateLegacyTopicIdentity();
+
+    /**
+     * @brief Clear the pre-v1.5.1 counterpart of a state/command topic.
+     *
+     * Called for every publish that targets the current base topic while the
+     * purge is armed; rewrites the topic onto the old base and sends an empty
+     * retained payload there so the stale retained tree drains itself.
+     */
+    void _purgeLegacyState(const String &topic);
 };

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { user } from '$lib/stores/user';
@@ -10,9 +11,11 @@
 	import DirtyField from '$lib/components/DirtyField.svelte';
 	import { createDirtyState } from '$lib/utils/dirtyState.svelte';
 	import { isDiscoveryPrefix } from '$lib/utils/validators';
+	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
 	import FieldError from '$lib/components/FieldError.svelte';
 	import HomeAssistant from '~icons/tabler/smart-home';
 	import Info from '~icons/tabler/info-circle';
+	import IconWarning from '~icons/tabler/alert-triangle';
 	import type { HASettings } from '$lib/types/models';
 
 	const f = createDirtyState<HASettings>({
@@ -20,7 +23,8 @@
 		discovery_prefix: 'homeassistant/',
 		device_name: '',
 		manufacturer: '',
-		model: ''
+		model: '',
+		rename_entity_ids: false
 	});
 
 	async function getHASettings() {
@@ -45,7 +49,12 @@
 	const modelError = $derived((f.current.model ?? '').length > 64);
 	const hasError = $derived(discoveryPrefixError || deviceNameError || manufacturerError || modelError);
 
+	// True while the settings are being sent: switching the integration off removes every
+	// entity from Home Assistant before the gateway answers, which takes a few seconds.
+	let applying = $state(false);
+
 	async function postHASettings() {
+		applying = true;
 		try {
 			const response = await fetch('/rest/haSettings', {
 				method: 'POST',
@@ -63,15 +72,21 @@
 			}
 		} catch (error) {
 			console.error('Error:', error);
+		} finally {
+			applying = false;
 		}
 		return;
 	}
 
 	function handleSubmit() {
-		if (!hasError) {
+		if (!hasError && !applying) {
 			postHASettings();
 		}
 	}
+
+	// Applying the settings can rename the entities of all smoke detectors. The gateway
+	// reports that through a WebSocket event; this shows the progress dialog for it.
+	onMount(() => watchHaEntityRename());
 </script>
 
 {#await getHASettings()}
@@ -170,11 +185,43 @@
 					</DirtyField>
 					<FieldError show={modelError} message="Model is limited to 64 characters." />
 				</div>
+
+				<div class="flex items-center w-full mt-2">
+					<div class="self-stretch bg-red-300 transition-all duration-200 ease-out {f.isDirty('rename_entity_ids') ? 'w-1 mr-2' : 'w-0'}"></div>
+					<label class="label cursor-pointer justify-start gap-2 items-center">
+						<input type="checkbox" class="toggle toggle-primary shrink-0" bind:checked={f.current.rename_entity_ids} />
+						<div class="flex items-center gap-2">
+							<span>Update entity IDs when a detector's location changes</span>
+							<DirtyMarker dirty={f.isDirty('rename_entity_ids')} onrevert={() => f.revert('rename_entity_ids')} />
+						</div>
+					</label>
+				</div>
+				{#if f.current.rename_entity_ids}
+					<div
+						class="alert alert-warning shadow-lg"
+						transition:slide|local={{ duration: 300, easing: cubicOut }}
+					>
+						<IconWarning class="h-6 w-6 shrink-0 stroke-current" />
+						<span
+							>Smoke detectors are named after their location in Home Assistant and their entity IDs
+							follow it. Switching this on renames the entities of all detectors at once; changing a
+							location later renames those of that detector. Automations, scripts and dashboards that
+							use the old entity IDs must be updated.</span
+						>
+					</div>
+				{/if}
 			</div>
 			<div class="divider mb-2 mt-0"></div>
 			<div class="mx-4 flex flex-wrap justify-end gap-2">
-				<button class="btn btn-primary" disabled={!f.anyDirty || hasError} type="submit"
-					>Apply Settings</button
+				<button
+					class="btn btn-primary"
+					disabled={!f.anyDirty || hasError || applying}
+					type="submit"
+				>
+					{#if applying}
+						<span class="loading loading-spinner loading-sm"></span>
+					{/if}
+					Apply Settings</button
 				>
 			</div>
 		</form>

@@ -1,3 +1,56 @@
+# v1.6.0
+
+## Home Assistant: Entity IDs Follow the Detector Location
+Home Assistant builds an entity ID once, when an entity is first registered, and never changes it afterwards - renaming a detector's location in the gateway left IDs such as `sensor.hallway_genius_plus_x_alarm_line` behind. A new opt-in setting makes the entity IDs follow the location (#24).
+
+- **New opt-in setting in the Home Assistant Integration card**: "Update entity IDs when a detector's location changes" (`rename_entity_ids` in `/rest/haSettings`, off by default). With the setting off nothing changes
+- **Detectors are named after their location** in Home Assistant, and every detector gets explicit entity IDs such as `sensor.living_room_alarm_line`. Without a usable location the serial number is used instead (`sensor.genius_12345678_alarm_line`), so clearing a location frees the location-based IDs
+- **Changing a location renames the entities of that detector**: the gateway clears the detector's retained discovery configs, waits a few seconds and publishes them again with an explicit `default_entity_id`. An edit that does not change the resulting IDs triggers nothing
+- **Switching the setting on renames all detectors at once**, as a single batch
+- **Missed renames are caught up**: the gateway persists per detector which IDs it last announced to Home Assistant. A rename that could not be sent because MQTT was down is carried out on the next connect, also after a restart
+- **Alarm handling is never held up**: the rename runs in its own task. The web server, the packet receiver and the alarm path are not blocked while the gateway waits for Home Assistant
+- **Web interface**: the detector editor warns before a location change renames entities; a progress dialog follows the three steps (remove, wait, publish) and ends with "Sent to Home Assistant", since Home Assistant does not acknowledge the rename; without an MQTT connection a dialog explains that the rename is caught up later (new `ha-entity-rename` WebSocket event)
+- **References to the old entity IDs** in automations, scripts and dashboards must be updated. The recorded history and the long-term statistics follow the new IDs. Requires Home Assistant 2025.10 or newer
+
+See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for details and limitations.
+
+## Overview Cards Open the Clicked Detector
+Clicking a detector card on the Overview page now opens that detector directly, on top of the Overview, instead of switching to the device list.
+
+- **Device Details / Alarm Log on click**: normal cards open the read-only **Device Details** dialog of the clicked detector, alarming cards open its **Alarm Log**. A **Details** button in the Alarm Log leads on to Device Details. Acoustic readout and changing the alarm line stay on the Smoke Detectors page
+- **Edit from the Overview**: administrators get an **Edit** button in the footer of Device Details that switches to the **Edit smoke detector** dialog. Saving runs the same follow-ups as on the Smoke Detectors page (fault warning, manual line entry for old FM modules, offer to add an unknown alarm line) and shows the same warning before a location change renames Home Assistant entities
+- **Read-only for other users**: users without administrator rights can open Device Details and the Alarm Log, but are not offered the edit action (the old link bounced them straight back to the Overview)
+- **Overview works without administrator rights**: the detector list can now be read by every signed-in user (`GET /rest/gateway-devices`), so the Overview shows the cards to them as well - before, it stayed at "Loading devices..." forever. Changing detectors and ending alarms remain administrator actions
+- **One editor for all flows**: adding, editing and replacing a detector now go through one shared editor and save path (`deviceSave.svelte.ts`). A failed save no longer opens the follow-up dialogs
+
+# v1.5.1
+
+## Home Assistant MQTT Topic Restructuring
+The Home Assistant topic tree carried a redundant namespace level and derived its identity from the user-editable **Device Name**, which duplicated the gateway's MAC address in every state topic and made renaming the gateway a destructive operation. Both are fixed.
+
+- **Redundant namespace level removed**: base topics collapse from `{prefix}{namespace}/{device_id}/…` to `{prefix}{device_id}/…`. The namespace was always a literal string prefix of the device ID that followed it, so it carried no information - nothing subscribed to it and Home Assistant never saw it, since discovery payloads always name their topics explicitly
+
+    ```
+    v1.5.0  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-gateway-1a2b3c4d5e6f-1a2b3c4d5e6f/genius-123/diagnostics/state
+    v1.5.1  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-123/diagnostics/state
+    ```
+
+- **MAC address no longer duplicated**: the device ID was built as `slugify(deviceName) + "-" + MAC`, while the factory-default device name already ended in the MAC - producing `genius-gateway-<mac>-<mac>`. Topic identity is now derived from the compile-time firmware name, so the MAC appears exactly once
+- **Renaming the gateway is now safe**: the **Device Name** is purely cosmetic and feeds only Home Assistant's display label. Previously it drove the topic namespace, the discovery `node_id`, and `device.identifiers`, so a rename silently re-registered the gateway as a *new* device in Home Assistant and abandoned the old one - along with all its retained discovery configs - as an unremovable ghost
+- **Sub-devices no longer go stale on rename**: a sub-device captured its topic namespace once, when it was created, and never re-synced. After a rename the gateway published under the new tree while every smoke detector kept publishing under the old one. With a stable identity this cannot happen
+- **Automatic cleanup of the old topic tree**: on the first MQTT connect after the upgrade, the gateway clears every retained discovery config and state message it previously published under the old paths, retiring each old config immediately before publishing its replacement so Home Assistant reclaims the entity ID instead of suffixing the new entity with `_2`. Smoke detectors and alarm lines are untouched by the migration - their topics never contained the device name and their `unique_id` is unchanged, so Home Assistant updates them in place and their history and automations survive
+
+See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for upgrade details and the two things worth verifying afterwards.
+
+## Documentation
+- **MQTT topic reference corrected**: the documented discovery config topic pattern (`{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/…/config`) never matched the firmware, which has always published to a flat single-level `node_id` as the Home Assistant discovery spec requires. All topic examples now reflect the actual v1.5.1 layout
+
+## Bugfixes
+- **Restart when a smoke detector or alarm line was added or removed while the gateway published to Home Assistant**: after every MQTT connect, and after applying the Home Assistant settings, the gateway republishes all entities in a background task - a few seconds with many detectors. Adding or deleting a detector or an alarm line during that time changed the lists that task was working on and could crash the gateway (present since v1.3.0). The Home Assistant registry is now locked per device while it is published: a change waits for the device in progress instead of pulling it away
+- **Web interface held up for seconds after applying the Home Assistant settings**: the gateway republished every entity before it answered the request, so **Apply Settings** showed no reaction for about five seconds with a dozen detectors. The republish now runs in the background and the gateway answers at once. The button shows a spinner and is locked while a request is under way - switching the integration off still removes all entities before the gateway answers
+- **Radio packets could be missed while a browser did not respond**: the gateway sent web interface events (alarm state, packet log, system values) straight from the task that emitted them and waited up to 60 seconds for every client that did not take the data - for example a browser tab on a phone in standby. The alarm state was sent by the task that receives the radio packets, so during that wait further packets were lost: in a test the all-clear of an alarm was never processed and the alarm event reached other browsers 56 seconds late. The first alarm message to MQTT / Home Assistant was not affected. A client now gets one second to take an event and is disconnected if it does not (browsers reconnect by themselves), and the alarm state is sent by a task of its own
+- **Alarms reached Home Assistant up to ~15 seconds late after a detector was saved**: MQTT messages that the gateway queues (states and diagnostics) left at only one message per second. Saving a detector republishes the diagnostics of all detectors, so an alarm received right after it had to wait behind them - about one second per detector. The gateway itself always registered the alarm at once; only the way to MQTT was held up. The queue is now drained at up to 50 messages per second. Applies to the `gg-v1_0`, `seeed-xiao-esp32s3` and `esp32-s3-devkitc-1-n8r2` builds
+
 # v1.5.0
 
 ## Direct-Link Signal / Range Survey

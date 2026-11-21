@@ -181,6 +181,7 @@ private:
   bool _hasLastPacketHash;  ///< Flag indicating if last packet hash is valid
 
   TaskHandle_t _mqttPublishTaskHandle = nullptr; ///< Handle for persistent HA publish task
+  TaskHandle_t _alarmEventTaskHandle = nullptr;  ///< Handle for the task that sends the alarm state to the web clients
 
   // --- ConfigCheckProbe RSSI survey session state (guarded by _probeMutex) ---
   SemaphoreHandle_t _probeMutex = nullptr;                  ///< Guards the probe-session fields below
@@ -253,4 +254,20 @@ private:
 
   /// Emit current alarm state via WebSocket
   void _emitAlarmState();
+
+  /**
+   * @brief Have the alarm state sent to the web clients without waiting for it
+   *
+   * For the packet reception task: sending to the web clients can block on a client that
+   * does not take the data, and reception must not stand still for that. The state is sent
+   * by a task of its own; several requests in a row may result in one event with the
+   * latest state.
+   */
+  void _requestAlarmStateEmit();
+
+  /// Sends the alarm state when woken by _requestAlarmStateEmit() (persistent task)
+  void _alarmEventTask();
+
+  /// Static wrapper for the alarm event task
+  static void _alarmEventTaskImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_alarmEventTask(); }
 };

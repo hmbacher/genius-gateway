@@ -18,6 +18,7 @@ node_modules
 /build
 /lib/framework/WWWData.h
 *WWWData.h
+*WWWData.h.tmp
 lib/framework/WWWData.h
 /lib/framework/AppVersion.h
 /interface/src/lib/version.ts

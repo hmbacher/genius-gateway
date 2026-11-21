@@ -171,6 +171,17 @@ void GeniusGateway::begin()
         &_probeFinalizeTaskHandle,
         ESP32SVELTEKIT_RUNNING_CORE);
 
+    /* Alarm event worker: sends the alarm state to the web clients, so the packet reception
+     * task never waits for a browser. */
+    xTaskCreatePinnedToCore(
+        _alarmEventTaskImpl,
+        "alarm-event",
+        4096,
+        this,
+        5,
+        &_alarmEventTaskHandle,
+        ESP32SVELTEKIT_RUNNING_CORE);
+
     /* Register endpoint to end all alarms and block new alarms for a specified amount of time */
     _server->on(GATEWAY_SERVICE_PATH_END_ALARMS,
                 HTTP_POST,
@@ -269,6 +280,24 @@ void GeniusGateway::_emitAlarmState()
 
     /* Emit event */
     _eventSocket->emitEvent(GATEWAY_EVENT_ALARM, root);
+}
+
+void GeniusGateway::_requestAlarmStateEmit()
+{
+    if (_alarmEventTaskHandle != nullptr)
+        xTaskNotifyGive(_alarmEventTaskHandle);
+    else
+        _emitAlarmState();
+}
+
+void GeniusGateway::_alarmEventTask()
+{
+    while (1)
+    {
+        // Block until the reception task asks for it
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        _emitAlarmState();
+    }
 }
 
 // ============================================================================
@@ -790,8 +819,8 @@ void GeniusGateway::_rx_packets()
                                         _geniusDevices.mqttPublishDeviceState(source_id); // Publish only this device's state
                                 }
 
-                                /* Emit alarm state to front end */
-                                _emitAlarmState(); // TODO: Is this necessary on every single packet???
+                                /* Alarm state to the front end - sent by the alarm event task, not from here */
+                                _requestAlarmStateEmit();
 
                                 /* Store alarm line id */
                                 if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
