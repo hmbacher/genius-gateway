@@ -6,6 +6,7 @@ import {
 	GeniusAlarmEnding
 } from '$lib/types/enums';
 import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
+import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
 import {
 	getSmokeDetectorFaults,
 	getRadioModuleFaults,
@@ -77,24 +78,68 @@ const WARRANTY_FLAG_NAMES: string[] = [
 	'Too many RX events'
 ];
 
-const RADIO_STATE_FLAGS: { name: string; inactiveText: string; neutral: boolean; warn?: boolean }[] = [
-	{ name: 'FM Fault', inactiveText: 'No FM Fault', neutral: false },
-	{ name: 'Range Test active', inactiveText: 'Range Test not active', neutral: true },
-	{ name: 'Self-Test active', inactiveText: 'Self-Test not active', neutral: true },
-	{ name: 'FM Battery Low', inactiveText: 'FM Battery not low', neutral: false },
-	{ name: 'Remote Battery Low', inactiveText: 'Remote Battery not low', neutral: false, warn: true },
-	{ name: 'Remote Error', inactiveText: 'No Remote Error', neutral: false, warn: true },
-	{ name: 'Radio Link Error', inactiveText: 'No Radio Link Error', neutral: false },
-	{ name: 'Remote Alarm', inactiveText: 'Remote Alarm not active', neutral: true }
+// Bit masks: see $lib/audio/radio-flags. The order here is the display order.
+const RADIO_STATE_FLAGS: {
+	mask: number;
+	name: string;
+	inactiveText: string;
+	neutral: boolean;
+	warn?: boolean;
+}[] = [
+	{ mask: RADIO_STATE.FmFault, name: 'FM Fault', inactiveText: 'No FM Fault', neutral: false },
+	{
+		mask: RADIO_STATE.TransmissionRangeTest,
+		name: 'Range Test active',
+		inactiveText: 'Range Test not active',
+		neutral: true
+	},
+	{
+		mask: RADIO_STATE.Selftest,
+		name: 'Self-Test active',
+		inactiveText: 'Self-Test not active',
+		neutral: true
+	},
+	{
+		mask: RADIO_STATE.FmBatteryLowFault,
+		name: 'FM Battery Low',
+		inactiveText: 'FM Battery not low',
+		neutral: false
+	},
+	{
+		mask: RADIO_STATE.RemoteBattLow,
+		name: 'Remote Battery Low',
+		inactiveText: 'Remote Battery not low',
+		neutral: false,
+		warn: true
+	},
+	{
+		mask: RADIO_STATE.RemoteError,
+		name: 'Remote Error',
+		inactiveText: 'No Remote Error',
+		neutral: false,
+		warn: true
+	},
+	{
+		mask: RADIO_STATE.RadioLinkError,
+		name: 'Radio Link Error',
+		inactiveText: 'No Radio Link Error',
+		neutral: false
+	},
+	{
+		mask: RADIO_STATE.RemoteAlarm,
+		name: 'Remote Alarm',
+		inactiveText: 'Remote Alarm not active',
+		neutral: true
+	}
 ];
 
 const RADIO_SWITCH_CONFIG: [number, string][] = [
-	[2, 'Suppress Warnings'],
-	[3, 'Suppress Alarms'],
-	[4, 'Send Collective Alarm'],
-	[5, 'Receive Collective Alarm'],
-	[6, 'Radio Link Supervision'],
-	[7, 'Reduced TX Power']
+	[RADIO_SWITCH.SuppressWarnings, 'Suppress Warnings'],
+	[RADIO_SWITCH.SuppressAlarms, 'Suppress Alarms'],
+	[RADIO_SWITCH.SendCollectiveAlarm, 'Send Collective Alarm'],
+	[RADIO_SWITCH.ReceiveCollectiveAlarm, 'Receive Collective Alarm'],
+	[RADIO_SWITCH.RadioLinkSupervision, 'Radio Link Supervision'],
+	[RADIO_SWITCH.ReducedTransmittingPower, 'Reduced TX Power']
 ];
 
 // ─── color tokens ─────────────────────────────────────────────────────────────
@@ -409,7 +454,7 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 		rightCol.push(detailRow('Serial Number', String(rm.sn), undefined, LW));
 
 		if (sdReadout) {
-			const fmFault = !!((rm.radioStateMask ?? 0) & 0x09);
+			const fmFault = !!((rm.radioStateMask ?? 0) & RADIO_FAULT_MASK);
 			rightCol.push(
 				detailRow('Radio Status', fmFault ? 'Fault' : 'OK', fmFault ? C_ERROR : C_OK, LW)
 			);
@@ -447,8 +492,8 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 				italics: true
 			});
 			rightCol.push({
-				stack: RADIO_STATE_FLAGS.map((flag, i) => {
-					const active = !!(((rm.radioStateMask ?? 0) >> i) & 1);
+				stack: RADIO_STATE_FLAGS.map((flag) => {
+					const active = !!((rm.radioStateMask ?? 0) & flag.mask);
 					if (active) {
 						return flag.warn
 							? flagRow('warn', flag.name, C_WARN)
@@ -490,8 +535,8 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 				italics: true
 			});
 			rightCol.push({
-				stack: RADIO_SWITCH_CONFIG.map(([bit, name]) => {
-					const active = !!(((rm.radioSwitchMask ?? 0) >> bit) & 1);
+				stack: RADIO_SWITCH_CONFIG.map(([mask, name]) => {
+					const active = !!((rm.radioSwitchMask ?? 0) & mask);
 					return active
 						? flagRow('check', `${name} is on`, '#374151')
 						: flagRow('muted-x', `${name} is off`, C_MUTED, true);

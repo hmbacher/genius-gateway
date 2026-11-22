@@ -168,27 +168,30 @@ If `warrantyFlagsRaw == 0`, the warranty is fully intact and the parser surfaces
 
 | Bit | Mask | Mnemonic | Meaning when set |
 |:---:|:----:|:---------|:-----------------|
-| 0 | `0x01` | `FmFault` | Radio module reports a generic fault. |
-| 1 | `0x02` | `TransmissionRangeTest` | A range test is currently active. |
-| 2 | `0x04` | `Selftest` | The radio module is performing a self-test. |
-| 3 | `0x08` | `FmBatteryLowFault` | Radio module battery low. |
-| 4 | `0x10` | `RemoteBattLow` | Battery-low reported by a remote (linked) device. |
-| 5 | `0x20` | `RemoteError` | Generic error reported by a remote device. |
-| 6 | `0x40` | `RadioLinkError` | Radio link layer error (packet loss / supervision miss). |
-| 7 | `0x80` | `RemoteAlarm` | Alarm triggered remotely (collective alarm propagation). |
+| 0 | `0x01` | `RemoteAlarm` | Alarm triggered remotely (collective alarm propagation). |
+| 1 | `0x02` | `RadioLinkError` | Radio link layer error (packet loss / supervision miss). |
+| 2 | `0x04` | `RemoteError` | Generic error reported by a remote device. |
+| 3 | `0x08` | `RemoteBattLow` | Battery-low reported by a remote (linked) device. |
+| 4 | `0x10` | `FmBatteryLowFault` | Radio module battery low. |
+| 5 | `0x20` | `Selftest` | The radio module is performing a self-test. |
+| 6 | `0x40` | `TransmissionRangeTest` | A range test is currently active. |
+| 7 | `0x80` | `FmFault` | Radio module reports a generic fault. |
 
 #### Radio Switch Mask (byte 30) {#radio-switch-mask-byte-30}
 
-These bits mirror the DIP-switch configuration on the FM Basis X module. Bits 0 and 1 are reserved.
+These bits mirror the DIP-switch configuration on the FM Basis X module. Bits 6 and 7 are not used - the Hekatron apps reject a readout in which one of them is set.
 
 | Bit | Mask | Mnemonic | Function |
 |:---:|:----:|:---------|:---------|
-| 2 | `0x04` | `ReducedTransmittingPower` | TX output is reduced (battery saving / regulatory). |
-| 3 | `0x08` | `RadioLinkSupervision` | Periodic link-supervision heartbeats are enabled. |
-| 4 | `0x10` | `ReceiveCollectiveAlarm` | Module forwards collective alarms received from peers. |
-| 5 | `0x20` | `SendCollectiveAlarm` | Module emits collective alarms to peers. |
-| 6 | `0x40` | `SuppressAlarms` | Local alarm output is suppressed. |
-| 7 | `0x80` | `SuppressWarnings` | Local warning chirps are suppressed. |
+| 0 | `0x01` | `SuppressWarnings` | Local warning chirps are suppressed. |
+| 1 | `0x02` | `SuppressAlarms` | Local alarm output is suppressed. |
+| 2 | `0x04` | `SendCollectiveAlarm` | Module emits collective alarms to peers. |
+| 3 | `0x08` | `ReceiveCollectiveAlarm` | Module forwards collective alarms received from peers. |
+| 4 | `0x10` | `RadioLinkSupervision` | Periodic link-supervision heartbeats are enabled. |
+| 5 | `0x20` | `ReducedTransmittingPower` | TX output is reduced (battery saving / regulatory). |
+
+!!! note "Bit order of both masks"
+    The Hekatron apps (Genius Control and Genius Home) read these two bytes as an 8-digit binary string with the most significant bit first, so the last digit is bit 0. Up to v1.5.0 Genius Gateway took the position in that string for the bit number, which mirrored the radio state mask and misplaced the DIP switches.
 
 ### Date Reconstruction {#date-reconstruction}
 

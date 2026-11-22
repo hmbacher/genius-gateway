@@ -90,25 +90,25 @@ All payloads are 32 bytes (all include FM.Basis X radio module data, `radioProdu
 
 | Bit | Mask | Field |
 |---|---|---|
-| 0 | `0x01` | FmFault |
-| 1 | `0x02` | TransmissionRangeTest |
-| 2 | `0x04` | Selftest |
-| 3 | `0x08` | FmBatteryLowFault |
-| 4 | `0x10` | RemoteBattLow |
-| 5 | `0x20` | RemoteError |
-| 6 | `0x40` | RadioLinkError |
-| 7 | `0x80` | RemoteAlarm |
+| 0 | `0x01` | RemoteAlarm |
+| 1 | `0x02` | RadioLinkError |
+| 2 | `0x04` | RemoteError |
+| 3 | `0x08` | RemoteBattLow |
+| 4 | `0x10` | FmBatteryLowFault |
+| 5 | `0x20` | Selftest |
+| 6 | `0x40` | TransmissionRangeTest |
+| 7 | `0x80` | FmFault |
 
 ## Radio switch flags (byte 30) bit map
 
 | Bit | Mask | Field |
 |---|---|---|
-| 2 | `0x04` | ReducedTransmittingPower |
-| 3 | `0x08` | RadioLinkSupervision |
-| 4 | `0x10` | ReceiveCollectiveAlarm |
-| 5 | `0x20` | SendCollectiveAlarm |
-| 6 | `0x40` | SuppressAlarms |
-| 7 | `0x80` | SuppressWarnings |
+| 0 | `0x01` | SuppressWarnings |
+| 1 | `0x02` | SuppressAlarms |
+| 2 | `0x04` | SendCollectiveAlarm |
+| 3 | `0x08` | ReceiveCollectiveAlarm |
+| 4 | `0x10` | RadioLinkSupervision |
+| 5 | `0x20` | ReducedTransmittingPower |
 
 ---
 
