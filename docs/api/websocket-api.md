@@ -466,7 +466,7 @@ Remaining alarm blocking time updates
 ### `ha-entity-rename`
 Progress of a Home Assistant entity-ID rename
 
-**Trigger:** The entity IDs of one or more smoke detectors have to change while the option *Update entity IDs when a detector's location changes* is enabled - after a location was edited, after the option was switched on, or when a rename that could not be sent earlier is caught up on an MQTT connect
+**Trigger:** The entity IDs of one or more smoke detectors have to change while the option *Update entity IDs when a detector's location changes* is enabled - after a location was edited, after the option was switched on, after an import changed locations or brought detectors the gateway did not know, or when a rename that could not be sent earlier is caught up on an MQTT connect
 
 **Data Format:**
 ```json
@@ -474,7 +474,8 @@ Progress of a Home Assistant entity-ID rename
   "event": "ha-entity-rename",
   "data": {
     "state": "waiting",
-    "count": 3
+    "count": 5,
+    "detectors": ["Kitchen", "Hall", "Attic"]
   }
 }
 ```
@@ -490,6 +491,7 @@ Progress of a Home Assistant entity-ID rename
     - `failed` - The MQTT connection was lost during the cycle. It is repeated on the next MQTT connect
     - `deferred` - There is no MQTT connection, nothing was sent. The rename is caught up on the next MQTT connect. Emitted on its own, without `started`
 - `count` - Number of smoke detectors in the batch
+- `detectors` - Locations of the first smoke detectors of the batch (at most 3); `count` covers the rest
 
 ---
 

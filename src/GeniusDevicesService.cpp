@@ -1974,12 +1974,17 @@ void GeniusDevicesService::_haRenameTask()
     }
 }
 
-void GeniusDevicesService::_emitEntityRenameEvent(const char *state, uint32_t count)
+void GeniusDevicesService::_emitEntityRenameEvent(const char *state, uint32_t count, const std::vector<String> &names)
 {
     JsonDocument jsonDoc;
     JsonObject jsonRoot = jsonDoc.to<JsonObject>();
     jsonRoot["state"] = state;
     jsonRoot["count"] = count;
+    // A rename can start without the user having asked for it on this page (import, option
+    // switched on, catch-up after a reconnect), so the event says which detectors are meant.
+    JsonArray jsonNames = jsonRoot["detectors"].to<JsonArray>();
+    for (const String &name : names)
+        jsonNames.add(name);
     _eventSocket->emitEvent(HA_ENTITY_RENAME_EVENT, jsonRoot);
 }
 
@@ -1987,12 +1992,17 @@ void GeniusDevicesService::_runEntityIdRename()
 {
     // ---- Collect the detectors whose announced prefix differs from the desired one ----
     std::vector<uint32_t> targets;
+    std::vector<String> names; // locations of the first detectors, for the progress event
 
     beginTransaction();
     for (const GeniusDevice &device : _state.devices)
     {
         if (_isEntityIdRenamePending(device) && _haDevices.count(device.id))
+        {
             targets.push_back(device.id);
+            if (names.size() < HA_ENTITY_RENAME_EVENT_MAX_NAMES)
+                names.push_back(device.location);
+        }
     }
     endTransaction();
 
@@ -2007,12 +2017,12 @@ void GeniusDevicesService::_runEntityIdRename()
         // next MQTT connect finds the same detectors again - also across a reboot.
         ESP_LOGI(GeniusDevices::TAG, "HA entity-ID rename of %lu detector(s) deferred until MQTT is connected.",
                  (unsigned long)count);
-        _emitEntityRenameEvent("deferred", count);
+        _emitEntityRenameEvent("deferred", count, names);
         return;
     }
 
     ESP_LOGI(GeniusDevices::TAG, "Renaming the HA entities of %lu detector(s).", (unsigned long)count);
-    _emitEntityRenameEvent("started", count);
+    _emitEntityRenameEvent("started", count, names);
 
     // ---- Step 1: clear the retained discovery configs, so HA removes the entities ----
     // The HADevices already carry the new identity (written by the sync), so a concurrent
@@ -2022,7 +2032,7 @@ void GeniusDevicesService::_runEntityIdRename()
     // The retained diagnostics state stays on the broker: HA reads it the moment the
     // entities are back, so they do not sit at "unavailable" until the republished state
     // has trickled through the MQTT outbox.
-    _emitEntityRenameEvent("removing", count);
+    _emitEntityRenameEvent("removing", count, names);
     for (uint32_t deviceId : targets)
     {
         beginTransaction();
@@ -2040,18 +2050,18 @@ void GeniusDevicesService::_runEntityIdRename()
     if (!_haService->isReady())
     {
         ESP_LOGW(GeniusDevices::TAG, "MQTT connection lost while removing HA entities - the rename is repeated on the next connect.");
-        _emitEntityRenameEvent("failed", count);
+        _emitEntityRenameEvent("failed", count, names);
         return;
     }
 
     // ---- Step 2: give HA time to finish the removal - without holding the mutex ----
     // HA remembers removed entities and restores their old entity_id when the same
     // unique_id comes back, unless the new config carries a different default_entity_id.
-    _emitEntityRenameEvent("waiting", count);
+    _emitEntityRenameEvent("waiting", count, names);
     vTaskDelay(pdMS_TO_TICKS(HA_ENTITY_RENAME_SETTLE_MS));
 
     // ---- Step 3: publish again and remember what was announced ----
-    _emitEntityRenameEvent("publishing", count);
+    _emitEntityRenameEvent("publishing", count, names);
     uint32_t sent = 0;
     bool prefixStored = false;
     for (uint32_t deviceId : targets)
@@ -2095,13 +2105,13 @@ void GeniusDevicesService::_runEntityIdRename()
     {
         // HA does not acknowledge discovery messages: "sent" is all that can be claimed.
         ESP_LOGI(GeniusDevices::TAG, "New HA entity IDs of %lu detector(s) sent.", (unsigned long)count);
-        _emitEntityRenameEvent("sent", count);
+        _emitEntityRenameEvent("sent", count, names);
     }
     else
     {
         ESP_LOGW(GeniusDevices::TAG, "HA entity-ID rename incomplete (%lu of %lu detector(s) published) - the rest is repeated on the next connect.",
                  (unsigned long)sent, (unsigned long)count);
-        _emitEntityRenameEvent("failed", count);
+        _emitEntityRenameEvent("failed", count, names);
     }
 
     // A full cycle is the deepest this task ever goes (JSON document, MQTT publish, log

@@ -626,12 +626,15 @@ export type HaEntityRenameEvent = {
 	state: HaEntityRenameState;
 	/** Number of smoke detectors renamed in this batch. */
 	count: number;
+	/** Locations of the first detectors of the batch; `count` covers the rest. */
+	detectors?: string[];
 };
 
 /** Latest rename state held on the client; `state` is null until an event arrived. */
 export type HaEntityRenameStatus = {
 	state: HaEntityRenameState | null;
 	count: number;
+	detectors: string[];
 };
 
 export type ReportSettings = {

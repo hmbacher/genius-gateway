@@ -2,6 +2,7 @@
 	import { modals, type ModalProps } from 'svelte-modals';
 	import ProgressDialog from '$lib/components/ProgressDialog.svelte';
 	import type { HaEntityRenameStatus } from '$lib/types/models';
+	import { renamedDetectors } from '$lib/genius/entityRename';
 	import HomeAssistant from '~icons/tabler/smart-home';
 	import Send from '~icons/tabler/send';
 	import Cancel from '~icons/tabler/x';
@@ -21,9 +22,9 @@
 		errorDetails?: string;
 	};
 
-	const detectors = $derived(
-		status.count === 1 ? '1 smoke detector' : `${status.count} smoke detectors`
-	);
+	// Who is renamed, by location. The dialog can appear without the user having asked for a
+	// rename on this page (import, option switched on, catch-up), so it has to say who and why.
+	const detectors = $derived(renamedDetectors(status.count, status.detectors));
 
 	const view: View = $derived.by(() => {
 		switch (status.state) {
@@ -51,7 +52,7 @@
 				return {
 					phase: 'success',
 					message: 'Sent to Home Assistant',
-					successDetails: `The new entity IDs of ${detectors} were sent. Home Assistant does not confirm the change - check the entity IDs there.`
+					successDetails: `Entity IDs in Home Assistant follow the location of a smoke detector. The new entity IDs of ${detectors} were sent. Home Assistant does not confirm the change - check the entity IDs there.`
 				};
 			case 'failed':
 				return {

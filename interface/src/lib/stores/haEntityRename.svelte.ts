@@ -3,11 +3,12 @@ import { socket } from '$lib/stores/socket';
 import type { HaEntityRenameEvent, HaEntityRenameStatus } from '$lib/types/models';
 import HaEntityRenameDialog from '$lib/components/HaEntityRenameDialog.svelte';
 import InfoDialog from '$lib/components/InfoDialog.svelte';
+import { escapeHtml, renamedDetectors } from '$lib/genius/entityRename';
 
 const EVENT = 'ha-entity-rename';
 
 /** Latest state reported by the gateway; the progress dialog renders straight from it. */
-const status: HaEntityRenameStatus = $state({ state: null, count: 0 });
+const status: HaEntityRenameStatus = $state({ state: null, count: 0, detectors: [] });
 
 let watchers = 0;
 let progressOpen = false;
@@ -41,6 +42,7 @@ function openWhenIdle(kind: QueuedDialog['kind'], open: () => void) {
 function handleEvent(event: HaEntityRenameEvent) {
 	status.state = event.state;
 	status.count = event.count;
+	status.detectors = event.detectors ?? [];
 
 	if (event.state === 'started') {
 		// The rename is running now. A notice about a deferred rename that is still waiting
@@ -67,11 +69,16 @@ function handleEvent(event: HaEntityRenameEvent) {
 		// No MQTT connection: nothing was sent and there is no progress to show. A dialog
 		// instead of a toast, because the user has to know the rename is still outstanding.
 		deferredOpen = true;
-		const detectors = event.count === 1 ? '1 smoke detector' : `${event.count} smoke detectors`;
+		// The message is HTML and locations are entered by the user: escape them
+		const detectors = renamedDetectors(
+			event.count,
+			event.detectors,
+			(name) => `<strong>${escapeHtml(name)}</strong>`
+		);
 		openWhenIdle('deferred', () =>
 			modals.open(InfoDialog, {
 				title: 'Entity IDs not updated yet',
-				message: `The MQTT connection is down, so the new Home Assistant entity IDs of <strong>${detectors}</strong> have not been sent.<br><br>The gateway catches up automatically on the next MQTT connect, also after a restart.`,
+				message: `Entity IDs in Home Assistant follow the location of a smoke detector. The MQTT connection is down, so the new entity IDs of ${detectors} have not been sent.<br><br>The gateway catches up automatically on the next MQTT connect, also after a restart.`,
 				variant: 'info',
 				onDismiss: () => {
 					deferredOpen = false;

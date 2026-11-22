@@ -82,6 +82,7 @@
 
 #define HA_ENTITY_RENAME_EVENT "ha-entity-rename"  ///< WebSocket event reporting the progress of a Home Assistant entity-ID rename
 #define HA_ENTITY_RENAME_SETTLE_MS 3000            ///< Pause between removing and re-publishing entities, so HA finishes the removal first
+#define HA_ENTITY_RENAME_EVENT_MAX_NAMES 3         ///< Detectors named by location in a HA_ENTITY_RENAME_EVENT; the count covers the rest
 
 #define GATEWAY_DEVICES_CONFIG_VERSION 3  ///< Current config file version (for JSON migration support)
 
@@ -791,8 +792,9 @@ private:
      */
     void _runEntityIdRename();
 
-    /// Emit HA_ENTITY_RENAME_EVENT with the given state and detector count
-    void _emitEntityRenameEvent(const char *state, uint32_t count);
+    /// Emit HA_ENTITY_RENAME_EVENT with the given state, the detector count and the locations
+    /// of the first detectors of the batch, so the web interface can say who is renamed
+    void _emitEntityRenameEvent(const char *state, uint32_t count, const std::vector<String> &names);
 
     /// Trigger a diagnostics state publish for one device (by stable device ID).
     /// Reads all values directly from _state.devices - no separate cache needed.
