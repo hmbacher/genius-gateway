@@ -57,19 +57,30 @@
 #define DATAPOS_STATUS_CLEARED_MASK 30            ///< Status change: status flags newly CLEARED (uint16, little endian)
 #define DATAPOS_STATUS_DETECTOR_SN 32             ///< Status change: serial of the affected smoke detector (uint32, little endian)
 #define DATAPOS_LINE_TEST_START_STOP_FLAG 28      ///< Line test start/stop flag position
-#define DATAPOS_MSG_TYPE 27                       ///< Message-type discriminator byte (constant per packet type - how the radio module routes a received frame)
+#define DATAPOS_MSG_FAMILY 26                     ///< Message-family byte: first byte of the message body, groups the message types
+#define DATAPOS_MSG_TYPE 27                       ///< Message-type byte within the family (constant per packet type - how the radio module routes a received frame)
 #define DATAPOS_CONFIG_CHECK_PROBE_STATUS 29      ///< ConfigCheckProbe response: per-device status/capability flag
 #define DATAPOS_CONFIG_CHECK_PROBE_GROUPLINE 30   ///< ConfigCheckProbe response: detector group/line (hi nibble = group A-H, lo nibble = line 0-9)
 
-/* Message-type byte values (data[DATAPOS_MSG_TYPE]) - the on-air type discriminator the
- * genuine radio module routes on. Length disambiguates the single shared value (0x00). */
-#define MSGTYPE_STATUS_CHANGE_OR_COMMISSIONING_PROBE_REQ 0x00 ///< Status change (36 B) OR CommissioningProbe Request (28 B)
-#define MSGTYPE_COMMISSIONING_PROBE_RESPONSE 0x01             ///< CommissioningProbe Response (32 B, carries Req-SN)
-#define MSGTYPE_COMMISSIONING 0x03                            ///< Alarm-line commissioning (37 B)
-#define MSGTYPE_LINE_TEST 0x04                                ///< Line test start/stop (29 B)
-#define MSGTYPE_CONFIG_CHECK_PROBE_05 0x05                    ///< ConfigCheckProbe probe (29 B) - provisional (not yet capture-confirmed)
-#define MSGTYPE_CONFIG_CHECK_PROBE_REQUEST 0x06               ///< ConfigCheckProbe request (28 B)
-#define MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE 0x08              ///< ConfigCheckProbe response (36 B)
+/* Message-family byte values (data[DATAPOS_MSG_FAMILY]). A message is identified by family
+ * AND type: the type values repeat across the families (type 0x00 exists in five of them),
+ * so the type byte alone - even with the length - does not tell the packets apart. */
+#define MSGFAMILY_STATUS 0x00             ///< Status change (alarm, battery warning, faults)
+#define MSGFAMILY_UNKNOWN_11 0x11         ///< Seen on FM Pro X lines with radio link supervision - function unknown
+#define MSGFAMILY_UNKNOWN_22 0x22         ///< Seen on FM Pro X lines with radio link supervision - function unknown
+#define MSGFAMILY_SUPERVISION 0x33        ///< Radio link supervision of FM Pro X modules (daily series, "module missing") - not evaluated yet
+#define MSGFAMILY_CONFIG_CHECK_PROBE 0x55 ///< ConfigCheckProbe (Linienabschlusstest)
+#define MSGFAMILY_COMMISSIONING 0x66      ///< Alarm-line commissioning, CommissioningProbe and line test
+
+/* Message-type byte values (data[DATAPOS_MSG_TYPE]) within their family. */
+#define MSGTYPE_STATUS_CHANGE 0x00                ///< Family 0x00: status change (36 B)
+#define MSGTYPE_COMMISSIONING_PROBE_REQUEST 0x00  ///< Family 0x66: CommissioningProbe Request (28 B)
+#define MSGTYPE_COMMISSIONING_PROBE_RESPONSE 0x01 ///< Family 0x66: CommissioningProbe Response (32 B, carries Req-SN)
+#define MSGTYPE_COMMISSIONING 0x03                ///< Family 0x66: alarm-line commissioning (37 B)
+#define MSGTYPE_LINE_TEST 0x04                    ///< Family 0x66: line test start/stop (29 B)
+#define MSGTYPE_CONFIG_CHECK_PROBE_05 0x05        ///< Family 0x55: ConfigCheckProbe probe (29 B) - provisional (not yet capture-confirmed)
+#define MSGTYPE_CONFIG_CHECK_PROBE_REQUEST 0x06   ///< Family 0x55: ConfigCheckProbe request (28 B)
+#define MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE 0x08  ///< Family 0x55: ConfigCheckProbe response (36 B)
 
 #define GATEWAY_ID 0xFFFFFFFE ///< Gateway identifier for genius protocol
 
@@ -101,10 +112,13 @@ typedef struct genius_packet_t
 /**
  * @brief Classify a received Genius frame and extract its fields.
  *
- * The packet type is determined from the on-air message-type byte (offset 27), with the
- * per-type length as a validator - mirroring how the genuine radio module routes a frame.
- * A status change is classified by type and length only; which flags it sets or clears is
- * left to the consumer, so new flags need no change here.
+ * The packet type is determined from the on-air message-family byte (offset 26) and the
+ * message-type byte (offset 27), with the per-type length as a validator - mirroring how
+ * the genuine radio module routes a frame. Frames of a family or type that is not known
+ * (e.g. the radio link supervision telegrams) stay HPT_UNKNOWN instead of being taken for
+ * a packet of another family that happens to share type byte and length.
+ * A status change is classified by family, type and length only; which flags it sets or
+ * clears is left to the consumer, so new flags need no change here.
  *
  * @param data    Raw frame bytes (as received, starting with the 0x02 lead byte)
  * @param length  Frame length in bytes

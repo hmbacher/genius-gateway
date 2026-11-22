@@ -99,33 +99,40 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 
 ### Message Type Byte
 
-The byte at **offset 27** - the first byte after the common part - is the packet's
-**message type**. Every packet type carries a constant, distinct value here, so this byte
-(together with the packet length) identifies the packet type. In the per-packet detail
-tables below it is the offset-27 row (previously annotated *"Unknown, seems to be
-constant"*).
+The message body starts at **offset 26** with the **message family**, followed at
+**offset 27** by the **message type** within that family. Family and type together (with
+the packet length as a check) identify the packet type. The type values repeat across the
+families - type `0x00` exists in five of them - so the type byte alone is not enough. In
+the per-packet detail tables below the type is the offset-27 row (previously annotated
+*"Unknown, seems to be constant"*).
 
 <div class="pckt-table" markdown>
 
-| `data[27]` | Length | Packet type |
-|:----------:|:------:|:------------|
-| `0x00` | 28 B | [CommissioningProbe Request](#commissioningprobe-request) |
-| `0x00` | 36 B | [Status Change (Alarming, Battery Low, Faults)](#status-change) |
-| `0x01` | 32 B | [CommissioningProbe Response](#commissioningprobe-response) |
-| `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
-| `0x04` | 29 B | [Line Test (Start/Stop)](#line-test-startstop) |
-| `0x05` | 29 B | ConfigCheckProbe probe *(tentative; not yet observed in a capture)* |
-| `0x06` | 28 B | [ConfigCheckProbe **request**](#configcheckprobe) |
-| `0x08` | 36 B | [ConfigCheckProbe **response**](#configcheckprobe) |
+| Family<br>`data[26]` | Type<br>`data[27]` | Length | Packet type |
+|:----------:|:----------:|:------:|:------------|
+| `0x00` | `0x00` | 36 B | [Status Change (Alarming, Battery Low, Faults)](#status-change) |
+| `0x66` | `0x00` | 28 B | [CommissioningProbe Request](#commissioningprobe-request) |
+| `0x66` | `0x01` | 32 B | [CommissioningProbe Response](#commissioningprobe-response) |
+| `0x66` | `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
+| `0x66` | `0x04` | 29 B | [Line Test (Start/Stop)](#line-test-startstop) |
+| `0x55` | `0x05` | 29 B | ConfigCheckProbe probe *(tentative; not yet observed in a capture)* |
+| `0x55` | `0x06` | 28 B | [ConfigCheckProbe **request**](#configcheckprobe) |
+| `0x55` | `0x08` | 36 B | [ConfigCheckProbe **response**](#configcheckprobe) |
+| `0x33` | `0x00` | 28 B | Daily series of the radio link supervision (FM Pro X) - *not evaluated yet* |
+| `0x33` | `0x02` | 32 B | "Module missing" report of the radio link supervision - *not evaluated yet* |
+| `0x11`, `0x22`, `0x33` | other | 28-33 B | Seen on FM Pro X lines with radio link supervision - *function unknown* |
 
 </div>
 
-!!! note "Why the type byte matters for classification"
-    Packet length alone is ambiguous: message type `0x00` is shared by the **Status Change (36 B)**
-    and the **CommissioningProbe Request (28 B)**, and a **36-byte** frame is either a **status
-    change (`0x00`)** or a **ConfigCheckProbe response (`0x08`)** - so classifying purely by length can
-    misread a ConfigCheckProbe response as an alarm-stop. The gateway therefore classifies on
-    `data[27]` with length as a validator (since v1.5.0).
+!!! note "Why family and type matter for classification"
+    Packet length alone is ambiguous: a **36-byte** frame is either a **status change
+    (`0x00/0x00`)** or a **ConfigCheckProbe response (`0x55/0x08`)** - classifying purely by
+    length can misread a ConfigCheckProbe response as an alarm-stop. The type byte alone is
+    ambiguous as well: type `0x00` is the **Status Change** in family `0x00`, the
+    **CommissioningProbe Request** in family `0x66` and the **daily supervision series** in
+    family `0x33`, the latter two with the same length (28 B). The gateway therefore
+    classifies on family and type with the length as a validator (type since v1.5.0, family
+    since v1.6.0); packets of a family or type it does not know are shown as unknown.
 
     The ConfigCheckProbe request (`0x06`), response (`0x08`) and the `0x55` family marker at
     offset 26 were observed in an over-the-air capture of a *Linienabschlusstest*.

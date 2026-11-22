@@ -296,7 +296,9 @@ export type PacketIdentifier = {
 export type PacketType = {
 	name: string;
 	cssClass: string;
-	/** On-air message-type byte at offset 27 - the radio module's primary type discriminator. */
+	/** On-air message-family byte at offset 26 - groups the message types. */
+	familyByte: number;
+	/** On-air message-type byte at offset 27 - the type within the family. */
 	typeByte: number;
 	packetLength: number;
 	description: string;
@@ -304,6 +306,8 @@ export type PacketType = {
 	identifiers: PacketIdentifier[];
 };
 
+/** Offset of the message-family byte in a Genius frame (matches backend DATAPOS_MSG_FAMILY). */
+export const MSG_FAMILY_POS = 26;
 /** Offset of the message-type byte in a Genius frame (matches backend DATAPOS_MSG_TYPE). */
 export const MSG_TYPE_POS = 27;
 
@@ -327,16 +331,18 @@ export const StatusChangePacketTypeNames: string[] = [
 	PacketTypeNames.StatusChange
 ];
 
-// Classification keys on the message-type byte (offset 27) with packetLength as a validator -
-// the same discrimination the radio module uses. Length alone is ambiguous: typeByte 0x00 is
-// shared by the status change (36 B) and the CommissioningProbe request (28 B), and a 36-byte
-// frame is either a status change (0x00) or a ConfigCheckProbe response (0x08). `identifiers`
+// Classification keys on the message-family byte (offset 26) and the message-type byte
+// (offset 27) with packetLength as a validator - the same discrimination the radio module
+// uses. The type byte repeats across the families: 0x00 is the status change in family 0x00,
+// the CommissioningProbe request in family 0x66 and the daily radio link supervision series
+// in family 0x33 (same length as the CommissioningProbe request). `identifiers`
 // carry sub-variant bytes only (start/stop). First match wins - so a status change setting the
 // alarm bit is a Start Alarm, one clearing it a Stop Alarm, and any other a Status Change.
 export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.Comissioning,
 		cssClass: 'type-comissioning',
+		familyByte: 0x66,
 		typeByte: 0x03,
 		packetLength: 37,
 		description: 'Commissioning of new alarm line.',
@@ -345,6 +351,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.CommissioningProbeRequest,
 		cssClass: 'type-commissioningprobe-request',
+		familyByte: 0x66,
 		typeByte: 0x00,
 		packetLength: 28,
 		description: 'CommissioningProbe request seen in the commissioning context (not forwarded).',
@@ -353,6 +360,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.CommissioningProbeResponse,
 		cssClass: 'type-commissioningprobe-response',
+		familyByte: 0x66,
 		typeByte: 0x01,
 		packetLength: 32,
 		description: 'CommissioningProbe response carrying the requester serial (Req-SN); not forwarded.',
@@ -361,6 +369,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.StartLineTest,
 		cssClass: 'type-linetest-start',
+		familyByte: 0x66,
 		typeByte: 0x04,
 		packetLength: 29,
 		description: 'Packets sent to initiate line test function.',
@@ -371,6 +380,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.StopLineTest,
 		cssClass: 'type-linetest-stop',
+		familyByte: 0x66,
 		typeByte: 0x04,
 		packetLength: 29,
 		description: 'Packets sent to end line test function.',
@@ -381,6 +391,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.StartAlarm,
 		cssClass: 'type-alarm-start',
+		familyByte: 0x00,
 		typeByte: 0x00,
 		packetLength: 36,
 		description: 'Status change setting the alarm flag - starts/distributes an alarm.',
@@ -391,6 +402,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.StopAlarm,
 		cssClass: 'type-alarm-stop',
+		familyByte: 0x00,
 		typeByte: 0x00,
 		packetLength: 36,
 		description: 'Status change clearing the alarm flag - stops/silences an alarm.',
@@ -401,6 +413,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.StatusChange,
 		cssClass: 'type-status-change',
+		familyByte: 0x00,
 		typeByte: 0x00,
 		packetLength: 36,
 		description:
@@ -410,6 +423,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.ConfigCheckProbeRequest,
 		cssClass: 'type-configcheckprobe-request',
+		familyByte: 0x55,
 		typeByte: 0x06,
 		packetLength: 28,
 		description:
@@ -419,6 +433,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.ConfigCheckProbeResponse,
 		cssClass: 'type-configcheckprobe-response',
+		familyByte: 0x55,
 		typeByte: 0x08,
 		packetLength: 36,
 		description:

@@ -61,45 +61,19 @@ bool genius_analyze_packet(const uint8_t *data, size_t length, genius_packet_t *
     if (length <= DATAPOS_MSG_TYPE)
         return true;
 
-    /* Determine the Genius packet type from its on-air message-type byte (offset 27), using
-     * length as a validator. This mirrors how the genuine radio module routes a received
-     * frame: on the type-specific tail byte plus an exact per-type length. Length ALONE is
-     * ambiguous - message-type 0x00 is both a status change (36 B) and the CommissioningProbe
-     * Request (28 B), and a 36-byte frame is either a status change (0x00) or a ConfigCheckProbe
-     * response (0x08). */
-    switch (data[DATAPOS_MSG_TYPE])
+    /* Determine the Genius packet type from its on-air message-family byte (offset 26) and
+     * message-type byte (offset 27), using the length as a validator. This mirrors how the
+     * genuine radio module routes a received frame. Neither the type byte nor the length
+     * is enough on its own: type 0x00 is a status change in family 0x00, the
+     * CommissioningProbe Request in family 0x66 and the daily supervision series in family
+     * 0x33 - the latter two even share their length (28 B) - and a 36-byte frame is either
+     * a status change (0x00/0x00) or a ConfigCheckProbe response (0x55/0x08). */
+    const uint8_t msgType = data[DATAPOS_MSG_TYPE];
+
+    switch (data[DATAPOS_MSG_FAMILY])
     {
-    case MSGTYPE_COMMISSIONING: // 0x03  (alarm-line commissioning)
-        if (length == LEN_COMMISSIONING_PACKET)
-            out->type = HPT_COMMISSIONING;
-        break;
-
-    case MSGTYPE_COMMISSIONING_PROBE_RESPONSE: // 0x01  (commissioning-context, carries Req-SN)
-        if (length == LEN_COMMISSIONING_PROBE_RESPONSE_PACKET)
-            out->type = HPT_COMMISSIONING_PROBE_RESPONSE;
-        break;
-
-    case MSGTYPE_LINE_TEST: // 0x04  (firmware: line_state_processor, event 3)
-        if (length != LEN_LINE_TEST_PACKET)
-            break;
-        if (data[DATAPOS_LINE_TEST_START_STOP_FLAG] == 0) // 0x00 = END/STOP of line test
-            out->type = HPT_LINE_TEST_STOP;
-        else if ((data[DATAPOS_LINE_TEST_START_STOP_FLAG] & 0x04) > 0) // 0x04/0x06 = START
-            out->type = HPT_LINE_TEST_START;
-        break;
-
-    case MSGTYPE_CONFIG_CHECK_PROBE_REQUEST: // 0x06  (ConfigCheckProbe, wildcard direct-range probe)
-        if (length == LEN_CONFIG_CHECK_PROBE_REQUEST_PACKET)
-            out->type = HPT_CONFIG_CHECK_PROBE_REQUEST;
-        break;
-
-    case MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE: // 0x08  (36 B - kept apart from status changes by the type byte)
-        if (length == LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET)
-            out->type = HPT_CONFIG_CHECK_PROBE_RESPONSE;
-        break;
-
-    case MSGTYPE_STATUS_CHANGE_OR_COMMISSIONING_PROBE_REQ: // 0x00  - shared value, split by length
-        if (length == LEN_STATUS_CHANGE_PACKET)
+    case MSGFAMILY_STATUS: // 0x00
+        if (msgType == MSGTYPE_STATUS_CHANGE && length == LEN_STATUS_CHANGE_PACKET)
         {
             /* Tail: [set mask u16 LE][cleared mask u16 LE][detector serial u32 LE]. Alarm start/stop
              * is the GENIUS_STATUS_ALARM bit of these masks - interpretation is up to the consumer. */
@@ -108,11 +82,54 @@ bool genius_analyze_packet(const uint8_t *data, size_t length, genius_packet_t *
             out->status_cleared = readU16LE(data, DATAPOS_STATUS_CLEARED_MASK);
             out->detector_sn = readU32LE(data, DATAPOS_STATUS_DETECTOR_SN);
         }
-        else if (length == LEN_COMMISSIONING_PROBE_REQUEST_PACKET)
-            out->type = HPT_COMMISSIONING_PROBE_REQUEST;
         break;
 
-    default:
+    case MSGFAMILY_COMMISSIONING: // 0x66
+        switch (msgType)
+        {
+        case MSGTYPE_COMMISSIONING: // 0x03  (alarm-line commissioning)
+            if (length == LEN_COMMISSIONING_PACKET)
+                out->type = HPT_COMMISSIONING;
+            break;
+
+        case MSGTYPE_COMMISSIONING_PROBE_REQUEST: // 0x00  (commissioning context, direct range only)
+            if (length == LEN_COMMISSIONING_PROBE_REQUEST_PACKET)
+                out->type = HPT_COMMISSIONING_PROBE_REQUEST;
+            break;
+
+        case MSGTYPE_COMMISSIONING_PROBE_RESPONSE: // 0x01  (commissioning context, carries Req-SN)
+            if (length == LEN_COMMISSIONING_PROBE_RESPONSE_PACKET)
+                out->type = HPT_COMMISSIONING_PROBE_RESPONSE;
+            break;
+
+        case MSGTYPE_LINE_TEST: // 0x04
+            if (length != LEN_LINE_TEST_PACKET)
+                break;
+            if (data[DATAPOS_LINE_TEST_START_STOP_FLAG] == 0) // 0x00 = END/STOP of line test
+                out->type = HPT_LINE_TEST_STOP;
+            else if ((data[DATAPOS_LINE_TEST_START_STOP_FLAG] & 0x04) > 0) // 0x04/0x06 = START
+                out->type = HPT_LINE_TEST_START;
+            break;
+
+        default:
+            break;
+        }
+        break;
+
+    case MSGFAMILY_CONFIG_CHECK_PROBE: // 0x55
+        if (msgType == MSGTYPE_CONFIG_CHECK_PROBE_REQUEST) // 0x06  (wildcard direct-range probe)
+        {
+            if (length == LEN_CONFIG_CHECK_PROBE_REQUEST_PACKET)
+                out->type = HPT_CONFIG_CHECK_PROBE_REQUEST;
+        }
+        else if (msgType == MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE) // 0x08  (36 B, like a status change)
+        {
+            if (length == LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET)
+                out->type = HPT_CONFIG_CHECK_PROBE_RESPONSE;
+        }
+        break;
+
+    default: // 0x11, 0x22, 0x33 (radio link supervision) and anything not known yet
         break;
     }
 

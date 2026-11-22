@@ -22,6 +22,7 @@
 		PacketTypes,
 		PacketTypeNames,
 		StatusChangePacketTypeNames,
+		MSG_FAMILY_POS,
 		MSG_TYPE_POS
 	} from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils/misc';
@@ -83,8 +84,10 @@
 	function determinePacketType(data: Uint8Array): PacketType | null {
 		for (const type of PacketTypes) {
 			if (data.length !== type.packetLength) continue;
-			// Primary discriminator: the on-air message-type byte (offset 27), like the radio module.
-			if (data.length <= MSG_TYPE_POS || data[MSG_TYPE_POS] !== type.typeByte) continue;
+			// Discriminators: the on-air message-family byte (offset 26) and message-type byte
+			// (offset 27), like the radio module.
+			if (data.length <= MSG_TYPE_POS) continue;
+			if (data[MSG_FAMILY_POS] !== type.familyByte || data[MSG_TYPE_POS] !== type.typeByte) continue;
 			let identifiersMatch = true;
 			if (type.identifiers && Array.isArray(type.identifiers)) {
 				for (const { byteNr, value, mask } of type.identifiers) {
