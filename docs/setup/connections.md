@@ -128,15 +128,15 @@ Name shown in Home Assistant's device registry. The factory default is `Genius G
 
     This was **not** the case up to v1.5.0, where renaming re-identified the gateway and left the previous device behind as a ghost. See the upgrade note below.
 
-!!! warning "MQTT topics changed in v1.5.1"
-    Firmware v1.5.1 restructured the Home Assistant topic tree. Base topics lost a redundant namespace level and no longer embed the MAC address twice:
+!!! warning "MQTT topics changed in v1.6.0"
+    Firmware v1.6.0 restructured the Home Assistant topic tree. Base topics lost a redundant namespace level and no longer embed the MAC address twice:
 
     ```
     v1.5.0  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-gateway-1a2b3c4d5e6f-1a2b3c4d5e6f/…
-    v1.5.1  homeassistant/genius-gateway-1a2b3c4d5e6f/…
+    v1.6.0  homeassistant/genius-gateway-1a2b3c4d5e6f/…
     ```
 
-    **The upgrade cleans up after itself.** On the first MQTT connect after flashing v1.5.1, the gateway clears every retained discovery config and state message it previously published under the old tree - always retiring an old config immediately before publishing its replacement - so Home Assistant drops the stale entity before registering the new one.
+    **The upgrade cleans up after itself.** On the first MQTT connect after flashing v1.6.0, the gateway clears every retained discovery config and state message it previously published under the old tree - always retiring an old config immediately before publishing its replacement - so Home Assistant drops the stale entity before registering the new one.
 
     What this means for your setup:
 

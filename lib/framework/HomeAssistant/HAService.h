@@ -220,7 +220,7 @@ public:
     bool publishConfig(const String &component, const String &objectId, JsonDocument &config);
 
     /**
-     * @brief Clear the pre-v1.5.1 discovery config topic for an entity.
+     * @brief Clear the pre-v1.6.0 discovery config topic for an entity.
      *
      * Up to v1.5.0 the discovery node_id was derived from the user-editable
      * display name, so upgrading moves every main-device config topic. Called
@@ -454,7 +454,7 @@ private:
     bool _enabled;
     bool _renameEntityIds;
 
-    // Pre-v1.5.1 topic identity, remembered only while it differs from the
+    // Pre-v1.6.0 topic identity, remembered only while it differs from the
     // current one. Empty means "nothing stale to clear". See _purgeLegacyState().
     String _legacyDeviceId;
     String _legacyBaseTopic;
@@ -491,7 +491,7 @@ private:
     SemaphoreHandle_t _registryMutex;
 
     /**
-     * @brief Recompute the pre-v1.5.1 topic identity from the display name.
+     * @brief Recompute the pre-v1.6.0 topic identity from the display name.
      *
      * Up to v1.5.0 both the namespace and the device ID were slugs of the
      * user-editable display name:
@@ -507,7 +507,7 @@ private:
     void _updateLegacyTopicIdentity();
 
     /**
-     * @brief Clear the pre-v1.5.1 counterpart of a state/command topic.
+     * @brief Clear the pre-v1.6.0 counterpart of a state/command topic.
      *
      * Called for every publish that targets the current base topic while the
      * purge is armed; rewrites the topic onto the old base and sends an empty

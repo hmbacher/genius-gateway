@@ -230,7 +230,7 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
     String payload;
     serializeJson(config, payload);
 
-    // Retire the pre-v1.5.1 config first so HA drops the old entity before the
+    // Retire the pre-v1.6.0 config first so HA drops the old entity before the
     // new one arrives - otherwise it would keep both and suffix the new entity
     // ID with "_2".
     purgeLegacyConfig(component, objectId, _deviceId);
@@ -252,7 +252,7 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
 void HAService::purgeLegacyConfig(const String &component, const String &objectId, const String &deviceId)
 {
     // Sub-devices always used their own (unchanged) ID as node_id, so only the
-    // main device's discovery topics moved in v1.5.1.
+    // main device's discovery topics moved in v1.6.0.
     if (!_legacyPurgeArmed || _legacyDeviceId.isEmpty() || deviceId != _deviceId)
         return;
 
@@ -417,7 +417,7 @@ void HAService::publishAll()
     }
 
     // Everything has now been (re)published under the current topic tree, and
-    // each publish cleared its pre-v1.5.1 counterpart on the way. Nothing left
+    // each publish cleared its pre-v1.6.0 counterpart on the way. Nothing left
     // to purge - stop paying for the check on every subsequent publish.
     if (_legacyPurgeArmed)
     {

@@ -77,8 +77,8 @@ The gateway device publishes:
 
     It is derived from the **firmware name**, not from the **Device Name** configured under [Home Assistant Integration](../setup/connections.md#home-assistant-integration). The Device Name is purely cosmetic - it sets the label shown in Home Assistant and never affects topics or the device's identity in HA's registry, so renaming the gateway is always safe.
 
-!!! warning "Changed in v1.5.1"
-    Up to v1.5.0 the base topic carried a redundant namespace level and derived both that namespace and the device ID from the (user-editable) Device Name, producing paths like `homeassistant/genius-gateway-1a2b3c4d5e6f/genius-gateway-1a2b3c4d5e6f-1a2b3c4d5e6f/...`. Both levels collapsed into a single `{gateway_device_id}` in v1.5.1. See [Home Assistant Integration](../setup/connections.md#home-assistant-integration) for what happens on upgrade.
+!!! warning "Changed in v1.6.0"
+    Up to v1.5.0 the base topic carried a redundant namespace level and derived both that namespace and the device ID from the (user-editable) Device Name, producing paths like `homeassistant/genius-gateway-1a2b3c4d5e6f/genius-gateway-1a2b3c4d5e6f-1a2b3c4d5e6f/...`. Both levels collapsed into a single `{gateway_device_id}` in v1.6.0. See [Home Assistant Integration](../setup/connections.md#home-assistant-integration) for what happens on upgrade.
 
 ---
 
