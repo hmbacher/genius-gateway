@@ -403,7 +403,9 @@ export const PacketTypes: PacketType[] = [
 		packetLength: 29,
 		description: 'Packets sent to initiate line test function.',
 		identifiers: [
-			{ byteNr: 28, value: 0x06 }, // Identifier for Line Test Start
+			// Line test start: bit 0x04 of the flag byte is set (0x04 and 0x06 were captured) - the
+			// same test the gateway firmware uses
+			{ byteNr: 28, value: 0x04, mask: 0x04 }
 		]
 	},
 	{

@@ -372,7 +372,7 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x04` | Type | Message type - see [Message Type Byte](#message-type-byte). |
-| 28 | 1 | `XX` | Start/Stop | `0x06`: Start/Perform line test<br>`0x00`: Stop line test |
+| 28 | 1 | `XX` | Start/Stop | Bit `0x04` set (`0x04` and `0x06` were captured): Start/Perform line test<br>`0x00`: Stop line test |
 
 </div>
 
