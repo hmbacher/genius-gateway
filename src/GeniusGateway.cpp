@@ -713,7 +713,7 @@ void GeniusGateway::_handleStatusChange(const genius_packet_t &details)
 
         /* Store alarm line id */
         if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
-            _alarmLines.addAlarmLine(details.line_id, String("Added from received alarming/silencing packet"), ALA_GENIUS_PACKET);
+            _alarmLines.addAlarmLineFromPacket(details.line_id);
     }
 
     /* ---- Every other status flag: battery low, faults, ... including flags not known yet ---- */
@@ -738,7 +738,6 @@ void GeniusGateway::_rx_packets()
 {
     cc1101_packet_t packet;
     // Buffer for alarm line names - sized for reasonable line name lengths
-    char lineName[64] = {0};
 
     ESP_LOGI(pcTaskGetName(0), "Started.");
 
@@ -789,8 +788,7 @@ void GeniusGateway::_rx_packets()
                             if (_gatewaySettings.isAddAlarmLineFromCommissioningPacketEnabled())
                             {
                                 uint32_t newLineID = EXTRACT32(packet.data, DATAPOS_COMISSIONING_NEW_LINE_ID);
-                                snprintf(lineName, sizeof(lineName), "Added from received comissioning packet", newLineID);
-                                _alarmLines.addAlarmLine(newLineID, String(lineName), ALA_GENIUS_PACKET);
+                                _alarmLines.addAlarmLineFromPacket(newLineID);
                             }
                         }
                         else if (packet_details.type == HPT_STATUS_CHANGE)
@@ -804,11 +802,7 @@ void GeniusGateway::_rx_packets()
                             if (_gatewaySettings.isAddAlarmLineFromLineTestPacketEnabled())
                             {
                                 uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
-                                snprintf(lineName, sizeof(lineName),
-                                         packet_details.type == HPT_NETWORK_TEST_START
-                                             ? "Added from received network test packet"
-                                             : "Added from received line test packet");
-                                _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
+                                _alarmLines.addAlarmLineFromPacket(lineID);
                             }
                         }
                         else if (packet_details.type == HPT_CONFIG_CHECK_PROBE_RESPONSE)

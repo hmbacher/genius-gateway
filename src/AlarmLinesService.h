@@ -59,6 +59,7 @@
 #define ALARMLINES_MAX_NUM 100                                ///< Maximum number of alarm lines supported
 
 #define ALARMLINES_NAME_MAX_LENGTH 100                        ///< Maximum length for alarm line names
+#define ALARMLINES_AUTO_NAME_FORMAT "%lu (automatically added)" ///< Name of an alarm line learned from a received packet (%lu: line ID, decimal)
 #define ALARMLINES_ORIGIN_ID "alarm-lines"                    ///< Origin ID for update handler tracking
 #define ALARMLINES_TX_TASK_STACK_SIZE 4096                    ///< Stack size for transmission task in bytes
 #define ALARMLINES_TX_TASK_PRIORITY 20                        ///< Priority level for transmission task
@@ -272,6 +273,17 @@ public:
 
     /// Add a new alarm line to the system
     esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET, bool toFront = false);
+
+    /**
+     * @brief Add an alarm line learned from a received packet
+     *
+     * The line is named after its ID (ALARMLINES_AUTO_NAME_FORMAT) - the same name whatever
+     * kind of packet it was learned from. A line that is already known is left untouched.
+     *
+     * @param id Alarm line ID taken from the packet
+     * @return ESP_OK if the line was added, otherwise the error of addAlarmLine()
+     */
+    esp_err_t addAlarmLineFromPacket(uint32_t id);
 
     /// Increment packet sequence number and persist it
     uint8_t incPcktSeqNum();

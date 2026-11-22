@@ -116,7 +116,7 @@ When [automatic alarm line registration](gateway-settings.md#alarm-lines) is ena
 2. The gateway extracts the alarm line ID from the received packet
 3. If the ID is not registered, the gateway automatically creates a new entry with:
     - **ID**: Extracted from the packet
-    - **Name**: Auto-generated as "Alarm Line [ID]"
+    - **Name**: The ID followed by "(automatically added)", e.g. `2119672224 (automatically added)` - rename it as you like
     - **Acquisition**: Marked as "Automatic" (:tabler-access-point:)
 4. A success notification appears: "New alarm line detected."
 

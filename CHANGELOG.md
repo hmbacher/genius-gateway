@@ -44,7 +44,7 @@ The packet that starts a line test also starts a network test. The byte that was
 
 - **Start Line Test now starts a line test**: the action of an alarm line - in the web interface, over the REST API and as the Home Assistant button - sends test mode `0x04`. Up to v1.5.0 it sent `0x06`, which by this assignment starts a network test of twice the duration
 - **Both tests are recognised and named**: the gateway and the packet visualizer tell *Start Line Test*, *Start Network Test* and *Stop Line / Network Test* apart, each by its exact test mode value. A line test start with test mode `0x04`, as smoke detectors send it, was not named by the packet visualizer before; a test packet with an unknown mode is shown as unknown
-- **Alarm lines learned from a network test** are named "Added from received network test packet"
+- **Automatically added alarm lines are named after their ID**: `<ID> (automatically added)` instead of a sentence about the packet they were learned from - the name shows up wherever the line does, e.g. in the packet visualizer. Lines are also learned from a network test start. Lines that already exist keep their name
 - **Documentation**: the protocol analysis describes the test mode byte, with the evidence and a captured line test start
 
 ## Home Assistant MQTT Topic Restructuring

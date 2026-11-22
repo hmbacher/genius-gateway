@@ -528,6 +528,13 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
     return ESP_OK;
 }
 
+esp_err_t AlarmLinesService::addAlarmLineFromPacket(uint32_t id)
+{
+    char name[40];
+    snprintf(name, sizeof(name), ALARMLINES_AUTO_NAME_FORMAT, (unsigned long)id);
+    return addAlarmLine(id, String(name), ALA_GENIUS_PACKET);
+}
+
 // ============================================================================
 // Private Methods - Event Emission
 // ============================================================================
