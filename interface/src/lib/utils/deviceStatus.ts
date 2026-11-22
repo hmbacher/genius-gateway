@@ -1,16 +1,20 @@
 import type {
 	GeniusDevice,
+	GeniusFlagState,
 	GeniusSmokeDetectorInfo,
 	GeniusRadioModuleInfo
 } from '$lib/types/models';
 import { GeniusDeviceRegistration } from '$lib/types/enums';
 import {
-	STATUS_ALARM,
+	STATUS_FAULT_MASK,
 	STATUS_FAULT_MUTED,
+	STATUS_FLAGS,
+	STATUS_RADIO_FAULT,
 	STATUS_RADIO_MODULE_MASK,
 	STATUS_SMOKE_DETECTOR_MASK,
 	activeStatusFlags,
-	isStatusKnown,
+	flagState,
+	statusFlagLabel,
 	statusFlagLabels
 } from '$lib/genius/status';
 
@@ -28,8 +32,14 @@ export function isStaleReadout(d: GeniusDevice): boolean {
 	return Date.now() - d.readoutTime.getTime() > ONE_YEAR_MS;
 }
 
+/** True iff the device has a readout that is not stale - the precondition for showing "OK". */
+export function hasCurrentReadout(d: GeniusDevice): boolean {
+	return hasReadout(d) && !isStaleReadout(d);
+}
+
 // ---------------------------------------------------------------------------
-// Readout snapshot - the values reported by the last acoustic readout
+// Readout snapshot - the values a readout reports, as it comes from the device.
+// Used right after a readout (before the gateway took it over) and by the PDF report.
 // ---------------------------------------------------------------------------
 
 /** Human-readable fault list for the smoke detector portion of a readout. */
@@ -37,7 +47,7 @@ export function getSmokeDetectorFaults(sd: GeniusSmokeDetectorInfo): string[] {
 	const faults: string[] = [];
 	if (sd.batteryLowFault) faults.push('Battery low');
 	if (sd.deviceFault) faults.push('Device fault');
-	faults.push(...getSmokeDetectorReadoutOnlyFaults(sd));
+	faults.push(...getReadoutHints(sd));
 	return faults;
 }
 
@@ -48,49 +58,94 @@ export function getRadioModuleFaults(rm: GeniusRadioModuleInfo): string[] {
 	return faults;
 }
 
-/** Readout findings that have no status flag counterpart (drift, dirt, warranty). */
-function getSmokeDetectorReadoutOnlyFaults(sd: GeniusSmokeDetectorInfo): string[] {
-	const faults: string[] = [];
+/**
+ * Readout findings that are no fault of their own but worth a hint: chamber drift, a negative
+ * dirt forecast and warranty flags. They have no counterpart among the status flags.
+ */
+export function getReadoutHints(sd: GeniusSmokeDetectorInfo): string[] {
+	const hints: string[] = [];
 	const drift = sd.driftState ?? 0;
-	if (drift >= 4) faults.push(`Drift defect (state ${drift})`);
-	else if (drift >= 2) faults.push(`Drift warning (state ${drift})`);
-	if (sd.dirtForecastNegative) faults.push('Dirt forecast negative');
-	if ((sd.warrantyFlags ?? 0) > 0) faults.push('Warranty flag(s) set');
-	return faults;
+	if (drift >= 4) hints.push(`Drift defect (state ${drift})`);
+	else if (drift >= 2) hints.push(`Drift warning (state ${drift})`);
+	if (sd.dirtForecastNegative) hints.push('Dirt forecast negative');
+	if ((sd.warrantyFlags ?? 0) > 0) hints.push('Warranty flag(s) set');
+	return hints;
 }
 
 // ---------------------------------------------------------------------------
-// Current status - status flags (received over the air, from the last readout or reset
-// manually, whichever is newest) plus the readout-only findings
+// Current status - one state per status flag, kept by the gateway: fed by status changes
+// received over the air and by acoustic readouts, whichever is newest.
 // ---------------------------------------------------------------------------
 
-/** Status flags reported per subsystem; MUTE is informational and not listed as a fault. */
-const NON_FAULT_FLAGS = STATUS_ALARM | STATUS_FAULT_MUTED;
+/**
+ * Overall condition of a device, in order of priority:
+ * - `alarm`   - the smoke detector is alarming
+ * - `fault`   - it reports at least one fault (battery, device, radio link, dismounted, missing)
+ * - `ok`      - no fault and a current readout confirms battery, detector and radio link
+ * - `unknown` - no fault reported, but nothing current confirms that all is well
+ */
+export type DeviceCondition = 'alarm' | 'fault' | 'ok' | 'unknown';
 
-/** True iff anything is known about the smoke detector's current status. */
-export function hasSmokeDetectorStatus(d: GeniusDevice): boolean {
-	return hasReadout(d) || isStatusKnown(d, STATUS_SMOKE_DETECTOR_MASK);
+/** The faults a device currently reports, in display order. */
+export function activeFaults(d: GeniusDevice): GeniusFlagState[] {
+	const states = d.status ?? [];
+	return STATUS_FLAGS.filter((f) => f.fault)
+		.map((f) => states.find((s) => s.flag === f.bit && s.active))
+		.filter((s): s is GeniusFlagState => !!s);
 }
 
-/** True iff anything is known about the radio module's current status. */
-export function hasRadioModuleStatus(d: GeniusDevice): boolean {
-	return hasReadout(d) || isStatusKnown(d, STATUS_RADIO_MODULE_MASK);
+export function deviceCondition(d: GeniusDevice): DeviceCondition {
+	if (d.isAlarming) return 'alarm';
+	if (activeFaults(d).length > 0) return 'fault';
+	return hasCurrentReadout(d) ? 'ok' : 'unknown';
 }
 
-/** Current faults of the smoke detector (incl. flags not known yet, which belong to no subsystem). */
+/**
+ * Information about a device that is no fault: a fault muted on the detector, status flags not
+ * known yet, and the readout findings (drift, dirt forecast, warranty).
+ */
+export function deviceHints(d: GeniusDevice): string[] {
+	const hints: string[] = [];
+	const active = activeStatusFlags(d);
+	if (active & STATUS_FAULT_MUTED) hints.push('Fault muted on detector');
+	const knownBits = STATUS_FLAGS.reduce((acc, f) => acc | f.bit, 0);
+	for (let bit = 1; bit <= 0x8000; bit <<= 1) {
+		if (active & bit & ~knownBits) hints.push(statusFlagLabel(bit));
+	}
+	if (hasReadout(d)) hints.push(...getReadoutHints(d.smokeDetector));
+	return hints;
+}
+
+/** Current faults of the smoke detector itself (battery, device fault, dismounted). */
 export function getCurrentSmokeDetectorFaults(d: GeniusDevice): string[] {
-	const flags = activeStatusFlags(d) & ~STATUS_RADIO_MODULE_MASK & ~NON_FAULT_FLAGS;
-	const faults = statusFlagLabels(flags);
-	if (hasReadout(d)) faults.push(...getSmokeDetectorReadoutOnlyFaults(d.smokeDetector));
-	return faults;
+	return statusFlagLabels(activeStatusFlags(d) & STATUS_SMOKE_DETECTOR_MASK & STATUS_FAULT_MASK);
 }
 
-/** Current faults of the radio module. */
+/** Current faults of the radio module (radio link fault, reported missing). */
 export function getCurrentRadioModuleFaults(d: GeniusDevice): string[] {
-	return statusFlagLabels(activeStatusFlags(d) & STATUS_RADIO_MODULE_MASK);
+	return statusFlagLabels(activeStatusFlags(d) & STATUS_RADIO_MODULE_MASK & STATUS_FAULT_MASK);
 }
 
 /** Combined current fault list across both subsystems. */
 export function getDeviceFaults(d: GeniusDevice): string[] {
-	return [...getCurrentSmokeDetectorFaults(d), ...getCurrentRadioModuleFaults(d)];
+	return activeFaults(d).map((s) => statusFlagLabel(s.flag));
+}
+
+/**
+ * True iff the smoke detector's status can be shown: it reports a fault, or a current readout
+ * confirms it. Without either nothing is known - no OK is shown.
+ */
+export function hasSmokeDetectorStatus(d: GeniusDevice): boolean {
+	return getCurrentSmokeDetectorFaults(d).length > 0 || hasCurrentReadout(d);
+}
+
+/**
+ * True iff the radio module's status can be shown: it reports a fault, or a current readout
+ * confirmed the radio link (old FM modules report no radio status in a readout).
+ */
+export function hasRadioModuleStatus(d: GeniusDevice): boolean {
+	return (
+		getCurrentRadioModuleFaults(d).length > 0 ||
+		(hasCurrentReadout(d) && flagState(d, STATUS_RADIO_FAULT) === 'ok')
+	);
 }
