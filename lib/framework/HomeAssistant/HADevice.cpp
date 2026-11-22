@@ -138,7 +138,7 @@ bool HADevice::publishConfig(const String &component,
     String payload;
     serializeJson(config, payload);
 
-    // Retire the pre-v1.5.1 config first so HA drops the old entity before the
+    // Retire the pre-v1.6.0 config first so HA drops the old entity before the
     // new one arrives - otherwise it would keep both and suffix the new entity
     // ID with "_2". No-op for sub-devices, whose node_id never changed.
     _haService->purgeLegacyConfig(component, objectId, _identity.id);

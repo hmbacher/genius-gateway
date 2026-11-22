@@ -1504,7 +1504,7 @@ The device page should contain:
 
 ### MV-13 - Upgrade from a firmware without the option
 
-**Precondition:** A gateway on a firmware before v1.6.0 with detectors registered in HA. For the `_2` check: a gateway still on a firmware before v1.5.1.
+**Precondition:** A gateway on a firmware before v1.6.0 with detectors registered in HA.
 
 **Procedure:**
 1. Note the entity IDs of two detectors and of the gateway's own entities in HA.
@@ -1514,7 +1514,7 @@ The device page should contain:
 
 **Expected result:**
 - Step 3: the option is off, the detectors keep their model name and all entity IDs are unchanged. `GET /rest/gateway-devices` shows no `haEntityIdPrefix`.
-- Step 3, upgrade from before v1.5.1 only: watch the gateway's own entities for duplicates with a `_2` suffix. The topic migration of v1.5.1 clears the old config and publishes the new one back to back on different topics, where Home Assistant's per-topic queue does not help.
+- Step 3: watch the gateway's own entities for duplicates with a `_2` suffix. The topic migration of v1.6.0 clears the old config and publishes the new one back to back on different topics, where Home Assistant's per-topic queue does not help.
 - Step 4: the entities of all detectors carry their location-based prefix; no old IDs and no `_2` entities remain.
 
 ---

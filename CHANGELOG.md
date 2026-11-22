@@ -23,14 +23,6 @@ Clicking a detector card on the Overview page now opens that detector directly, 
 - **Overview works without administrator rights**: the detector list can now be read by every signed-in user (`GET /rest/gateway-devices`), so the Overview shows the cards to them as well - before, it stayed at "Loading devices..." forever. Changing detectors and ending alarms remain administrator actions
 - **One editor for all flows**: adding, editing and replacing a detector now go through one shared editor and save path (`deviceSave.svelte.ts`). A failed save no longer opens the follow-up dialogs
 
-## Bugfixes
-- **Radio module status and DIP switches of an acoustic readout were shown under the wrong names**: two bit fields of the readout were decoded in the wrong bit order - the radio state flags (readout byte 20) were mirrored and the DIP switches (byte 30) misplaced, with different mappings in the readout parser, the Device Details dialog and the PDF report. A set **Radio Link Supervision** switch, for example, appeared as *Send Collective Alarm*, and a **Remote Alarm** flag as *FM Fault*. **Radio Status: Fault** in Device Details and in the PDF report was derived from the wrong two bits as well. The bit order now follows the Hekatron apps (Genius Control and Genius Home), from one shared definition for parser, dialog and report
-    - Only readouts of radio modules that report one of these bits are affected; modules that report `0x00` in both fields (as an FM Basis X without set flags does) were always shown correctly
-    - Stored readouts are corrected without a new readout: the gateway stores the two bytes unchanged, only their interpretation was wrong
-    - The [acoustic readout documentation](https://hmbacher.github.io/genius-gateway/reverse-engineering/acoustic-readout/) lists the corrected bit tables
-
-# v1.5.1
-
 ## Home Assistant MQTT Topic Restructuring
 The Home Assistant topic tree carried a redundant namespace level and derived its identity from the user-editable **Device Name**, which duplicated the gateway's MAC address in every state topic and made renaming the gateway a destructive operation. Both are fixed.
 
@@ -38,7 +30,7 @@ The Home Assistant topic tree carried a redundant namespace level and derived it
 
     ```
     v1.5.0  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-gateway-1a2b3c4d5e6f-1a2b3c4d5e6f/genius-123/diagnostics/state
-    v1.5.1  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-123/diagnostics/state
+    v1.6.0  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-123/diagnostics/state
     ```
 
 - **MAC address no longer duplicated**: the device ID was built as `slugify(deviceName) + "-" + MAC`, while the factory-default device name already ended in the MAC - producing `genius-gateway-<mac>-<mac>`. Topic identity is now derived from the compile-time firmware name, so the MAC appears exactly once
@@ -49,13 +41,17 @@ The Home Assistant topic tree carried a redundant namespace level and derived it
 See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for upgrade details and the two things worth verifying afterwards.
 
 ## Documentation
-- **MQTT topic reference corrected**: the documented discovery config topic pattern (`{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/…/config`) never matched the firmware, which has always published to a flat single-level `node_id` as the Home Assistant discovery spec requires. All topic examples now reflect the actual v1.5.1 layout
+- **MQTT topic reference corrected**: the documented discovery config topic pattern (`{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/…/config`) never matched the firmware, which has always published to a flat single-level `node_id` as the Home Assistant discovery spec requires. All topic examples now reflect the actual v1.6.0 layout
 
 ## Bugfixes
 - **Restart when a smoke detector or alarm line was added or removed while the gateway published to Home Assistant**: after every MQTT connect, and after applying the Home Assistant settings, the gateway republishes all entities in a background task - a few seconds with many detectors. Adding or deleting a detector or an alarm line during that time changed the lists that task was working on and could crash the gateway (present since v1.3.0). The Home Assistant registry is now locked per device while it is published: a change waits for the device in progress instead of pulling it away
 - **Web interface held up for seconds after applying the Home Assistant settings**: the gateway republished every entity before it answered the request, so **Apply Settings** showed no reaction for about five seconds with a dozen detectors. The republish now runs in the background and the gateway answers at once. The button shows a spinner and is locked while a request is under way - switching the integration off still removes all entities before the gateway answers
 - **Radio packets could be missed while a browser did not respond**: the gateway sent web interface events (alarm state, packet log, system values) straight from the task that emitted them and waited up to 60 seconds for every client that did not take the data - for example a browser tab on a phone in standby. The alarm state was sent by the task that receives the radio packets, so during that wait further packets were lost: in a test the all-clear of an alarm was never processed and the alarm event reached other browsers 56 seconds late. The first alarm message to MQTT / Home Assistant was not affected. A client now gets one second to take an event and is disconnected if it does not (browsers reconnect by themselves), and the alarm state is sent by a task of its own
 - **Alarms reached Home Assistant up to ~15 seconds late after a detector was saved**: MQTT messages that the gateway queues (states and diagnostics) left at only one message per second. Saving a detector republishes the diagnostics of all detectors, so an alarm received right after it had to wait behind them - about one second per detector. The gateway itself always registered the alarm at once; only the way to MQTT was held up. The queue is now drained at up to 50 messages per second. Applies to the `gg-v1_0`, `seeed-xiao-esp32s3` and `esp32-s3-devkitc-1-n8r2` builds
+- **Radio module status and DIP switches of an acoustic readout were shown under the wrong names**: two bit fields of the readout were decoded in the wrong bit order - the radio state flags (readout byte 20) were mirrored and the DIP switches (byte 30) misplaced, with different mappings in the readout parser, the Device Details dialog and the PDF report. A set **Radio Link Supervision** switch, for example, appeared as *Send Collective Alarm*, and a **Remote Alarm** flag as *FM Fault*. **Radio Status: Fault** in Device Details and in the PDF report was derived from the wrong two bits as well. The bit order now follows the Hekatron apps (Genius Control and Genius Home), from one shared definition for parser, dialog and report
+    - Only readouts of radio modules that report one of these bits are affected; modules that report `0x00` in both fields (as an FM Basis X without set flags does) were always shown correctly
+    - Stored readouts are corrected without a new readout: the gateway stores the two bytes unchanged, only their interpretation was wrong
+    - The [acoustic readout documentation](https://hmbacher.github.io/genius-gateway/reverse-engineering/acoustic-readout/) lists the corrected bit tables
 
 # v1.5.0
 

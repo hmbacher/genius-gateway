@@ -84,7 +84,7 @@ Home Assistant's MQTT Discovery allows devices to automatically register themsel
 Multiple Genius Gateway instances can share the same MQTT broker without entity conflicts. Every MQTT discovery config topic is scoped under the individual gateway's unique device identifier, so Home Assistant registers each gateway and its sub-devices (smoke detectors, alarm lines) independently.
 
 !!! warning "Upgrading from firmware v1.5.0 or earlier"
-    The topic layout changed in v1.5.1: base topics lost a redundant namespace level and no longer derive from the (user-editable) Device Name, so they no longer embed the gateway's MAC address twice.
+    The topic layout changed in v1.6.0: base topics lost a redundant namespace level and no longer derive from the (user-editable) Device Name, so they no longer embed the gateway's MAC address twice.
 
     The gateway clears its own old retained messages on the first MQTT connect after the upgrade, so no manual broker cleanup is normally needed. See [Home Assistant Integration](../setup/connections.md#home-assistant-integration) for the details and the two things worth verifying afterwards.
 
