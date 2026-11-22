@@ -1,4 +1,5 @@
 import type { TunerData } from './tuner-types';
+import { RADIO_STATE, RADIO_SWITCH } from './radio-flags';
 
 /**
  * Decodes a verified frame (already CRC-checked by the worklet) into a
@@ -88,20 +89,9 @@ export function parseTunerData(hexBytes: string[]): TunerData {
 		result.hasRadio = true;
 		const radioStateByte = b[20];
 		result.radioStateMask = radioStateByte;
-		result.radioState = [];
-		const RADIO_NAMES = [
-			'FmFault',
-			'TransmissionRangeTest',
-			'Selftest',
-			'FmBatteryLowFault',
-			'RemoteBattLow',
-			'RemoteError',
-			'RadioLinkError',
-			'RemoteAlarm'
-		];
-		for (let i = 0; i < 8; i++) {
-			if ((radioStateByte >> i) & 1) result.radioState.push(RADIO_NAMES[i]);
-		}
+		result.radioState = Object.entries(RADIO_STATE)
+			.filter(([, mask]) => radioStateByte & mask)
+			.map(([name]) => name);
 		result.radioSerialNumber = parseInt(
 			hexBytes[21] + hexBytes[22] + hexBytes[23] + hexBytes[24],
 			16
@@ -115,18 +105,9 @@ export function parseTunerData(hexBytes: string[]): TunerData {
 
 		const switchByte = b[30];
 		result.radioSwitchMask = switchByte;
-		result.radioSwitchFlags = [];
-		const SWITCH_MAP: [number, string][] = [
-			[2, 'ReducedTransmittingPower'],
-			[3, 'RadioLinkSupervision'],
-			[4, 'ReceiveCollectiveAlarm'],
-			[5, 'SendCollectiveAlarm'],
-			[6, 'SuppressAlarms'],
-			[7, 'SuppressWarnings']
-		];
-		for (const [bit, name] of SWITCH_MAP) {
-			if ((switchByte >> bit) & 1) result.radioSwitchFlags.push(name);
-		}
+		result.radioSwitchFlags = Object.entries(RADIO_SWITCH)
+			.filter(([, mask]) => switchByte & mask)
+			.map(([name]) => name);
 		result.radioInterference = b[31] > 0 ? b[31] / 10.0 : b[31];
 	} else {
 		result.hasRadio = false;

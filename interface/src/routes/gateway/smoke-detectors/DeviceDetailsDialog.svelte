@@ -10,6 +10,7 @@
 		GeniusDeviceRegistration
 	} from '$lib/types/enums';
 	import { isStaleReadout } from '$lib/utils/deviceStatus';
+	import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
 	import { isOldFmModule } from '$lib/genius/line';
 	import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 	import DetailRow from './DetailRow.svelte';
@@ -116,34 +117,73 @@
 		'Too many RX events'
 	];
 
+	// Bit masks: see $lib/audio/radio-flags. The order here is the display order.
 	const RADIO_STATE_FLAGS: {
+		mask: number;
 		name: string;
 		inactive: [string, string, string];
 		neutral: boolean;
 		warn?: boolean;
 	}[] = [
-		{ name: 'FM Fault', inactive: ['No ', 'FM Fault', ''], neutral: false },
-		{ name: 'Range Test active', inactive: ['', 'Range Test', ' is not active'], neutral: true },
-		{ name: 'Self-Test active', inactive: ['', 'Self-Test', ' is not active'], neutral: true },
-		{ name: 'FM Battery Low', inactive: ['', 'FM Battery', ' is not low'], neutral: false },
 		{
+			mask: RADIO_STATE.FmFault,
+			name: 'FM Fault',
+			inactive: ['No ', 'FM Fault', ''],
+			neutral: false
+		},
+		{
+			mask: RADIO_STATE.TransmissionRangeTest,
+			name: 'Range Test active',
+			inactive: ['', 'Range Test', ' is not active'],
+			neutral: true
+		},
+		{
+			mask: RADIO_STATE.Selftest,
+			name: 'Self-Test active',
+			inactive: ['', 'Self-Test', ' is not active'],
+			neutral: true
+		},
+		{
+			mask: RADIO_STATE.FmBatteryLowFault,
+			name: 'FM Battery Low',
+			inactive: ['', 'FM Battery', ' is not low'],
+			neutral: false
+		},
+		{
+			mask: RADIO_STATE.RemoteBattLow,
 			name: 'Remote Battery Low',
 			inactive: ['', 'Remote Battery', ' is not low'],
 			neutral: false,
 			warn: true
 		},
-		{ name: 'Remote Error', inactive: ['No ', 'Remote Error', ''], neutral: false, warn: true },
-		{ name: 'Radio Link Error', inactive: ['No ', 'Radio Link Error', ''], neutral: false },
-		{ name: 'Remote Alarm', inactive: ['', 'Remote Alarm', ' is not active'], neutral: true }
+		{
+			mask: RADIO_STATE.RemoteError,
+			name: 'Remote Error',
+			inactive: ['No ', 'Remote Error', ''],
+			neutral: false,
+			warn: true
+		},
+		{
+			mask: RADIO_STATE.RadioLinkError,
+			name: 'Radio Link Error',
+			inactive: ['No ', 'Radio Link Error', ''],
+			neutral: false
+		},
+		{
+			mask: RADIO_STATE.RemoteAlarm,
+			name: 'Remote Alarm',
+			inactive: ['', 'Remote Alarm', ' is not active'],
+			neutral: true
+		}
 	];
 
 	const RADIO_SWITCH_CONFIG: [number, string][] = [
-		[2, 'Suppress Warnings'],
-		[3, 'Suppress Alarms'],
-		[4, 'Send Collective Alarm'],
-		[5, 'Receive Collective Alarm'],
-		[6, 'Radio Link Supervision'],
-		[7, 'Reduced TX Power']
+		[RADIO_SWITCH.SuppressWarnings, 'Suppress Warnings'],
+		[RADIO_SWITCH.SuppressAlarms, 'Suppress Alarms'],
+		[RADIO_SWITCH.SendCollectiveAlarm, 'Send Collective Alarm'],
+		[RADIO_SWITCH.ReceiveCollectiveAlarm, 'Receive Collective Alarm'],
+		[RADIO_SWITCH.RadioLinkSupervision, 'Radio Link Supervision'],
+		[RADIO_SWITCH.ReducedTransmittingPower, 'Reduced TX Power']
 	];
 
 	let warrantyFlags = $derived(
@@ -154,9 +194,9 @@
 	);
 
 	let switchStates = $derived(
-		RADIO_SWITCH_CONFIG.map(([bit, name]) => ({
+		RADIO_SWITCH_CONFIG.map(([mask, name]) => ({
 			name,
-			active: !!(((device.radioModule.radioSwitchMask ?? 0) >> bit) & 1)
+			active: !!((device.radioModule.radioSwitchMask ?? 0) & mask)
 		}))
 	);
 
@@ -468,8 +508,8 @@
 							{:else if device.readoutTime}
 								<div class="divider my-1 mt-3 text-sm text-base-content/40">Radio Status</div>
 
-								<!-- Matches Hekatron Genius Home: bit 0 (FmFault) + bit 3 (FmBatteryLowFault) -->
-								{@const fmFault = !!((device.radioModule.radioStateMask ?? 0) & 0x09)}
+								<!-- Matches Hekatron Genius Home: FmFault or FmBatteryLowFault -->
+								{@const fmFault = !!((device.radioModule.radioStateMask ?? 0) & RADIO_FAULT_MASK)}
 								<DetailRow icon={IconCheckCircle} label="Radio Status">
 									{#if fmFault}
 										<span class="inline-flex items-center gap-1">
@@ -486,8 +526,8 @@
 
 								<DetailRow icon={IconRadar} label="Radio State Flags" />
 
-								{#each RADIO_STATE_FLAGS as flag, i}
-									{@const active = !!(((device.radioModule.radioStateMask ?? 0) >> i) & 1)}
+								{#each RADIO_STATE_FLAGS as flag}
+									{@const active = !!((device.radioModule.radioStateMask ?? 0) & flag.mask)}
 									<div class="flex items-center gap-2 pl-6">
 										{#if active && flag.warn}
 											<IconWarning class="h-3.5 w-3.5 flex-shrink-0 text-warning" />
