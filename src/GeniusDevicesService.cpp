@@ -959,6 +959,12 @@ bool GeniusDevice::applyReadoutStatus()
     const uint32_t reportedOk = ~fromReadout & bits;
     const GeniusStatusDelta delta = status.apply(reportedActive, reportedOk, readoutTime, GDE_READOUT);
     status.addEvent({readoutTime, GDE_READOUT, reportedActive, reportedOk, 0});
+
+    // The three flags are input only. They went into the status and the log above and are not
+    // kept as a second, ageing copy next to them.
+    smokeDetector.batteryLowFault = false;
+    smokeDetector.deviceFault = false;
+    radioModule.radioNetworkFault = false;
     return delta.any();
 }
 

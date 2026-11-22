@@ -162,8 +162,8 @@ struct GeniusSmokeDetectorInfo
     uint8_t alarmCountLast3Months; ///< Alarm count in last 3 months
     uint16_t hoursInStorageMode;   ///< Hours spent in storage mode
     uint16_t warrantyFlags;        ///< Warranty condition flags bitmask
-    bool batteryLowFault;          ///< Battery low fault flag
-    bool deviceFault;              ///< Device fault flag
+    bool batteryLowFault;          ///< Battery low fault flag - readout input only, see GeniusDevice::applyReadoutStatus()
+    bool deviceFault;              ///< Device fault flag - readout input only
     uint8_t driftState;            ///< Drift state (0=Normal ... 7=Defekt)
     bool dirtForecastNegative;     ///< Negative dirt forecast flag
 
@@ -224,7 +224,7 @@ struct GeniusRadioModuleInfo
     uint8_t radioStateMask;   ///< Radio state flags bitmask
     uint8_t radioSwitchMask;  ///< Radio switch flags bitmask
     float radioInterference;  ///< Radio interference level (0.0-100.0%)
-    bool radioNetworkFault;   ///< Radio network fault flag
+    bool radioNetworkFault;   ///< Radio network fault flag - readout input only, see GeniusDevice::applyReadoutStatus()
     bool lineManual;          ///< True if the alarm line was entered by hand (old FM modules)
 
     // --- Direct-link signal (populated by the ConfigCheckProbe range test) ---

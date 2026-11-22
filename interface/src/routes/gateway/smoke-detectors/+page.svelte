@@ -30,7 +30,11 @@
 	} from '$lib/types/enums';
 	import type { TunerData } from '$lib/audio/tuner-pipeline';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
-	import { getSmokeDetectorFaults, getRadioModuleFaults } from '$lib/utils/deviceStatus';
+	import {
+		getDeviceFaults,
+		getSmokeDetectorFaults,
+		getRadioModuleFaults
+	} from '$lib/utils/deviceStatus';
 	import { isOldFmModule } from '$lib/genius/line';
 	import { EVENT_ALARM } from '$lib/genius/status';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
@@ -843,7 +847,14 @@
 			.filter((d) => d.readoutTime)
 			.map((d) => ({
 				sn: d.smokeDetector.sn,
-				faults: [...getSmokeDetectorFaults(d.smokeDetector), ...getRadioModuleFaults(d.radioModule)]
+				// status flags of the file, plus the readout fields that files from before v1.6.0 carry
+				faults: [
+					...new Set([
+						...getDeviceFaults(d),
+						...getSmokeDetectorFaults(d.smokeDetector),
+						...getRadioModuleFaults(d.radioModule)
+					])
+				]
 			}))
 			.filter((x) => x.faults.length > 0);
 		if (faulty.length === 0) return;

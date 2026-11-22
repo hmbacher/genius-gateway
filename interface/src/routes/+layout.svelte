@@ -24,7 +24,7 @@
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { cc1101Status } from '$lib/stores/cc1101.svelte';
 	import { jsonDateReviver } from '$lib/utils/misc';
-	import { activeStatusFlags, STATUS_BATTERY_LOW, STATUS_FAULT_MASK } from '$lib/genius/status';
+	import { activeStatusFlags, statusFlagLabels, STATUS_FAULT_MASK } from '$lib/genius/status';
 	import type { GeniusDevices, AlarmState, DeviceStatusEvent, CC1101Status } from '$lib/types/models';
 
 	interface Props {
@@ -208,18 +208,21 @@
 		await getGeniusDevices();
 	};
 
-	const handleDeviceStatus = async (data: DeviceStatusEvent) => {
-		// Compare with the devices as known so far to tell a new problem from a resolved one
-		const active = geniusDevices.devices.map(activeStatusFlags);
-		const numBatteryLow = active.filter((f) => f & STATUS_BATTERY_LOW).length;
-		const numFaulty = active.filter((f) => f & STATUS_FAULT_MASK).length;
-		if (data.numBatteryLow > numBatteryLow) {
-			notifications.warning('A smoke detector reports a low battery.', 8000);
-		} else if (data.numFaulty > numFaulty) {
-			notifications.warning('A smoke detector reports a fault.', 8000);
-		}
-		// Reload Genius devices to obtain their new status
+	const handleDeviceStatus = async () => {
+		// The event only says that something changed. Remember which faults every detector
+		// reported so far, reload the list and name what is new - per detector and fault.
+		const before = new Map(
+			geniusDevices.devices.map((d) => [d.id, activeStatusFlags(d) & STATUS_FAULT_MASK])
+		);
 		await getGeniusDevices();
+		for (const device of geniusDevices.devices) {
+			const known = before.get(device.id);
+			if (known === undefined) continue; // detector new to this browser: nothing to compare with
+			const added = activeStatusFlags(device) & STATUS_FAULT_MASK & ~known;
+			if (!added) continue;
+			const name = device.location || `Smoke detector ${device.smokeDetector.sn}`;
+			notifications.warning(`${name}: ${statusFlagLabels(added).join(', ')}`, 8000);
+		}
 	};
 
 	/* Handles successful sign-in by initializing the socket connection

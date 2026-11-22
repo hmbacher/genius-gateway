@@ -8,9 +8,11 @@ import {
 import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
 import { alarmCount, deviceAlarms } from '$lib/genius/activity';
+import { STATUS_BATTERY_LOW, STATUS_DEVICE_FAULT, flagState } from '$lib/genius/status';
 import {
-	getSmokeDetectorFaults,
-	getRadioModuleFaults,
+	activeFaults,
+	getCurrentSmokeDetectorFaults,
+	getCurrentRadioModuleFaults,
 	hasReadout,
 	isStaleReadout
 } from '$lib/utils/deviceStatus';
@@ -318,8 +320,9 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 	const hasRm = rm.model !== GeniusRadioModule.None && rm.model !== undefined && (rm.sn ?? 0) > 0;
 	const sdReadout = hasReadout(device);
 	const stale = isStaleReadout(device);
-	const sdFaults = sdReadout ? getSmokeDetectorFaults(sd) : [];
-	const rmFaults = sdReadout && hasRm ? getRadioModuleFaults(rm) : [];
+	// Faults are the status flags the gateway currently holds for the device (see $lib/genius/status)
+	const sdFaults = getCurrentSmokeDetectorFaults(device);
+	const rmFaults = hasRm ? getCurrentRadioModuleFaults(device) : [];
 	const allFaults = [...sdFaults, ...rmFaults];
 
 	const blocks: PdfContent[] = [];
@@ -388,16 +391,17 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 			margin: [8, 6, 0, 2],
 			italics: true
 		});
-		leftCol.push(
-			detailRow('Detector Status', sd.deviceFault ? 'Fault' : 'OK', sd.deviceFault ? C_ERROR : C_OK)
-		);
-		leftCol.push(
-			detailRow(
-				'Battery',
-				sd.batteryLowFault ? 'Low' : 'OK',
-				sd.batteryLowFault ? C_ERROR : C_OK
-			)
-		);
+		// Current status flags, not the readout snapshot: unknown until the gateway heard about them
+		const statusRow = (label: string, bit: number, activeText: string) => {
+			const state = flagState(device, bit);
+			return state === 'active'
+				? detailRow(label, activeText, C_ERROR)
+				: state === 'ok'
+					? detailRow(label, 'OK', C_OK)
+					: detailRow(label, 'Unknown', C_MUTED);
+		};
+		leftCol.push(statusRow('Detector Status', STATUS_DEVICE_FAULT, 'Fault'));
+		leftCol.push(statusRow('Battery', STATUS_BATTERY_LOW, 'Low'));
 		leftCol.push(
 			detailRow(
 				'Dirt Forecast',
@@ -669,12 +673,7 @@ function buildOverviewPage(
 
 	// Summary line
 	const totalAlarms = devices.reduce((sum, d) => sum + alarmCount(d), 0);
-	const devicesWithFaults = devices.filter(
-		(d) =>
-			d.readoutTime &&
-			(getSmokeDetectorFaults(d.smokeDetector).length > 0 ||
-				getRadioModuleFaults(d.radioModule).length > 0)
-	).length;
+	const devicesWithFaults = devices.filter((d) => activeFaults(d).length > 0).length;
 	const devicesMissingReadout = devices.filter((d) => !d.readoutTime).length;
 
 	blocks.push({
@@ -705,8 +704,8 @@ function buildOverviewPage(
 		const rm = device.radioModule;
 		const hasRm =
 			rm.model !== GeniusRadioModule.None && rm.model !== undefined && (rm.sn ?? 0) > 0;
-		const sdFaults = device.readoutTime ? getSmokeDetectorFaults(sd) : [];
-		const rmFaults = device.readoutTime && hasRm ? getRadioModuleFaults(rm) : [];
+		const sdFaults = getCurrentSmokeDetectorFaults(device);
+		const rmFaults = hasRm ? getCurrentRadioModuleFaults(device) : [];
 		const hasFaults = sdFaults.length + rmFaults.length > 0;
 
 		// Direct-link range-test signal (see buildDevicePage), condensed for the table.

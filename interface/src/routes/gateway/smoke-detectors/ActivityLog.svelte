@@ -5,6 +5,7 @@
 	import { fly } from 'svelte/transition';
 	import { formatDateTimeSeconds } from '$lib/utils/formatDate';
 	import { alarmCount, describeEvent } from '$lib/genius/activity';
+	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import {
 		EVENT_ALARM,
 		EVENT_CREATED,
@@ -36,7 +37,18 @@
 		onDetails?: () => void;
 	}
 
-	let { isOpen, title, geniusDevice, alarmsOnly = false, onDetails }: Props = $props();
+	let {
+		isOpen,
+		title,
+		geniusDevice: openedDevice,
+		alarmsOnly = false,
+		onDetails
+	}: Props = $props();
+
+	// Follow the device list: an entry added while the dialog is open shows up at once
+	let geniusDevice = $derived(
+		geniusDevices.devices.find((d) => d.id === openedDevice.id) ?? openedDevice
+	);
 
 	const titleId = `activity-log-title-${Math.random().toString(36).slice(2)}`;
 
