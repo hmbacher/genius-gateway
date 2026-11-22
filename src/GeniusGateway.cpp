@@ -121,11 +121,12 @@ void GeniusGateway::begin()
     /* Initialize Gateway Devices Service */
     _geniusDevices.begin();
     /* Tell the front end whenever a smoke detector's status changes - received over the air or
-     * reset manually. Both paths update the devices with the DEVICE_STATUS_CHANGE origin. */
+     * reset manually. Both paths update the devices with the DEVICE_STATUS_CHANGE origin. The
+     * event is sent by the event task: the handler runs in the packet reception task. */
     _geniusDevices.addUpdateHandler([this](const String &originId)
                                     {
                                         if (originId == DEVICE_STATUS_CHANGE)
-                                            _emitDeviceStatus(); },
+                                            _requestDeviceStatusEmit(); },
                                     false);
     /* Initialize Alarm Lines Service */
     _alarmLines.begin();
@@ -293,18 +294,31 @@ void GeniusGateway::_emitAlarmState()
 void GeniusGateway::_requestAlarmStateEmit()
 {
     if (_alarmEventTaskHandle != nullptr)
-        xTaskNotifyGive(_alarmEventTaskHandle);
+        xTaskNotify(_alarmEventTaskHandle, EVENT_TASK_ALARM_STATE, eSetBits);
     else
         _emitAlarmState();
+}
+
+void GeniusGateway::_requestDeviceStatusEmit()
+{
+    if (_alarmEventTaskHandle != nullptr)
+        xTaskNotify(_alarmEventTaskHandle, EVENT_TASK_DEVICE_STATUS, eSetBits);
+    else
+        _emitDeviceStatus();
 }
 
 void GeniusGateway::_alarmEventTask()
 {
     while (1)
     {
-        // Block until the reception task asks for it
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        _emitAlarmState();
+        // Block until an event is asked for. Requests that arrive while one is being sent are
+        // kept as bits and lead to one more event with the latest state.
+        uint32_t requested = 0;
+        xTaskNotifyWait(0, UINT32_MAX, &requested, portMAX_DELAY);
+        if (requested & EVENT_TASK_ALARM_STATE)
+            _emitAlarmState();
+        if (requested & EVENT_TASK_DEVICE_STATUS)
+            _emitDeviceStatus();
     }
 }
 

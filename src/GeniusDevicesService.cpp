@@ -2169,8 +2169,10 @@ void GeniusDevicesService::mqttPublishSimpleAlarmState()
  *
  * {"numFaulty": n, "numBatteryLow": n, "devices": [{"sn": ..., "location": "...", "status": ["battery_low", ...]}]}
  *
- * Lists every device with at least one active status flag. Flags are named by their key from
- * GENIUS_STATUS_FLAGS; flags not known (yet) appear as "flag_0xNNNN" so nothing is swallowed.
+ * Lists exactly the devices that count in numFaulty: those with at least one active fault.
+ * "status" names their faults by the key from GENIUS_STATUS_FLAGS. Other active flags of such a
+ * device (a fault muted on the detector, flags not known yet as "flag_0xNNNN") follow in an
+ * optional "info" list, so nothing is swallowed.
  */
 String GeniusDevicesService::_buildSimpleFaultPayload()
 {
@@ -2183,27 +2185,36 @@ String GeniusDevicesService::_buildSimpleFaultPayload()
     for (const GeniusDevice &device : _state.devices)
     {
         const uint32_t active = device.status.activeMask();
-        if (active == 0)
-            continue;
+        const uint32_t faults = active & GENIUS_STATUS_FAULT_MASK;
+        if (faults == 0)
+            continue; // list and counters name the same devices
 
         JsonObject entry = devices.add<JsonObject>();
         entry["sn"] = device.smokeDetector.sn;
         entry["location"] = device.location;
         JsonArray flags = entry["status"].to<JsonArray>();
+        JsonArray others; // created with the first flag that is no fault
         for (uint32_t bit = 1; bit != 0; bit <<= 1)
         {
             if (!(active & bit))
                 continue;
+
+            char key[20];
             const GeniusStatusFlagInfo *info = geniusStatusFlagInfo(bit);
             if (info)
+                snprintf(key, sizeof(key), "%s", info->key);
+            else
+                snprintf(key, sizeof(key), "flag_0x%04lX", (unsigned long)bit);
+
+            if (faults & bit)
             {
-                flags.add(info->key);
+                flags.add(key);
             }
             else
             {
-                char key[20];
-                snprintf(key, sizeof(key), "flag_0x%04lX", (unsigned long)bit);
-                flags.add(key);
+                if (others.isNull())
+                    others = entry["info"].to<JsonArray>();
+                others.add(key);
             }
         }
     }
@@ -2258,7 +2269,23 @@ void GeniusDevicesService::_updateAlarmPublishingSettingsCache()
 {
     if (_alarmPublishingSettings != nullptr)
     {
+        const bool faultWasEnabled = _cachedAlarmPublishingSettings.faultEnabled;
+        const String oldFaultTopic = _cachedAlarmPublishingSettings.faultTopic;
+
         _cachedAlarmPublishingSettings = _alarmPublishingSettings->getSettingsCopy();
+
+        // Fault publishing was switched off or moved to another topic: remove the retained
+        // summary from the old topic, so no subscriber keeps reading a state that is no longer
+        // maintained.
+        if (faultWasEnabled && !oldFaultTopic.isEmpty() &&
+            (!_cachedAlarmPublishingSettings.faultEnabled || _cachedAlarmPublishingSettings.faultTopic != oldFaultTopic))
+        {
+            if (_mqttClient != nullptr && _mqttClient->connected())
+                _mqttClient->publish(oldFaultTopic.c_str(), 0, true, "");
+            beginTransaction();
+            _lastFaultPayload = String();
+            endTransaction();
+        }
         ESP_LOGV(GeniusDevices::TAG, "Updated cached alarm-publishing settings (alarmEnabled: %d, topic: %s)",
                  _cachedAlarmPublishingSettings.alarmEnabled,
                  _cachedAlarmPublishingSettings.alarmTopic.c_str());

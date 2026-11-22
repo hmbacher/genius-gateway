@@ -205,8 +205,20 @@ private:
    */
   void _requestAlarmStateEmit();
 
-  /// Sends the alarm state when woken by _requestAlarmStateEmit() (persistent task)
+  /**
+   * @brief Have the device status summary sent to the web clients without waiting for it
+   *
+   * Same reason and same task as for the alarm state: a status change is applied by the
+   * packet reception task, which must not wait for a web client.
+   */
+  void _requestDeviceStatusEmit();
+
+  /// Sends the alarm state and / or the device status summary when woken by one of the
+  /// _request...Emit() functions (persistent task)
   void _alarmEventTask();
+
+  static constexpr uint32_t EVENT_TASK_ALARM_STATE = 0x01;   ///< Notification bit: send the alarm state
+  static constexpr uint32_t EVENT_TASK_DEVICE_STATUS = 0x02; ///< Notification bit: send the device status summary
 
   /// Static wrapper for the alarm event task
   static void _alarmEventTaskImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_alarmEventTask(); }
