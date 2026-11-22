@@ -345,7 +345,8 @@ export const PacketTypeNames = {
 	CommissioningProbeRequest: 'CommissioningProbe Request',
 	CommissioningProbeResponse: 'CommissioningProbe Response',
 	StartLineTest: 'Start Line Test',
-	StopLineTest: 'Stop Line Test',
+	StartNetworkTest: 'Start Network Test',
+	StopLineTest: 'Stop Line / Network Test',
 	StartAlarm: 'Start Alarm',
 	StopAlarm: 'Stop Alarm',
 	StatusChange: 'Status Change',
@@ -401,11 +402,20 @@ export const PacketTypes: PacketType[] = [
 		familyByte: 0x66,
 		typeByte: 0x04,
 		packetLength: 29,
-		description: 'Packets sent to initiate line test function.',
+		description: 'Starts a line test on the alarm line (about 15 minutes).',
 		identifiers: [
-			// Line test start: bit 0x04 of the flag byte is set (0x04 and 0x06 were captured) - the
-			// same test the gateway firmware uses
-			{ byteNr: 28, value: 0x04, mask: 0x04 }
+			{ byteNr: 28, value: 0x04 } // Test mode: line test
+		]
+	},
+	{
+		name: PacketTypeNames.StartNetworkTest,
+		cssClass: 'type-networktest-start',
+		familyByte: 0x66,
+		typeByte: 0x04,
+		packetLength: 29,
+		description: 'Starts a network test across the whole network (about 30 minutes).',
+		identifiers: [
+			{ byteNr: 28, value: 0x06 } // Test mode: network test
 		]
 	},
 	{
@@ -414,9 +424,9 @@ export const PacketTypes: PacketType[] = [
 		familyByte: 0x66,
 		typeByte: 0x04,
 		packetLength: 29,
-		description: 'Packets sent to end line test function.',
+		description: 'Ends a running line test or network test.',
 		identifiers: [
-			{ byteNr: 28, value: 0x00 }, // Identifier for Line Test Stop
+			{ byteNr: 28, value: 0x00 } // Test mode: stop
 		]
 	},
 	{

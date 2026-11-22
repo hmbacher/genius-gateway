@@ -97,7 +97,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 
 **Default:** Enabled (recommended)
 
-When enabled, the gateway automatically extracts and stores alarm line IDs from line test packets. Line test packets are sent when the line test function is activated on a smoke detector to verify communication between all detectors on that alarm line.
+When enabled, the gateway automatically extracts and stores alarm line IDs from line test packets. Line test packets are sent when the line test function is activated on a smoke detector to verify communication between all detectors on that alarm line. The start of a network test uses the same packet and is handled the same way.
 
 **When enabled:**
 

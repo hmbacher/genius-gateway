@@ -198,7 +198,10 @@ Every smoke detector **already assigned to this alarm line** then enters commiss
 
 ### :tabler-location: Start Line Test
 
-Initiates a line test on the selected alarm line. This command triggers all smoke detectors on the line to perform a coordinated test sequence.
+Initiates a line test on the selected alarm line. This command triggers all smoke detectors on the line to perform a coordinated test sequence, which the manufacturer states to last about 15 minutes unless it is stopped.
+
+!!! info "Line test, not network test"
+    The radio protocol knows two tests that share one packet: the **line test** (about 15 minutes) and the **network test** (about 30 minutes). Up to v1.5.0 this action sent the value that - as far as the protocol is understood today - starts a network test. Since v1.6.0 it starts a line test. See [Line Test / Network Test](../reverse-engineering/protocol-analysis.md#line-test-startstop).
 
 1. Click the :tabler-location: **Start line test** button
 2. A confirmation dialog appears
@@ -208,7 +211,7 @@ Initiates a line test on the selected alarm line. This command triggers all smok
 
 ### :tabler-location-off: Stop Line Test
 
-Stops an active line test on the selected alarm line.
+Stops an active line test on the selected alarm line. The same command also ends a network test started by a smoke detector.
 
 1. Click the :tabler-location-off: **Stop line test** button
 2. The gateway immediately transmits the appropriate commands [repetitively](../reverse-engineering/protocol-analysis.md#repetition) via RF

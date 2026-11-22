@@ -105,10 +105,22 @@ bool genius_analyze_packet(const uint8_t *data, size_t length, genius_packet_t *
         case MSGTYPE_LINE_TEST: // 0x04
             if (length != LEN_LINE_TEST_PACKET)
                 break;
-            if (data[DATAPOS_LINE_TEST_START_STOP_FLAG] == 0) // 0x00 = END/STOP of line test
-                out->type = HPT_LINE_TEST_STOP;
-            else if ((data[DATAPOS_LINE_TEST_START_STOP_FLAG] & 0x04) > 0) // 0x04/0x06 = START
+            // The test mode byte takes exactly three values. Each is named here rather than
+            // tested by a bit, so a value that is not known stays unclassified.
+            switch (data[DATAPOS_LINE_TEST_START_STOP_FLAG])
+            {
+            case GENIUS_TEST_MODE_LINE_TEST: // 0x04
                 out->type = HPT_LINE_TEST_START;
+                break;
+            case GENIUS_TEST_MODE_NETWORK_TEST: // 0x06
+                out->type = HPT_NETWORK_TEST_START;
+                break;
+            case GENIUS_TEST_MODE_STOP: // 0x00 - ends a line test as well as a network test
+                out->type = HPT_LINE_TEST_STOP;
+                break;
+            default:
+                break;
+            }
             break;
 
         default:

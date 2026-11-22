@@ -114,7 +114,7 @@ the per-packet detail tables below the type is the offset-27 row (previously ann
 | `0x66` | `0x00` | 28 B | [CommissioningProbe Request](#commissioningprobe-request) |
 | `0x66` | `0x01` | 32 B | [CommissioningProbe Response](#commissioningprobe-response) |
 | `0x66` | `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
-| `0x66` | `0x04` | 29 B | [Line Test (Start/Stop)](#line-test-startstop) |
+| `0x66` | `0x04` | 29 B | [Line Test / Network Test (Start/Stop)](#line-test-startstop) |
 | `0x55` | `0x05` | 29 B | ConfigCheckProbe probe *(tentative; not yet observed in a capture)* |
 | `0x55` | `0x06` | 28 B | [ConfigCheckProbe **request**](#configcheckprobe) |
 | `0x55` | `0x08` | 36 B | [ConfigCheckProbe **response**](#configcheckprobe) |
@@ -341,14 +341,37 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
     ```
     Type `0x00`, set `0x0004` (BattLow), cleared `0x0000`, detector `0x82A5F63B` (2191914555), originated by radio module `0x835FE116` and forwarded by `0x835FE115`.
 
-#### Line Test (Start/Stop)
+#### Line Test / Network Test (Start/Stop) {#line-test-startstop}
 
-The line test function can be used to verify or confirm the membership of smoke detectors to an alarm line. When the line test is initiated, all smoke detectors on the same alarm line as the initiating smoke detector signal their presence.
+The line test function can be used to verify or confirm the membership of smoke detectors to an alarm line. When the line test is initiated, all smoke detectors on the same alarm line as the initiating smoke detector signal their presence. The same packet starts a **network test**, which the manufacturer describes as the test across the whole network; the two differ in the test mode byte and in how long the detectors keep signalling.
 For more information on performing the line test, please refer to the smoke detector's operating instructions.
 
 The `Line-ID` field contains the ID of the alarm line for which the line test should be started or stopped.
 
 Line tests can be initiated or stopped from the Genius Gateway for known alarm lines. Further details can be found in [Alarm Lines Management](../features/alarm-lines-management.md).
+
+##### Test mode byte - how line test and network test were told apart
+
+The radio modules send exactly three values in byte 28:
+
+| Value | Sent when | Duration of the test |
+|:-----:|:----------|:----------------------|
+| `0x04` | a test is started in the first of two test states | 15 minutes - as long as the commissioning mode |
+| `0x06` | a test is started in the second test state | 30 minutes |
+| `0x00` | either test state is left | - |
+
+The manufacturer states that a line test lasts about 15 minutes and a network test about 30 minutes, and the serial protocol between the Genius Port and its radio module knows exactly the test modes *no test*, *line test* and *network test*. The two durations match, which gives the assignment above.
+
+- **Confirmed by captures:** message family `0x66`, type `0x04`, 29 bytes, and the test mode values `0x04` and `0x06` on air.
+- **Derived, not confirmed on air:** which of the two values is the line test. The assignment follows from the durations, not from a named field.
+
+Up to v1.5.0 Genius Gateway treated byte 28 as a start/stop flag with `0x06` as the start, and its **Start Line Test** action sent `0x06` - by the assignment above a network test. Since v1.6.0 it sends `0x04`.
+
+!!! example "Captured line test start"
+    ```
+    02 CC 18 00 FF FF FF FF 00 ss ss ss ss 00 ss ss ss ss ll ll ll ll 0F 5B 48 00 66 04 04
+    ```
+    Family `0x66`, type `0x04`, test mode `0x04` (line test), flags `0x48` (forward class 2). The serial number of the radio module (`ss`) and the alarm line ID (`ll`) are left out.
 
 ##### Basic properties
 
@@ -372,7 +395,7 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x04` | Type | Message type - see [Message Type Byte](#message-type-byte). |
-| 28 | 1 | `XX` | Start/Stop | Bit `0x04` set (`0x04` and `0x06` were captured): Start/Perform line test<br>`0x00`: Stop line test |
+| 28 | 1 | `XX` | Test mode | `0x04`: Start a **line test** (about 15 minutes)<br>`0x06`: Start a **network test** (about 30 minutes)<br>`0x00`: Stop the running line or network test |
 
 </div>
 

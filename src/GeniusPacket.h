@@ -56,7 +56,7 @@
 #define DATAPOS_STATUS_SET_MASK 28                ///< Status change: status flags newly SET (uint16, little endian)
 #define DATAPOS_STATUS_CLEARED_MASK 30            ///< Status change: status flags newly CLEARED (uint16, little endian)
 #define DATAPOS_STATUS_DETECTOR_SN 32             ///< Status change: serial of the affected smoke detector (uint32, little endian)
-#define DATAPOS_LINE_TEST_START_STOP_FLAG 28      ///< Line test start/stop flag position
+#define DATAPOS_LINE_TEST_START_STOP_FLAG 28      ///< Line / network test: test mode byte (GENIUS_TEST_MODE_*)
 #define DATAPOS_MSG_FAMILY 26                     ///< Message-family byte: first byte of the message body, groups the message types
 #define DATAPOS_MSG_TYPE 27                       ///< Message-type byte within the family (constant per packet type - how the radio module routes a received frame)
 #define DATAPOS_CONFIG_CHECK_PROBE_STATUS 29      ///< ConfigCheckProbe response: per-device status/capability flag
@@ -82,6 +82,14 @@
 #define MSGTYPE_CONFIG_CHECK_PROBE_REQUEST 0x06   ///< Family 0x55: ConfigCheckProbe request (28 B)
 #define MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE 0x08  ///< Family 0x55: ConfigCheckProbe response (36 B)
 
+/* Test mode byte of a line / network test frame (data[DATAPOS_LINE_TEST_START_STOP_FLAG]).
+ * The radio modules send exactly these three values: a start with a 15-minute
+ * timer (0x04), a start with a 30-minute timer (0x06) and the stop (0x00). The manufacturer
+ * states about 15 minutes for a line test and about 30 minutes for a network test. */
+#define GENIUS_TEST_MODE_STOP 0x00         ///< Stop the running line / network test
+#define GENIUS_TEST_MODE_LINE_TEST 0x04    ///< Start a line test (alarm line, about 15 min)
+#define GENIUS_TEST_MODE_NETWORK_TEST 0x06 ///< Start a network test (whole network, about 30 min)
+
 #define GATEWAY_ID 0xFFFFFFFE ///< Gateway identifier for genius protocol
 
 typedef enum genius_packet_type
@@ -91,10 +99,11 @@ typedef enum genius_packet_type
   HPT_COMMISSIONING_PROBE_REQUEST,  ///< CommissioningProbe request packet (request for smoke detectors to identify)
   HPT_COMMISSIONING_PROBE_RESPONSE, ///< CommissioningProbe response packet (smoke detector identification response)
   HPT_STATUS_CHANGE,                ///< Status change packet: set/cleared status flags of one smoke detector (alarm start/stop is the alarm-bit case)
-  HPT_LINE_TEST_START,              ///< Line test start packet (line test initiation)
-  HPT_LINE_TEST_STOP,               ///< Line test stop packet (line test completion)
+  HPT_LINE_TEST_START,              ///< Line test start packet (test mode 0x04)
+  HPT_LINE_TEST_STOP,               ///< Line / network test stop packet (test mode 0x00, ends either test)
   HPT_CONFIG_CHECK_PROBE_REQUEST,   ///< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe)
-  HPT_CONFIG_CHECK_PROBE_RESPONSE   ///< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
+  HPT_CONFIG_CHECK_PROBE_RESPONSE,  ///< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
+  HPT_NETWORK_TEST_START            ///< Network test start packet (test mode 0x06)
 } genius_packet_type_t;
 
 typedef struct genius_packet_t

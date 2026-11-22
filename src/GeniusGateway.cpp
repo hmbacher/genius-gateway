@@ -798,12 +798,16 @@ void GeniusGateway::_rx_packets()
                             _handleStatusChange(packet_details);
                         }
                         else if (packet_details.type == HPT_LINE_TEST_START ||
+                                 packet_details.type == HPT_NETWORK_TEST_START ||
                                  packet_details.type == HPT_LINE_TEST_STOP)
                         {
                             if (_gatewaySettings.isAddAlarmLineFromLineTestPacketEnabled())
                             {
                                 uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
-                                snprintf(lineName, sizeof(lineName), "Added from received line test packet", lineID);
+                                snprintf(lineName, sizeof(lineName),
+                                         packet_details.type == HPT_NETWORK_TEST_START
+                                             ? "Added from received network test packet"
+                                             : "Added from received line test packet");
                                 _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
                             }
                         }

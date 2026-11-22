@@ -38,6 +38,14 @@ Smoke detectors announce more than alarms over the air: the 36-byte packet the g
 - **Packet visualizer**: status changes are decoded flag by flag - labelled *Start Alarm* / *Stop Alarm* for the alarm flag and *Status Change* otherwise
 - **Device configuration file version 3**: the alarms moved into the activity log (`events`), `alarmCount` counts them, `status` holds the state per flag. Older files and exports are converted when they are loaded or imported. **Clients of `GET /rest/gateway-devices` that read the `alarms` list have to switch to `events`**
 
+## Line Test and Network Test Told Apart
+The packet that starts a line test also starts a network test. The byte that was taken for a start/stop flag is a test mode: `0x04` starts a line test (about 15 minutes), `0x06` a network test (about 30 minutes), `0x00` stops either. The assignment follows from the durations of the two tests, 15 and 30 minutes, which are the ones the manufacturer states; it is not yet confirmed on air which of the two values is the line test.
+
+- **Start Line Test now starts a line test**: the action of an alarm line - in the web interface, over the REST API and as the Home Assistant button - sends test mode `0x04`. Up to v1.5.0 it sent `0x06`, which by this assignment starts a network test of twice the duration
+- **Both tests are recognised and named**: the gateway and the packet visualizer tell *Start Line Test*, *Start Network Test* and *Stop Line / Network Test* apart, each by its exact test mode value. A line test start with test mode `0x04`, as smoke detectors send it, was not named by the packet visualizer before; a test packet with an unknown mode is shown as unknown
+- **Alarm lines learned from a network test** are named "Added from received network test packet"
+- **Documentation**: the protocol analysis describes the test mode byte, with the evidence and a captured line test start
+
 ## Home Assistant MQTT Topic Restructuring
 The Home Assistant topic tree carried a redundant namespace level and derived its identity from the user-editable **Device Name**, which duplicated the gateway's MAC address in every state topic and made renaming the gateway a destructive operation. Both are fixed.
 

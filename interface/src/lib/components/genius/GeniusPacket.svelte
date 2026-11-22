@@ -77,7 +77,8 @@
 		<div class="packet-data-container">
 			{#if packet.type?.name === PacketTypeNames.Comissioning}
 				<GeniusPacketContentComissioning {packet} {showDetails} />
-			{:else if packet.type?.name === PacketTypeNames.StartLineTest}
+			{:else if packet.type?.name === PacketTypeNames.StartLineTest || packet.type?.name === PacketTypeNames.StartNetworkTest}
+				<!-- line test and network test share the layout; they differ in the test mode byte -->
 				<GeniusPacketContentLineTestStart {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.StopLineTest}
 				<GeniusPacketContentLineTestStop {packet} {showDetails} />
@@ -139,6 +140,10 @@
 
 	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-linetest-start) {
 		@apply bg-lime-500 dark:bg-lime-700 font-normal;
+	}
+
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-networktest-start) {
+		@apply bg-teal-500 dark:bg-teal-700 font-normal;
 	}
 
 	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-linetest-stop) {
