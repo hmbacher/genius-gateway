@@ -53,7 +53,13 @@
 	import EditAlarmLine from '../alarm-lines/EditAlarmLine.svelte';
 	import PdfReportDialog from './PdfReportDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
-	import { apiPutDevice, afterDeviceSaved, openDeviceEditor } from './deviceSave.svelte';
+	import {
+		apiPutDevice,
+		afterDeviceSaved,
+		loadHaRenameOption,
+		openDeviceEditor
+	} from './deviceSave.svelte';
+	import { escapeHtml } from '$lib/genius/entityRename';
 	import {
 		authHeaders,
 		fetchAlarmLines,
@@ -1054,6 +1060,43 @@
 						});
 					};
 
+					// Entity IDs in Home Assistant follow the location. An import that changes the
+					// location of a known detector renames its entities - the same consequence the
+					// detector editor warns about, so ask before importing.
+					const confirmLocationsThenImport = async () => {
+						const changed = importedGeniusDevices.devices.flatMap((imported) => {
+							const current = geniusDevices.devices.find((d) => d.id === imported.id);
+							return current && current.location !== imported.location
+								? [{ from: current.location, to: imported.location }]
+								: [];
+						});
+						if (changed.length === 0 || !(await loadHaRenameOption())) {
+							finishImport();
+							return;
+						}
+
+						const MAX_LISTED = 5;
+						const list = changed
+							.slice(0, MAX_LISTED)
+							.map((c) => `&bull; ${escapeHtml(c.from)} &rarr; <strong>${escapeHtml(c.to)}</strong>`)
+							.join('<br>');
+						const more =
+							changed.length > MAX_LISTED ? `<br>&bull; and ${changed.length - MAX_LISTED} more` : '';
+						const one = changed.length === 1;
+						modals.open(ConfirmDialog, {
+							title: 'Import Changes Locations',
+							message: `The import changes the location of <strong>${changed.length}</strong> smoke detector${one ? '' : 's'}:<br><br>${list}${more}<br><br>${one ? 'Its' : 'Their'} entities in Home Assistant are renamed to match. Automations, scripts and dashboards that use the old entity IDs must be updated.`,
+							labels: {
+								cancel: { label: 'Cancel', icon: Cancel },
+								confirm: { label: 'Import', icon: Load }
+							},
+							onConfirm: () => {
+								modals.close();
+								finishImport();
+							}
+						});
+					};
+
 					const alarmingCount = importedGeniusDevices.devices.filter((d) => d.isAlarming).length;
 					if (alarmingCount > 0) {
 						modals.open(ConfirmDialog, {
@@ -1067,16 +1110,16 @@
 							cancelClass: 'btn-warning',
 							onCancel: () => {
 								modals.close();
-								finishImport();
+								void confirmLocationsThenImport();
 							},
 							onConfirm: () => {
 								modals.close();
 								clearAlarmingDevices(importedGeniusDevices.devices);
-								finishImport();
+								void confirmLocationsThenImport();
 							}
 						});
 					} else {
-						finishImport();
+						void confirmLocationsThenImport();
 					}
 				}
 			} catch (error) {

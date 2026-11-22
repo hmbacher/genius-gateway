@@ -83,6 +83,8 @@
 #define HA_ENTITY_RENAME_EVENT "ha-entity-rename"  ///< WebSocket event reporting the progress of a Home Assistant entity-ID rename
 #define HA_ENTITY_RENAME_SETTLE_MS 3000            ///< Pause between removing and re-publishing entities, so HA finishes the removal first
 #define HA_ENTITY_RENAME_EVENT_MAX_NAMES 3         ///< Detectors named by location in a HA_ENTITY_RENAME_EVENT; the count covers the rest
+#define HA_RENAME_NOTIFY_ANNOUNCED 0x01            ///< Rename task notification: a cycle whose progress is shown in the web interface
+#define HA_RENAME_NOTIFY_BACKGROUND 0x02           ///< Rename task notification: a cycle caused by an import, run without progress
 
 #define GATEWAY_DEVICES_CONFIG_VERSION 3  ///< Current config file version (for JSON migration support)
 
@@ -777,8 +779,14 @@ private:
      */
     bool _publishSmokeDetectorDiscovery(uint32_t deviceId, String *announcedPrefix = nullptr);
 
-    /// Wake the rename task (cheap; safe from any task)
-    void _requestEntityIdRename();
+    /**
+     * @brief Wake the rename task (cheap; safe from any task)
+     *
+     * @param background true for a cycle caused by an import: the user asked for an import,
+     *                   not for a rename, so the web interface shows no progress for it. An
+     *                   announced request that arrives before the cycle starts wins.
+     */
+    void _requestEntityIdRename(bool background = false);
 
     /**
      * @brief Rename the HA entities of all detectors with a pending rename, in one batch
@@ -790,11 +798,12 @@ private:
      * runs again on the next connect. If the connection drops half-way the
      * prefixes are not stored, so the next connect repeats the cycle.
      */
-    void _runEntityIdRename();
+    void _runEntityIdRename(bool background);
 
     /// Emit HA_ENTITY_RENAME_EVENT with the given state, the detector count and the locations
-    /// of the first detectors of the batch, so the web interface can say who is renamed
-    void _emitEntityRenameEvent(const char *state, uint32_t count, const std::vector<String> &names);
+    /// of the first detectors of the batch, so the web interface can say who is renamed.
+    /// `background` marks a cycle caused by an import (see _requestEntityIdRename()).
+    void _emitEntityRenameEvent(const char *state, uint32_t count, const std::vector<String> &names, bool background);
 
     /// Trigger a diagnostics state publish for one device (by stable device ID).
     /// Reads all values directly from _state.devices - no separate cache needed.

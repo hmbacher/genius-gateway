@@ -148,7 +148,7 @@ let haRenamesEntityIds = false;
  * tab, REST) while a page stays open, and the editor's warning has to match what saving will
  * really do.
  */
-async function loadHaRenameOption(): Promise<boolean> {
+export async function loadHaRenameOption(): Promise<boolean> {
 	try {
 		const response = await fetch('/rest/haSettings', { method: 'GET', headers: authHeaders() });
 		if (response.status === 200) {

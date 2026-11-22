@@ -628,6 +628,8 @@ export type HaEntityRenameEvent = {
 	count: number;
 	/** Locations of the first detectors of the batch; `count` covers the rest. */
 	detectors?: string[];
+	/** True for a cycle caused by an import: no progress is shown, only what was not sent. */
+	background?: boolean;
 };
 
 /** Latest rename state held on the client; `state` is null until an event arrived. */

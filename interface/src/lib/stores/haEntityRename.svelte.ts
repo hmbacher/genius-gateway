@@ -39,7 +39,44 @@ function openWhenIdle(kind: QueuedDialog['kind'], open: () => void) {
 	}, 100);
 }
 
+/**
+ * Tell the user that new entity IDs have not reached Home Assistant. A dialog instead of a
+ * toast, because the user has to know the update is still outstanding.
+ */
+function openNotSentNotice(event: HaEntityRenameEvent, reason: string) {
+	if (deferredOpen) return;
+	deferredOpen = true;
+	// The message is HTML and locations are entered by the user: escape them
+	const detectors = renamedDetectors(
+		event.count,
+		event.detectors,
+		(name) => `<strong>${escapeHtml(name)}</strong>`
+	);
+	openWhenIdle('deferred', () =>
+		modals.open(InfoDialog, {
+			title: 'Entity IDs not updated yet',
+			message: `Entity IDs in Home Assistant follow the location of a smoke detector. ${reason}, so the new entity IDs of ${detectors} have not been sent.<br><br>The gateway catches up automatically on the next MQTT connect, also after a restart.`,
+			variant: 'info',
+			onDismiss: () => {
+				deferredOpen = false;
+				modals.close();
+			}
+		})
+	);
+}
+
 function handleEvent(event: HaEntityRenameEvent) {
+	// A cycle caused by an import runs in the background: whoever imports expects Home
+	// Assistant to be brought in line without further ado. Only what did not work is reported.
+	if (event.background) {
+		if (event.state === 'deferred') {
+			openNotSentNotice(event, 'The MQTT connection is down');
+		} else if (event.state === 'failed') {
+			openNotSentNotice(event, 'The MQTT connection was lost during the update');
+		}
+		return;
+	}
+
 	status.state = event.state;
 	status.count = event.count;
 	status.detectors = event.detectors ?? [];
@@ -65,27 +102,9 @@ function handleEvent(event: HaEntityRenameEvent) {
 				progressOpen = false;
 			});
 		});
-	} else if (event.state === 'deferred' && !deferredOpen) {
-		// No MQTT connection: nothing was sent and there is no progress to show. A dialog
-		// instead of a toast, because the user has to know the rename is still outstanding.
-		deferredOpen = true;
-		// The message is HTML and locations are entered by the user: escape them
-		const detectors = renamedDetectors(
-			event.count,
-			event.detectors,
-			(name) => `<strong>${escapeHtml(name)}</strong>`
-		);
-		openWhenIdle('deferred', () =>
-			modals.open(InfoDialog, {
-				title: 'Entity IDs not updated yet',
-				message: `Entity IDs in Home Assistant follow the location of a smoke detector. The MQTT connection is down, so the new entity IDs of ${detectors} have not been sent.<br><br>The gateway catches up automatically on the next MQTT connect, also after a restart.`,
-				variant: 'info',
-				onDismiss: () => {
-					deferredOpen = false;
-					modals.close();
-				}
-			})
-		);
+	} else if (event.state === 'deferred') {
+		// No MQTT connection: nothing was sent and there is no progress to show.
+		openNotSentNotice(event, 'The MQTT connection is down');
 	}
 }
 

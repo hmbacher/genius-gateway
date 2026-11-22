@@ -492,6 +492,7 @@ Progress of a Home Assistant entity-ID rename
     - `deferred` - There is no MQTT connection, nothing was sent. The rename is caught up on the next MQTT connect. Emitted on its own, without `started`
 - `count` - Number of smoke detectors in the batch
 - `detectors` - Locations of the first smoke detectors of the batch (at most 3); `count` covers the rest
+- `background` - Only present (`true`) for a cycle caused by an import. The web interface shows no progress for it and only reports `deferred` or `failed`
 
 ---
 

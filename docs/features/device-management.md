@@ -361,8 +361,11 @@ You can import a previously exported device configuration:
 4. If any device in the file is marked as alarming, a dialog asks how to handle the alarm state:
     - **Keep Alarm State** - imports as-is; connected integrations (e.g. Home Assistant) may trigger automations (useful for testing)
     - **Clear Alarm State** - resets the alarm flag on all affected devices and closes open alarm log entries with a `Cleared by import` ending reason
-5. A progress dialog shows the import status. For larger files the upload is split into chunks automatically and may take several seconds - a progress bar shows how many chunks have been sent. Wait for the *Finalizing* step to complete before navigating away
-6. All existing devices are replaced with the imported configuration once the gateway confirms the commit
+5. If the import changes the location of detectors the gateway already knows, and their Home Assistant entity IDs follow the location, a dialog lists the changes and asks before importing - the entities of these detectors are renamed, so automations, scripts and dashboards that use the old entity IDs must be updated
+6. A progress dialog shows the import status. For larger files the upload is split into chunks automatically and may take several seconds - a progress bar shows how many chunks have been sent. Wait for the *Finalizing* step to complete before navigating away
+7. All existing devices are replaced with the imported configuration once the gateway confirms the commit
+
+Home Assistant is brought in line in the background: detectors that are no longer in the list are removed, new ones are added, and changed ones are updated. Nothing is shown for this - unless the MQTT connection is down, in which case a notice explains that the gateway catches up on the next connect.
 
 ## Generating a PDF Report
 
