@@ -994,7 +994,7 @@ smarthome/genius-gateway/fault
 
 **:material-code-json: Payload:**
 
-Published if no smoke detector reports a status flag:
+Published if no smoke detector reports a fault:
 ```json
 {
   "numFaulty": 0,
@@ -1020,12 +1020,12 @@ Published when one smoke detector reports a low battery (example):
 
 **:material-format-list-bulleted: Payload Fields**
 
-- `numFaulty` - Number of smoke detectors with at least one active fault (battery low, device fault, radio link fault or dismounted)
+- `numFaulty` - Number of smoke detectors with at least one active fault
 - `numBatteryLow` - Number of smoke detectors reporting a low battery
-- `devices` - Every smoke detector with at least one active status flag:
+- `devices` - The smoke detectors counted in `numFaulty`:
     - `sn` - Smoke detector serial number
     - `location` - Configured location
-    - `status` - Active status flags:
+    - `status` - The active faults:
 
         | Value | Flag | Meaning |
         |-------|------|---------|
@@ -1033,14 +1033,19 @@ Published when one smoke detector reports a low battery (example):
         | `device_fault` | `0x0002` | Device fault |
         | `radio_fault` | `0x0008` | Radio link fault |
         | `dismounted` | `0x0020` | Dismounted from its base |
-        | `fault_muted` | `0x0010` | A radio link or dismount fault was muted (informational, not counted in `numFaulty`) |
-        | `flag_0xNNNN` | any other | A flag not known yet - reported by value so nothing is lost |
+        | `reported_missing` | - | Set by the gateway: another detector reports this detector's radio module as missing |
 
-The flags reflect each detector's [current status](../features/device-management.md#current-status): received over the air, taken over from the last acoustic readout, or reset manually - whichever is newest.
+    - `info` - Only present if the detector has further active flags that are no fault: `fault_muted` (`0x0010`, a radio link or dismount fault was muted on the detector) or `flag_0xNNNN` (a flag not known yet, reported by value so nothing is lost)
+
+The flags reflect each detector's [current status](../features/device-management.md#current-status): received over the air or taken over from an acoustic readout - whichever is newest.
+
+!!! warning "No fault listed does not mean all is well"
+    Smoke detectors announce a status change once. A gateway that has not heard about a flag - because it was put into operation later, or missed the announcement - does not know its state, and an unknown state is not listed. `numFaulty: 0` therefore means that no fault is known, not that every detector was confirmed to be fine.
 
 **:material-publish: Publishing Behavior**
 
-- Published whenever the payload changes - a status flag is set or cleared, a status is reset manually, a readout changes the status, or a listed detector is renamed or deleted
+- Published whenever the payload changes - a fault is reported or cleared, a status is reset manually, a readout changes the status, or a listed detector is renamed or deleted
+- When fault publishing is switched off or its topic is changed, the retained message on the old topic is removed (an empty retained payload is published)
 - Published when MQTT connection is established or re-established, and when the publishing settings change
 
 !!! info "Status after restart"

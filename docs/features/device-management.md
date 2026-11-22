@@ -50,7 +50,7 @@ When the device has a radio module, a :tabler-wifi: signal-strength icon also ap
 #### Manage
 Action buttons for device operations:
 
-- :tabler-logs: **Alarm Log**: View detailed alarm history (only visible if alarms exist)
+- :tabler-logs: **Alarm Log**: Open the [activity log](#viewing-the-activity-log), filtered to alarms (only visible if alarms exist)
 - :tabler-list-details: **Device Details**: View full readout data and trigger a new acoustic readout
 - :tabler-pencil: **Edit**: Modify device configuration
 - :tabler-trash: **Delete**: Remove device from the system
@@ -79,23 +79,22 @@ You can change the display order of devices using drag-and-drop functionality:
 
 This feature is useful for organizing devices by floor level, room priority, or any custom arrangement that suits your needs.
 
-## Viewing Alarm History
+## Viewing the Activity Log
 
-Each device maintains a log of all alarm events. To view the alarm history:
+For each smoke detector the gateway keeps an activity log - one chronology of what it recorded about the detector. To view it:
 
-1. Click the :tabler-logs: **Alarm Log** button in the device's row
-2. The Alarm Log dialog displays a table with the following information for each alarm:
+1. Click the :tabler-logs: **Alarm Log** button in the device's row (only visible if alarms exist), or click an alarming card on the [Overview](overview.md)
+2. The Activity Log dialog opens with the switch **Alarms only** on. Switch it off to see every entry, newest first:
 
-    ![Alarm Log](../assets/images/software/gg-gateway-devices-alarmlog.png){ .off-glb }
+    | Entry | Meaning |
+    |-------|---------|
+    | :tabler-circle-plus: **Smoke detector added** | The detector was added to the gateway, and how |
+    | :tabler-microphone: **Acoustic readout** | A readout was performed, with the faults it reported |
+    | :tabler-access-point: **Status change received** | The detector announced a fault, or that a fault is gone, over the air |
+    | :tabler-restore: **Status reset** | The reported faults were [discarded](#resetting-the-status) in the gateway |
+    | :tabler-bell-ringing: **Alarm** | An alarm, with its start and - once it ended - its end and how it ended: no more smoke detected, stopped by a user in the web interface, or cleared during a device configuration import |
 
-    - :tabler-arrow-bar-right: **Start**: Date and time when the alarm was triggered
-    - :tabler-arrow-bar-to-right: **End**: Date and time when the alarm ended (only for resolved alarms)
-    - **Ending Reason**: How the alarm was resolved:
-        - :tabler-flame-off: **Automatic**: Smoke detector no longer detected smoke
-        - :tabler-volume-3: **Manual**: User manually stopped the alarm via the web interface
-        - :tabler-file-import: **Cleared by import**: Alarm was cleared during a device configuration import
-
-Active alarms show "No data" for the end time and no ending reason icon.
+The log keeps the newest 50 entries per detector. The number of alarms is counted separately, so the alarm count in the device list stays correct when old alarms drop out of the log; the dialog says so when that is the case. An entry made before the gateway's clock was set shows *Time unknown*.
 
 ## Adding a New Detector
 
@@ -259,28 +258,40 @@ The same dialog opens when a detector card is clicked on the [Overview](overview
 
 ## Current Status
 
-Besides alarms, smoke detectors announce changes of their **status flags** over the air: a **low battery**, a **device fault**, a **radio link fault** and the **dismounting** of the detector from its base (see [Status Change packet](../reverse-engineering/protocol-analysis.md#status-change)). The gateway keeps the current state of each flag per detector and shows it in the device list, the Device Details dialog and the [Overview](overview.md), publishes it to [Home Assistant](smart-home-integration.md#smoke-detectors) and optionally to a [fault topic](../setup/connections.md#simple-alarm-publishing). A new battery warning or fault also pops up as a notification in the web interface.
+Besides alarms, smoke detectors announce changes of their **status flags** over the air: a **low battery**, a **device fault**, a **radio link fault** and the **dismounting** of the detector from its base (see [Status Change packet](../reverse-engineering/protocol-analysis.md#status-change)). The gateway keeps the current state of each flag per detector and shows it in the device list, the Device Details dialog and the [Overview](overview.md), publishes it to [Home Assistant](smart-home-integration.md#smoke-detectors) and optionally to a [fault topic](../setup/connections.md#simple-alarm-publishing). A new fault also pops up as a notification in the web interface, naming the detector and the fault.
 
-The current status combines three sources - whichever is newest wins:
+There is one current status, fed by two sources - whichever is newest wins, per flag:
 
 - **Received over the air** - the flag is set or cleared as announced by the smoke detector.
-- **Acoustic readout** - a new readout reports battery, detector fault and radio fault and takes them over (the dismount flag is only ever announced over the air).
-- **Manual reset** - see below.
+- **Acoustic readout** - a readout reports battery, detector fault and radio fault (the dismount flag is only ever announced over the air; old FM Basis / FM Pro modules report no radio status in a readout).
+
+The Device Details dialog shows for every flag whether it is active, OK or unknown, since when, and from which source. Every change is recorded in the [activity log](#viewing-the-activity-log).
 
 !!! info "Unknown until reported"
     Smoke detectors announce a flag only when it **changes** - never periodically. Until the gateway has received a flag (or performed a readout), its state is shown as **Unknown** rather than OK: a gateway that was put into operation after a battery warning was sent cannot know about it.
 
     For the same reason the status survives a restart of the gateway.
 
+When a smoke detector is replaced - its serial number changes on the same entry - status, activity log and alarm counter start over by themselves.
+
 ### Resetting the status
 
-A flag stays active until the smoke detector clears it. When the fault has been fixed without the detector reporting it - typically because the device was **replaced**, as the battery of a Genius Plus X is built in - reset the status manually:
+A reported fault stays active until the smoke detector reports that it is gone or an acoustic readout shows it. If neither happens although the fault has been fixed, discard it manually:
 
 1. Open the :tabler-list-details: **Device Details** dialog of the detector
-2. Click :tabler-restore: **Reset Status** in the *Current Status* section (only shown while a flag is active)
+2. Click :tabler-restore: **Reset Status** in the *Current Status* section (admins only, only shown while a fault is active)
 3. Confirm the dialog
 
-All flags of the detector are cleared and read **OK** until the smoke detector reports a change again.
+All active flags of the detector become **Unknown** - not OK. The status builds up again from what the detector reports over the air and from the next readout. The reset is recorded in the activity log.
+
+!!! warning "Known limits of the status tracking"
+    The status is based on a protocol that is only partly understood:
+
+    - Smoke detectors announce a status change **once**. If the gateway misses it (restart, update, out of range), it does not learn about it.
+    - So far only the battery warning, the radio link fault and its muting have been observed on air. The other flags and the "fault gone" message have not been observed on air yet.
+    - A radio link fault is, as far as known, never cleared over the air - not even after the alarm line has been commissioned again.
+
+    A fault shown here may therefore already be fixed, and **Unknown** does not mean OK. An acoustic readout is the reliable way to confirm battery, detector fault and radio link. The behaviour described here may change in future versions as more is learned about the protocol.
 
 ## Editing a Detector
 
