@@ -396,6 +396,7 @@ bool GeniusDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
 
     // Set registration type
     newDevice.registration = GDR_GENIUS_PACKET;
+    newDevice.logEvent(GDE_CREATED, GDR_GENIUS_PACKET);
     // A detector first seen in a packet has no entities in Home Assistant yet: its first
     // publish already carries the right entity IDs, so there is nothing to rename later.
     newDevice.haEntityIdPrefix = _entityIdPrefixFor(newDevice);
@@ -525,7 +526,7 @@ bool GeniusDevicesService::resetAllAlarms()
     return updated;
 }
 
-const GeniusDevice *GeniusDevicesService::applyStatusChange(uint32_t detectorSN, uint16_t setMask, uint16_t clearedMask)
+const GeniusDevice *GeniusDevicesService::applyStatusChange(uint32_t detectorSN, uint32_t setMask, uint32_t clearedMask)
 {
     setMask &= GENIUS_STATUS_TRACKED_MASK;
     clearedMask &= GENIUS_STATUS_TRACKED_MASK;
@@ -540,18 +541,19 @@ const GeniusDevice *GeniusDevicesService::applyStatusChange(uint32_t detectorSN,
         if (device.smokeDetector.sn != detectorSN)
             continue;
 
-        const uint16_t flags = (device.statusFlags | setMask) & ~clearedMask;
-        const uint16_t known = device.statusKnown | setMask | clearedMask;
-        if (flags != device.statusFlags || known != device.statusKnown)
+        const time_t now = time(nullptr);
+        const GeniusStatusDelta delta = device.status.apply(setMask, clearedMask, now, GDE_STATUS_PACKET);
+        if (delta.any())
         {
-            device.statusFlags = flags;
-            device.statusKnown = known;
-            device.statusChanged = time(nullptr);
+            // The log names what changed here, not what the packet carried - the many repeated
+            // and mesh-forwarded copies of one change add nothing.
+            device.status.addEvent({now, GDE_STATUS_PACKET, delta.set, delta.cleared | delta.removed, 0});
             updatedDevice = &device;
             deviceId = device.id;
 
-            ESP_LOGI(GeniusDevices::TAG, "Status of smoke detector with SN '%lu' changed (set 0x%04X, cleared 0x%04X) - now 0x%04X.",
-                     detectorSN, setMask, clearedMask, flags);
+            ESP_LOGI(GeniusDevices::TAG, "Status of smoke detector with SN '%lu' changed (set 0x%04lX, cleared 0x%04lX) - active now 0x%04lX.",
+                     detectorSN, (unsigned long)delta.set, (unsigned long)(delta.cleared | delta.removed),
+                     (unsigned long)device.status.activeMask());
         }
         break;
     }
@@ -607,8 +609,8 @@ void GeniusDevicesService::_updateStatusSummary()
     beginTransaction();
     for (const GeniusDevice &device : _state.devices)
     {
-        // Only flags whose state is known count - an unknown flag is not a fault.
-        const uint16_t active = device.statusFlags & device.statusKnown;
+        // Only active flags count - an unknown flag is not a fault.
+        const uint32_t active = device.status.activeMask();
         if (active & GENIUS_STATUS_FAULT_MASK)
             numFaulty++;
         if (active & GENIUS_STATUS_BATT_LOW)
@@ -803,15 +805,93 @@ std::vector<genius_device_alarm_t> GeniusDevice::parseAlarms(JsonArray jsonAlarm
     return result;
 }
 
+void GeniusDevice::statusToJson(JsonObject &root) const
+{
+    if (!status.flags.empty())
+    {
+        JsonArray arr = root["status"].to<JsonArray>();
+        for (const GeniusFlagState &state : status.flags)
+        {
+            JsonObject obj = arr.add<JsonObject>();
+            obj["flag"] = state.flag;
+            obj["active"] = state.active;
+            if (geniusTimeValid(state.since))
+                obj["since"] = Utils::time_t_to_iso8601(state.since);
+            obj["source"] = state.source;
+        }
+    }
+
+    if (!status.events.empty())
+    {
+        JsonArray arr = root["events"].to<JsonArray>();
+        for (const GeniusDeviceEvent &event : status.events)
+        {
+            JsonObject obj = arr.add<JsonObject>();
+            if (geniusTimeValid(event.time))
+                obj["time"] = Utils::time_t_to_iso8601(event.time);
+            obj["type"] = event.type;
+            switch (event.type)
+            {
+            case GDE_CREATED:
+                obj["registration"] = event.value;
+                break;
+            case GDE_READOUT:
+            case GDE_STATUS_PACKET:
+                obj["set"] = event.set;
+                obj["cleared"] = event.cleared;
+                break;
+            case GDE_MODULE_MISSING:
+                obj["cause"] = event.value;
+                break;
+            default:
+                break;
+            }
+        }
+    }
+}
+
 bool GeniusDevice::statusFromJson(JsonVariant src)
 {
-    JsonObject status = src["status"].as<JsonObject>();
-    if (status.isNull())
+    const bool hasStatus = src["status"].is<JsonArray>();
+    const bool hasEvents = src["events"].is<JsonArray>();
+    if (!hasStatus && !hasEvents)
         return false;
 
-    statusKnown = status["known"].as<uint16_t>() & GENIUS_STATUS_TRACKED_MASK;
-    statusFlags = status["flags"].as<uint16_t>() & statusKnown;
-    statusChanged = status["changed"].is<String>() ? Utils::iso8601_to_time_t(status["changed"].as<String>()) : 0;
+    status.flags.clear();
+    status.events.clear();
+
+    if (hasStatus)
+    {
+        for (JsonVariant item : src["status"].as<JsonArray>())
+        {
+            const uint32_t flag = item["flag"].as<uint32_t>();
+            // exactly one storable bit, and each flag only once
+            if (flag == 0 || (flag & (flag - 1)) != 0 || !(flag & GENIUS_STATUS_STORED_MASK) || status.find(flag))
+                continue;
+            GeniusFlagState state = {};
+            state.flag = flag;
+            state.active = item["active"].as<bool>();
+            state.since = item["since"].is<String>() ? Utils::iso8601_to_time_t(item["since"].as<String>()) : 0;
+            state.source = item["source"].as<uint8_t>();
+            status.flags.push_back(state);
+        }
+    }
+
+    if (hasEvents)
+    {
+        for (JsonVariant item : src["events"].as<JsonArray>())
+        {
+            GeniusDeviceEvent event = {};
+            event.type = item["type"].as<uint8_t>();
+            if (event.type >= GDE_MAX)
+                continue;
+            event.time = item["time"].is<String>() ? Utils::iso8601_to_time_t(item["time"].as<String>()) : 0;
+            event.set = item["set"].as<uint32_t>();
+            event.cleared = item["cleared"].as<uint32_t>();
+            event.value = event.type == GDE_CREATED ? item["registration"].as<uint32_t>() : item["cause"].as<uint32_t>();
+            status.addEvent(event); // keeps the newest GENIUS_MAX_DEVICE_EVENTS
+        }
+    }
     return true;
 }
 
@@ -820,13 +900,13 @@ bool GeniusDevice::applyReadoutStatus()
     if (readoutTime == 0)
         return false;
 
-    uint16_t bits = GENIUS_STATUS_READOUT_MASK;
+    uint32_t bits = GENIUS_STATUS_READOUT_MASK;
     // Old FM modules (FM.Basis / FM.Pro) report no radio status over SmartSonic - the readout's
     // radio fault flag is just a default there and must not mark the radio link as OK.
     if (isOldFmModule(radioModule.model))
         bits &= ~GENIUS_STATUS_RADIO;
 
-    uint16_t fromReadout = 0;
+    uint32_t fromReadout = 0;
     if (smokeDetector.batteryLowFault)
         fromReadout |= GENIUS_STATUS_BATT_LOW;
     if (smokeDetector.deviceFault)
@@ -834,15 +914,18 @@ bool GeniusDevice::applyReadoutStatus()
     if (radioModule.radioNetworkFault)
         fromReadout |= GENIUS_STATUS_RADIO;
 
-    const uint16_t flags = (statusFlags & ~bits) | (fromReadout & bits);
-    const uint16_t known = statusKnown | bits;
-    if (flags == statusFlags && known == statusKnown)
-        return false;
+    // A readout reports its flags completely: each one is either active or OK. It is always
+    // logged, also when it only confirms what is known.
+    const uint32_t reportedActive = fromReadout & bits;
+    const uint32_t reportedOk = ~fromReadout & bits;
+    const GeniusStatusDelta delta = status.apply(reportedActive, reportedOk, readoutTime, GDE_READOUT);
+    status.addEvent({readoutTime, GDE_READOUT, reportedActive, reportedOk, 0});
+    return delta.any();
+}
 
-    statusFlags = flags;
-    statusKnown = known;
-    statusChanged = readoutTime;
-    return true;
+void GeniusDevice::logEvent(genius_device_event_t type, uint32_t value)
+{
+    status.addEvent({time(nullptr), static_cast<uint8_t>(type), 0, 0, value});
 }
 
 bool GeniusDevice::buildFromJson(JsonVariant src, GeniusDevice &out)
@@ -915,6 +998,9 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
     if (this->smokeDetector.sn != newSD.sn)
     {
         this->smokeDetector.sn = newSD.sn;
+        // Another smoke detector: nothing known about the old one holds for it. A readout
+        // that comes with the change is applied below.
+        this->status.clear();
         changed = true;
     }
     if (this->smokeDetector.productionDate != newSD.productionDate)
@@ -1186,6 +1272,7 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': SD SN %lu->%lu", updatedDevice.location.c_str(),
                          updatedDevice.smokeDetector.sn, newSD.sn);
                 updatedDevice.smokeDetector.sn = newSD.sn;
+                updatedDevice.status.clear(); // another smoke detector: forget the status of the old one
                 deviceChanged = true;
             }
             if (updatedDevice.smokeDetector.productionDate != newSD.productionDate)
@@ -1549,11 +1636,13 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
             }
 
             // Status entities: current status, each flag only once known
-            const uint16_t known = d->statusKnown;
-            const uint16_t flags = d->statusFlags;
+            const uint32_t known = d->status.knownMask();
+            const uint32_t flags = d->status.activeMask();
             if (known & GENIUS_STATUS_BATT_LOW) state["battery_low"]  = (flags & GENIUS_STATUS_BATT_LOW) != 0;
             if (known & GENIUS_STATUS_ERROR)    state["device_fault"] = (flags & GENIUS_STATUS_ERROR) != 0;
-            if (known & GENIUS_STATUS_RADIO)    state["radio_fault"]  = (flags & GENIUS_STATUS_RADIO) != 0;
+            // A radio module that other detectors report as missing is a radio problem of this detector too
+            const uint32_t radioFlags = GENIUS_STATUS_RADIO | GENIUS_STATUS_REPORTED_MISSING;
+            if (known & radioFlags)             state["radio_fault"]  = (flags & radioFlags) != 0;
             if (known & GENIUS_STATUS_DISMOUNT) state["dismounted"]   = (flags & GENIUS_STATUS_DISMOUNT) != 0;
 
             // Readout entities
@@ -2075,7 +2164,7 @@ String GeniusDevicesService::_buildSimpleFaultPayload()
     JsonArray devices = doc["devices"].to<JsonArray>();
     for (const GeniusDevice &device : _state.devices)
     {
-        const uint16_t active = device.statusFlags & device.statusKnown;
+        const uint32_t active = device.status.activeMask();
         if (active == 0)
             continue;
 
@@ -2083,7 +2172,7 @@ String GeniusDevicesService::_buildSimpleFaultPayload()
         entry["sn"] = device.smokeDetector.sn;
         entry["location"] = device.location;
         JsonArray flags = entry["status"].to<JsonArray>();
-        for (uint16_t bit = 1; bit != 0; bit <<= 1)
+        for (uint32_t bit = 1; bit != 0; bit <<= 1)
         {
             if (!(active & bit))
                 continue;
@@ -2094,8 +2183,8 @@ String GeniusDevicesService::_buildSimpleFaultPayload()
             }
             else
             {
-                char key[12];
-                snprintf(key, sizeof(key), "flag_0x%04X", bit);
+                char key[20];
+                snprintf(key, sizeof(key), "flag_0x%04lX", (unsigned long)bit);
                 flags.add(key);
             }
         }
@@ -2200,6 +2289,7 @@ GeniusDevicesService::upsertDevice(JsonVariant deviceJson, GeniusDevice &out)
         // A detector that is new to the gateway has no entities in Home Assistant yet: its
         // first publish already carries the right entity IDs, so there is nothing to rename.
         newDevice.haEntityIdPrefix = _entityIdPrefixFor(newDevice);
+        newDevice.logEvent(GDE_CREATED, newDevice.registration);
         _state.devices.push_back(std::move(newDevice));
         out = _state.devices.back();
         stateChanged = true;
@@ -2252,13 +2342,15 @@ GeniusDevicesService::resetStatus(uint32_t deviceId, GeniusDevice &out)
         if (device.id != deviceId)
             continue;
 
-        if (device.statusFlags != 0)
+        const uint32_t active = device.status.activeMask();
+        if (active != 0)
         {
-            ESP_LOGI(GeniusDevices::TAG, "Status of smoke detector with SN '%lu' reset manually (was 0x%04X).",
-                     device.smokeDetector.sn, device.statusFlags);
-            // Flags stay known: the user confirmed they are resolved, so they read as OK now.
-            device.statusFlags = 0;
-            device.statusChanged = time(nullptr);
+            ESP_LOGI(GeniusDevices::TAG, "Status of smoke detector with SN '%lu' reset manually (was 0x%04lX).",
+                     device.smokeDetector.sn, (unsigned long)active);
+            // The active flags become unknown, not OK: the gateway cannot check that the fault
+            // is gone, and the detector does not announce a fault that persists a second time.
+            device.status.reset();
+            device.logEvent(GDE_STATUS_RESET);
             result = DeviceOpResult::OK;
         }
         else

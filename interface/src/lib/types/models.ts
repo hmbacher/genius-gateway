@@ -247,21 +247,41 @@ export type GeniusDevice = {
 	/** Entity-ID prefix last announced to Home Assistant. Backend-owned: the gateway
 	 *  reports it, but ignores any value a client sends. */
 	haEntityIdPrefix?: string;
-	/** Current status flags - present once the state of at least one flag is known. */
-	status?: GeniusDeviceStatus;
+	/** Current state per status flag (see $lib/genius/status). A flag without an entry is unknown:
+	 *  the gateway never heard about it, so it is neither OK nor active. Backend-owned. */
+	status?: GeniusFlagState[];
+	/** Activity log, oldest first. Backend-owned. */
+	events?: GeniusDeviceEvent[];
 };
 
 /**
- * Current status of a device (see $lib/genius/status). Fed by status-change packets received over
- * the air, acoustic readouts and manual resets - whichever is newest. Backend-owned.
+ * Current state of one status flag. Fed by status-change packets received over the air and by
+ * acoustic readouts - whichever is newest; a manual reset makes active flags unknown again.
  */
-export type GeniusDeviceStatus = {
-	/** Active status flags (STATUS_* bits). */
-	flags: number;
-	/** Flags whose state is known - a flag the gateway never heard about is neither OK nor active. */
-	known: number;
-	/** Time of the last status change. */
-	changed?: Date;
+export type GeniusFlagState = {
+	/** The flag (a single STATUS_* bit). */
+	flag: number;
+	/** true = fault / condition present, false = reported OK. */
+	active: boolean;
+	/** Since when this state holds; missing when the gateway's clock was not set at the time. */
+	since?: Date;
+	/** Where the state comes from (EVENT_READOUT or EVENT_STATUS_PACKET). */
+	source: number;
+};
+
+/** One entry of a device's activity log (see EVENT_* in $lib/genius/status). */
+export type GeniusDeviceEvent = {
+	/** When it happened; missing when the gateway's clock was not set at the time. */
+	time?: Date;
+	type: number;
+	/** Readout / status packet: flags reported active. */
+	set?: number;
+	/** Readout / status packet: flags reported OK. */
+	cleared?: number;
+	/** Created: registration type of the device. */
+	registration?: number;
+	/** Module missing: serial of the radio module reported as missing. */
+	cause?: number;
 };
 
 export type GeniusDevices = {

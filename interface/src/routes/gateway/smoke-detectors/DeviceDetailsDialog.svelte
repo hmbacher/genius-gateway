@@ -18,6 +18,7 @@
 		STATUS_DISMOUNTED,
 		flagState,
 		activeStatusFlags,
+		lastStatusChange,
 		statusFlagLabels
 	} from '$lib/genius/status';
 	import { isOldFmModule } from '$lib/genius/line';
@@ -225,6 +226,7 @@
 	const STATUS_ROW_MASK = STATUS_ROWS.reduce((acc, r) => acc | r.bit, 0);
 
 	let activeFlags = $derived(activeStatusFlags(device));
+	let statusChanged = $derived(lastStatusChange(device));
 	// Active flags without a row of their own: "Fault muted" and flags not known yet
 	let otherActiveFlags = $derived(statusFlagLabels(activeFlags & ~STATUS_ROW_MASK));
 
@@ -354,10 +356,10 @@
 							</DetailRow>
 						{/each}
 
-						{#if device.status?.changed}
+						{#if statusChanged}
 							<DetailRow icon={IconClock} label="Last Change">
-								<span class="font-medium">{formatDateTime(device.status.changed)}</span>
-								<span class="text-base-content/50">({formatAge(device.status.changed)} ago)</span>
+								<span class="font-medium">{formatDateTime(statusChanged)}</span>
+								<span class="text-base-content/50">({formatAge(statusChanged)} ago)</span>
 							</DetailRow>
 						{/if}
 

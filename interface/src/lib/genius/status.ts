@@ -16,16 +16,23 @@ export const STATUS_BATTERY_LOW = 0x0004;
 export const STATUS_RADIO_FAULT = 0x0008;
 export const STATUS_FAULT_MUTED = 0x0010;
 export const STATUS_DISMOUNTED = 0x0020;
+/** Gateway-defined, not an on-air bit: the radio module was named as missing by the radio link
+ *  supervision of another detector. */
+export const STATUS_REPORTED_MISSING = 0x10000;
 
 /** Flags that indicate a problem. MUTE is informational; unknown flags are not counted. */
 export const STATUS_FAULT_MASK =
-	STATUS_DEVICE_FAULT | STATUS_BATTERY_LOW | STATUS_RADIO_FAULT | STATUS_DISMOUNTED;
+	STATUS_DEVICE_FAULT |
+	STATUS_BATTERY_LOW |
+	STATUS_RADIO_FAULT |
+	STATUS_DISMOUNTED |
+	STATUS_REPORTED_MISSING;
 
 /** Flags concerning the smoke detector itself (as opposed to the radio module). */
 export const STATUS_SMOKE_DETECTOR_MASK = STATUS_DEVICE_FAULT | STATUS_BATTERY_LOW | STATUS_DISMOUNTED;
 
 /** Flags concerning the radio module. */
-export const STATUS_RADIO_MODULE_MASK = STATUS_RADIO_FAULT;
+export const STATUS_RADIO_MODULE_MASK = STATUS_RADIO_FAULT | STATUS_REPORTED_MISSING;
 
 export type StatusFlagInfo = {
 	bit: number;
@@ -42,6 +49,7 @@ export const STATUS_FLAGS: StatusFlagInfo[] = [
 	{ bit: STATUS_DEVICE_FAULT, label: 'Device fault', fault: true },
 	{ bit: STATUS_RADIO_FAULT, label: 'Radio link fault', fault: true },
 	{ bit: STATUS_DISMOUNTED, label: 'Dismounted', fault: true },
+	{ bit: STATUS_REPORTED_MISSING, label: 'Reported missing', fault: true },
 	{ bit: STATUS_FAULT_MUTED, label: 'Fault muted', fault: false }
 ];
 
@@ -53,10 +61,10 @@ export function statusFlagLabel(bit: number): string {
 	);
 }
 
-/** Split a 16-bit flag mask into its single bits, lowest first. */
+/** Split a flag mask into its single bits, lowest first. */
 export function statusBits(mask: number): number[] {
 	const bits: number[] = [];
-	for (let bit = 1; bit <= 0x8000; bit <<= 1) if (mask & bit) bits.push(bit);
+	for (let bit = 1; bit <= STATUS_REPORTED_MISSING; bit <<= 1) if (mask & bit) bits.push(bit);
 	return bits;
 }
 
@@ -72,17 +80,40 @@ export function statusFlagLabels(mask: number): string[] {
 export type FlagState = 'unknown' | 'ok' | 'active';
 
 export function flagState(d: GeniusDevice, bit: number): FlagState {
-	const known = d.status?.known ?? 0;
-	if (!(known & bit)) return 'unknown';
-	return (d.status?.flags ?? 0) & bit ? 'active' : 'ok';
+	const state = d.status?.find((s) => s.flag === bit);
+	if (!state) return 'unknown';
+	return state.active ? 'active' : 'ok';
 }
 
-/** Currently active (and known) status flags of a device. */
+/** Currently active status flags of a device. */
 export function activeStatusFlags(d: GeniusDevice): number {
-	return (d.status?.flags ?? 0) & (d.status?.known ?? 0);
+	return (d.status ?? []).reduce((mask, s) => (s.active ? mask | s.flag : mask), 0);
+}
+
+/** Status flags of a device whose state is known (active or OK). */
+export function knownStatusFlags(d: GeniusDevice): number {
+	return (d.status ?? []).reduce((mask, s) => mask | s.flag, 0);
 }
 
 /** True iff the state of at least one flag in `mask` is known. */
 export function isStatusKnown(d: GeniusDevice, mask: number): boolean {
-	return ((d.status?.known ?? 0) & mask) !== 0;
+	return (knownStatusFlags(d) & mask) !== 0;
 }
+
+/** Time of the newest state change among the known flags, if any carries a time. */
+export function lastStatusChange(d: GeniusDevice): Date | undefined {
+	let last: Date | undefined;
+	for (const s of d.status ?? []) {
+		if (s.since && (!last || s.since > last)) last = s.since;
+	}
+	return last;
+}
+
+/** Kinds of activity log entries; READOUT and STATUS_PACKET are also the source of a flag state.
+ *  Keep in sync with genius_device_event_t in src/GeniusDeviceStatus.h. */
+export const EVENT_CREATED = 0;
+export const EVENT_READOUT = 1;
+export const EVENT_STATUS_PACKET = 2;
+export const EVENT_STATUS_RESET = 3;
+export const EVENT_MODULE_MISSING = 4;
+export const EVENT_ALARM = 5;

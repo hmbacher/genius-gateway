@@ -313,10 +313,7 @@ public:
                                    isAlarming(false),
                                    published(false),
                                    readoutTime(0),
-                                   readoutProtocolVersion(0),
-                                   statusFlags(0),
-                                   statusKnown(0),
-                                   statusChanged(0)
+                                   readoutProtocolVersion(0)
     {
     }
 
@@ -345,14 +342,7 @@ public:
         }
         if (!haEntityIdPrefix.isEmpty())
             root["haEntityIdPrefix"] = haEntityIdPrefix;
-        if (statusKnown)
-        {
-            JsonObject status = root["status"].to<JsonObject>();
-            status["flags"] = statusFlags;
-            status["known"] = statusKnown;
-            if (statusChanged > 0)
-                status["changed"] = Utils::time_t_to_iso8601(statusChanged);
-        }
+        statusToJson(root);
     }
 
     uint32_t id;                          ///< Unique identifier for device (auto-generated, immutable)
@@ -377,21 +367,24 @@ public:
      */
     String haEntityIdPrefix;
 
-    // --- Current status (GENIUS_STATUS_* flags, alarm bit excluded) ---
-    // Fed by received status changes, acoustic readouts and manual resets - whichever is newest.
-    // A flag's value only means something once its bit is set in statusKnown: until the gateway
-    // has heard about a flag, it cannot tell "OK" from "never announced".
-    uint16_t statusFlags;                 ///< Currently active status flags
-    uint16_t statusKnown;                 ///< Flags whose current state is known
-    time_t statusChanged;                 ///< Timestamp of the last status change (0 = never)
+    /// Current status (state per flag) and activity log - see GeniusDeviceStatus.h. Backend-owned:
+    /// fed by status changes received over the air, acoustic readouts and manual resets.
+    GeniusDeviceStatus status;
 
-    /// Read the "status" object written by toJson(). Returns false (status untouched) if absent.
+    /// Write the "status" and "events" arrays (each omitted while empty).
+    void statusToJson(JsonObject &root) const;
+
+    /// Read the "status" and "events" arrays written by statusToJson(). Returns false (status
+    /// untouched) if neither is present.
     bool statusFromJson(JsonVariant src);
 
-    /// Take battery / detector fault / radio fault over from the acoustic readout as current
-    /// status - called when a new readout arrives, or to derive the status of a device that has
-    /// none stored yet. Returns true if the status changed.
+    /// Take battery / detector fault / radio fault over from the acoustic readout and log the
+    /// readout - called when a new readout arrives, or to derive the status of a device that
+    /// has none stored yet. Returns true if a flag changed.
     bool applyReadoutStatus();
+
+    /// Append an entry with the current time to the activity log.
+    void logEvent(genius_device_event_t type, uint32_t value = 0);
 
     /// Parse an "alarms" JsonArray into a vector, capped at GATEWAY_MAX_ALARMS.
     static std::vector<genius_device_alarm_t> parseAlarms(JsonArray jsonAlarms);
@@ -473,7 +466,7 @@ public:
      * @param clearedMask Status flags newly cleared (alarm bit ignored)
      * @return The updated device, or nullptr if nothing changed or the detector is unknown
      */
-    const GeniusDevice *applyStatusChange(uint32_t detectorSN, uint16_t setMask, uint16_t clearedMask);
+    const GeniusDevice *applyStatusChange(uint32_t detectorSN, uint32_t setMask, uint32_t clearedMask);
 
     /// Number of devices with at least one active fault (GENIUS_STATUS_FAULT_MASK)
     uint32_t numFaultyDevices();
