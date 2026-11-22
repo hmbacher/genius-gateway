@@ -423,10 +423,8 @@ const GeniusDevice *GeniusDevicesService::setAlarm(uint32_t detectorSN)
             if (!device.isAlarming)
             {
                 device.isAlarming = true;
-                genius_device_alarm_t alarm = {.startTime = time(nullptr), // seconds precision
-                                               .endTime = 0,
-                                               .endingReason = GAE_ALARM_ACTIVE};
-                device.alarms.push_back(alarm);
+                device.status.startAlarm(time(nullptr)); // seconds precision
+                device.alarmCount++;
 
                 device.published = false; // Mark as not published for MQTT publishing
 
@@ -460,12 +458,7 @@ const GeniusDevice *GeniusDevicesService::resetAlarm(uint32_t detectorSN, genius
             {
                 device.isAlarming = false;
 
-                if (!device.alarms.empty())
-                {
-                    device.alarms.back().endTime = time(nullptr); // seconds precision
-                    device.alarms.back().endingReason = endingReason;
-                }
-                else
+                if (!device.status.endAlarm(time(nullptr), static_cast<uint32_t>(endingReason)))
                 {
                     ESP_LOGW(GeniusDevices::TAG, "No active alarm found for smoke detector with SN '%lu' when trying to reset alarm.", detectorSN);
                 }
@@ -500,12 +493,7 @@ bool GeniusDevicesService::resetAllAlarms()
         {
             device.isAlarming = false;
 
-            if (!device.alarms.empty())
-            {
-                device.alarms.back().endTime = time(nullptr); // seconds precision
-                device.alarms.back().endingReason = GAE_BY_MANUAL;
-            }
-            else
+            if (!device.status.endAlarm(time(nullptr), static_cast<uint32_t>(GAE_BY_MANUAL)))
             {
                 ESP_LOGW(GeniusDevices::TAG, "No active alarm found for smoke detector with SN '%lu' when trying to reset all alarms.", device.smokeDetector.sn);
             }
@@ -786,23 +774,45 @@ void GeniusDevicesService::persistRssiSurvey()
 // GeniusDevice JSON helpers (shared between bulk-POST and per-device endpoints)
 // ============================================================================
 
-std::vector<genius_device_alarm_t> GeniusDevice::parseAlarms(JsonArray jsonAlarms)
+void GeniusDevice::importLegacyAlarms(JsonArray jsonAlarms)
 {
-    std::vector<genius_device_alarm_t> result;
-    int count = 0;
+    uint32_t count = 0;
     for (JsonVariant jsonAlarm : jsonAlarms)
     {
-        if (count++ >= GATEWAY_MAX_ALARMS)
+        const time_t start = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>());
+        const time_t end = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>());
+        const int reason = jsonAlarm["endingReason"].as<int>();
+
+        GeniusDeviceEvent event = {};
+        event.time = start;
+        event.type = GDE_ALARM;
+        if (reason == GAE_ALARM_ACTIVE)
         {
-            ESP_LOGE(GeniusDevices::TAG, "Too many alarms for smoke detector device. Maximum allowed is %d.", GATEWAY_MAX_ALARMS);
-            break;
+            event.value = GENIUS_ALARM_RUNNING;
         }
-        result.push_back(genius_device_alarm_t{
-            .startTime = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>()),
-            .endTime = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>()),
-            .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
+        else
+        {
+            event.set = end > start ? static_cast<uint32_t>(end - start) : 0;
+            event.value = static_cast<uint32_t>(reason);
+        }
+        status.events.push_back(event);
+        count++;
     }
-    return result;
+    if (count == 0)
+        return;
+
+    // The alarms join whatever is in the log already (e.g. the readout the status was derived
+    // from): order by time first, then keep the newest entries.
+    status.sortEvents();
+    status.trimEvents();
+    alarmCount += count;
+}
+
+void GeniusDevice::detectorReplaced()
+{
+    status.forgetAll();
+    alarmCount = 0;
+    logEvent(GDE_CREATED, registration);
 }
 
 void GeniusDevice::statusToJson(JsonObject &root) const
@@ -842,6 +852,11 @@ void GeniusDevice::statusToJson(JsonObject &root) const
                 break;
             case GDE_MODULE_MISSING:
                 obj["cause"] = event.value;
+                break;
+            case GDE_ALARM:
+                if (event.value != GENIUS_ALARM_RUNNING && geniusTimeValid(event.time))
+                    obj["end"] = Utils::time_t_to_iso8601(event.time + event.set);
+                obj["endingReason"] = static_cast<int32_t>(event.value); // -1 while it lasts
                 break;
             default:
                 break;
@@ -886,9 +901,33 @@ bool GeniusDevice::statusFromJson(JsonVariant src)
             if (event.type >= GDE_MAX)
                 continue;
             event.time = item["time"].is<String>() ? Utils::iso8601_to_time_t(item["time"].as<String>()) : 0;
-            event.set = item["set"].as<uint32_t>();
-            event.cleared = item["cleared"].as<uint32_t>();
-            event.value = event.type == GDE_CREATED ? item["registration"].as<uint32_t>() : item["cause"].as<uint32_t>();
+            switch (event.type)
+            {
+            case GDE_CREATED:
+                event.value = item["registration"].as<uint32_t>();
+                break;
+            case GDE_READOUT:
+            case GDE_STATUS_PACKET:
+                event.set = item["set"].as<uint32_t>();
+                event.cleared = item["cleared"].as<uint32_t>();
+                break;
+            case GDE_MODULE_MISSING:
+                event.value = item["cause"].as<uint32_t>();
+                break;
+            case GDE_ALARM:
+            {
+                const int32_t reason = item["endingReason"].is<int>() ? item["endingReason"].as<int32_t>() : GAE_ALARM_ACTIVE;
+                event.value = reason == GAE_ALARM_ACTIVE ? GENIUS_ALARM_RUNNING : static_cast<uint32_t>(reason);
+                if (item["end"].is<String>())
+                {
+                    const time_t end = Utils::iso8601_to_time_t(item["end"].as<String>());
+                    event.set = end > event.time ? static_cast<uint32_t>(end - event.time) : 0;
+                }
+                break;
+            }
+            default:
+                break;
+            }
             status.addEvent(event); // keeps the newest GENIUS_MAX_DEVICE_EVENTS
         }
     }
@@ -954,13 +993,17 @@ bool GeniusDevice::buildFromJson(JsonVariant src, GeniusDevice &out)
                                      ? src["readoutProtocolVersion"].as<uint8_t>()
                                      : 0;
 
-    if (src["alarms"].is<JsonArray>())
-        out.alarms = parseAlarms(src["alarms"].as<JsonArray>());
-
     // haEntityIdPrefix is backend-owned and deliberately not read from the client's JSON.
-    // Status as stored (import); without one (new device, older export) derive it from the readout
+    // Status and activity log as stored (import); without them (new device, older export) the
+    // status is derived from the readout
     if (!out.statusFromJson(src))
         out.applyReadoutStatus();
+
+    // Exports from before v1.6.0 carry the alarms as a list of their own
+    if (src["alarms"].is<JsonArray>())
+        out.importLegacyAlarms(src["alarms"].as<JsonArray>());
+    if (src["alarmCount"].is<uint32_t>())
+        out.alarmCount = src["alarmCount"].as<uint32_t>();
 
     out.published = false; // new device - needs publish
     return true;
@@ -998,9 +1041,9 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
     if (this->smokeDetector.sn != newSD.sn)
     {
         this->smokeDetector.sn = newSD.sn;
-        // Another smoke detector: nothing known about the old one holds for it. A readout
-        // that comes with the change is applied below.
-        this->status.clear();
+        // Another smoke detector: status, activity log and alarm counter of the old one do not
+        // hold for it. A readout that comes with the change is applied below.
+        this->detectorReplaced();
         changed = true;
     }
     if (this->smokeDetector.productionDate != newSD.productionDate)
@@ -1057,22 +1100,16 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
         changed = true;
     }
 
-    if (src["alarms"].is<JsonArray>())
-    {
-        auto newAlarms = parseAlarms(src["alarms"].as<JsonArray>());
-        if (this->alarms != newAlarms)
-        {
-            this->alarms = std::move(newAlarms);
-            changed = true;
-        }
-    }
-
+    // The alarms are entries of the activity log, which is backend-owned like the status: a
+    // client cannot change them.
     if (src["isAlarming"].is<bool>())
     {
         bool newIsAlarming = src["isAlarming"].as<bool>();
         if (this->isAlarming != newIsAlarming)
         {
             this->isAlarming = newIsAlarming;
+            if (!newIsAlarming)
+                this->status.endAlarm(time(nullptr), static_cast<uint32_t>(GAE_BY_IMPORT));
             changed = true;
         }
     }
@@ -1152,6 +1189,14 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
         hasChanges = true; // force save with new version
     }
 
+    // v3: the alarms moved into the activity log ("events"), the status is kept per flag. Both
+    // are converted while the devices are read below - only the write-back has to be forced.
+    if (configVersion < 3 && originId == GATEWAY_DEVICES_FILE)
+    {
+        ESP_LOGI(GeniusDevices::TAG, "Migrating device config from v%d to v%d.", configVersion, GATEWAY_DEVICES_CONFIG_VERSION);
+        hasChanges = true; // force save with new version
+    }
+
     JsonArray jsonDevices = root["devices"].as<JsonArray>();
     std::vector<GeniusDevice, PsramAllocator<GeniusDevice>> newDevicesVector; // Build new devices vector in JSON order
     std::vector<uint32_t> processedDeviceIds;   // Track which device IDs we've seen in JSON
@@ -1213,24 +1258,11 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
             if (!newDevice.statusFromJson(jsonDeviceArrItem))
                 newDevice.applyReadoutStatus();
 
-            // Process alarms
+            // Files from before v1.6.0 carry the alarms as a list of their own
             if (jsonDeviceArrItem["alarms"].is<JsonArray>())
-            {
-                int alarms_count = 0;
-                for (JsonVariant jsonAlarm : jsonDeviceArrItem["alarms"].as<JsonArray>())
-                {
-                    if (alarms_count++ >= GATEWAY_MAX_ALARMS)
-                    {
-                        ESP_LOGE(GeniusDevices::TAG, "Too many alarms for smoke detector device. Maximum allowed is %d.", GATEWAY_MAX_ALARMS);
-                        break;
-                    }
-
-                    newDevice.alarms.push_back(genius_device_alarm_t{
-                        .startTime = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>()),
-                        .endTime = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>()),
-                        .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
-                }
-            }
+                newDevice.importLegacyAlarms(jsonDeviceArrItem["alarms"].as<JsonArray>());
+            if (jsonDeviceArrItem["alarmCount"].is<uint32_t>())
+                newDevice.alarmCount = jsonDeviceArrItem["alarmCount"].as<uint32_t>();
 
             // The entity-ID prefix announced to Home Assistant is backend-owned: restore it
             // from the config file, never accept it from a client.
@@ -1272,7 +1304,7 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': SD SN %lu->%lu", updatedDevice.location.c_str(),
                          updatedDevice.smokeDetector.sn, newSD.sn);
                 updatedDevice.smokeDetector.sn = newSD.sn;
-                updatedDevice.status.clear(); // another smoke detector: forget the status of the old one
+                updatedDevice.detectorReplaced(); // another smoke detector: status, log and alarm counter start over
                 deviceChanged = true;
             }
             if (updatedDevice.smokeDetector.productionDate != newSD.productionDate)
@@ -1322,29 +1354,7 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 deviceChanged = true;
             }
 
-            // Update alarms
-            if (jsonDeviceArrItem["alarms"].is<JsonArray>())
-            {
-                std::vector<genius_device_alarm_t> newAlarms;
-                int alarms_count = 0;
-                for (JsonVariant jsonAlarm : jsonDeviceArrItem["alarms"].as<JsonArray>())
-                {
-                    if (alarms_count++ >= GATEWAY_MAX_ALARMS)
-                    {
-                        ESP_LOGE(GeniusDevices::TAG, "Too many alarms for smoke detector device. Maximum allowed is %d.", GATEWAY_MAX_ALARMS);
-                        break;
-                    }
-                    newAlarms.push_back(genius_device_alarm_t{
-                        .startTime = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>()),
-                        .endTime = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>()),
-                        .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
-                }
-                if (updatedDevice.alarms != newAlarms)
-                {
-                    updatedDevice.alarms = newAlarms;
-                    deviceChanged = true;
-                }
-            }
+            // The alarms are entries of the activity log, which is backend-owned: not taken from a client.
 
             // Update isAlarming from frontend (frontend is responsible for correct state, e.g. clearing on import)
             if (jsonDeviceArrItem["isAlarming"].is<bool>())
@@ -1353,6 +1363,8 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 if (updatedDevice.isAlarming != newIsAlarming)
                 {
                     updatedDevice.isAlarming = newIsAlarming;
+                    if (!newIsAlarming)
+                        updatedDevice.status.endAlarm(time(nullptr), static_cast<uint32_t>(GAE_BY_IMPORT));
                     deviceChanged = true;
                 }
             }

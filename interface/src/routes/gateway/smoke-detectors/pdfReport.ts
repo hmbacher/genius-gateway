@@ -7,6 +7,7 @@ import {
 } from '$lib/types/enums';
 import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
+import { alarmCount, deviceAlarms } from '$lib/genius/activity';
 import {
 	getSmokeDetectorFaults,
 	getRadioModuleFaults,
@@ -558,7 +559,8 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 	// ── Alarm Log (full-width) ──
 	blocks.push(sectionHeader('Alarm Log'));
 
-	if (device.alarms.length === 0) {
+	const alarms = deviceAlarms(device);
+	if (alarms.length === 0) {
 		blocks.push({
 			text: 'No alarms recorded.',
 			fontSize: 9,
@@ -567,7 +569,7 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 			margin: [0, 2, 0, 4]
 		});
 	} else {
-		const alarmRows = [...device.alarms].reverse().map((alarm) => {
+		const alarmRows = [...alarms].reverse().map((alarm) => {
 			const active = alarm.endingReason === GeniusAlarmEnding.AlarmActive;
 			return [
 				{ text: formatDateTime(alarm.startTime), fontSize: 8 },
@@ -577,7 +579,11 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 					color: active ? C_MUTED : '#111827'
 				},
 				{
-					text: active ? 'Active' : formatDuration(alarm.startTime, alarm.endTime),
+					text: active
+						? 'Active'
+						: alarm.startTime && alarm.endTime
+							? formatDuration(alarm.startTime, alarm.endTime)
+							: '-',
 					fontSize: 8,
 					color: active ? C_ERROR : '#111827'
 				},
@@ -662,7 +668,7 @@ function buildOverviewPage(
 	}
 
 	// Summary line
-	const totalAlarms = devices.reduce((sum, d) => sum + d.alarms.length, 0);
+	const totalAlarms = devices.reduce((sum, d) => sum + alarmCount(d), 0);
 	const devicesWithFaults = devices.filter(
 		(d) =>
 			d.readoutTime &&
@@ -731,7 +737,7 @@ function buildOverviewPage(
 			},
 			signalCell,
 			{
-				text: String(device.alarms.length),
+				text: String(alarmCount(device)),
 				fontSize: 8,
 				alignment: 'center',
 				color: '#111827'

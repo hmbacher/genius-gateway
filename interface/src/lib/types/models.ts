@@ -151,9 +151,12 @@ export type MQTTSettings = {
 	message_interval_ms: number;
 };
 
+/** An alarm of a device - a view on the alarm entries of its activity log (see $lib/genius/activity). */
 export type GeniusAlarm = {
-	startTime: Date;
-	endTime: Date;
+	/** Missing when the gateway's clock was not set at the time. */
+	startTime?: Date;
+	/** Missing while the alarm lasts. */
+	endTime?: Date;
 	endingReason: number;
 }
 
@@ -241,7 +244,9 @@ export type GeniusDevice = {
 	location: string;
 	registration: number;
 	isAlarming: boolean;
-	alarms: GeniusAlarm[];
+	/** Number of alarms of this smoke detector. The alarms themselves are entries of the activity
+	 *  log (`events`), which only keeps the newest ones. Backend-owned. */
+	alarmCount?: number;
 	readoutTime?: Date;
 	readoutProtocolVersion?: number;
 	/** Entity-ID prefix last announced to Home Assistant. Backend-owned: the gateway
@@ -282,6 +287,10 @@ export type GeniusDeviceEvent = {
 	registration?: number;
 	/** Module missing: serial of the radio module reported as missing. */
 	cause?: number;
+	/** Alarm: when it ended; missing while it lasts. */
+	end?: Date;
+	/** Alarm: how it ended (GeniusAlarmEnding), AlarmActive while it lasts. */
+	endingReason?: number;
 };
 
 export type GeniusDevices = {

@@ -11,6 +11,7 @@
 	import type {
 		GeniusDevices,
 		GeniusDevice,
+		GeniusAlarm,
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
 		AlarmLine,
@@ -31,6 +32,7 @@
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { getSmokeDetectorFaults, getRadioModuleFaults } from '$lib/utils/deviceStatus';
 	import { isOldFmModule } from '$lib/genius/line';
+	import { EVENT_ALARM } from '$lib/genius/status';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { socket } from '$lib/stores/socket';
 	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
@@ -39,7 +41,7 @@
 	import DraggableList from '$lib/components/DraggableList.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
-	import AlarmLog from './AlarmLog.svelte';
+	import ActivityLog from './ActivityLog.svelte';
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
 	import DeviceImportDialog from './DeviceImportDialog.svelte';
 	import DeviceDetailsDialog from './DeviceDetailsDialog.svelte';
@@ -462,8 +464,7 @@
 			} as GeniusRadioModuleInfo,
 			location: '',
 			registration: GeniusDeviceRegistration.Manual,
-			isAlarming: false,
-			alarms: []
+			isAlarming: false
 		};
 		openDeviceEditor(device, {
 			title: 'Add discovered device',
@@ -500,9 +501,10 @@
 	});
 
 	function handleAlarmLog(index: number) {
-		modals.open(AlarmLog, {
-			title: 'Alarms log',
-			geniusDevice: geniusDevices.devices[index]
+		modals.open(ActivityLog, {
+			title: 'Activity log',
+			geniusDevice: geniusDevices.devices[index],
+			alarmsOnly: true
 		});
 	}
 
@@ -564,7 +566,6 @@
 			location: GENIUS_DEVICE_DEFAULT_LOCATION,
 			registration: GeniusDeviceRegistration.Acoustic,
 			isAlarming: false,
-			alarms: [],
 			readoutTime: new Date(),
 			readoutProtocolVersion: data.protocolVersion
 		} as GeniusDevice;
@@ -628,12 +629,12 @@
 		}
 	}
 
-	/** Silently update an existing device at the given index, preserving location, alarms, and position */
+	/** Silently update an existing device at the given index, preserving location and position.
+	 *  Status, activity log and alarms are kept by the gateway and need no care here. */
 	async function silentUpdateDevice(index: number, newDevice: GeniusDevice) {
 		const existing = geniusDevices.devices[index];
 		newDevice.id = existing.id;
 		newDevice.location = existing.location;
-		newDevice.alarms = existing.alarms;
 		newDevice.isAlarming = existing.isAlarming;
 		preserveManualLineIfSameModule(newDevice, existing);
 		const ok = await apiPutDevice(newDevice);
@@ -683,7 +684,8 @@
 						confirm: { label: 'Replace', icon: Check }
 					},
 					onConfirm: () => {
-						// Keep location and position, but reset alarms
+						// Keep location and position. The gateway starts status, activity log and
+						// alarm counter over when the serial of the smoke detector changes.
 						newDevice.id = existing.id;
 						newDevice.location = existing.location;
 						// Same RM serial confirms this is the same physical module, just
@@ -968,11 +970,22 @@
 		for (const device of devices) {
 			if (!device.isAlarming) continue;
 			device.isAlarming = false;
-			if (device.alarms.length > 0) {
-				const lastAlarm = device.alarms[device.alarms.length - 1];
+			// Files written before v1.6.0 carry the alarms as a list of their own
+			const legacyAlarms = (device as { alarms?: GeniusAlarm[] }).alarms ?? [];
+			if (legacyAlarms.length > 0) {
+				const lastAlarm = legacyAlarms[legacyAlarms.length - 1];
 				if (lastAlarm.endingReason === GeniusAlarmEnding.AlarmActive) {
 					lastAlarm.endTime = new Date();
 					lastAlarm.endingReason = GeniusAlarmEnding.ByImport;
+				}
+			}
+			for (const event of device.events ?? []) {
+				if (
+					event.type === EVENT_ALARM &&
+					(event.endingReason ?? GeniusAlarmEnding.AlarmActive) === GeniusAlarmEnding.AlarmActive
+				) {
+					event.end = new Date();
+					event.endingReason = GeniusAlarmEnding.ByImport;
 				}
 			}
 		}
@@ -986,7 +999,7 @@
 		let cancelled = false;
 		reader.onload = async () => {
 			if (cancelled) return;
-			const CURRENT_VERSION = 2;
+			const CURRENT_VERSION = 3;
 			const fileContent = reader.result as string;
 			try {
 				const importedGeniusDevices = JSON.parse(fileContent, jsonDateReviver) as GeniusDevices;

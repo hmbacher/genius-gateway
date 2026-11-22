@@ -3,6 +3,7 @@
 	import { GeniusDeviceRegistration } from '$lib/types/enums';
 	import { hasReadout, isStaleReadout, getDeviceFaults } from '$lib/utils/deviceStatus';
 	import { formatDate } from '$lib/utils/formatDate';
+	import { alarmCount, lastAlarm } from '$lib/genius/activity';
 	import IconDetector from '~icons/custom-icons/smoke-detector-2xl';
 	import IconNumber from '~icons/tabler/number';
 	import IconFactory from '~icons/tabler/building-factory-2';
@@ -83,9 +84,9 @@
 		<span class="inline-flex">
 			<IconBell class="mr-1 h-5 w-5" />
 			<span class="text-sm">
-				{detector.alarms.length}
-				{#if detector.alarms.length > 0}
-					({formatDate(detector.alarms[detector.alarms.length - 1].startTime)})
+				{alarmCount(detector)}
+				{#if lastAlarm(detector)?.startTime}
+					({formatDate(lastAlarm(detector)?.startTime)})
 				{/if}
 			</span>
 		</span>

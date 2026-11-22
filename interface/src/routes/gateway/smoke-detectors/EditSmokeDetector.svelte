@@ -9,7 +9,6 @@
 	import type {
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
-		GeniusAlarm,
 		GeniusDevice
 	} from '$lib/types/models';
 	import {
@@ -71,8 +70,7 @@
 			} as GeniusRadioModuleInfo,
 			location: '',
 			registration: GeniusDeviceRegistration.Manual,
-			isAlarming: false,
-			alarms: [] as GeniusAlarm[]
+			isAlarming: false
 		} as GeniusDevice
 	}: Props = $props();
 

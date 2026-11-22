@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <time.h>
+#include <algorithm>
 #include <vector>
 
 /*
@@ -120,9 +121,12 @@ enum genius_device_event_t : uint8_t
     GDE_STATUS_PACKET = 2,  ///< Status change received over the air (set / cleared = flags that changed)
     GDE_STATUS_RESET = 3,   ///< Status reset in the gateway: the active flags became unknown
     GDE_MODULE_MISSING = 4, ///< Radio link supervision of this device names a missing radio module (value = its serial)
-    GDE_ALARM = 5,          ///< Alarm (reserved)
+    GDE_ALARM = 5,          ///< Alarm (time = start, set = duration in seconds once it ended, value = ending reason)
     GDE_MAX
 };
+
+/// Ending reason of a GDE_ALARM entry while the alarm is still running.
+#define GENIUS_ALARM_RUNNING 0xFFFFFFFFUL
 
 /// Current state of one status flag. A flag without a state is unknown: the gateway has not
 /// heard about it, so it is neither OK nor active.
@@ -139,9 +143,10 @@ struct GeniusDeviceEvent
 {
     time_t time;      ///< When it happened (not valid = time unknown)
     uint8_t type;     ///< genius_device_event_t
-    uint32_t set;     ///< GDE_READOUT / GDE_STATUS_PACKET: flags reported active
+    uint32_t set;     ///< GDE_READOUT / GDE_STATUS_PACKET: flags reported active; GDE_ALARM: duration in seconds
     uint32_t cleared; ///< GDE_READOUT / GDE_STATUS_PACKET: flags reported OK
-    uint32_t value;   ///< GDE_CREATED: registration type; GDE_MODULE_MISSING: serial of the missing radio module
+    uint32_t value;   ///< GDE_CREATED: registration type; GDE_MODULE_MISSING: serial of the missing radio module;
+                      ///< GDE_ALARM: ending reason (genius_alarm_ending_t), GENIUS_ALARM_RUNNING while it lasts
 };
 
 /// What a report changed.
@@ -277,12 +282,55 @@ public:
         return delta;
     }
 
+    /// Forget everything (another smoke detector took the place): flag states and activity log.
+    void forgetAll()
+    {
+        flags.clear();
+        events.clear();
+    }
+
     /// Append to the activity log; the oldest entries make room.
     void addEvent(const GeniusDeviceEvent &event)
     {
         events.push_back(event);
-        while (events.size() > GENIUS_MAX_DEVICE_EVENTS)
-            events.erase(events.begin());
+        trimEvents();
+    }
+
+    /// Drop the oldest entries beyond GENIUS_MAX_DEVICE_EVENTS.
+    void trimEvents()
+    {
+        if (events.size() > GENIUS_MAX_DEVICE_EVENTS)
+            events.erase(events.begin(), events.begin() + (events.size() - GENIUS_MAX_DEVICE_EVENTS));
+    }
+
+    /// Bring the log into chronological order (after entries were added out of order, e.g. when
+    /// taking over alarms of an older file). Entries without a valid time come first; entries
+    /// with the same time keep their order.
+    void sortEvents()
+    {
+        std::stable_sort(events.begin(), events.end(), [](const GeniusDeviceEvent &a, const GeniusDeviceEvent &b)
+                         { return (geniusTimeValid(a.time) ? a.time : 0) < (geniusTimeValid(b.time) ? b.time : 0); });
+    }
+
+    /// Log the start of an alarm.
+    void startAlarm(time_t when)
+    {
+        addEvent({when, GDE_ALARM, 0, 0, GENIUS_ALARM_RUNNING});
+    }
+
+    /// Complete the newest alarm that is still running. Returns false if there is none.
+    bool endAlarm(time_t when, uint32_t reason)
+    {
+        for (size_t i = events.size(); i-- > 0;)
+        {
+            GeniusDeviceEvent &event = events[i];
+            if (event.type != GDE_ALARM || event.value != GENIUS_ALARM_RUNNING)
+                continue;
+            event.set = when > event.time ? (uint32_t)(when - event.time) : 0;
+            event.value = reason;
+            return true;
+        }
+        return false;
     }
 
 private:

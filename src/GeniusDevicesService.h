@@ -71,7 +71,6 @@
 #ifndef GATEWAY_MAX_DEVICES
 #define GATEWAY_MAX_DEVICES 50   ///< Maximum number of devices supported (override via build flag for no-PSRAM boards)
 #endif
-#define GATEWAY_MAX_ALARMS 100   ///< Maximum number of alarms supported
 
 #define ALARM_STATE_CHANGE "alarm-state-change"  ///< WebSocket event for alarm state changes
 #define DEVICE_STATUS_CHANGE "device-status-change"  ///< Update origin for status flag changes (received over the air or reset manually)
@@ -84,7 +83,7 @@
 #define HA_ENTITY_RENAME_EVENT "ha-entity-rename"  ///< WebSocket event reporting the progress of a Home Assistant entity-ID rename
 #define HA_ENTITY_RENAME_SETTLE_MS 3000            ///< Pause between removing and re-publishing entities, so HA finishes the removal first
 
-#define GATEWAY_DEVICES_CONFIG_VERSION 2  ///< Current config file version (for JSON migration support)
+#define GATEWAY_DEVICES_CONFIG_VERSION 3  ///< Current config file version (for JSON migration support)
 
 typedef enum genius_alarm_ending
 {
@@ -96,17 +95,6 @@ typedef enum genius_alarm_ending
     GAE_MAX                    ///< Maximum value (for enum range checks)
 } genius_alarm_ending_t;
 
-typedef struct genius_device_alarm
-{
-    time_t startTime;                   ///< Alarm start timestamp
-    time_t endTime;                     ///< Alarm end timestamp
-    genius_alarm_ending_t endingReason; ///< How the alarm was ended
-
-    bool operator==(const genius_device_alarm &o) const
-    {
-        return startTime == o.startTime && endTime == o.endTime && endingReason == o.endingReason;
-    }
-} genius_device_alarm_t;
 
 typedef enum genius_smoke_detector
 {
@@ -327,14 +315,7 @@ public:
         root["location"] = this->location;
         root["isAlarming"] = this->isAlarming;
         root["registration"] = this->registration;
-        JsonArray alarms = root["alarms"].to<JsonArray>();
-        for (auto &alarm : this->alarms)
-        {
-            JsonObject alarm_as_json = alarms.add<JsonObject>();
-            alarm_as_json["startTime"] = Utils::time_t_to_iso8601(alarm.startTime);
-            alarm_as_json["endTime"] = Utils::time_t_to_iso8601(alarm.endTime);
-            alarm_as_json["endingReason"] = alarm.endingReason;
-        }
+        root["alarmCount"] = this->alarmCount;
         if (readoutTime > 0)
         {
             root["readoutTime"] = Utils::time_t_to_iso8601(readoutTime);
@@ -349,7 +330,9 @@ public:
     GeniusSmokeDetectorInfo smokeDetector;
     GeniusRadioModuleInfo radioModule;
     String location;
-    std::vector<genius_device_alarm_t> alarms;
+    /// Number of alarms of this smoke detector. Counted separately, as the alarms themselves are
+    /// entries of the activity log (status.events), which only keeps the newest ones.
+    uint32_t alarmCount = 0;
     genius_device_registration_t registration;
     bool isAlarming;
     bool published;                       ///< Whether current device config has been published via MQTT
@@ -386,8 +369,13 @@ public:
     /// Append an entry with the current time to the activity log.
     void logEvent(genius_device_event_t type, uint32_t value = 0);
 
-    /// Parse an "alarms" JsonArray into a vector, capped at GATEWAY_MAX_ALARMS.
-    static std::vector<genius_device_alarm_t> parseAlarms(JsonArray jsonAlarms);
+    /// Take over the "alarms" list of a file written before v1.6.0: every alarm becomes an
+    /// activity log entry and counts towards alarmCount.
+    void importLegacyAlarms(JsonArray jsonAlarms);
+
+    /// Another smoke detector took the place of this entry (its serial changed): status,
+    /// activity log and alarm counter start over.
+    void detectorReplaced();
 
     /// Build a fresh GeniusDevice from a JSON object. Returns false if `id` is missing or zero.
     static bool buildFromJson(JsonVariant src, GeniusDevice &out);

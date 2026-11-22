@@ -12,6 +12,7 @@
 	import { isOldFmModule } from '$lib/genius/line';
 	import { dragHandle } from 'svelte-dnd-action';
 	import DetectorStatusBadge from './DetectorStatusBadge.svelte';
+	import { alarmCount, lastAlarm } from '$lib/genius/activity';
 	import SignalIndicator from './SignalIndicator.svelte';
 	import { GeniusSmokeDetector, GeniusRadioModule } from '$lib/types/enums';
 	import type { GeniusRadioModuleInfo } from '$lib/types/models';
@@ -79,6 +80,9 @@
 	const rmModelName = $derived(radioModuleModelName(device.radioModule.model));
 	const rmPresent = $derived(hasRadioModule(device.radioModule));
 	const sdReadout = $derived(hasReadout(device));
+	// Alarms: counted by the gateway; the newest one comes from the activity log
+	const alarms = $derived(alarmCount(device));
+	const newestAlarm = $derived(lastAlarm(device));
 	const stale = $derived(isStaleReadout(device));
 	// Current status: status flags (over the air / readout / manual reset) + readout-only findings
 	const sdStatus = $derived(hasSmokeDetectorStatus(device));
@@ -127,12 +131,10 @@
 					{device.location}
 				</div>
 				<span
-					class="shrink-0 text-base {device.alarms.length > 0
-						? 'text-current/70 font-medium'
-						: 'text-current/40'}"
+					class="shrink-0 text-base {alarms > 0 ? 'text-current/70 font-medium' : 'text-current/40'}"
 				>
-					{device.alarms.length}
-					{device.alarms.length === 1 ? 'alarm' : 'alarms'}
+					{alarms}
+					{alarms === 1 ? 'alarm' : 'alarms'}
 				</span>
 			</div>
 			{#if sdReadout && !stale}
@@ -165,7 +167,7 @@
 					tabindex="0"
 					class="dropdown-content menu menu-lg bg-base-100 rounded-box z-10 shadow-lg border border-base-300 p-1 w-44"
 				>
-					{#if device.alarms.length > 0}
+					{#if alarms > 0}
 						<li>
 							<button onclick={() => blurAndCall(onAlarmLog)}>
 								<Logs class="h-6 w-6" /> Alarm log
@@ -323,9 +325,9 @@
 
 		<!-- Alarms -->
 		<div class="text-center text-sm">
-			<div>{device.alarms.length}</div>
-			{#if device.alarms.length > 0}
-				<div>{formatDate(device.alarms[device.alarms.length - 1].startTime)}</div>
+			<div>{alarms}</div>
+			{#if newestAlarm?.startTime}
+				<div>{formatDate(newestAlarm.startTime)}</div>
 			{/if}
 		</div>
 
@@ -355,7 +357,7 @@
 		<!-- Manage buttons -->
 		<div class="flex items-center justify-end">
 			<span class="inline-flex flex-row">
-				{#if device.alarms.length > 0}
+				{#if alarms > 0}
 					<div class="tooltip tooltip-left" data-tip="Show alarm log">
 						<button
 							class="btn btn-ghost btn-circle btn-sm"
