@@ -574,11 +574,13 @@
 									</span>
 								</div>
 							{:else if device.readoutTime}
-								<div class="divider my-1 mt-3 text-sm text-base-content/40">Radio Status</div>
+								<!-- What the radio module reported in the last readout. The current state of the
+								     radio link is part of the Current Status above. -->
+								<div class="divider my-1 mt-3 text-sm text-base-content/40">Readout Findings</div>
 
 								<!-- Matches Hekatron Genius Home: FmFault or FmBatteryLowFault -->
 								{@const fmFault = !!((device.radioModule.radioStateMask ?? 0) & RADIO_FAULT_MASK)}
-								<DetailRow icon={IconCheckCircle} label="Radio Status">
+								<DetailRow icon={IconCheckCircle} label="Radio Module">
 									{#if fmFault}
 										<span class="inline-flex items-center gap-1">
 											<IconError class="h-4 w-4 flex-shrink-0 text-error" />

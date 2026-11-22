@@ -5,10 +5,16 @@ import {
 	GeniusDeviceRegistration,
 	GeniusAlarmEnding
 } from '$lib/types/enums';
-import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
-import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
-import { alarmCount, deviceAlarms } from '$lib/genius/activity';
 import {
+	formatDate,
+	formatDateTime,
+	formatDateTimeSeconds,
+	formatAge
+} from '$lib/utils/formatDate';
+import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
+import { alarmCount, describeEvent } from '$lib/genius/activity';
+import {
+	EVENT_ALARM,
 	EVENT_READOUT,
 	STATUS_BATTERY_LOW,
 	STATUS_DEVICE_FAULT,
@@ -184,19 +190,6 @@ function formatDuration(startTime: Date, endTime: Date): string {
 	if (h > 0) return `${h}h ${m}m`;
 	if (m > 0) return `${m}m ${s}s`;
 	return `${s}s`;
-}
-
-function alarmEndingReasonText(reason: number): string {
-	switch (reason) {
-		case GeniusAlarmEnding.BySmokeDetector:
-			return 'Automatic';
-		case GeniusAlarmEnding.ByManual:
-			return 'Manual';
-		case GeniusAlarmEnding.ByImport:
-			return 'Import';
-		default:
-			return '-';
-	}
 }
 
 function formatISODatetime(d: Date): string {
@@ -634,53 +627,54 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 		]
 	});
 
-	// ── Alarm Log (full-width) ──
-	blocks.push(sectionHeader('Alarm Log'));
+	// ── Activity Log (full-width) ──
+	// The same entries and wording as the Activity Log dialog, newest first: detector added,
+	// readouts, status changes received over the air, status resets and alarms.
+	blocks.push(sectionHeader('Activity Log'));
 
-	const alarms = deviceAlarms(device);
-	if (alarms.length === 0) {
+	const entries = [...(device.events ?? [])].reverse();
+	if (entries.length === 0) {
 		blocks.push({
-			text: 'No alarms recorded.',
+			text: 'No entries.',
 			fontSize: 9,
 			color: C_MUTED,
 			italics: true,
 			margin: [0, 2, 0, 4]
 		});
 	} else {
-		const alarmRows = [...alarms].reverse().map((alarm) => {
-			const active = alarm.endingReason === GeniusAlarmEnding.AlarmActive;
+		const entryRows = entries.map((entry) => {
+			const info = describeEvent(entry);
+			const isAlarm = entry.type === EVENT_ALARM;
+			const active =
+				isAlarm &&
+				(entry.endingReason ?? GeniusAlarmEnding.AlarmActive) === GeniusAlarmEnding.AlarmActive;
+			// An ended alarm also gets its duration
+			const duration =
+				isAlarm && !active && entry.time && entry.end
+					? ` (${formatDuration(entry.time, entry.end)})`
+					: '';
 			return [
-				{ text: formatDateTime(alarm.startTime), fontSize: 8 },
 				{
-					text: active ? '-' : formatDateTime(alarm.endTime),
+					text: entry.time ? formatDateTimeSeconds(entry.time) : 'Time unknown',
 					fontSize: 8,
-					color: active ? C_MUTED : '#111827'
+					color: entry.time ? '#111827' : C_MUTED
 				},
-				{
-					text: active
-						? 'Active'
-						: alarm.startTime && alarm.endTime
-							? formatDuration(alarm.startTime, alarm.endTime)
-							: '-',
-					fontSize: 8,
-					color: active ? C_ERROR : '#111827'
-				},
-				{ text: alarmEndingReasonText(alarm.endingReason), fontSize: 8 }
+				{ text: info.title, fontSize: 8, bold: true, color: isAlarm ? C_ERROR : '#111827' },
+				{ text: info.detail + duration, fontSize: 8, color: active ? C_ERROR : '#111827' }
 			];
 		});
 
 		blocks.push({
 			table: {
 				headerRows: 1,
-				widths: ['*', '*', 60, 70],
+				widths: [105, 120, '*'],
 				body: [
 					[
-						{ text: 'Start', bold: true, fontSize: 8, fillColor: C_SECTION_BG },
-						{ text: 'End', bold: true, fontSize: 8, fillColor: C_SECTION_BG },
-						{ text: 'Duration', bold: true, fontSize: 8, fillColor: C_SECTION_BG },
-						{ text: 'Ending Reason', bold: true, fontSize: 8, fillColor: C_SECTION_BG }
+						{ text: 'Time', bold: true, fontSize: 8, fillColor: C_SECTION_BG },
+						{ text: 'Event', bold: true, fontSize: 8, fillColor: C_SECTION_BG },
+						{ text: 'Details', bold: true, fontSize: 8, fillColor: C_SECTION_BG }
 					],
-					...alarmRows
+					...entryRows
 				]
 			},
 			layout: 'lightHorizontalLines',

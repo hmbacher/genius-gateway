@@ -390,7 +390,7 @@ One page per registered smoke detector:
     - Smoke chamber: drift value, contamination forecast, warranty flags
     - Statistics: alarm count, last alarm date, last self-test date, deinstallation count, storage hours
 - **Radio module**: line ID, direct link signal, the radio state flags of the last readout, interference level, DIP switch configuration
-- **Alarm history**: full log of recorded alarm events with start time, end time, and ending reason
+- **Activity log**: the same entries as in the [Activity Log](#viewing-the-activity-log) dialog, newest first - detector added, readouts, status changes received over the air, status resets and alarms with their end and duration
 
 ## Related Documentation
 
