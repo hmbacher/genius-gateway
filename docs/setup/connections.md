@@ -198,7 +198,7 @@ Integration with Home Assistant is described in detail in [Smart Home Integratio
 
 ### :tabler-bell: Simple Alarm Publishing {#simple-alarm-publishing}
 
-The **Simple Alarm Publishing** collapsible card configures a simple, platform-agnostic alarm notification via MQTT.
+The **Simple Alarm Publishing** collapsible card configures a simple, platform-agnostic alarm notification via MQTT - and optionally a second topic for battery warnings and faults.
 
 ![Simple Alarm Publishing settings](../assets/images/software/gg-connections-mqtt-alarm-publishing.png)
 

@@ -20,6 +20,7 @@ Genius Gateway offers two levels of smart home integration via MQTT, allowing yo
 | **Automation Capabilities** | :material-star:<br>Basic - single trigger | :material-star::material-star::material-star:<br>Advanced - per detector |
 | **Platform Support** | :material-star::material-star::material-star:<br>Any MQTT platform | :material-star::material-star:<br>Home Assistant optimized |
 | **Unknown Detectors** | **:material-check:**<br>Supported | **:material-check:**<br>Supported |
+| **Battery Warnings & Faults** | **:material-check:**<br>Summary topic (registered detectors) | **:material-check:**<br>Per detector, live |
 | **Historical Data**<br>(besides Genius Gateway) | :material-star:<br>Limited | :material-star::material-star::material-star:<br>Full Home Assistant history |
 | **Alarm Lines** | :material-close: | **:material-check:**<br>Individual Devices |
 | **Line Test Triggering** | :material-close: | **:material-check:**<br>Remote Control |
@@ -317,6 +318,30 @@ All other diagnostic entities show as **unavailable** until the first acoustic r
 
 ![Device information panel displaying all smoke detector attributes including location, firmware, and configuration](../assets/images/doc/ha/ha-details2-detecting.png)
 *Complete device information with manufacturer details, model identification, and assigned area for automation purposes*
+
+### Automation Example
+
+#### Low Battery Notification
+
+Notify as soon as a smoke detector reports a low battery over the air. The trigger uses the `battery` device class state `on` (shown as *Low*); the transition from *unavailable* to *Normal* after a gateway restart or the first readout does not fire it.
+
+```yaml
+automation:
+  - alias: "Smoke Detector Battery Low"
+    trigger:
+      - platform: state
+        entity_id: # the "Battery" entities of your smoke detectors
+          - binary_sensor.genius_plus_x_battery
+          - binary_sensor.genius_plus_x_battery_2
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Smoke detector battery low"
+          message: "{{ trigger.to_state.attributes.friendly_name }} reports a low battery."
+```
+
+Faults work the same way with the *Smoke Detector State*, *Radio Module State* (`problem`) and *Dismount* (`tamper`) entities.
 
 !!! abstract "Technical Details"
     See [MQTT API - Smoke Detectors](../api/mqtt-topics.md#smoke-detectors) for complete topic structure, payload formats, and configuration examples.

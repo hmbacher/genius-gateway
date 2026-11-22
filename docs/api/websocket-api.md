@@ -528,7 +528,7 @@ eventsWs.onopen = () => {
   console.log('Connected to events stream');
   
   // Subscribe to multiple events
-  ['alarm', 'alarm-state-change', 'system_health'].forEach(eventName => {
+  ['alarm', 'alarm-state-change', 'device-status', 'system_health'].forEach(eventName => {
     eventsWs.send(JSON.stringify({
       event: 'subscribe',
       data: { id: eventName }
@@ -544,6 +544,9 @@ eventsWs.onmessage = (event) => {
   switch(msg.event) {
     case 'alarm':
       handleAlarm(msg.data);
+      break;
+    case 'device-status':
+      handleDeviceStatus(msg.data); // e.g. warn when numBatteryLow increases
       break;
     case 'system_health':
       updateHealthDisplay(msg.data);
@@ -570,7 +573,7 @@ import time
 class EventsClient:
     def __init__(self, token):
         self.token = token
-        self.subscriptions = ['alarm', 'alarm-state-change', 'system_health']
+        self.subscriptions = ['alarm', 'alarm-state-change', 'device-status', 'system_health']
         self.ws = None
         
     def on_open(self, ws):
@@ -589,6 +592,8 @@ class EventsClient:
         # Handle specific events
         if msg['event'] == 'alarm':
             self.handle_alarm(msg['data'])
+        elif msg['event'] == 'device-status':
+            self.handle_device_status(msg['data'])
         elif msg['event'] == 'system_health':
             self.update_health(msg['data'])
     
@@ -613,6 +618,10 @@ class EventsClient:
     def handle_alarm(self, data):
         if data.get('isAlarming'):
             print(f"ALARM! {data['numAlarmingDevices']} device(s) alarming")
+
+    def handle_device_status(self, data):
+        if data['numBatteryLow'] > 0:
+            print(f"{data['numBatteryLow']} smoke detector(s) report a low battery")
     
     def update_health(self, data):
         print(f"Free heap: {data['free_heap']} bytes")
@@ -629,7 +638,7 @@ const WebSocket = require('ws');
 class EventsClient {
   constructor(token) {
     this.token = token;
-    this.subscriptions = ['alarm', 'alarm-state-change', 'system_health'];
+    this.subscriptions = ['alarm', 'alarm-state-change', 'device-status', 'system_health'];
     this.reconnectDelay = 1000;
     this.maxReconnectDelay = 30000;
   }

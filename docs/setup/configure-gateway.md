@@ -9,7 +9,7 @@ The simplest setup that can detect fire alarms from nearby radio-networked Geniu
 - [Basic configuration](general-setup.md) ([WiFi](wifi.md), [MQTT broker](connections.md#mqtt)) has been 
 performed
 - Processing of alarms from unknown smoke detectors is enabled in the [Gateway Settings](../features/gateway-settings.md#process-alerts-from-unknown-smoke-detectors)
-- [Simple Alarm Publishing](connections.md#simple-alarm-publishing) via a central topic is configured
+- [Simple Alarm Publishing](connections.md#simple-alarm-publishing) via a central topic is configured (optionally including battery warnings and faults)
 
 ### Advanced Integration (Home Assistant Compatible)
 

@@ -146,7 +146,7 @@ A packet is only forwarded when it targets the module's own line or the broadcas
 (`Line-ID` matches, or is `FF FF FF FF`) and the hop limit is not yet exhausted. Not every
 packet type is relayed: the [ConfigCheckProbe](#configcheckprobe)
 and [CommissioningProbe](#commissioningprobe-request) exchanges are **direct-range only** (never forwarded,
-always `Hops = 0`), whereas alarms, line tests and commissioning propagate across the line.
+always `Hops = 0`), whereas status changes (alarms, battery warnings, faults), line tests and commissioning propagate across the line.
 
 ### Repetition
 

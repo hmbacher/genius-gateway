@@ -22,6 +22,7 @@ The **Genius Gateway** is a reverse-engineered interface for [Hekatron Genius Pl
 ## Key Features
 
 - :material-smoke-detector: **Manage smoke detectors** - Real-time monitoring and control
+- :material-battery-alert: **Battery warnings and faults** - Low battery, device and radio faults reported live over the air
 - :material-view-list: **Manage alarm lines** - Configure and monitor alarm communications  
 - :material-chart-line: **Capture, visualize and analyze packets** - Real-time packet inspection tools
 - :material-cog: **Manage gateway settings** - Complete configuration interface

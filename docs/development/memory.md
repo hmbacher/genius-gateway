@@ -4,7 +4,7 @@ icon: tabler/cpu-2
 
 # Memory Considerations
 
-Genius Gateway targets ESP32-S3 boards with **8 MB PSRAM** (e.g. Seeed XIAO ESP32-S3). At the design limit of **50 smoke detectors**, the Home Assistant MQTT discovery integration alone creates **700 sub-entities** (14 per detector). The cumulative permanent heap footprint of these objects exhausts the ESP32-S3's internal RAM long before reaching 50 devices.
+Genius Gateway targets ESP32-S3 boards with **8 MB PSRAM** (e.g. Seeed XIAO ESP32-S3). At the design limit of **50 smoke detectors**, the Home Assistant MQTT discovery integration alone creates **750 sub-entities** (15 per detector). The cumulative permanent heap footprint of these objects exhausts the ESP32-S3's internal RAM long before reaching 50 devices.
 
 This page documents the layered memory strategy that keeps the device list, HA framework, and TLS handshake all working under that load, and explains what changes when running on a board without PSRAM.
 
@@ -13,7 +13,7 @@ This page documents the layered memory strategy that keeps the device list, HA f
 
 ## :tabler-target: The problem at scale
 
-The objects that survive between requests - `GeniusDevice` entries in the live list, `HADevice` sub-devices, and the 14 `HAEntityBase` instances per device - are heap-allocated and **never freed** during normal operation. Each `HAEntityBase` carries a handful of `String` members (object id, component type, name, icon, device class, etc.), so the **per-entity cost** is small individually but accumulates fast.
+The objects that survive between requests - `GeniusDevice` entries in the live list, `HADevice` sub-devices, and the 15 `HAEntityBase` instances per device - are heap-allocated and **never freed** during normal operation. Each `HAEntityBase` carries a handful of `String` members (object id, component type, name, icon, device class, etc.), so the **per-entity cost** is small individually but accumulates fast.
 
 Without intervention the symptoms appear in this order as device count grows:
 
@@ -80,7 +80,7 @@ It is used on the collections whose growth is **driven by device count or runtim
 | `ImportSession::staging` | [`src/GeniusDevicesService.h`](https://github.com/hmbacher/genius-gateway/blob/main/src/GeniusDevicesService.h) | Chunked-import staging buffer |
 | `HAService::_subDevices` | ESP32-SvelteKit framework | All `HADevice` instances (one per detector) |
 | `HAService::_publishCallbacks` / `_unpublishCallbacks` | ESP32-SvelteKit framework | MQTT connect / disconnect callback lists |
-| `HADevice::_entities` | ESP32-SvelteKit framework | The 14 HA entities per smoke detector |
+| `HADevice::_entities` | ESP32-SvelteKit framework | The HA entities per smoke detector |
 
 The allocator controls where the vector's **backing storage** lives. The contained objects (`HADevice`, `HAEntityBase` subclasses) are still allocated via `std::make_unique` / `new` - those allocations go through the standard heap and are routed by Layer 1's threshold (every such object is well above 32 bytes).
 
@@ -124,7 +124,7 @@ At 50 devices the scan reads ~10 KB from PSRAM. At ~80 MB/s QPI bandwidth that's
 
 ### Why this is safe at 100 Hz
 
-Genius packets repeat with high redundancy - a single physical event typically retransmits **300+ times** as the mesh propagates the announcement. Only the first arrival drives the alarm branch; every subsequent repeat is caught by the `_lastPacketHash` duplicate filter at the top of the RX loop and short-circuits to the cheap log+housekeeping path. Sustained reception therefore runs the heavy alarm path at most once per real event, while the 100 Hz packet stream itself stays on the internal-RAM-only fast path.
+Genius packets repeat with high redundancy - a single physical event typically retransmits **300+ times** as the mesh propagates the announcement. Only the first arrival drives the status-change branch (alarm start/stop, battery low, faults); every subsequent repeat is caught by the `_lastPacketHash` duplicate filter at the top of the RX loop and short-circuits to the cheap log+housekeeping path. Mesh-forwarded copies differ in `Fwd-SN` and `Hops` and do pass the filter, but `setAlarm()` / `resetAlarm()` / `applyStatusChange()` are idempotent - only the first copy changes state, persists and publishes. Sustained reception therefore runs the heavy path at most once per real event, while the 100 Hz packet stream itself stays on the internal-RAM-only fast path.
 
 ### Measuring it
 
@@ -132,11 +132,11 @@ The `GPIO_TEST1` / `GPIO_TEST2` toggles around the packet-handling and WS-logger
 
 ### Future-proofing
 
-The one scaling concern is the **linear scan in `isSmokeDetectorKnown` / `setAlarm` / `resetAlarm`**: cost grows with device count *regardless* of where the vector lives. Replacing it with a hash lookup (`std::unordered_map<uint32_t, GeniusDevice *>` keyed on smoke alarm ID) would matter more than memory placement once device counts climb. At the current 50-device cap it is not a problem.
+The one scaling concern is the **linear scan in `isSmokeDetectorKnown` / `setAlarm` / `resetAlarm` / `applyStatusChange`**: cost grows with device count *regardless* of where the vector lives. Replacing it with a hash lookup (`std::unordered_map<uint32_t, GeniusDevice *>` keyed on smoke alarm ID) would matter more than memory placement once device counts climb. At the current 50-device cap it is not a problem.
 
 ## :tabler-chart-line: Observed footprint at the design limit
 
-Boot heap with 50 configured smoke detectors, MQTT connected, HA discovery published, WebSocket clients connected, and a successful TLS handshake against the GitHub release endpoint:
+Boot heap with 50 configured smoke detectors (measured before v1.6.0 added the Dismount entity - one more diagnostic entity per detector, a negligible difference), MQTT connected, HA discovery published, WebSocket clients connected, and a successful TLS handshake against the GitHub release endpoint:
 
 | Metric | Value |
 | --- | --- |

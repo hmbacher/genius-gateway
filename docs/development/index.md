@@ -8,7 +8,7 @@ Each page tackles one constraint of the platform (ESP32 memory, single-bundle fr
 
 ### :tabler-cpu-2: [Memory Considerations](memory.md)
 
-How the project fits **50 smoke detectors × 14 Home Assistant entities = 700 sub-entities** into an ESP32-S3 without exhausting internal RAM. Covers the three-layer PSRAM strategy (SDK threshold routing, mbedTLS allocator, explicit `PsramAllocator` on growth collections), the hot-path exception for the CC1101 RX task, observed footprint at the design limit, and what changes when running on a no-PSRAM board.
+How the project fits **50 smoke detectors × 15 Home Assistant entities = 750 sub-entities** into an ESP32-S3 without exhausting internal RAM. Covers the three-layer PSRAM strategy (SDK threshold routing, mbedTLS allocator, explicit `PsramAllocator` on growth collections), the hot-path exception for the CC1101 RX task, observed footprint at the design limit, and what changes when running on a no-PSRAM board.
 
 ### :tabler-layers-subtract: [Frontend Bundle Strategy](frontend-bundles.md)
 

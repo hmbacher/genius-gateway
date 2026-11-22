@@ -150,6 +150,9 @@ When an unknown smoke detector triggers an alarm:
 3. The alarm is immediately processed and displayed in the system
 4. MQTT notifications are published for the new device (if MQTT is enabled)
 
+!!! note "Only alarms register devices"
+    A battery warning or fault report from an unknown smoke detector does not register it - the [current status](#current-status) is only tracked for detectors already in the device list. Add the detector manually (or via acoustic readout) to receive its battery and fault status.
+
 #### Updating Automatically Discovered Devices
 
 Automatically discovered devices appear in the device list with "Unknown location" and can be edited like any other device (see [Editing a Detector](#editing-a-detector)). When editing these devices:
