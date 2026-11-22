@@ -8,9 +8,21 @@ import {
 import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
 import { alarmCount, deviceAlarms } from '$lib/genius/activity';
-import { STATUS_BATTERY_LOW, STATUS_DEVICE_FAULT, flagState } from '$lib/genius/status';
+import {
+	EVENT_READOUT,
+	STATUS_BATTERY_LOW,
+	STATUS_DEVICE_FAULT,
+	STATUS_DISMOUNTED,
+	STATUS_FAULT_MASK,
+	STATUS_RADIO_FAULT,
+	activeStatusFlags,
+	flagState,
+	statusBits,
+	statusFlagLabel
+} from '$lib/genius/status';
 import {
 	activeFaults,
+	deviceCondition,
 	getCurrentSmokeDetectorFaults,
 	getCurrentRadioModuleFaults,
 	hasReadout,
@@ -228,6 +240,74 @@ function detailRow(
 	};
 }
 
+// Current status: the flags the gateway holds for a device - received over the air, taken
+// over from the last readout or reset manually, whichever is newest. Same rows as the
+// "Current Status" block of DeviceDetailsDialog.
+const STATUS_ROWS = [
+	{ bit: STATUS_BATTERY_LOW, label: 'Battery', activeText: 'Low' },
+	{ bit: STATUS_DEVICE_FAULT, label: 'Detector', activeText: 'Fault' },
+	{ bit: STATUS_RADIO_FAULT, label: 'Radio Link', activeText: 'Fault' },
+	{ bit: STATUS_DISMOUNTED, label: 'Mounting', activeText: 'Dismounted' }
+];
+const STATUS_ROW_MASK = STATUS_ROWS.reduce((acc, r) => acc | r.bit, 0);
+
+/** Since when and from which source a flag has its state, e.g. "since 11/21/2026, radio". */
+function statusOrigin(device: GeniusDevice, bit: number): string {
+	const state = device.status?.find((s) => s.flag === bit);
+	if (!state) return '';
+	const source = state.source === EVENT_READOUT ? 'readout' : 'radio';
+	return state.since ? `since ${formatDate(state.since)}, ${source}` : source;
+}
+
+/** One row of the current status: the state in its colour, the origin muted behind it. */
+function statusRow(
+	label: string,
+	value: string,
+	color: string,
+	origin = '',
+	labelWidth = 120
+): PdfContent {
+	return {
+		columns: [
+			{ text: label, width: labelWidth, fontSize: 9, color: C_MUTED },
+			{
+				text: [
+					{ text: value, bold: true, color },
+					...(origin ? [{ text: ` (${origin})`, color: C_MUTED }] : [])
+				],
+				fontSize: 9
+			}
+		],
+		margin: [8, 1, 0, 1]
+	};
+}
+
+/** The "Current Status" rows of a device. A flag the gateway never heard about is "Unknown". */
+function currentStatusRows(device: GeniusDevice, labelWidth: number): PdfContent[] {
+	const rows = STATUS_ROWS.map((row) => {
+		const state = flagState(device, row.bit);
+		const origin = statusOrigin(device, row.bit);
+		return state === 'active'
+			? statusRow(row.label, row.activeText, C_ERROR, origin, labelWidth)
+			: state === 'ok'
+				? statusRow(row.label, 'OK', C_OK, origin, labelWidth)
+				: statusRow(row.label, 'Unknown', C_MUTED, '', labelWidth);
+	});
+	// Active flags without a row of their own, e.g. "Reported missing" or "Fault muted"
+	for (const bit of statusBits(activeStatusFlags(device) & ~STATUS_ROW_MASK)) {
+		rows.push(
+			statusRow(
+				'Flag',
+				statusFlagLabel(bit),
+				bit & STATUS_FAULT_MASK ? C_ERROR : '#111827',
+				statusOrigin(device, bit),
+				labelWidth
+			)
+		);
+	}
+	return rows;
+}
+
 /** Tabler-style SVG icons for flag indicators, matching the frontend's icon set. */
 type FlagIcon = 'check' | 'error' | 'warn' | 'muted-x';
 
@@ -351,7 +431,7 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 	if (!sdReadout) {
 		blocks.push(warningCallout('No readout data available for this device.'));
 	} else if (stale) {
-		blocks.push(warningCallout('Readout data is stale - last readout was more than 24 hours ago.'));
+		blocks.push(warningCallout('Readout data is stale - the last readout was more than a year ago.'));
 	}
 
 	if (allFaults.length > 0) {
@@ -384,24 +464,15 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 	leftCol.push(detailRow('Age', formatAge(sd.productionDate)));
 
 	if (sdReadout) {
+		// Findings of the last acoustic readout that have no status flag. Battery, detector
+		// fault and radio link are part of the Current Status above.
 		leftCol.push({
-			text: 'Status',
+			text: 'Readout Findings',
 			fontSize: 8,
 			color: C_MUTED,
 			margin: [8, 6, 0, 2],
 			italics: true
 		});
-		// Current status flags, not the readout snapshot: unknown until the gateway heard about them
-		const statusRow = (label: string, bit: number, activeText: string) => {
-			const state = flagState(device, bit);
-			return state === 'active'
-				? detailRow(label, activeText, C_ERROR)
-				: state === 'ok'
-					? detailRow(label, 'OK', C_OK)
-					: detailRow(label, 'Unknown', C_MUTED);
-		};
-		leftCol.push(statusRow('Detector Status', STATUS_DEVICE_FAULT, 'Fault'));
-		leftCol.push(statusRow('Battery', STATUS_BATTERY_LOW, 'Low'));
 		leftCol.push(
 			detailRow(
 				'Dirt Forecast',
@@ -439,10 +510,14 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 		leftCol.push(detailRow('Storage Hours', String(sd.hoursInStorageMode ?? 0)));
 	}
 
-	// ── Right column: Radio Module ────────────────────────────────────────────
+	// ── Right column: Current Status + Radio Module ───────────────────────────
 
 	const rightCol: PdfContent[] = [];
 	const LW = 90; // label width for narrower right column
+
+	// Next to "General": the left column is the longer one, and a device has to fit on a page.
+	rightCol.push(sectionHeader('Current Status'));
+	rightCol.push(...currentStatusRows(device, LW));
 
 	rightCol.push(sectionHeader('Radio Module'));
 
@@ -457,13 +532,6 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 	} else {
 		rightCol.push(detailRow('Model', RM_MODEL_NAME[rm.model ?? -1] ?? 'Unknown', undefined, LW));
 		rightCol.push(detailRow('Serial Number', String(rm.sn), undefined, LW));
-
-		if (sdReadout) {
-			const fmFault = !!((rm.radioStateMask ?? 0) & RADIO_FAULT_MASK);
-			rightCol.push(
-				detailRow('Radio Status', fmFault ? 'Fault' : 'OK', fmFault ? C_ERROR : C_OK, LW)
-			);
-		}
 
 		// Direct-link signal from the last ConfigCheckProbe range test. Independent of the
 		// readout, so shown whenever a module exists. Mirrors SignalIndicator's three states
@@ -489,13 +557,19 @@ function buildDevicePage(device: GeniusDevice, index: number, total: number): Pd
 		}
 
 		if (sdReadout) {
+			// What the radio module reported in the last readout. The current state of the radio
+			// link is part of the Current Status.
 			rightCol.push({
-				text: 'Radio State Flags',
+				text: 'Readout Findings',
 				fontSize: 8,
 				color: C_MUTED,
 				margin: [8, 6, 0, 2],
 				italics: true
 			});
+			const fmFault = !!((rm.radioStateMask ?? 0) & RADIO_FAULT_MASK);
+			rightCol.push(
+				detailRow('Radio Module', fmFault ? 'Fault' : 'OK', fmFault ? C_ERROR : C_OK, LW)
+			);
 			rightCol.push({
 				stack: RADIO_STATE_FLAGS.map((flag) => {
 					const active = !!((rm.radioStateMask ?? 0) & flag.mask);
@@ -708,6 +782,18 @@ function buildOverviewPage(
 		const rmFaults = hasRm ? getCurrentRadioModuleFaults(device) : [];
 		const hasFaults = sdFaults.length + rmFaults.length > 0;
 
+		// Same four conditions as the overview cards: an alarm or a fault counts whatever the
+		// readout says, and "OK" needs a current readout.
+		const state = deviceCondition(device);
+		const condition =
+			state === 'alarm'
+				? { text: 'Alarm', color: C_ERROR }
+				: state === 'fault' || hasFaults
+					? { text: 'Fault', color: C_ERROR }
+					: state === 'ok'
+						? { text: 'OK', color: C_OK }
+						: { text: isStaleReadout(device) ? 'Stale' : 'No readout', color: C_WARN };
+
 		// Direct-link range-test signal (see buildDevicePage), condensed for the table.
 		const signalCell = !hasRm
 			? { text: '—', fontSize: 8, alignment: 'center', color: C_MUTED }
@@ -741,24 +827,7 @@ function buildOverviewPage(
 				alignment: 'center',
 				color: '#111827'
 			},
-			{
-				text: !device.readoutTime
-					? 'No readout'
-					: hasFaults
-						? 'Fault'
-						: isStaleReadout(device)
-							? 'Stale'
-							: 'OK',
-				fontSize: 8,
-				alignment: 'center',
-				color: !device.readoutTime
-					? C_WARN
-					: hasFaults
-						? C_ERROR
-						: isStaleReadout(device)
-							? C_WARN
-							: C_OK
-			}
+			{ text: condition.text, fontSize: 8, alignment: 'center', color: condition.color }
 		];
 	});
 

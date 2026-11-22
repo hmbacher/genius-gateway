@@ -375,18 +375,18 @@ The property name, address, and customer name printed on the cover page are conf
 - Gateway identification
 - Property name, address, and customer name
 - Generation timestamp
-- Summary table of all registered smoke detectors (location, model, serial number, last acoustic readout date)
+- Summary table of all registered smoke detectors (location, model, serial numbers, signal, number of alarms and the condition: *Alarm*, *Fault*, *OK*, or *Stale* / *No readout* when nothing current confirms that all is well)
 
 ### Per-Device Pages
 
 One page per registered smoke detector:
 
 - **Identity**: location, model, registration type, smoke detector and radio module serial numbers, production date and device age
-- **Diagnostic data** (only if an acoustic readout has been performed):
-    - Smoke chamber: sensor status, drift value, contamination forecast, warranty flags
-    - Battery: voltage and state
+- **Current status**: battery, detector, radio link and mounting as the gateway holds them at the time of the report - the same block as in the [Device Details](#current-status) dialog, with the date and the source (radio or readout) of each state. A state that was never reported is printed as *Unknown*
+- **Readout findings** (only if an acoustic readout has been performed):
+    - Smoke chamber: drift value, contamination forecast, warranty flags
     - Statistics: alarm count, last alarm date, last self-test date, deinstallation count, storage hours
-- **Radio module**: line ID, radio state and switch masks, interference level, DIP switch configuration
+- **Radio module**: line ID, direct link signal, the radio state flags of the last readout, interference level, DIP switch configuration
 - **Alarm history**: full log of recorded alarm events with start time, end time, and ending reason
 
 ## Related Documentation
