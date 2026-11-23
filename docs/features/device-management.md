@@ -362,10 +362,13 @@ You can import a previously exported device configuration:
     - **Keep Alarm State** - imports as-is; connected integrations (e.g. Home Assistant) may trigger automations (useful for testing)
     - **Clear Alarm State** - resets the alarm flag on all affected devices and closes open alarm log entries with a `Cleared by import` ending reason
 5. If the import changes the location of detectors the gateway already knows, and their Home Assistant entity IDs follow the location, a dialog lists the changes and asks before importing - the entities of these detectors are renamed, so automations, scripts and dashboards that use the old entity IDs must be updated
-6. A progress dialog shows the import status. For larger files the upload is split into chunks automatically and may take several seconds - a progress bar shows how many chunks have been sent. Wait for the *Finalizing* step to complete before navigating away
-7. All existing devices are replaced with the imported configuration once the gateway confirms the commit
+6. A progress dialog follows the import through its steps:
+    1. **Upload** - the list is sent to the gateway, for larger files in several chunks. Up to here the import can be aborted, and nothing is changed
+    2. **Saving on the gateway** - the gateway replaces its device list and writes it to flash
+    3. **Updating Home Assistant** (only with the Home Assistant integration enabled) - detectors that are no longer in the list are removed, new ones are added, and changed ones are updated, including renamed entities
+7. The dialog ends with what was done: the number of imported devices, whether an older file was migrated, and whether the changes were sent to Home Assistant. Without an MQTT connection it says that the gateway sends them on the next connect
 
-Home Assistant is brought in line in the background: detectors that are no longer in the list are removed, new ones are added, and changed ones are updated. Nothing is shown for this - unless the MQTT connection is down, in which case a notice explains that the gateway catches up on the next connect.
+From step 2 on the gateway works on its own - **Hide** closes the dialog without interrupting it. The import is only reported as done once the gateway has confirmed that the list is saved.
 
 ## Generating a PDF Report
 

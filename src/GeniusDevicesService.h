@@ -81,6 +81,7 @@
 #define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"  ///< Default location for new devices
 
 #define HA_ENTITY_RENAME_EVENT "ha-entity-rename"  ///< WebSocket event reporting the progress of a Home Assistant entity-ID rename
+#define DEVICE_IMPORT_EVENT "device-import"        ///< WebSocket event reporting what the gateway does after an import was committed
 #define HA_ENTITY_RENAME_SETTLE_MS 3000            ///< Pause between removing and re-publishing entities, so HA finishes the removal first
 #define HA_ENTITY_RENAME_EVENT_MAX_NAMES 3         ///< Detectors named by location in a HA_ENTITY_RENAME_EVENT; the count covers the rest
 #define HA_RENAME_NOTIFY_ANNOUNCED 0x01            ///< Rename task notification: a cycle whose progress is shown in the web interface
@@ -667,6 +668,24 @@ private:
     // heartbeat and causes the front end to time out the commit request.
     TaskHandle_t _postCommitTaskHandle = nullptr;
     void _postCommitTask();
+
+    /**
+     * @brief Work that follows a committed import: flash write and Home Assistant sync
+     *
+     * Runs the update handlers and reports the progress with DEVICE_IMPORT_EVENT:
+     * "saved" once the device list is written to flash, "done" when the handlers have
+     * returned - with what was done for Home Assistant. An entity-ID rename the sync left
+     * pending is carried out by the rename task afterwards, as a background cycle.
+     */
+    void _runPostCommit();
+
+    /// True while the calling task runs the update handlers for a committed import
+    bool _isImportSync() const { return _importSyncTask.load() == xTaskGetCurrentTaskHandle(); }
+
+    /// Emit DEVICE_IMPORT_EVENT: "saved" (with `ha`: integration enabled) or "done" (with `ha`: outcome)
+    void _emitImportEvent(const char *state);
+
+    std::atomic<TaskHandle_t> _importSyncTask{nullptr}; ///< Task that runs the update handlers for a committed import, if any
     static void _postCommitTaskImpl(void *ctx) { static_cast<GeniusDevicesService *>(ctx)->_postCommitTask(); }
 
     // ------------------------------------------------------------------------

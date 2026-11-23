@@ -56,6 +56,7 @@
 	import {
 		apiPutDevice,
 		afterDeviceSaved,
+		isHaEnabled,
 		loadHaRenameOption,
 		openDeviceEditor
 	} from './deviceSave.svelte';
@@ -1036,27 +1037,20 @@
 						migrateGeniusDevices(importedGeniusDevices, fileVersion);
 					}
 
+					// One dialog follows the import through all its steps - upload, saving on the
+					// gateway, Home Assistant - and says in the end what was done, including that
+					// an older file was migrated.
 					const finishImport = () => {
 						modals.open(DeviceImportDialog, {
 							totalDevices: importedGeniusDevices.devices.length,
+							haEnabled: isHaEnabled(),
+							successNote:
+								fileVersion < CURRENT_VERSION
+									? `The file was an older backup (v${fileVersion}) and was migrated to the current format (v${CURRENT_VERSION}) - export a fresh backup.`
+									: undefined,
 							task: (onProgress, signal) =>
 								replaceAllDevices(importedGeniusDevices.devices, onProgress, signal),
-							onSuccess: () => {
-								if (fileVersion < CURRENT_VERSION) {
-									modals.open(InfoDialog, {
-										title: 'Migration Successful',
-										message: `The file was from an older backup (v${fileVersion}) and has been automatically migrated to the current format (v${CURRENT_VERSION}).<br><br>Please verify your smoke detector configuration and export a fresh backup.`,
-										variant: 'info',
-										onDismiss: () => {
-											modals.close();
-											checkImportedDeviceFaults(importedGeniusDevices.devices);
-										}
-									});
-								} else {
-									notifications.success('Smoke detectors imported.', 3000);
-									checkImportedDeviceFaults(importedGeniusDevices.devices);
-								}
-							}
+							onSuccess: () => checkImportedDeviceFaults(importedGeniusDevices.devices)
 						});
 					};
 
@@ -1070,7 +1064,10 @@
 								? [{ from: current.location, to: imported.location }]
 								: [];
 						});
-						if (changed.length === 0 || !(await loadHaRenameOption())) {
+						// Asked for every import: the answer also tells the import dialog whether
+						// Home Assistant is one of its steps.
+						const renamesEntities = await loadHaRenameOption();
+						if (changed.length === 0 || !renamesEntities) {
 							finishImport();
 							return;
 						}

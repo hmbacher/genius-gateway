@@ -463,6 +463,34 @@ Remaining alarm blocking time updates
 
 ---
 
+### `device-import`
+What the gateway does after an import was committed
+
+**Trigger:** `POST /rest/gateway-devices/import/commit` only hands the new device list over. Writing it to flash and updating Home Assistant happen afterwards in a task of their own, which reports its progress with this event
+
+**Data Format:**
+```json
+{
+  "event": "device-import",
+  "data": {
+    "state": "done",
+    "ha": "renaming"
+  }
+}
+```
+
+**Fields:**
+
+- `state` - Step that was completed:
+    - `saved` - The device list is written to flash. `ha` is a boolean: whether the Home Assistant integration is enabled, i.e. whether an update of Home Assistant follows
+    - `done` - The gateway is through. `ha` says what was done for Home Assistant:
+        - `disabled` - The integration is not enabled
+        - `offline` - No MQTT connection, nothing was sent. Everything is published on the next connect
+        - `sent` - All changes were sent. Home Assistant does not acknowledge them
+        - `renaming` - Sent, except for detectors whose entity IDs change: their rename cycle is still running and ends with a [`ha-entity-rename`](#ha-entity-rename) event that carries `background: true` (`sent`, `deferred` or `failed`). That event can also arrive before `done`
+
+---
+
 ### `ha-entity-rename`
 Progress of a Home Assistant entity-ID rename
 
@@ -492,7 +520,7 @@ Progress of a Home Assistant entity-ID rename
     - `deferred` - There is no MQTT connection, nothing was sent. The rename is caught up on the next MQTT connect. Emitted on its own, without `started`
 - `count` - Number of smoke detectors in the batch
 - `detectors` - Locations of the first smoke detectors of the batch (at most 3); `count` covers the rest
-- `background` - Only present (`true`) for a cycle caused by an import. The web interface shows no progress for it and only reports `deferred` or `failed`
+- `background` - Only present (`true`) for a cycle caused by an import. The web interface shows no progress dialog for it: the import dialog reports it as its Home Assistant step (see [`device-import`](#device-import)); without that dialog only `deferred` and `failed` are reported
 
 ---
 

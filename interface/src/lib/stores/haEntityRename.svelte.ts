@@ -11,6 +11,15 @@ const EVENT = 'ha-entity-rename';
 const status: HaEntityRenameStatus = $state({ state: null, count: 0, detectors: [] });
 
 let watchers = 0;
+
+// While the import dialog follows the gateway, it reports the outcome of the rename the
+// import caused as one of its steps - no separate notice then.
+let importTracking = false;
+
+/** Tell the store that an import dialog reports the background rename itself (or stopped doing so). */
+export function setImportTracking(active: boolean) {
+	importTracking = active;
+}
 let progressOpen = false;
 let deferredOpen = false;
 
@@ -67,8 +76,11 @@ function openNotSentNotice(event: HaEntityRenameEvent, reason: string) {
 
 function handleEvent(event: HaEntityRenameEvent) {
 	// A cycle caused by an import runs in the background: whoever imports expects Home
-	// Assistant to be brought in line without further ado. Only what did not work is reported.
+	// Assistant to be brought in line without further ado. The import dialog shows it as one
+	// of its steps; without that dialog (another tab, dialog hidden) only what did not work
+	// is reported.
 	if (event.background) {
+		if (importTracking) return;
 		if (event.state === 'deferred') {
 			openNotSentNotice(event, 'The MQTT connection is down');
 		} else if (event.state === 'failed') {

@@ -632,6 +632,17 @@ export type HaEntityRenameEvent = {
 	background?: boolean;
 };
 
+/**
+ * Payload of the `device-import` WebSocket event: what the gateway does after an import was
+ * committed. `saved`: the list is written to flash (`ha`: Home Assistant integration enabled,
+ * an update of Home Assistant follows). `done`: the gateway is through, with what was done
+ * for Home Assistant - `renaming` means a background entity-ID rename is still running and
+ * ends with its own `ha-entity-rename` event.
+ */
+export type DeviceImportEvent =
+	| { state: 'saved'; ha: boolean }
+	| { state: 'done'; ha: 'disabled' | 'offline' | 'renaming' | 'sent' };
+
 /** Latest rename state held on the client; `state` is null until an event arrived. */
 export type HaEntityRenameStatus = {
 	state: HaEntityRenameState | null;

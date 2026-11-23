@@ -84,6 +84,7 @@ void GeniusDevicesService::begin()
     // Register the event before the slow device load below: a WebSocket client that
     // reconnects early can then subscribe without an "unregistered event" warning.
     _eventSocket->registerEvent(HA_ENTITY_RENAME_EVENT);
+    _eventSocket->registerEvent(DEVICE_IMPORT_EVENT);
 
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
@@ -322,6 +323,11 @@ void GeniusDevicesService::begin()
                                    originId != DEVICE_STATUS_CHANGE && originId != RSSI_SURVEY_UPDATE &&
                                    originId != HA_ENTITY_ID_PREFIX_UPDATE)
                                {
+                                   // Import: the persistence handler was registered first (in the
+                                   // constructor) and has written the list to flash by now.
+                                   if (_isImportSync())
+                                       _emitImportEvent("saved");
+
                                    _syncSmokeDetectorSubDevices();
                                    if (_haService->isReady())
                                    {
@@ -1896,12 +1902,10 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices(bool requestRename, std:
 
     if (renamePending && requestRename)
     {
-        // A sync run by the post-commit task belongs to an import. The user asked for an
-        // import, not for a rename: Home Assistant is brought in line without a progress
-        // dialog in the web interface.
-        const bool fromImport = _postCommitTaskHandle != nullptr &&
-                                xTaskGetCurrentTaskHandle() == _postCommitTaskHandle;
-        _requestEntityIdRename(fromImport);
+        // A sync that belongs to an import: the user asked for an import, not for a rename.
+        // The cycle runs in the background - the import dialog of the web interface reports
+        // it as one of its steps instead of the rename progress dialog.
+        _requestEntityIdRename(_isImportSync());
     }
 }
 
@@ -2655,8 +2659,67 @@ GeniusDevicesService::importCommit(const String &token)
     if (_postCommitTaskHandle)
         xTaskNotifyGive(_postCommitTaskHandle);
     else
-        callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID); // fallback if task wasn't created
+        _runPostCommit(); // fallback if task wasn't created
     return ImportResult::OK;
+}
+
+void GeniusDevicesService::_runPostCommit()
+{
+    // The handlers run in this task. Marking it lets the sync handler tell an import from an
+    // edit, although both arrive with the same origin id.
+    _importSyncTask = xTaskGetCurrentTaskHandle();
+    callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
+    _importSyncTask = nullptr;
+
+    _emitImportEvent("done");
+}
+
+void GeniusDevicesService::_emitImportEvent(const char *state)
+{
+    JsonDocument jsonDoc;
+    JsonObject jsonRoot = jsonDoc.to<JsonObject>();
+    jsonRoot["state"] = state;
+
+    if (strcmp(state, "saved") == 0)
+    {
+        // Whether a Home Assistant step follows at all
+        jsonRoot["ha"] = _haService->isEnabled();
+    }
+    else
+    {
+        // What was done for Home Assistant. Discovery messages are not acknowledged, so
+        // "sent" is all that can be claimed.
+        const char *ha = "sent";
+        if (!_haService->isEnabled())
+        {
+            ha = "disabled";
+        }
+        else if (!_haService->isReady())
+        {
+            ha = "offline"; // nothing was sent; the next MQTT connect publishes everything
+        }
+        else
+        {
+            // Detectors whose entity IDs still have to change are handled by the rename task,
+            // which reports the end of its (background) cycle with HA_ENTITY_RENAME_EVENT.
+            bool renamePending = false;
+            beginTransaction();
+            for (const GeniusDevice &device : _state.devices)
+            {
+                if (_isEntityIdRenamePending(device) && _haDevices.count(device.id))
+                {
+                    renamePending = true;
+                    break;
+                }
+            }
+            endTransaction();
+            if (renamePending)
+                ha = "renaming";
+        }
+        jsonRoot["ha"] = ha;
+    }
+
+    _eventSocket->emitEvent(DEVICE_IMPORT_EVENT, jsonRoot);
 }
 
 void GeniusDevicesService::_postCommitTask()
@@ -2666,7 +2729,7 @@ void GeniusDevicesService::_postCommitTask()
     {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         ESP_LOGI(GeniusDevices::TAG, "post-commit: running deferred FS write + HA sync.");
-        callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
+        _runPostCommit();
         ESP_LOGI(GeniusDevices::TAG, "post-commit: deferred work complete.");
     }
 }
