@@ -3,7 +3,7 @@ import { socket } from '$lib/stores/socket';
 import type { HaEntityRenameEvent, HaEntityRenameStatus } from '$lib/types/models';
 import HaEntityRenameDialog from '$lib/components/HaEntityRenameDialog.svelte';
 import InfoDialog from '$lib/components/InfoDialog.svelte';
-import { escapeHtml, renamedDetectors } from '$lib/genius/entityRename';
+import { detectorCount, escapeHtml, renamedDetectorItems } from '$lib/genius/entityRename';
 
 const EVENT = 'ha-entity-rename';
 
@@ -55,16 +55,20 @@ function openWhenIdle(kind: QueuedDialog['kind'], open: () => void) {
 function openNotSentNotice(event: HaEntityRenameEvent, reason: string) {
 	if (deferredOpen) return;
 	deferredOpen = true;
-	// The message is HTML and locations are entered by the user: escape them
-	const detectors = renamedDetectors(
-		event.count,
-		event.detectors,
-		(name) => `<strong>${escapeHtml(name)}</strong>`
-	);
+	// A fixed introduction, then the detectors as a list. The message is HTML and locations
+	// are entered by the user: escape them. The wrapper keeps the dialog from growing as wide
+	// as its longest sentence.
+	const items = renamedDetectorItems(event.count, event.detectors);
+	const who =
+		items.length > 0
+			? `the new entity IDs have not been sent for:<ul class="my-2 list-disc pl-6 font-semibold">${items
+					.map((item) => `<li>${escapeHtml(item)}</li>`)
+					.join('')}</ul>`
+			: `the new entity IDs of ${detectorCount(event.count)} have not been sent.<br><br>`;
 	openWhenIdle('deferred', () =>
 		modals.open(InfoDialog, {
 			title: 'Entity IDs not updated yet',
-			message: `Entity IDs in Home Assistant follow the location of a smoke detector. ${reason}, so the new entity IDs of ${detectors} have not been sent.<br><br>The gateway catches up automatically on the next MQTT connect, also after a restart.`,
+			message: `<div class="max-w-md">Entity IDs in Home Assistant follow the location of a smoke detector. ${reason}, so ${who}The gateway catches up automatically on the next MQTT connect, also after a restart.</div>`,
 			variant: 'info',
 			onDismiss: () => {
 				deferredOpen = false;
@@ -77,8 +81,8 @@ function openNotSentNotice(event: HaEntityRenameEvent, reason: string) {
 function handleEvent(event: HaEntityRenameEvent) {
 	// A cycle caused by an import runs in the background: whoever imports expects Home
 	// Assistant to be brought in line without further ado. The import dialog shows it as one
-	// of its steps; without that dialog (another tab, dialog hidden) only what did not work
-	// is reported.
+	// of its steps and reports its outcome, also after it was hidden. Without an import
+	// followed here (it was started in another tab) only what did not work is reported.
 	if (event.background) {
 		if (importTracking) return;
 		if (event.state === 'deferred') {

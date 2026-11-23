@@ -2,7 +2,8 @@
  * Wording for a Home Assistant entity-ID rename: who it is about.
  *
  * The gateway names the first detectors of a batch by their location and gives the size of
- * the batch; the rest is summed up.
+ * the batch; the rest is summed up. They are shown as a list below a fixed introduction, not
+ * woven into the sentence.
  */
 
 /** Escape a text for use inside an HTML message (locations are entered by the user). */
@@ -15,26 +16,22 @@ export function escapeHtml(text: string): string {
 		.replace(/'/g, '&#39;');
 }
 
+/** `1 smoke detector` / `n smoke detectors` */
+export function detectorCount(count: number): string {
+	return count === 1 ? '1 smoke detector' : `${count} smoke detectors`;
+}
+
 /**
- * The detectors of a rename batch as a phrase, e.g. `"Kitchen"`, `"Kitchen" and "Hall"` or
- * `"Kitchen", "Hall", "Attic" and 8 more smoke detectors`. Without names: the plain count.
+ * The detectors of a rename batch as list items: the locations the gateway named, and - if the
+ * batch is larger - a last item that sums up the rest (`and 8 more`). Empty if the gateway
+ * named none; the caller then falls back to the plain count.
  *
  * @param count number of detectors in the batch
  * @param names locations of the first detectors, as far as the gateway named them
- * @param format formats one name, e.g. to escape and emphasise it for an HTML message
  */
-export function renamedDetectors(
-	count: number,
-	names: string[] = [],
-	format: (name: string) => string = (name) => `"${name}"`
-): string {
-	const shown = names.filter((name) => name.trim() !== '').map(format);
-	if (shown.length === 0) return count === 1 ? '1 smoke detector' : `${count} smoke detectors`;
-
+export function renamedDetectorItems(count: number, names: string[] = []): string[] {
+	const shown = names.filter((name) => name.trim() !== '');
+	if (shown.length === 0) return [];
 	const more = count - shown.length;
-	if (more > 0) {
-		return `${shown.join(', ')} and ${more} more smoke detector${more === 1 ? '' : 's'}`;
-	}
-	if (shown.length === 1) return shown[0];
-	return `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
+	return more > 0 ? [...shown, `and ${more} more`] : shown;
 }

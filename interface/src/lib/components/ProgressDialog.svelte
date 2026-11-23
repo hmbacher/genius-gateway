@@ -2,7 +2,7 @@
 	import { modals, type ModalProps, onBeforeClose } from 'svelte-modals';
 	import { focusTrap } from 'svelte-focus-trap';
 	import { fly } from 'svelte/transition';
-	import type { Component } from 'svelte';
+	import type { Component, Snippet } from 'svelte';
 	import Cancel from '~icons/tabler/x';
 	import Check from '~icons/tabler/check';
 	import AlertCircle from '~icons/tabler/alert-circle';
@@ -42,6 +42,9 @@
 		errorDetails?: string;
 		/** Detail shown beneath the message in the 'success' phase. */
 		successDetails?: string;
+		/** Further content of the 'success' phase, below the message: notes, lists. Left-aligned,
+		 *  full width. */
+		successContent?: Snippet;
 		/** Icon of the 'success' phase. Defaults to a check mark. */
 		successIcon?: IconComponent;
 		/** Colour of the 'success' phase. Defaults to 'success' (green). */
@@ -68,6 +71,7 @@
 		stepLabel,
 		errorDetails,
 		successDetails,
+		successContent,
 		successIcon: SuccessPhaseIcon = Check,
 		successTone = 'success',
 		cancelButton,
@@ -171,7 +175,7 @@
 				{/if}
 
 				<!-- Status messages -->
-				<div class="space-y-1 text-center">
+				<div class="w-full space-y-1 text-center">
 					<p class="text-lg {phase === 'error' ? 'text-error' : 'text-base-content/70'}">
 						{message}
 					</p>
@@ -183,6 +187,11 @@
 					{/if}
 					{#if phase === 'success' && successDetails}
 						<p class="text-sm text-base-content/50 mt-2">{successDetails}</p>
+					{/if}
+					{#if phase === 'success' && successContent}
+						<div class="mt-4 w-full space-y-2 text-left">
+							{@render successContent()}
+						</div>
 					{/if}
 					{#if phase === 'success' && successButton?.autoTriggerAfterSeconds && countdown > 0}
 						<p class="text-sm text-base-content/50 mt-2">

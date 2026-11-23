@@ -2,7 +2,7 @@
 	import { modals, type ModalProps } from 'svelte-modals';
 	import ProgressDialog from '$lib/components/ProgressDialog.svelte';
 	import type { HaEntityRenameStatus } from '$lib/types/models';
-	import { renamedDetectors } from '$lib/genius/entityRename';
+	import { detectorCount, renamedDetectorItems } from '$lib/genius/entityRename';
 	import HomeAssistant from '~icons/tabler/smart-home';
 	import Send from '~icons/tabler/send';
 	import Cancel from '~icons/tabler/x';
@@ -23,8 +23,10 @@
 	};
 
 	// Who is renamed, by location. The dialog can appear without the user having asked for a
-	// rename on this page (import, option switched on, catch-up), so it has to say who and why.
-	const detectors = $derived(renamedDetectors(status.count, status.detectors));
+	// rename on this page (option switched on, catch-up), so it has to say who and why: a fixed
+	// introduction, then the detectors as a list.
+	const detectors = $derived(detectorCount(status.count));
+	const detectorItems = $derived(renamedDetectorItems(status.count, status.detectors));
 
 	const view: View = $derived.by(() => {
 		switch (status.state) {
@@ -51,8 +53,7 @@
 				// the gateway knows - never present this as a confirmed rename.
 				return {
 					phase: 'success',
-					message: 'Sent to Home Assistant',
-					successDetails: `Entity IDs in Home Assistant follow the location of a smoke detector. The new entity IDs of ${detectors} were sent. Home Assistant does not confirm the change - check the entity IDs there.`
+					message: 'Sent to Home Assistant'
 				};
 			case 'failed':
 				return {
@@ -75,7 +76,6 @@
 	phase={view.phase}
 	message={view.message}
 	stepLabel={view.stepLabel}
-	successDetails={view.successDetails}
 	successIcon={Send}
 	successTone="primary"
 	errorDetails={view.errorDetails}
@@ -95,4 +95,26 @@
 	errorButtons={[
 		{ label: 'Close', icon: Cancel, class: 'btn-primary', handler: () => modals.close() }
 	]}
-/>
+>
+	{#snippet successContent()}
+		<div class="text-sm text-base-content/70">
+			{#if detectorItems.length > 0}
+				<p>
+					Entity IDs in Home Assistant follow the location of a smoke detector. The new entity
+					IDs were sent for:
+				</p>
+				<ul class="my-2 list-disc pl-6 font-medium text-base-content">
+					{#each detectorItems as item}
+						<li>{item}</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="mb-2">
+					Entity IDs in Home Assistant follow the location of a smoke detector. The new entity
+					IDs of {detectors} were sent.
+				</p>
+			{/if}
+			<p>Home Assistant does not confirm the change - check the entity IDs there.</p>
+		</div>
+	{/snippet}
+</ProgressDialog>

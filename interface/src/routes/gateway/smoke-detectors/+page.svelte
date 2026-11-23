@@ -1051,9 +1051,9 @@
 						modals.open(DeviceImportDialog, {
 							totalDevices: importedGeniusDevices.devices.length,
 							haEnabled: isHaEnabled(),
-							successNote:
+							migrationNote:
 								fileVersion < CURRENT_VERSION
-									? `The file was an older backup (v${fileVersion}) and was migrated to the current format (v${CURRENT_VERSION}) - export a fresh backup.`
+									? `The file was an older backup (v${fileVersion}) and was migrated to the current format (v${CURRENT_VERSION}). Export a fresh backup.`
 									: undefined,
 							task: (onProgress, signal) =>
 								replaceAllDevices(importedGeniusDevices.devices, onProgress, signal),

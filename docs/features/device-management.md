@@ -366,9 +366,9 @@ You can import a previously exported device configuration:
     1. **Upload** - the list is sent to the gateway, for larger files in several chunks. Up to here the import can be aborted, and nothing is changed
     2. **Saving on the gateway** - the gateway replaces its device list and writes it to flash
     3. **Updating Home Assistant** (only with the Home Assistant integration enabled) - detectors that are no longer in the list are removed, new ones are added, and changed ones are updated, including renamed entities
-7. The dialog ends with what was done: the number of imported devices, whether an older file was migrated, and whether the changes were sent to Home Assistant. Without an MQTT connection it says that the gateway sends them on the next connect
+7. The dialog ends with what was done: the number of imported devices and, as separate notes, whether an older file was migrated and whether the changes were sent to Home Assistant. Without an MQTT connection a warning says that the gateway sends them on the next connect
 
-From step 2 on the gateway works on its own - **Hide** closes the dialog without interrupting it. The import is only reported as done once the gateway has confirmed that the list is saved.
+From step 2 on the gateway works on its own - **Hide** closes the dialog without interrupting it. If all goes well, a short notification confirms the import; if Home Assistant could not be updated or the gateway did not confirm the save, the dialog comes back with the result. The import is only reported as done once the gateway has confirmed that the list is saved.
 
 ## Generating a PDF Report
 
