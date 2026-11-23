@@ -42,6 +42,8 @@
 #define LEN_COMMISSIONING_PROBE_RESPONSE_PACKET 32 ///< CommissioningProbe response packet length
 #define LEN_STATUS_CHANGE_PACKET 36                ///< Status change packet length (alarm start/stop, battery low, faults, ...)
 #define LEN_LINE_TEST_PACKET 29                    ///< Line test packet length
+#define LEN_SUPERVISION_SERIES_PACKET 28           ///< Daily supervision series length (same wire length as the CommissioningProbe request; distinguished by the family byte)
+#define LEN_MODULE_MISSING_PACKET 32               ///< "Module missing" report length
 #define LEN_CONFIG_CHECK_PROBE_REQUEST_PACKET 28   ///< ConfigCheckProbe request length (same wire length as CommissioningProbe Request; distinguished by the message-type byte)
 #define LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET 36  ///< ConfigCheckProbe response length (same wire length as a status change; distinguished by the message-type byte)
 
@@ -57,6 +59,7 @@
 #define DATAPOS_STATUS_CLEARED_MASK 30            ///< Status change: status flags newly CLEARED (uint16, little endian)
 #define DATAPOS_STATUS_DETECTOR_SN 32             ///< Status change: serial of the affected smoke detector (uint32, little endian)
 #define DATAPOS_LINE_TEST_START_STOP_FLAG 28      ///< Line / network test: test mode byte (GENIUS_TEST_MODE_*)
+#define DATAPOS_MODULE_MISSING_SN 28              ///< "Module missing" report: serial of the missing radio module (uint32, big endian)
 #define DATAPOS_MSG_FAMILY 26                     ///< Message-family byte: first byte of the message body, groups the message types
 #define DATAPOS_MSG_TYPE 27                       ///< Message-type byte within the family (constant per packet type - how the radio module routes a received frame)
 #define DATAPOS_CONFIG_CHECK_PROBE_STATUS 29      ///< ConfigCheckProbe response: per-device status/capability flag
@@ -68,7 +71,7 @@
 #define MSGFAMILY_STATUS 0x00             ///< Status change (alarm, battery warning, faults)
 #define MSGFAMILY_UNKNOWN_11 0x11         ///< Seen on FM Pro X lines with radio link supervision - function unknown
 #define MSGFAMILY_UNKNOWN_22 0x22         ///< Seen on FM Pro X lines with radio link supervision - function unknown
-#define MSGFAMILY_SUPERVISION 0x33        ///< Radio link supervision of FM Pro X modules (daily series, "module missing") - not evaluated yet
+#define MSGFAMILY_SUPERVISION 0x33        ///< Radio link supervision of FM Pro X modules (daily series, "module missing")
 #define MSGFAMILY_CONFIG_CHECK_PROBE 0x55 ///< ConfigCheckProbe (Linienabschlusstest)
 #define MSGFAMILY_COMMISSIONING 0x66      ///< Alarm-line commissioning, CommissioningProbe and line test
 
@@ -78,6 +81,8 @@
 #define MSGTYPE_COMMISSIONING_PROBE_RESPONSE 0x01 ///< Family 0x66: CommissioningProbe Response (32 B, carries Req-SN)
 #define MSGTYPE_COMMISSIONING 0x03                ///< Family 0x66: alarm-line commissioning (37 B)
 #define MSGTYPE_LINE_TEST 0x04                    ///< Family 0x66: line test start/stop (29 B)
+#define MSGTYPE_SUPERVISION_SERIES 0x00           ///< Family 0x33: daily series of the radio link supervision (28 B)
+#define MSGTYPE_MODULE_MISSING 0x02               ///< Family 0x33: a module reports another radio module as missing (32 B, carries its serial)
 #define MSGTYPE_CONFIG_CHECK_PROBE_05 0x05        ///< Family 0x55: ConfigCheckProbe probe (29 B) - provisional (not yet capture-confirmed)
 #define MSGTYPE_CONFIG_CHECK_PROBE_REQUEST 0x06   ///< Family 0x55: ConfigCheckProbe request (28 B)
 #define MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE 0x08  ///< Family 0x55: ConfigCheckProbe response (36 B)
@@ -103,7 +108,9 @@ typedef enum genius_packet_type
   HPT_LINE_TEST_STOP,               ///< Line / network test stop packet (test mode 0x00, ends either test)
   HPT_CONFIG_CHECK_PROBE_REQUEST,   ///< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe)
   HPT_CONFIG_CHECK_PROBE_RESPONSE,  ///< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
-  HPT_NETWORK_TEST_START            ///< Network test start packet (test mode 0x06)
+  HPT_NETWORK_TEST_START,           ///< Network test start packet (test mode 0x06)
+  HPT_SUPERVISION_SERIES,           ///< Daily series of the radio link supervision (family 0x33, type 0x00) - a sign of life of the sender
+  HPT_MODULE_MISSING                ///< A radio module reports another one as missing (family 0x33, type 0x02)
 } genius_packet_type_t;
 
 typedef struct genius_packet_t
@@ -116,6 +123,7 @@ typedef struct genius_packet_t
   uint16_t status_set;       ///< HPT_STATUS_CHANGE: status flags newly set (GENIUS_STATUS_*)
   uint16_t status_cleared;   ///< HPT_STATUS_CHANGE: status flags newly cleared (GENIUS_STATUS_*)
   uint32_t detector_sn;      ///< HPT_STATUS_CHANGE: serial of the affected smoke detector
+  uint32_t missing_module_sn; ///< HPT_MODULE_MISSING: serial of the radio module that is reported as missing
 } genius_packet_t;
 
 /**
@@ -124,7 +132,7 @@ typedef struct genius_packet_t
  * The packet type is determined from the on-air message-family byte (offset 26) and the
  * message-type byte (offset 27), with the per-type length as a validator - mirroring how
  * the genuine radio module routes a frame. Frames of a family or type that is not known
- * (e.g. the radio link supervision telegrams) stay HPT_UNKNOWN instead of being taken for
+ * (e.g. the telegrams of the families 0x11 and 0x22) stay HPT_UNKNOWN instead of being taken for
  * a packet of another family that happens to share type byte and length.
  * A status change is classified by family, type and length only; which flags it sets or
  * clears is left to the consumer, so new flags need no change here.

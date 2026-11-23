@@ -460,6 +460,32 @@ public:
      */
     const GeniusDevice *applyStatusChange(uint32_t detectorSN, uint32_t setMask, uint32_t clearedMask);
 
+    /**
+     * @brief A radio module reports another one as missing (radio link supervision)
+     *
+     * The reporting detector gets an activity log entry naming the missing module. The
+     * detector with the missing module - if it is registered - gets the status flag
+     * GENIUS_STATUS_REPORTED_MISSING, which counts as a fault. Like every status flag it
+     * stays until something reports otherwise: here until a frame of that module is heard
+     * again (moduleHeard()) or the status is reset by hand.
+     *
+     * @param reporterModuleSN Serial of the radio module that sent the report
+     * @param missingModuleSN  Serial of the radio module it reports as missing
+     */
+    void applyModuleMissing(uint32_t reporterModuleSN, uint32_t missingModuleSN);
+
+    /**
+     * @brief A frame of these radio modules was received
+     *
+     * Ends "reported missing" for a detector whose radio module originated or transmitted
+     * the frame. Cheap while no detector is reported missing (no mutex), so it can be
+     * called from the RX path for every frame.
+     *
+     * @param originModuleSN Serial of the radio module that originated the frame
+     * @param senderModuleSN Serial of the radio module that transmitted it (differs when relayed)
+     */
+    void moduleHeard(uint32_t originModuleSN, uint32_t senderModuleSN);
+
     /// Number of devices with at least one active fault (GENIUS_STATUS_FAULT_MASK)
     uint32_t numFaultyDevices();
 
@@ -622,6 +648,7 @@ private:
     // Status summary tracking
     uint32_t _numFaulty = 0;      ///< Number of devices with an active fault
     uint32_t _numBatteryLow = 0;  ///< Number of devices reporting a low battery
+    std::atomic<uint32_t> _numReportedMissing{0}; ///< Number of devices reported missing; read by the RX path without the mutex
     String _lastFaultPayload;     ///< Last payload sent to the simple fault topic (publish on change only)
 
     // MQTT

@@ -567,6 +567,103 @@ const GeniusDevice *GeniusDevicesService::applyStatusChange(uint32_t detectorSN,
     return updatedDevice;
 }
 
+void GeniusDevicesService::applyModuleMissing(uint32_t reporterModuleSN, uint32_t missingModuleSN)
+{
+    if (missingModuleSN == 0 || reporterModuleSN == missingModuleSN)
+        return;
+
+    bool changed = false;
+    uint32_t missingDeviceId = 0;
+    const time_t now = time(nullptr);
+
+    beginTransaction();
+
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (device.radioModule.sn == reporterModuleSN)
+        {
+            // The report is repeated and forwarded through the mesh: one log entry per report,
+            // not one per copy that arrives.
+            if (!device.status.hasRecentEvent(GDE_MODULE_MISSING, missingModuleSN, now, GENIUS_MODULE_MISSING_REPEAT_S))
+            {
+                device.status.addEvent({now, GDE_MODULE_MISSING, 0, 0, missingModuleSN});
+                changed = true;
+            }
+        }
+        else if (device.radioModule.sn == missingModuleSN)
+        {
+            // Edge-triggered like every status flag: the state stays until a frame of this
+            // module is heard again (moduleHeard()) or the status is reset by hand.
+            const GeniusStatusDelta delta = device.status.apply(GENIUS_STATUS_REPORTED_MISSING, 0, now, GDE_MODULE_MISSING);
+            if (delta.any())
+            {
+                device.status.addEvent({now, GDE_MODULE_MISSING, GENIUS_STATUS_REPORTED_MISSING, 0, reporterModuleSN});
+                missingDeviceId = device.id;
+                changed = true;
+            }
+        }
+    }
+
+    endTransaction();
+
+    ESP_LOGI(GeniusDevices::TAG, "Radio module %lu reports radio module %lu as missing%s.",
+             (unsigned long)reporterModuleSN, (unsigned long)missingModuleSN,
+             missingDeviceId ? "" : (changed ? " (not a registered detector or already known)" : " (nothing new)"));
+
+    if (!changed)
+        return;
+
+    callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+    if (missingDeviceId)
+    {
+        beginTransaction();
+        _publishSmokeDetectorAttributes(missingDeviceId); // HA: radio module state
+        endTransaction();
+    }
+}
+
+void GeniusDevicesService::moduleHeard(uint32_t originModuleSN, uint32_t senderModuleSN)
+{
+    // Called from the RX path for every frame: stay out of the mutex unless a detector is
+    // actually reported missing.
+    if (_numReportedMissing.load() == 0)
+        return;
+
+    std::vector<uint32_t> heardDeviceIds;
+    const time_t now = time(nullptr);
+
+    beginTransaction();
+    for (GeniusDevice &device : _state.devices)
+    {
+        const uint32_t sn = device.radioModule.sn;
+        if (sn == 0 || (sn != originModuleSN && sn != senderModuleSN))
+            continue;
+        if (!(device.status.activeMask() & GENIUS_STATUS_REPORTED_MISSING))
+            continue;
+
+        // A frame this module originated or transmitted proves that it is there.
+        const GeniusStatusDelta delta = device.status.apply(0, GENIUS_STATUS_REPORTED_MISSING, now, GDE_MODULE_MISSING);
+        if (delta.any())
+        {
+            device.status.addEvent({now, GDE_MODULE_MISSING, 0, GENIUS_STATUS_REPORTED_MISSING, 0});
+            heardDeviceIds.push_back(device.id);
+            ESP_LOGI(GeniusDevices::TAG, "Radio module %lu, reported missing before, was heard again.", (unsigned long)sn);
+        }
+    }
+    endTransaction();
+
+    if (heardDeviceIds.empty())
+        return;
+
+    callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+    beginTransaction();
+    for (uint32_t deviceId : heardDeviceIds)
+        _publishSmokeDetectorAttributes(deviceId);
+    endTransaction();
+}
+
 // ============================================================================
 // Private Methods - State Management
 // ============================================================================
@@ -599,6 +696,7 @@ void GeniusDevicesService::_updateStatusSummary()
 {
     uint32_t numFaulty = 0;
     uint32_t numBatteryLow = 0;
+    uint32_t numReportedMissing = 0;
 
     beginTransaction();
     for (const GeniusDevice &device : _state.devices)
@@ -609,9 +707,12 @@ void GeniusDevicesService::_updateStatusSummary()
             numFaulty++;
         if (active & GENIUS_STATUS_BATT_LOW)
             numBatteryLow++;
+        if (active & GENIUS_STATUS_REPORTED_MISSING)
+            numReportedMissing++;
     }
     _numFaulty = numFaulty;
     _numBatteryLow = numBatteryLow;
+    _numReportedMissing = numReportedMissing; // read by the RX path, see moduleHeard()
     endTransaction();
 
     // The payload names devices and their locations, so it can change without the counters
@@ -857,7 +958,15 @@ void GeniusDevice::statusToJson(JsonObject &root) const
                 obj["cleared"] = event.cleared;
                 break;
             case GDE_MODULE_MISSING:
-                obj["cause"] = event.value;
+                // Three shapes: this device reports another module as missing (cause = that
+                // module), this device is reported missing (set, cause = the reporter), or its
+                // radio module was heard again (cleared).
+                if (event.value)
+                    obj["cause"] = event.value;
+                if (event.set)
+                    obj["set"] = event.set;
+                if (event.cleared)
+                    obj["cleared"] = event.cleared;
                 break;
             case GDE_ALARM:
                 if (event.value != GENIUS_ALARM_RUNNING && geniusTimeValid(event.time))
@@ -918,7 +1027,9 @@ bool GeniusDevice::statusFromJson(JsonVariant src)
                 event.cleared = item["cleared"].as<uint32_t>();
                 break;
             case GDE_MODULE_MISSING:
-                event.value = item["cause"].as<uint32_t>();
+                event.value = item["cause"] | 0U;
+                event.set = item["set"] | 0U;
+                event.cleared = item["cleared"] | 0U;
                 break;
             case GDE_ALARM:
             {

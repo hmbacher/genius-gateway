@@ -4,7 +4,7 @@
 	import { modals, type ModalProps } from 'svelte-modals';
 	import { fly } from 'svelte/transition';
 	import { formatDateTimeSeconds } from '$lib/utils/formatDate';
-	import { alarmCount, describeEvent } from '$lib/genius/activity';
+	import { alarmCount, describeEvent, radioModuleName } from '$lib/genius/activity';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import {
 		EVENT_ALARM,
@@ -65,6 +65,9 @@
 	// svelte-ignore state_referenced_locally
 	let onlyAlarms = $state(alarmsOnly);
 
+	// Radio modules named in the log (radio link supervision) get the location of their detector
+	const moduleName = (serial: number) => radioModuleName(geniusDevices.devices, serial);
+
 	// Show newest first - most users want the recent entries at the top.
 	const allEntries = $derived([...(geniusDevice.events ?? [])].reverse());
 	const entries = $derived(allEntries.filter((e) => !onlyAlarms || e.type === EVENT_ALARM));
@@ -121,7 +124,7 @@
 						</thead>
 						<tbody>
 							{#each entries as entry}
-								{@const info = describeEvent(entry)}
+								{@const info = describeEvent(entry, moduleName)}
 								{@const Icon = ICONS[entry.type] ?? IconOther}
 								{@const running =
 									entry.type === EVENT_ALARM &&

@@ -108,6 +108,8 @@ static inline bool geniusTimeValid(time_t t)
     return t >= (time_t)GENIUS_TIME_VALID_MIN;
 }
 
+#define GENIUS_MODULE_MISSING_REPEAT_S 600 ///< Copies of one "module missing" report that arrive within this time are one log entry
+
 #ifndef GENIUS_MAX_DEVICE_EVENTS
 #define GENIUS_MAX_DEVICE_EVENTS 50 ///< Entries kept in a device's activity log (ring buffer)
 #endif
@@ -294,6 +296,22 @@ public:
     {
         events.push_back(event);
         trimEvents();
+    }
+
+    /// True if the log already holds an entry of this type and value that is at most
+    /// @p withinSeconds old - used to log a report once instead of once per repeated copy.
+    /// Without a valid clock the newest entry of that type and value counts.
+    bool hasRecentEvent(uint8_t type, uint32_t value, time_t now, long withinSeconds) const
+    {
+        for (auto it = events.rbegin(); it != events.rend(); ++it)
+        {
+            if (it->type != type || it->value != value || it->set != 0 || it->cleared != 0)
+                continue;
+            if (!geniusTimeValid(now) || !geniusTimeValid(it->time))
+                return true;
+            return (long)(now - it->time) <= withinSeconds;
+        }
+        return false;
     }
 
     /// Drop the oldest entries beyond GENIUS_MAX_DEVICE_EVENTS.

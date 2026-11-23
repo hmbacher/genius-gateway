@@ -170,6 +170,14 @@
 		@apply bg-violet-700 font-normal text-white;
 	}
 
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-supervision-series) {
+		@apply bg-sky-300 dark:bg-sky-700 font-normal;
+	}
+
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-module-missing) {
+		@apply bg-rose-400 dark:bg-rose-700 font-normal;
+	}
+
 	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-unknown) {
 		@apply bg-slate-800 text-white font-normal;
 	}

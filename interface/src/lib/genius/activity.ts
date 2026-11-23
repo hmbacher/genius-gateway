@@ -14,6 +14,7 @@ import {
 	EVENT_READOUT,
 	EVENT_STATUS_PACKET,
 	EVENT_STATUS_RESET,
+	STATUS_REPORTED_MISSING,
 	statusFlagLabels
 } from './status';
 
@@ -69,8 +70,26 @@ function registrationText(registration?: number): string {
 	}
 }
 
-/** Title and detail text of one activity log entry. */
-export function describeEvent(e: GeniusDeviceEvent): { title: string; detail: string } {
+/**
+ * Name of a radio module for the activity log: its serial number and, if it belongs to a
+ * registered detector, that detector's location.
+ */
+export function radioModuleName(devices: GeniusDevice[], serial: number): string {
+	const device = devices.find((d) => d.radioModule.sn === serial);
+	return device?.location
+		? `radio module ${serial} (${device.location})`
+		: `radio module ${serial}`;
+}
+
+/**
+ * Title and detail text of one activity log entry.
+ *
+ * @param moduleName names a radio module by its serial number; see radioModuleName()
+ */
+export function describeEvent(
+	e: GeniusDeviceEvent,
+	moduleName: (serial: number) => string = (serial) => `radio module ${serial}`
+): { title: string; detail: string } {
 	switch (e.type) {
 		case EVENT_CREATED:
 			return { title: 'Smoke detector added', detail: registrationText(e.registration) };
@@ -91,11 +110,18 @@ export function describeEvent(e: GeniusDeviceEvent): { title: string; detail: st
 		}
 		case EVENT_STATUS_RESET:
 			return { title: 'Status reset', detail: 'Reported faults discarded' };
-		case EVENT_MODULE_MISSING:
-			return {
-				title: 'Radio module missing',
-				detail: `Reports radio module ${e.cause ?? '?'} as missing`
-			};
+		case EVENT_MODULE_MISSING: {
+			// Three shapes (radio link supervision): the detector's own radio module was heard
+			// again, the detector is reported missing by another module, or it reports one.
+			const module = e.cause ? moduleName(e.cause) : 'a radio module';
+			if ((e.cleared ?? 0) & STATUS_REPORTED_MISSING) {
+				return { title: 'Radio module heard again', detail: 'No longer reported missing' };
+			}
+			if ((e.set ?? 0) & STATUS_REPORTED_MISSING) {
+				return { title: 'Reported missing', detail: `Reported missing by ${module}` };
+			}
+			return { title: 'Radio module missing', detail: `Reports ${module} as missing` };
+		}
 		case EVENT_ALARM: {
 			const reason = e.endingReason ?? GeniusAlarmEnding.AlarmActive;
 			if (reason === GeniusAlarmEnding.AlarmActive) return { title: 'Alarm', detail: 'Still active' };

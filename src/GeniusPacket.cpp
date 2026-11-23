@@ -84,6 +84,18 @@ bool genius_analyze_packet(const uint8_t *data, size_t length, genius_packet_t *
         }
         break;
 
+    case MSGFAMILY_SUPERVISION: // 0x33  (FM Pro X with the DIP switch "radio link supervision")
+        if (msgType == MSGTYPE_SUPERVISION_SERIES && length == LEN_SUPERVISION_SERIES_PACKET)
+        {
+            out->type = HPT_SUPERVISION_SERIES;
+        }
+        else if (msgType == MSGTYPE_MODULE_MISSING && length == LEN_MODULE_MISSING_PACKET)
+        {
+            out->type = HPT_MODULE_MISSING;
+            out->missing_module_sn = readU32BE(data, DATAPOS_MODULE_MISSING_SN);
+        }
+        break; // 0x33/0x01 was seen on air as well - its function is unknown
+
     case MSGFAMILY_COMMISSIONING: // 0x66
         switch (msgType)
         {
@@ -141,11 +153,13 @@ bool genius_analyze_packet(const uint8_t *data, size_t length, genius_packet_t *
         }
         break;
 
-    default: // 0x11, 0x22, 0x33 (radio link supervision) and anything not known yet
+    default: // 0x11, 0x22 and anything not known yet
         break;
     }
 
-    if (out->type != HPT_UNKNOWN)
+    /* The header is the same for every message, also for those not known yet: who originated
+     * the frame, who transmitted it, on which line. A frame of an unknown type is still a sign
+     * of life of these radio modules. */
     {
         out->origin_id = readU32BE(data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
         out->sender_id = readU32BE(data, DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID);

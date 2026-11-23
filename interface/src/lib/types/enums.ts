@@ -113,4 +113,8 @@ export enum GeniusPacketType {
   ConfigCheckProbeResponse,
   /** /< Network test start packet (test mode 0x06) */
   NetworkTestStart,
+  /** /< Daily series of the radio link supervision (family 0x33, type 0x00) - a sign of life of the sender */
+  SupervisionSeries,
+  /** /< A radio module reports another one as missing (family 0x33, type 0x02) */
+  ModuleMissing,
 }

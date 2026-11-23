@@ -351,7 +351,9 @@ export const PacketTypeNames = {
 	StopAlarm: 'Stop Alarm',
 	StatusChange: 'Status Change',
 	ConfigCheckProbeRequest: 'ConfigCheckProbe Request',
-	ConfigCheckProbeResponse: 'ConfigCheckProbe Response'
+	ConfigCheckProbeResponse: 'ConfigCheckProbe Response',
+	SupervisionSeries: 'Supervision Series',
+	ModuleMissing: 'Module Missing'
 } as const;
 
 /** Names of the packet types that are a status change (alarm start/stop are its alarm-bit cases). */
@@ -450,6 +452,26 @@ export const PacketTypes: PacketType[] = [
 		identifiers: [
 			{ byteNr: 30, value: 0x01, mask: 0x01 } // Alarm bit in the cleared mask
 		]
+	},
+	{
+		name: PacketTypeNames.SupervisionSeries,
+		cssClass: 'type-supervision-series',
+		familyByte: 0x33,
+		typeByte: 0x00,
+		packetLength: 28,
+		description:
+			'Daily series of the radio link supervision (FM Pro X with the DIP switch switched on) - a sign of life of the sender.',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.ModuleMissing,
+		cssClass: 'type-module-missing',
+		familyByte: 0x33,
+		typeByte: 0x02,
+		packetLength: 32,
+		description:
+			'Radio link supervision: the sender reports a radio module as missing (bytes 28-31: its serial number).',
+		identifiers: []
 	},
 	{
 		name: PacketTypeNames.StatusChange,
