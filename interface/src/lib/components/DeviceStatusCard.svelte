@@ -5,6 +5,7 @@
 		activeFaults,
 		deviceCondition,
 		deviceHints,
+		hasCurrentReadout,
 		hasReadout
 	} from '$lib/utils/deviceStatus';
 	import { statusFlagLabel } from '$lib/genius/status';
@@ -18,6 +19,7 @@
 	import IconFire from '~icons/tabler/flame-filled';
 	import IconExternal from '~icons/tabler/external-link';
 	import IconStale from '~icons/tabler/calendar-exclamation';
+	import IconStatusUnknown from '~icons/tabler/help-circle';
 	import IconReadoutOk from '~icons/tabler/award';
 	import IconNoReadout from '~icons/tabler/microphone-off';
 	import IconHint from '~icons/tabler/info-circle';
@@ -71,6 +73,8 @@
 			case 'ok':
 				return `OK · readout ${formatDate(detector.readoutTime)}`;
 			default:
+				// With a current readout the status is unknown because it was reset
+				if (hasCurrentReadout(detector)) return 'Status unknown';
 				return hasReadout(detector) ? 'Readout outdated' : 'No readout';
 		}
 	});
@@ -106,6 +110,8 @@
 			{/each}
 		{:else if condition === 'ok'}
 			<IconReadoutOk class="h-5 w-5 shrink-0" />
+		{:else if hasCurrentReadout(detector)}
+			<IconStatusUnknown class="h-5 w-5 shrink-0" />
 		{:else if hasReadout(detector)}
 			<IconStale class="h-5 w-5 shrink-0" />
 		{:else}

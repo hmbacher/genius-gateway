@@ -5,7 +5,10 @@ import type {
 	GeniusRadioModuleInfo
 } from '$lib/types/models';
 import { GeniusDeviceRegistration } from '$lib/types/enums';
+import { isOldFmModule } from '$lib/genius/line';
 import {
+	STATUS_BATTERY_LOW,
+	STATUS_DEVICE_FAULT,
 	STATUS_FAULT_MASK,
 	STATUS_FAULT_MUTED,
 	STATUS_FLAGS,
@@ -81,7 +84,8 @@ export function getReadoutHints(sd: GeniusSmokeDetectorInfo): string[] {
  * Overall condition of a device, in order of priority:
  * - `alarm`   - the smoke detector is alarming
  * - `fault`   - it reports at least one fault (battery, device, radio link, dismounted, missing)
- * - `ok`      - no fault and a current readout confirms battery, detector and radio link
+ * - `ok`      - no fault and a current readout confirms battery, detector and radio link -
+ *               and none of them was reset to unknown since
  * - `unknown` - no fault reported, but nothing current confirms that all is well
  */
 export type DeviceCondition = 'alarm' | 'fault' | 'ok' | 'unknown';
@@ -94,10 +98,23 @@ export function activeFaults(d: GeniusDevice): GeniusFlagState[] {
 		.filter((s): s is GeniusFlagState => !!s);
 }
 
+/**
+ * True iff a current readout still stands for the device: battery, detector and - for radio
+ * modules that report it - the radio link are known. A readout sets them all; "Reset Status"
+ * makes the reset ones unknown again, and from then on the readout confirms nothing for them.
+ */
+export function hasConfirmedStatus(d: GeniusDevice): boolean {
+	if (!hasCurrentReadout(d)) return false;
+	if (flagState(d, STATUS_BATTERY_LOW) === 'unknown') return false;
+	if (flagState(d, STATUS_DEVICE_FAULT) === 'unknown') return false;
+	// Old FM modules report no radio status in a readout - the radio link is never known there
+	return isOldFmModule(d.radioModule.model) || flagState(d, STATUS_RADIO_FAULT) !== 'unknown';
+}
+
 export function deviceCondition(d: GeniusDevice): DeviceCondition {
 	if (d.isAlarming) return 'alarm';
 	if (activeFaults(d).length > 0) return 'fault';
-	return hasCurrentReadout(d) ? 'ok' : 'unknown';
+	return hasConfirmedStatus(d) ? 'ok' : 'unknown';
 }
 
 /**
@@ -136,7 +153,12 @@ export function getDeviceFaults(d: GeniusDevice): string[] {
  * confirms it. Without either nothing is known - no OK is shown.
  */
 export function hasSmokeDetectorStatus(d: GeniusDevice): boolean {
-	return getCurrentSmokeDetectorFaults(d).length > 0 || hasCurrentReadout(d);
+	return (
+		getCurrentSmokeDetectorFaults(d).length > 0 ||
+		(hasCurrentReadout(d) &&
+			flagState(d, STATUS_BATTERY_LOW) === 'ok' &&
+			flagState(d, STATUS_DEVICE_FAULT) === 'ok')
+	);
 }
 
 /**

@@ -14,7 +14,8 @@
 	let isEmpty = $derived(geniusDevices.isLoaded && geniusDevices.devices.length === 0);
 
 	// Same four conditions as the overview cards. A reported fault is the only thing that turns
-	// the heart yellow; detectors without a current readout get a neutral question mark.
+	// the heart yellow; detectors whose status is unknown (no current readout, or reset) get a
+	// neutral question mark.
 	let numFaulty = $derived(
 		geniusDevices.devices.filter((d) => deviceCondition(d) === 'fault').length
 	);
@@ -35,8 +36,8 @@
 							: `${numFaulty} smoke detectors report a fault.`
 						: numUnknown > 0
 							? numUnknown === 1
-								? '1 smoke detector without a current readout.'
-								: `${numUnknown} smoke detectors without a current readout.`
+								? 'The status of 1 smoke detector is unknown.'
+								: `The status of ${numUnknown} smoke detectors is unknown.`
 							: 'All smoke detectors in standby.'
 	);
 </script>

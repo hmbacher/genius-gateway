@@ -282,7 +282,7 @@ A reported fault stays active until the smoke detector reports that it is gone o
 2. Click :tabler-restore: **Reset Status** in the *Current Status* section (admins only, only shown while a fault is active)
 3. Confirm the dialog
 
-All active flags of the detector become **Unknown** - not OK. The status builds up again from what the detector reports over the air and from the next readout. The reset is recorded in the activity log.
+All active flags of the detector become **Unknown** - not OK. The detector is then shown as *Status unknown* (grey) on the overview and in the list, also if its last readout is still current: that readout no longer stands for the reset flags. The status builds up again from what the detector reports over the air and from the next readout. The reset is recorded in the activity log.
 
 !!! warning "Known limits of the status tracking"
     The status is based on a protocol that is only partly understood:

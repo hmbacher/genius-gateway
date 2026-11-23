@@ -786,7 +786,11 @@ function buildOverviewPage(
 					? { text: 'Fault', color: C_ERROR }
 					: state === 'ok'
 						? { text: 'OK', color: C_OK }
-						: { text: isStaleReadout(device) ? 'Stale' : 'No readout', color: C_WARN };
+						: {
+								// With a current readout the status is unknown because it was reset
+								text: !device.readoutTime ? 'No readout' : isStaleReadout(device) ? 'Stale' : 'Unknown',
+								color: C_WARN
+							};
 
 		// Direct-link range-test signal (see buildDevicePage), condensed for the table.
 		const signalCell = !hasRm

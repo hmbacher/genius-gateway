@@ -17,7 +17,7 @@ The health indicator icon in the navigation bar reflects the overall system stat
 | :tabler-loader-2: | Connecting - device list not yet received |
 | :tabler-heart-off: | No smoke detectors configured yet |
 | :tabler-heart:{ style="color: #4caf50" } | All detectors OK - no fault reported and every detector has a current readout |
-| :tabler-heart-question: | No fault reported, but at least one detector has no current readout (see [Unknown](#unknown) below) |
+| :tabler-heart-question: | No fault reported, but the status of at least one detector is unknown (see [Unknown](#unknown) below) |
 | :tabler-heart-exclamation:{ style="color: #ff9800" } | At least one detector reports a fault (see [Fault](#warning) below); the tooltip names how many |
 | :tabler-alert-hexagon-filled:{ style="color: #f44336" } | At least one detector is actively alarming |
 
@@ -60,6 +60,7 @@ No fault is reported, but nothing current confirms that all is well:
 
 - :tabler-microphone-off: **No readout** - the device has never had an acoustic readout performed
 - :tabler-calendar-exclamation: **Readout outdated** - the last acoustic readout is more than one year old
+- :tabler-help-circle: **Status unknown** - the reported faults were [reset](device-management.md#resetting-the-status); the last readout no longer stands for them
 
 Up to v1.5.0 these cards were yellow like a fault.
 
