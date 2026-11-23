@@ -37,6 +37,7 @@
 	} from '$lib/utils/deviceStatus';
 	import { isOldFmModule } from '$lib/genius/line';
 	import { EVENT_ALARM } from '$lib/genius/status';
+	import { deviceAlarms } from '$lib/genius/activity';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { socket } from '$lib/stores/socket';
 	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
@@ -95,6 +96,10 @@
 	// 6 KB ≈ 3 fully-populated devices per chunk; 50-device imports = ~17 round-trips,
 	// well within an acceptable interactive latency budget.
 	const IMPORT_CHUNK_BYTE_BUDGET = 6000;
+
+	/** Version of the device file format, written by the export and expected by the import.
+	 *  Must match GATEWAY_DEVICES_CONFIG_VERSION of the firmware. */
+	const DEVICES_FILE_VERSION = 3;
 
 	let { data }: Props = $props();
 
@@ -512,10 +517,12 @@
 	});
 
 	function handleAlarmLog(index: number) {
+		const device = geniusDevices.devices[index];
 		modals.open(ActivityLog, {
 			title: 'Activity log',
-			geniusDevice: geniusDevices.devices[index],
-			alarmsOnly: true
+			geniusDevice: device,
+			// Filtered to the alarms if the log holds any - otherwise the dialog would open empty
+			alarmsOnly: deviceAlarms(device).length > 0
 		});
 	}
 
@@ -899,7 +906,7 @@
 			message:
 				`Reset all reported faults of the smoke detector <strong>${device.smokeDetector.sn} (${device.location})</strong>?` +
 				`<br><br>Do this once the fault has been fixed or the device replaced. ` +
-				`The status then reads OK until the smoke detector reports a change again.`,
+				`The reported faults then read <strong>Unknown</strong>, not OK - until the smoke detector reports them again or an acoustic readout shows their state.`,
 			labels: {
 				cancel: { label: 'Cancel', icon: Cancel },
 				confirm: { label: 'Reset', icon: Check }
@@ -1017,7 +1024,7 @@
 		let cancelled = false;
 		reader.onload = async () => {
 			if (cancelled) return;
-			const CURRENT_VERSION = 3;
+			const CURRENT_VERSION = DEVICES_FILE_VERSION;
 			const fileContent = reader.result as string;
 			try {
 				const importedGeniusDevices = JSON.parse(fileContent, jsonDateReviver) as GeniusDevices;
@@ -1240,7 +1247,7 @@
 						disabled={!geniusDevices.isLoaded}
 						onclick={() =>
 							downloadObjectAsJson(
-								{ version: 2, devices: geniusDevices.devices },
+								{ version: DEVICES_FILE_VERSION, devices: geniusDevices.devices },
 								'genius-smoke-detectors'
 							)}
 					>

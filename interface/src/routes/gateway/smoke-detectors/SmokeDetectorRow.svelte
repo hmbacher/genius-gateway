@@ -167,13 +167,12 @@
 					tabindex="0"
 					class="dropdown-content menu menu-lg bg-base-100 rounded-box z-10 shadow-lg border border-base-300 p-1 w-44"
 				>
-					{#if alarms > 0}
-						<li>
-							<button onclick={() => blurAndCall(onAlarmLog)}>
-								<Logs class="h-6 w-6" /> Alarm log
-							</button>
-						</li>
-					{/if}
+					<!-- Every detector has an activity log, also without alarms -->
+					<li>
+						<button onclick={() => blurAndCall(onAlarmLog)}>
+							<Logs class="h-6 w-6" /> Activity log
+						</button>
+					</li>
 					<li>
 						<button onclick={() => blurAndCall(onEdit)}>
 							<Edit class="h-6 w-6" /> Edit
@@ -357,17 +356,15 @@
 		<!-- Manage buttons -->
 		<div class="flex items-center justify-end">
 			<span class="inline-flex flex-row">
-				{#if alarms > 0}
-					<div class="tooltip tooltip-left" data-tip="Show alarm log">
-						<button
-							class="btn btn-ghost btn-circle btn-sm"
-							aria-label="Show alarm log"
-							onclick={() => onAlarmLog(index)}
-						>
-							<Logs class="h-6 w-6" />
-						</button>
-					</div>
-				{/if}
+				<div class="tooltip tooltip-left" data-tip="Show activity log">
+					<button
+						class="btn btn-ghost btn-circle btn-sm"
+						aria-label="Show activity log"
+						onclick={() => onAlarmLog(index)}
+					>
+						<Logs class="h-6 w-6" />
+					</button>
+				</div>
 				<div class="tooltip tooltip-left" data-tip="Edit smoke detector">
 					<button
 						class="btn btn-ghost btn-circle btn-sm"

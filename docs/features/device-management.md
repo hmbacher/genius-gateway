@@ -50,7 +50,7 @@ When the device has a radio module, a :tabler-wifi: signal-strength icon also ap
 #### Manage
 Action buttons for device operations:
 
-- :tabler-logs: **Alarm Log**: Open the [activity log](#viewing-the-activity-log), filtered to alarms (only visible if alarms exist)
+- :tabler-logs: **Activity Log**: Open the [activity log](#viewing-the-activity-log) of the detector
 - :tabler-list-details: **Device Details**: View full readout data and trigger a new acoustic readout
 - :tabler-pencil: **Edit**: Modify device configuration
 - :tabler-trash: **Delete**: Remove device from the system
@@ -83,8 +83,8 @@ This feature is useful for organizing devices by floor level, room priority, or 
 
 For each smoke detector the gateway keeps an activity log - one chronology of what it recorded about the detector. To view it:
 
-1. Click the :tabler-logs: **Alarm Log** button in the device's row (only visible if alarms exist), or click an alarming card on the [Overview](overview.md)
-2. The Activity Log dialog opens with the switch **Alarms only** on. Switch it off to see every entry, newest first:
+1. Click the :tabler-logs: **Activity Log** button in the device's row, or click an alarming card on the [Overview](overview.md)
+2. The Activity Log dialog opens. If the detector has alarms, the switch **Alarms only** is on - switch it off to see every entry, newest first:
 
     | Entry | Meaning |
     |-------|---------|
