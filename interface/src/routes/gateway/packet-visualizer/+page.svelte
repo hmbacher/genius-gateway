@@ -13,13 +13,18 @@
 		CommissioningInfo,
 		CommissioningProbeResponseInfo,
 		AlarmLines,
-		AlarmStartInfo,
-		AlarmStopInfo,
+		StatusChangeInfo,
 		WSLoggerSettings
 	} from '$lib/types/models';
 	import {geniusDevices} from '$lib/stores/geniusDevices.svelte';
 	import { GATEWAY_NAME } from '$lib/genius/entity';
-	import { PacketTypes, PacketTypeNames, MSG_TYPE_POS } from '$lib/types/models';
+	import {
+		PacketTypes,
+		PacketTypeNames,
+		StatusChangePacketTypeNames,
+		MSG_FAMILY_POS,
+		MSG_TYPE_POS
+	} from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils/misc';
 	import { deserializePacket, downloadPacketAsJson } from '$lib/utils/serialization';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -79,12 +84,14 @@
 	function determinePacketType(data: Uint8Array): PacketType | null {
 		for (const type of PacketTypes) {
 			if (data.length !== type.packetLength) continue;
-			// Primary discriminator: the on-air message-type byte (offset 27), like the radio module.
-			if (data.length <= MSG_TYPE_POS || data[MSG_TYPE_POS] !== type.typeByte) continue;
+			// Discriminators: the on-air message-family byte (offset 26) and message-type byte
+			// (offset 27), like the radio module.
+			if (data.length <= MSG_TYPE_POS) continue;
+			if (data[MSG_FAMILY_POS] !== type.familyByte || data[MSG_TYPE_POS] !== type.typeByte) continue;
 			let identifiersMatch = true;
 			if (type.identifiers && Array.isArray(type.identifiers)) {
-				for (const { byteNr, value } of type.identifiers) {
-					if (data[byteNr] !== value) {
+				for (const { byteNr, value, mask } of type.identifiers) {
+					if ((mask === undefined ? data[byteNr] : data[byteNr] & mask) !== value) {
 						identifiersMatch = false;
 						break;
 					}
@@ -126,18 +133,14 @@
 				requestingRadioModule: dv.getUint32(28),
 				requestingLocation: getDetectorLocationByRadioModuleSN(dv.getUint32(28))
 			} as CommissioningProbeResponseInfo;
-		} else if (packet.type?.name === PacketTypeNames.StartAlarm) {
-			// Alarm Start
+		} else if (packet.type && StatusChangePacketTypeNames.includes(packet.type.name)) {
+			// Status change (Start Alarm / Stop Alarm are its alarm-bit cases)
 			packet.specificInfo = {
-				startingSmokeDetector: dv.getUint32(32, true),
-				startingLocation: getDetectorLocationBySmokeDetectorSN(dv.getUint32(32, true))
-			} as AlarmStartInfo;
-		} else if (packet.type?.name === PacketTypeNames.StopAlarm) {
-			// Alarm Stop
-			packet.specificInfo = {
-				silencingSmokeDetector: dv.getUint32(32, true),
-				silencingLocation: getDetectorLocationBySmokeDetectorSN(dv.getUint32(32, true))
-			} as AlarmStopInfo;
+				setMask: dv.getUint16(28, true),
+				clearedMask: dv.getUint16(30, true),
+				smokeDetector: dv.getUint32(32, true),
+				location: getDetectorLocationBySmokeDetectorSN(dv.getUint32(32, true))
+			} as StatusChangeInfo;
 		}
 	}
 

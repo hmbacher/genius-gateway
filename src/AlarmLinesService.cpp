@@ -55,7 +55,7 @@ const uint8_t AlarmLinesService::_packet_base_linetest[] = {
     0x00,
     0x66,
     0x04,
-    0x00}; // 0x06: Start line test / 0x00 Stop line test (#28)
+    0x00}; // Test mode (#28): GENIUS_TEST_MODE_LINE_TEST (0x04) to start, GENIUS_TEST_MODE_STOP (0x00) to stop
 
 /// Base packet template for fire alarm operations
 const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
@@ -528,6 +528,13 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
     return ESP_OK;
 }
 
+esp_err_t AlarmLinesService::addAlarmLineFromPacket(uint32_t id)
+{
+    char name[40];
+    snprintf(name, sizeof(name), ALARMLINES_AUTO_NAME_FORMAT, (unsigned long)id);
+    return addAlarmLine(id, String(name), ALA_GENIUS_PACKET);
+}
+
 // ============================================================================
 // Private Methods - Event Emission
 // ============================================================================
@@ -605,10 +612,12 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
         size_t datalen = std::min(sizeof(_packet_base_linetest), sizeof(_txBuffer));
         memcpy(_txBuffer, _packet_base_linetest, datalen);
 
+        // A line test (about 15 minutes, this alarm line). Up to v1.5.0 the gateway sent 0x06
+        // here, which is the network test (about 30 minutes) - see GENIUS_TEST_MODE_*.
         if (action == "line-test-start")
-            _txBuffer[28] = 0x06; // Set line test start flag
+            _txBuffer[DATAPOS_LINE_TEST_START_STOP_FLAG] = GENIUS_TEST_MODE_LINE_TEST;
         else
-            _txBuffer[28] = 0x00; // Set line test stop flag
+            _txBuffer[DATAPOS_LINE_TEST_START_STOP_FLAG] = GENIUS_TEST_MODE_STOP;
 
         _txDataLength = datalen;
     }

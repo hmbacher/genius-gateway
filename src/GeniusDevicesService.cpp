@@ -84,6 +84,7 @@ void GeniusDevicesService::begin()
     // Register the event before the slow device load below: a WebSocket client that
     // reconnects early can then subscribe without an "unregistered event" warning.
     _eventSocket->registerEvent(HA_ENTITY_RENAME_EVENT);
+    _eventSocket->registerEvent(DEVICE_IMPORT_EVENT);
 
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
@@ -149,6 +150,30 @@ void GeniusDevicesService::begin()
                 {
                 case DeviceOpResult::OK:
                     return replyJson(request, 200, "{\"success\":true}");
+                case DeviceOpResult::NOT_FOUND:
+                    return replyJson(request, 404, "{\"success\":false,\"reason\":\"Device not found\"}");
+                case DeviceOpResult::INVALID_BODY:
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Invalid id\"}");
+                default:
+                    return replyJson(request, 500, "{\"success\":false}");
+                }
+            },
+            AuthenticationPredicates::IS_ADMIN));
+
+    // ---- Per-device: POST /rest/gateway-devices/device/reset-status  body: { id } ----
+    _server->on(
+        GATEWAY_DEVICES_RESET_STATUS_PATH,
+        HTTP_POST,
+        _securityManager->wrapCallback(
+            [this](PsychicRequest *request, JsonVariant &json) -> esp_err_t {
+                if (!json.is<JsonObject>() || !json["id"].is<uint32_t>())
+                    return replyJson(request, 400, "{\"success\":false,\"reason\":\"Missing id\"}");
+                GeniusDevice updated(GeniusSmokeDetectorInfo{}, GeniusRadioModuleInfo{}, String(), 0);
+                switch (this->resetStatus(json["id"].as<uint32_t>(), updated))
+                {
+                case DeviceOpResult::OK:
+                case DeviceOpResult::UNCHANGED:
+                    return replyDevice(request, updated);
                 case DeviceOpResult::NOT_FOUND:
                     return replyJson(request, 404, "{\"success\":false,\"reason\":\"Device not found\"}");
                 case DeviceOpResult::INVALID_BODY:
@@ -280,18 +305,29 @@ void GeniusDevicesService::begin()
     // Initialize cached alarm-publishing settings
     _updateAlarmPublishingSettingsCache();
 
-    /* Update alarming state after every device update */
+    // Status counters for the devices just loaded (readFromFS does not run the update handlers)
+    _updateStatusSummary();
+
+    /* Update alarming state and status summary after every device update */
     this->addUpdateHandler([&](const String &originId)
-                           { _updateAlarmingState(); },
+                           {
+                               _updateAlarmingState();
+                               _updateStatusSummary(); },
                            false);
 
-    /* Sync HA sub-devices after device list changes (not for packet-originated adds, alarm state
-     * or writes that only persist backend-owned values) */
+    /* Sync HA sub-devices after device list changes (not for packet-originated adds, alarm or
+     * status changes, or writes that only persist backend-owned values) */
     this->addUpdateHandler([&](const String &originId)
                            {
                                if (originId != GENIUS_DEVICE_ADDED_FROM_PACKET && originId != ALARM_STATE_CHANGE &&
-                                   originId != RSSI_SURVEY_UPDATE && originId != HA_ENTITY_ID_PREFIX_UPDATE)
+                                   originId != DEVICE_STATUS_CHANGE && originId != RSSI_SURVEY_UPDATE &&
+                                   originId != HA_ENTITY_ID_PREFIX_UPDATE)
                                {
+                                   // Import: the persistence handler was registered first (in the
+                                   // constructor) and has written the list to flash by now.
+                                   if (_isImportSync())
+                                       _emitImportEvent("saved");
+
                                    _syncSmokeDetectorSubDevices();
                                    if (_haService->isReady())
                                    {
@@ -307,7 +343,8 @@ void GeniusDevicesService::begin()
         _alarmPublishingSettings->addUpdateHandler([this](const String &originId)
                                                    {
                                                        this->_updateAlarmPublishingSettingsCache();
-                                                       this->mqttPublishSimpleAlarmState(); },
+                                                       this->mqttPublishSimpleAlarmState();
+                                                       this->mqttPublishSimpleFaultState(); },
                                                    false);
     }
 
@@ -365,6 +402,7 @@ bool GeniusDevicesService::AddGeniusDevice(const uint32_t snRadioModule,
 
     // Set registration type
     newDevice.registration = GDR_GENIUS_PACKET;
+    newDevice.logEvent(GDE_CREATED, GDR_GENIUS_PACKET);
     // A detector first seen in a packet has no entities in Home Assistant yet: its first
     // publish already carries the right entity IDs, so there is nothing to rename later.
     newDevice.haEntityIdPrefix = _entityIdPrefixFor(newDevice);
@@ -391,10 +429,8 @@ const GeniusDevice *GeniusDevicesService::setAlarm(uint32_t detectorSN)
             if (!device.isAlarming)
             {
                 device.isAlarming = true;
-                genius_device_alarm_t alarm = {.startTime = time(nullptr), // seconds precision
-                                               .endTime = 0,
-                                               .endingReason = GAE_ALARM_ACTIVE};
-                device.alarms.push_back(alarm);
+                device.status.startAlarm(time(nullptr)); // seconds precision
+                device.alarmCount++;
 
                 device.published = false; // Mark as not published for MQTT publishing
 
@@ -428,12 +464,7 @@ const GeniusDevice *GeniusDevicesService::resetAlarm(uint32_t detectorSN, genius
             {
                 device.isAlarming = false;
 
-                if (!device.alarms.empty())
-                {
-                    device.alarms.back().endTime = time(nullptr); // seconds precision
-                    device.alarms.back().endingReason = endingReason;
-                }
-                else
+                if (!device.status.endAlarm(time(nullptr), static_cast<uint32_t>(endingReason)))
                 {
                     ESP_LOGW(GeniusDevices::TAG, "No active alarm found for smoke detector with SN '%lu' when trying to reset alarm.", detectorSN);
                 }
@@ -468,12 +499,7 @@ bool GeniusDevicesService::resetAllAlarms()
         {
             device.isAlarming = false;
 
-            if (!device.alarms.empty())
-            {
-                device.alarms.back().endTime = time(nullptr); // seconds precision
-                device.alarms.back().endingReason = GAE_BY_MANUAL;
-            }
-            else
+            if (!device.status.endAlarm(time(nullptr), static_cast<uint32_t>(GAE_BY_MANUAL)))
             {
                 ESP_LOGW(GeniusDevices::TAG, "No active alarm found for smoke detector with SN '%lu' when trying to reset all alarms.", device.smokeDetector.sn);
             }
@@ -492,6 +518,53 @@ bool GeniusDevicesService::resetAllAlarms()
         callUpdateHandlers(ALARM_STATE_CHANGE);
 
     return updated;
+}
+
+const GeniusDevice *GeniusDevicesService::applyStatusChange(uint32_t detectorSN, uint32_t setMask, uint32_t clearedMask)
+{
+    setMask &= GENIUS_STATUS_TRACKED_MASK;
+    clearedMask &= GENIUS_STATUS_TRACKED_MASK;
+
+    GeniusDevice *updatedDevice = nullptr;
+    uint32_t deviceId = 0;
+
+    beginTransaction();
+
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (device.smokeDetector.sn != detectorSN)
+            continue;
+
+        const time_t now = time(nullptr);
+        const GeniusStatusDelta delta = device.status.apply(setMask, clearedMask, now, GDE_STATUS_PACKET);
+        if (delta.any())
+        {
+            // The log names what changed here, not what the packet carried - the many repeated
+            // and mesh-forwarded copies of one change add nothing.
+            device.status.addEvent({now, GDE_STATUS_PACKET, delta.set, delta.cleared | delta.removed, 0});
+            updatedDevice = &device;
+            deviceId = device.id;
+
+            ESP_LOGI(GeniusDevices::TAG, "Status of smoke detector with SN '%lu' changed (set 0x%04lX, cleared 0x%04lX) - active now 0x%04lX.",
+                     detectorSN, (unsigned long)delta.set, (unsigned long)(delta.cleared | delta.removed),
+                     (unsigned long)device.status.activeMask());
+        }
+        break;
+    }
+
+    endTransaction();
+
+    if (updatedDevice)
+    {
+        callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+        // HA: battery / fault / dismount entities
+        beginTransaction();
+        _publishSmokeDetectorAttributes(deviceId);
+        endTransaction();
+    }
+
+    return updatedDevice;
 }
 
 // ============================================================================
@@ -520,6 +593,38 @@ void GeniusDevicesService::_updateAlarmingState()
 
     if (changed)
         mqttPublishSimpleAlarmState();
+}
+
+void GeniusDevicesService::_updateStatusSummary()
+{
+    uint32_t numFaulty = 0;
+    uint32_t numBatteryLow = 0;
+
+    beginTransaction();
+    for (const GeniusDevice &device : _state.devices)
+    {
+        // Only active flags count - an unknown flag is not a fault.
+        const uint32_t active = device.status.activeMask();
+        if (active & GENIUS_STATUS_FAULT_MASK)
+            numFaulty++;
+        if (active & GENIUS_STATUS_BATT_LOW)
+            numBatteryLow++;
+    }
+    _numFaulty = numFaulty;
+    _numBatteryLow = numBatteryLow;
+    endTransaction();
+
+    // The payload names devices and their locations, so it can change without the counters
+    // changing - compare the whole payload. Only worth building while publishing is enabled.
+    if (!_cachedAlarmPublishingSettings.faultEnabled)
+        return;
+
+    beginTransaction();
+    const bool payloadChanged = _buildSimpleFaultPayload() != _lastFaultPayload;
+    endTransaction();
+
+    if (payloadChanged)
+        mqttPublishSimpleFaultState();
 }
 
 // ============================================================================
@@ -567,6 +672,22 @@ uint32_t GeniusDevicesService::numAlarmingDevices()
     endTransaction();
 
     return numAlarming;
+}
+
+uint32_t GeniusDevicesService::numFaultyDevices()
+{
+    beginTransaction();
+    uint32_t numFaulty = _numFaulty;
+    endTransaction();
+    return numFaulty;
+}
+
+uint32_t GeniusDevicesService::numBatteryLowDevices()
+{
+    beginTransaction();
+    uint32_t numBatteryLow = _numBatteryLow;
+    endTransaction();
+    return numBatteryLow;
 }
 
 bool GeniusDevicesService::isSmokeDetectorKnown(uint32_t detectorSN)
@@ -659,23 +780,203 @@ void GeniusDevicesService::persistRssiSurvey()
 // GeniusDevice JSON helpers (shared between bulk-POST and per-device endpoints)
 // ============================================================================
 
-std::vector<genius_device_alarm_t> GeniusDevice::parseAlarms(JsonArray jsonAlarms)
+void GeniusDevice::importLegacyAlarms(JsonArray jsonAlarms)
 {
-    std::vector<genius_device_alarm_t> result;
-    int count = 0;
+    uint32_t count = 0;
     for (JsonVariant jsonAlarm : jsonAlarms)
     {
-        if (count++ >= GATEWAY_MAX_ALARMS)
+        const time_t start = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>());
+        const time_t end = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>());
+        const int reason = jsonAlarm["endingReason"].as<int>();
+
+        GeniusDeviceEvent event = {};
+        event.time = start;
+        event.type = GDE_ALARM;
+        if (reason == GAE_ALARM_ACTIVE)
         {
-            ESP_LOGE(GeniusDevices::TAG, "Too many alarms for smoke detector device. Maximum allowed is %d.", GATEWAY_MAX_ALARMS);
-            break;
+            event.value = GENIUS_ALARM_RUNNING;
         }
-        result.push_back(genius_device_alarm_t{
-            .startTime = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>()),
-            .endTime = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>()),
-            .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
+        else
+        {
+            event.set = end > start ? static_cast<uint32_t>(end - start) : 0;
+            event.value = static_cast<uint32_t>(reason);
+        }
+        status.events.push_back(event);
+        count++;
     }
-    return result;
+    if (count == 0)
+        return;
+
+    // The alarms join whatever is in the log already (e.g. the readout the status was derived
+    // from): order by time first, then keep the newest entries.
+    status.sortEvents();
+    status.trimEvents();
+    alarmCount += count;
+}
+
+void GeniusDevice::detectorReplaced()
+{
+    status.forgetAll();
+    alarmCount = 0;
+    logEvent(GDE_CREATED, registration);
+}
+
+void GeniusDevice::statusToJson(JsonObject &root) const
+{
+    if (!status.flags.empty())
+    {
+        JsonArray arr = root["status"].to<JsonArray>();
+        for (const GeniusFlagState &state : status.flags)
+        {
+            JsonObject obj = arr.add<JsonObject>();
+            obj["flag"] = state.flag;
+            obj["active"] = state.active;
+            if (geniusTimeValid(state.since))
+                obj["since"] = Utils::time_t_to_iso8601(state.since);
+            obj["source"] = state.source;
+        }
+    }
+
+    if (!status.events.empty())
+    {
+        JsonArray arr = root["events"].to<JsonArray>();
+        for (const GeniusDeviceEvent &event : status.events)
+        {
+            JsonObject obj = arr.add<JsonObject>();
+            if (geniusTimeValid(event.time))
+                obj["time"] = Utils::time_t_to_iso8601(event.time);
+            obj["type"] = event.type;
+            switch (event.type)
+            {
+            case GDE_CREATED:
+                obj["registration"] = event.value;
+                break;
+            case GDE_READOUT:
+            case GDE_STATUS_PACKET:
+                obj["set"] = event.set;
+                obj["cleared"] = event.cleared;
+                break;
+            case GDE_MODULE_MISSING:
+                obj["cause"] = event.value;
+                break;
+            case GDE_ALARM:
+                if (event.value != GENIUS_ALARM_RUNNING && geniusTimeValid(event.time))
+                    obj["end"] = Utils::time_t_to_iso8601(event.time + event.set);
+                obj["endingReason"] = static_cast<int32_t>(event.value); // -1 while it lasts
+                break;
+            default:
+                break;
+            }
+        }
+    }
+}
+
+bool GeniusDevice::statusFromJson(JsonVariant src)
+{
+    const bool hasStatus = src["status"].is<JsonArray>();
+    const bool hasEvents = src["events"].is<JsonArray>();
+    if (!hasStatus && !hasEvents)
+        return false;
+
+    status.flags.clear();
+    status.events.clear();
+
+    if (hasStatus)
+    {
+        for (JsonVariant item : src["status"].as<JsonArray>())
+        {
+            const uint32_t flag = item["flag"].as<uint32_t>();
+            // exactly one storable bit, and each flag only once
+            if (flag == 0 || (flag & (flag - 1)) != 0 || !(flag & GENIUS_STATUS_STORED_MASK) || status.find(flag))
+                continue;
+            GeniusFlagState state = {};
+            state.flag = flag;
+            state.active = item["active"].as<bool>();
+            state.since = item["since"].is<String>() ? Utils::iso8601_to_time_t(item["since"].as<String>()) : 0;
+            state.source = item["source"].as<uint8_t>();
+            status.flags.push_back(state);
+        }
+    }
+
+    if (hasEvents)
+    {
+        for (JsonVariant item : src["events"].as<JsonArray>())
+        {
+            GeniusDeviceEvent event = {};
+            event.type = item["type"].as<uint8_t>();
+            if (event.type >= GDE_MAX)
+                continue;
+            event.time = item["time"].is<String>() ? Utils::iso8601_to_time_t(item["time"].as<String>()) : 0;
+            switch (event.type)
+            {
+            case GDE_CREATED:
+                event.value = item["registration"].as<uint32_t>();
+                break;
+            case GDE_READOUT:
+            case GDE_STATUS_PACKET:
+                event.set = item["set"].as<uint32_t>();
+                event.cleared = item["cleared"].as<uint32_t>();
+                break;
+            case GDE_MODULE_MISSING:
+                event.value = item["cause"].as<uint32_t>();
+                break;
+            case GDE_ALARM:
+            {
+                const int32_t reason = item["endingReason"].is<int>() ? item["endingReason"].as<int32_t>() : GAE_ALARM_ACTIVE;
+                event.value = reason == GAE_ALARM_ACTIVE ? GENIUS_ALARM_RUNNING : static_cast<uint32_t>(reason);
+                if (item["end"].is<String>())
+                {
+                    const time_t end = Utils::iso8601_to_time_t(item["end"].as<String>());
+                    event.set = end > event.time ? static_cast<uint32_t>(end - event.time) : 0;
+                }
+                break;
+            }
+            default:
+                break;
+            }
+            status.addEvent(event); // keeps the newest GENIUS_MAX_DEVICE_EVENTS
+        }
+    }
+    return true;
+}
+
+bool GeniusDevice::applyReadoutStatus()
+{
+    if (readoutTime == 0)
+        return false;
+
+    uint32_t bits = GENIUS_STATUS_READOUT_MASK;
+    // Old FM modules (FM.Basis / FM.Pro) report no radio status over SmartSonic - the readout's
+    // radio fault flag is just a default there and must not mark the radio link as OK.
+    if (isOldFmModule(radioModule.model))
+        bits &= ~GENIUS_STATUS_RADIO;
+
+    uint32_t fromReadout = 0;
+    if (smokeDetector.batteryLowFault)
+        fromReadout |= GENIUS_STATUS_BATT_LOW;
+    if (smokeDetector.deviceFault)
+        fromReadout |= GENIUS_STATUS_ERROR;
+    if (radioModule.radioNetworkFault)
+        fromReadout |= GENIUS_STATUS_RADIO;
+
+    // A readout reports its flags completely: each one is either active or OK. It is always
+    // logged, also when it only confirms what is known.
+    const uint32_t reportedActive = fromReadout & bits;
+    const uint32_t reportedOk = ~fromReadout & bits;
+    const GeniusStatusDelta delta = status.apply(reportedActive, reportedOk, readoutTime, GDE_READOUT);
+    status.addEvent({readoutTime, GDE_READOUT, reportedActive, reportedOk, 0});
+
+    // The three flags are input only. They went into the status and the log above and are not
+    // kept as a second, ageing copy next to them.
+    smokeDetector.batteryLowFault = false;
+    smokeDetector.deviceFault = false;
+    radioModule.radioNetworkFault = false;
+    return delta.any();
+}
+
+void GeniusDevice::logEvent(genius_device_event_t type, uint32_t value)
+{
+    status.addEvent({time(nullptr), static_cast<uint8_t>(type), 0, 0, value});
 }
 
 bool GeniusDevice::buildFromJson(JsonVariant src, GeniusDevice &out)
@@ -704,10 +1005,17 @@ bool GeniusDevice::buildFromJson(JsonVariant src, GeniusDevice &out)
                                      ? src["readoutProtocolVersion"].as<uint8_t>()
                                      : 0;
 
-    if (src["alarms"].is<JsonArray>())
-        out.alarms = parseAlarms(src["alarms"].as<JsonArray>());
-
     // haEntityIdPrefix is backend-owned and deliberately not read from the client's JSON.
+    // Status and activity log as stored (import); without them (new device, older export) the
+    // status is derived from the readout
+    if (!out.statusFromJson(src))
+        out.applyReadoutStatus();
+
+    // Exports from before v1.6.0 carry the alarms as a list of their own
+    if (src["alarms"].is<JsonArray>())
+        out.importLegacyAlarms(src["alarms"].as<JsonArray>());
+    if (src["alarmCount"].is<uint32_t>())
+        out.alarmCount = src["alarmCount"].as<uint32_t>();
 
     out.published = false; // new device - needs publish
     return true;
@@ -745,6 +1053,9 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
     if (this->smokeDetector.sn != newSD.sn)
     {
         this->smokeDetector.sn = newSD.sn;
+        // Another smoke detector: status, activity log and alarm counter of the old one do not
+        // hold for it. A readout that comes with the change is applied below.
+        this->detectorReplaced();
         changed = true;
     }
     if (this->smokeDetector.productionDate != newSD.productionDate)
@@ -788,6 +1099,9 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
         this->radioModule = newRM;
         if (src["registration"].is<int>())
             this->registration = static_cast<genius_device_registration_t>(src["registration"].as<int>());
+        // A fresh readout is the newest word on battery and faults - take them over as current
+        // status. The client's "status" object itself is ignored: status is backend-owned, like RSSI.
+        this->applyReadoutStatus();
         changed = true;
     }
 
@@ -798,22 +1112,16 @@ bool GeniusDevice::mergeFromJson(JsonVariant src)
         changed = true;
     }
 
-    if (src["alarms"].is<JsonArray>())
-    {
-        auto newAlarms = parseAlarms(src["alarms"].as<JsonArray>());
-        if (this->alarms != newAlarms)
-        {
-            this->alarms = std::move(newAlarms);
-            changed = true;
-        }
-    }
-
+    // The alarms are entries of the activity log, which is backend-owned like the status: a
+    // client cannot change them.
     if (src["isAlarming"].is<bool>())
     {
         bool newIsAlarming = src["isAlarming"].as<bool>();
         if (this->isAlarming != newIsAlarming)
         {
             this->isAlarming = newIsAlarming;
+            if (!newIsAlarming)
+                this->status.endAlarm(time(nullptr), static_cast<uint32_t>(GAE_BY_IMPORT));
             changed = true;
         }
     }
@@ -893,6 +1201,14 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
         hasChanges = true; // force save with new version
     }
 
+    // v3: the alarms moved into the activity log ("events"), the status is kept per flag. Both
+    // are converted while the devices are read below - only the write-back has to be forced.
+    if (configVersion < 3 && originId == GATEWAY_DEVICES_FILE)
+    {
+        ESP_LOGI(GeniusDevices::TAG, "Migrating device config from v%d to v%d.", configVersion, GATEWAY_DEVICES_CONFIG_VERSION);
+        hasChanges = true; // force save with new version
+    }
+
     JsonArray jsonDevices = root["devices"].as<JsonArray>();
     std::vector<GeniusDevice, PsramAllocator<GeniusDevice>> newDevicesVector; // Build new devices vector in JSON order
     std::vector<uint32_t> processedDeviceIds;   // Track which device IDs we've seen in JSON
@@ -949,24 +1265,16 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
             newDevice.readoutProtocolVersion = jsonDeviceArrItem["readoutProtocolVersion"].is<int>()
                 ? jsonDeviceArrItem["readoutProtocolVersion"].as<uint8_t>() : 0;
 
-            // Process alarms
-            if (jsonDeviceArrItem["alarms"].is<JsonArray>())
-            {
-                int alarms_count = 0;
-                for (JsonVariant jsonAlarm : jsonDeviceArrItem["alarms"].as<JsonArray>())
-                {
-                    if (alarms_count++ >= GATEWAY_MAX_ALARMS)
-                    {
-                        ESP_LOGE(GeniusDevices::TAG, "Too many alarms for smoke detector device. Maximum allowed is %d.", GATEWAY_MAX_ALARMS);
-                        break;
-                    }
+            // Status as stored; without one derive it from the readout - on the first boot after
+            // the upgrade this gives read-out devices their battery / fault status right away.
+            if (!newDevice.statusFromJson(jsonDeviceArrItem))
+                newDevice.applyReadoutStatus();
 
-                    newDevice.alarms.push_back(genius_device_alarm_t{
-                        .startTime = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>()),
-                        .endTime = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>()),
-                        .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
-                }
-            }
+            // Files from before v1.6.0 carry the alarms as a list of their own
+            if (jsonDeviceArrItem["alarms"].is<JsonArray>())
+                newDevice.importLegacyAlarms(jsonDeviceArrItem["alarms"].as<JsonArray>());
+            if (jsonDeviceArrItem["alarmCount"].is<uint32_t>())
+                newDevice.alarmCount = jsonDeviceArrItem["alarmCount"].as<uint32_t>();
 
             // The entity-ID prefix announced to Home Assistant is backend-owned: restore it
             // from the config file, never accept it from a client.
@@ -1008,6 +1316,7 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 ESP_LOGD(GeniusDevices::TAG, "Device @ '%s': SD SN %lu->%lu", updatedDevice.location.c_str(),
                          updatedDevice.smokeDetector.sn, newSD.sn);
                 updatedDevice.smokeDetector.sn = newSD.sn;
+                updatedDevice.detectorReplaced(); // another smoke detector: status, log and alarm counter start over
                 deviceChanged = true;
             }
             if (updatedDevice.smokeDetector.productionDate != newSD.productionDate)
@@ -1042,6 +1351,8 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 // Upgrade registration when an acoustic readout arrives for a manually/packet-added device
                 if (jsonDeviceArrItem["registration"].is<int>())
                     updatedDevice.registration = static_cast<genius_device_registration_t>(jsonDeviceArrItem["registration"].as<int>());
+                // Fresh readout: take battery and faults over as current status (status is backend-owned otherwise)
+                updatedDevice.applyReadoutStatus();
                 deviceChanged = true;
             }
 
@@ -1055,29 +1366,7 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 deviceChanged = true;
             }
 
-            // Update alarms
-            if (jsonDeviceArrItem["alarms"].is<JsonArray>())
-            {
-                std::vector<genius_device_alarm_t> newAlarms;
-                int alarms_count = 0;
-                for (JsonVariant jsonAlarm : jsonDeviceArrItem["alarms"].as<JsonArray>())
-                {
-                    if (alarms_count++ >= GATEWAY_MAX_ALARMS)
-                    {
-                        ESP_LOGE(GeniusDevices::TAG, "Too many alarms for smoke detector device. Maximum allowed is %d.", GATEWAY_MAX_ALARMS);
-                        break;
-                    }
-                    newAlarms.push_back(genius_device_alarm_t{
-                        .startTime = Utils::iso8601_to_time_t(jsonAlarm["startTime"].as<String>()),
-                        .endTime = Utils::iso8601_to_time_t(jsonAlarm["endTime"].as<String>()),
-                        .endingReason = static_cast<genius_alarm_ending_t>(jsonAlarm["endingReason"].as<int>())});
-                }
-                if (updatedDevice.alarms != newAlarms)
-                {
-                    updatedDevice.alarms = newAlarms;
-                    deviceChanged = true;
-                }
-            }
+            // The alarms are entries of the activity log, which is backend-owned: not taken from a client.
 
             // Update isAlarming from frontend (frontend is responsible for correct state, e.g. clearing on import)
             if (jsonDeviceArrItem["isAlarming"].is<bool>())
@@ -1086,6 +1375,8 @@ StateUpdateResult GeniusDevices::update(JsonObject &root, GeniusDevices &geniusD
                 if (updatedDevice.isAlarming != newIsAlarming)
                 {
                     updatedDevice.isAlarming = newIsAlarming;
+                    if (!newIsAlarming)
+                        updatedDevice.status.endAlarm(time(nullptr), static_cast<uint32_t>(GAE_BY_IMPORT));
                     deviceChanged = true;
                 }
             }
@@ -1346,9 +1637,12 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
     sensor->setName("Smoke Detector");
     HABinarySensor *rawSensor = dev->registerControl(std::move(sensor));
 
-    // ---- Diagnostics grouped publisher - all 13 readout entities share one state topic ----
-    // Availability is folded into the JSON: {"available": bool, ...fields}
-    // Entities show "unavailable" in HA until the first acoustic readout arrives.
+    // ---- Diagnostics grouped publisher - status and readout entities share one state topic ----
+    // Availability is folded into the JSON, in two flavours:
+    //   - status entities (battery, detector/radio fault, dismount): their field is present once
+    //     the flag's state is known - from a received status change, a readout or a manual reset
+    //   - readout entities: {"available": bool}, true once an acoustic readout exists
+    // Until then, HA shows them as "unavailable" rather than suggesting an OK nobody confirmed.
     HADevice *rawDev = _haService->addSubDevice(std::move(dev));
 
     auto diag = std::make_unique<HAGroupedSensorPublisher>(
@@ -1359,16 +1653,30 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
             for (const auto &dev : _state.devices)
                 if (dev.id == devId) { d = &dev; break; }
 
-            if (!d || d->readoutTime == 0) {
+            if (!d) {
+                state["available"] = false;
+                endTransaction();
+                return;
+            }
+
+            // Status entities: current status, each flag only once known
+            const uint32_t known = d->status.knownMask();
+            const uint32_t flags = d->status.activeMask();
+            if (known & GENIUS_STATUS_BATT_LOW) state["battery_low"]  = (flags & GENIUS_STATUS_BATT_LOW) != 0;
+            if (known & GENIUS_STATUS_ERROR)    state["device_fault"] = (flags & GENIUS_STATUS_ERROR) != 0;
+            // A radio module that other detectors report as missing is a radio problem of this detector too
+            const uint32_t radioFlags = GENIUS_STATUS_RADIO | GENIUS_STATUS_REPORTED_MISSING;
+            if (known & radioFlags)             state["radio_fault"]  = (flags & radioFlags) != 0;
+            if (known & GENIUS_STATUS_DISMOUNT) state["dismounted"]   = (flags & GENIUS_STATUS_DISMOUNT) != 0;
+
+            // Readout entities
+            if (d->readoutTime == 0) {
                 state["available"] = false;
                 endTransaction();
                 return;
             }
 
             state["available"]           = true;
-            state["battery_low"]         = d->smokeDetector.batteryLowFault;
-            state["device_fault"]        = d->smokeDetector.deviceFault;
-            state["radio_fault"]         = d->radioModule.radioNetworkFault;
             state["deinstall_count"]     = d->smokeDetector.deinstallationCount;
             state["last_readout"]        = Utils::time_t_to_iso8601(d->readoutTime);
             const char *rmName = radioModuleModelName(d->radioModule.model);
@@ -1399,24 +1707,36 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         c["availability_topic"]   = "~/diagnostics/state";
         c["availability_template"] = "{{ 'online' if value_json.available else 'offline' }}";
     };
+    // Status entities are available as soon as their own field is present (flag state known)
+    auto statusAvailConfig = [](JsonObject &c, const char *field) {
+        const String availTemplate = String("{{ 'online' if value_json.") + field + " is defined else 'offline' }}";
+        c["availability_topic"]    = "~/diagnostics/state";
+        c["availability_template"] = availTemplate;
+    };
 
     diag->addSensor("binary_sensor", "battery_low", "Battery", "", HACategory::Diagnostic,
-        [availConfig](JsonObject &c) {
+        [statusAvailConfig](JsonObject &c) {
             c["value_template"] = "{{ 'ON' if value_json.battery_low else 'OFF' }}";
             c["device_class"]   = "battery";
-            availConfig(c);
+            statusAvailConfig(c, "battery_low");
         })
     .addSensor("binary_sensor", "device_fault", "Smoke Detector State", "", HACategory::Diagnostic,
-        [availConfig](JsonObject &c) {
+        [statusAvailConfig](JsonObject &c) {
             c["value_template"] = "{{ 'ON' if value_json.device_fault else 'OFF' }}";
             c["device_class"]   = "problem";
-            availConfig(c);
+            statusAvailConfig(c, "device_fault");
         })
     .addSensor("binary_sensor", "radio_fault", "Radio Module State", "", HACategory::Diagnostic,
-        [availConfig](JsonObject &c) {
+        [statusAvailConfig](JsonObject &c) {
             c["value_template"] = "{{ 'ON' if value_json.radio_fault else 'OFF' }}";
             c["device_class"]   = "problem";
-            availConfig(c);
+            statusAvailConfig(c, "radio_fault");
+        })
+    .addSensor("binary_sensor", "dismounted", "Dismount", "", HACategory::Diagnostic,
+        [statusAvailConfig](JsonObject &c) {
+            c["value_template"] = "{{ 'ON' if value_json.dismounted else 'OFF' }}";
+            c["device_class"]   = "tamper";
+            statusAvailConfig(c, "dismounted");
         })
     .addSensor("sensor", "deinstallation_count", "Deinstallation Count", "mdi:autorenew", HACategory::Diagnostic,
         [availConfig](JsonObject &c) {
@@ -1480,7 +1800,7 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
     _haDevices[device.id] = {rawDev, rawSensor, std::move(diag)};
 
     // For devices added at runtime (e.g. via REST POST while MQTT is live):
-    // publishAll() sends both the discovery config for all 13 entities AND the
+    // publishAll() sends both the discovery config for all diagnostic entities AND the
     // initial state. begin() only registers a future onPublishAll callback and
     // does not publish immediately, so calling it alone would silently skip the
     // diagnostic configs for dynamically added devices.
@@ -1581,7 +1901,12 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices(bool requestRename, std:
     }
 
     if (renamePending && requestRename)
-        _requestEntityIdRename();
+    {
+        // A sync that belongs to an import: the user asked for an import, not for a rename.
+        // The cycle runs in the background - the import dialog of the web interface reports
+        // it as one of its steps instead of the rename progress dialog.
+        _requestEntityIdRename(_isImportSync());
+    }
 }
 
 bool GeniusDevicesService::_publishSmokeDetectorDiscovery(uint32_t deviceId, String *announcedPrefix)
@@ -1615,10 +1940,14 @@ bool GeniusDevicesService::_publishSmokeDetectorDiscovery(uint32_t deviceId, Str
 // Private Methods - HA Entity-ID Rename
 // ============================================================================
 
-void GeniusDevicesService::_requestEntityIdRename()
+void GeniusDevicesService::_requestEntityIdRename(bool background)
 {
+    // One bit per kind of request, so an announced request is not lost behind a background
+    // one that is still waiting for the task.
     if (_haRenameTaskHandle != nullptr)
-        xTaskNotifyGive(_haRenameTaskHandle);
+        xTaskNotify(_haRenameTaskHandle,
+                    background ? HA_RENAME_NOTIFY_BACKGROUND : HA_RENAME_NOTIFY_ANNOUNCED,
+                    eSetBits);
 }
 
 void GeniusDevicesService::_haRenameTask()
@@ -1626,7 +1955,10 @@ void GeniusDevicesService::_haRenameTask()
     ESP_LOGI(GeniusDevices::TAG, "HA entity-ID rename task started.");
     while (true)
     {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        uint32_t requests = 0;
+        xTaskNotifyWait(0, UINT32_MAX, &requests, portMAX_DELAY);
+        // In the background only if nothing else asked for this cycle
+        const bool background = (requests & HA_RENAME_NOTIFY_ANNOUNCED) == 0;
 
         // The HA settings were applied: refresh name and entity-ID prefix of every detector
         // here instead of in the HTTP task. The sync does not notify this task again -
@@ -1638,7 +1970,7 @@ void GeniusDevicesService::_haRenameTask()
             _syncSmokeDetectorSubDevices(false, &republish);
         }
 
-        _runEntityIdRename();
+        _runEntityIdRename(background);
 
         // Detectors that keep their entity IDs but changed otherwise - the rename option
         // changes the display name of every detector. They are sent after the rename, so
@@ -1660,25 +1992,38 @@ void GeniusDevicesService::_haRenameTask()
     }
 }
 
-void GeniusDevicesService::_emitEntityRenameEvent(const char *state, uint32_t count)
+void GeniusDevicesService::_emitEntityRenameEvent(const char *state, uint32_t count, const std::vector<String> &names, bool background)
 {
     JsonDocument jsonDoc;
     JsonObject jsonRoot = jsonDoc.to<JsonObject>();
     jsonRoot["state"] = state;
     jsonRoot["count"] = count;
+    // A rename can start without the user having asked for it on this page (import, option
+    // switched on, catch-up after a reconnect), so the event says which detectors are meant.
+    JsonArray jsonNames = jsonRoot["detectors"].to<JsonArray>();
+    for (const String &name : names)
+        jsonNames.add(name);
+    // Caused by an import: the web interface shows no progress, only what could not be sent
+    if (background)
+        jsonRoot["background"] = true;
     _eventSocket->emitEvent(HA_ENTITY_RENAME_EVENT, jsonRoot);
 }
 
-void GeniusDevicesService::_runEntityIdRename()
+void GeniusDevicesService::_runEntityIdRename(bool background)
 {
     // ---- Collect the detectors whose announced prefix differs from the desired one ----
     std::vector<uint32_t> targets;
+    std::vector<String> names; // locations of the first detectors, for the progress event
 
     beginTransaction();
     for (const GeniusDevice &device : _state.devices)
     {
         if (_isEntityIdRenamePending(device) && _haDevices.count(device.id))
+        {
             targets.push_back(device.id);
+            if (names.size() < HA_ENTITY_RENAME_EVENT_MAX_NAMES)
+                names.push_back(device.location);
+        }
     }
     endTransaction();
 
@@ -1693,12 +2038,12 @@ void GeniusDevicesService::_runEntityIdRename()
         // next MQTT connect finds the same detectors again - also across a reboot.
         ESP_LOGI(GeniusDevices::TAG, "HA entity-ID rename of %lu detector(s) deferred until MQTT is connected.",
                  (unsigned long)count);
-        _emitEntityRenameEvent("deferred", count);
+        _emitEntityRenameEvent("deferred", count, names, background);
         return;
     }
 
     ESP_LOGI(GeniusDevices::TAG, "Renaming the HA entities of %lu detector(s).", (unsigned long)count);
-    _emitEntityRenameEvent("started", count);
+    _emitEntityRenameEvent("started", count, names, background);
 
     // ---- Step 1: clear the retained discovery configs, so HA removes the entities ----
     // The HADevices already carry the new identity (written by the sync), so a concurrent
@@ -1708,7 +2053,7 @@ void GeniusDevicesService::_runEntityIdRename()
     // The retained diagnostics state stays on the broker: HA reads it the moment the
     // entities are back, so they do not sit at "unavailable" until the republished state
     // has trickled through the MQTT outbox.
-    _emitEntityRenameEvent("removing", count);
+    _emitEntityRenameEvent("removing", count, names, background);
     for (uint32_t deviceId : targets)
     {
         beginTransaction();
@@ -1726,18 +2071,18 @@ void GeniusDevicesService::_runEntityIdRename()
     if (!_haService->isReady())
     {
         ESP_LOGW(GeniusDevices::TAG, "MQTT connection lost while removing HA entities - the rename is repeated on the next connect.");
-        _emitEntityRenameEvent("failed", count);
+        _emitEntityRenameEvent("failed", count, names, background);
         return;
     }
 
     // ---- Step 2: give HA time to finish the removal - without holding the mutex ----
     // HA remembers removed entities and restores their old entity_id when the same
     // unique_id comes back, unless the new config carries a different default_entity_id.
-    _emitEntityRenameEvent("waiting", count);
+    _emitEntityRenameEvent("waiting", count, names, background);
     vTaskDelay(pdMS_TO_TICKS(HA_ENTITY_RENAME_SETTLE_MS));
 
     // ---- Step 3: publish again and remember what was announced ----
-    _emitEntityRenameEvent("publishing", count);
+    _emitEntityRenameEvent("publishing", count, names, background);
     uint32_t sent = 0;
     bool prefixStored = false;
     for (uint32_t deviceId : targets)
@@ -1781,13 +2126,13 @@ void GeniusDevicesService::_runEntityIdRename()
     {
         // HA does not acknowledge discovery messages: "sent" is all that can be claimed.
         ESP_LOGI(GeniusDevices::TAG, "New HA entity IDs of %lu detector(s) sent.", (unsigned long)count);
-        _emitEntityRenameEvent("sent", count);
+        _emitEntityRenameEvent("sent", count, names, background);
     }
     else
     {
         ESP_LOGW(GeniusDevices::TAG, "HA entity-ID rename incomplete (%lu of %lu detector(s) published) - the rest is repeated on the next connect.",
                  (unsigned long)sent, (unsigned long)count);
-        _emitEntityRenameEvent("failed", count);
+        _emitEntityRenameEvent("failed", count, names, background);
     }
 
     // A full cycle is the deepest this task ever goes (JSON document, MQTT publish, log
@@ -1850,6 +2195,97 @@ void GeniusDevicesService::mqttPublishSimpleAlarmState()
     }
 }
 
+/**
+ * @brief Builds the simple fault topic payload
+ *
+ * {"numFaulty": n, "numBatteryLow": n, "devices": [{"sn": ..., "location": "...", "status": ["battery_low", ...]}]}
+ *
+ * Lists exactly the devices that count in numFaulty: those with at least one active fault.
+ * "status" names their faults by the key from GENIUS_STATUS_FLAGS. Other active flags of such a
+ * device (a fault muted on the detector, flags not known yet as "flag_0xNNNN") follow in an
+ * optional "info" list, so nothing is swallowed.
+ */
+String GeniusDevicesService::_buildSimpleFaultPayload()
+{
+    JsonDocument doc;
+
+    beginTransaction();
+    doc["numFaulty"] = _numFaulty;
+    doc["numBatteryLow"] = _numBatteryLow;
+    JsonArray devices = doc["devices"].to<JsonArray>();
+    for (const GeniusDevice &device : _state.devices)
+    {
+        const uint32_t active = device.status.activeMask();
+        const uint32_t faults = active & GENIUS_STATUS_FAULT_MASK;
+        if (faults == 0)
+            continue; // list and counters name the same devices
+
+        JsonObject entry = devices.add<JsonObject>();
+        entry["sn"] = device.smokeDetector.sn;
+        entry["location"] = device.location;
+        JsonArray flags = entry["status"].to<JsonArray>();
+        JsonArray others; // created with the first flag that is no fault
+        for (uint32_t bit = 1; bit != 0; bit <<= 1)
+        {
+            if (!(active & bit))
+                continue;
+
+            char key[20];
+            const GeniusStatusFlagInfo *info = geniusStatusFlagInfo(bit);
+            if (info)
+                snprintf(key, sizeof(key), "%s", info->key);
+            else
+                snprintf(key, sizeof(key), "flag_0x%04lX", (unsigned long)bit);
+
+            if (faults & bit)
+            {
+                flags.add(key);
+            }
+            else
+            {
+                if (others.isNull())
+                    others = entry["info"].to<JsonArray>();
+                others.add(key);
+            }
+        }
+    }
+    endTransaction();
+
+    String payload;
+    serializeJson(doc, payload);
+    return payload;
+}
+
+/**
+ * @brief Publishes the smoke detectors' status summary to the simple fault MQTT topic
+ *
+ * Retained, so subscribers always get the current state. Independent of Home Assistant
+ * integration. Called whenever the payload changes (see _updateStatusSummary()), on MQTT
+ * connect from GeniusGateway::_mqttPublishTask() and when the publishing settings change.
+ */
+void GeniusDevicesService::mqttPublishSimpleFaultState()
+{
+    if (!_cachedAlarmPublishingSettings.faultEnabled)
+        return;
+
+    if (_mqttClient == nullptr || !_mqttClient->connected())
+        return;
+
+    if (_cachedAlarmPublishingSettings.faultTopic.isEmpty())
+    {
+        ESP_LOGE(GeniusDevices::TAG, "Fault MQTT topic is empty. Cannot publish fault state.");
+        return;
+    }
+
+    beginTransaction(); // guards _lastFaultPayload against concurrent publishers
+    String payload = _buildSimpleFaultPayload();
+    if (_mqttClient->publish(_cachedAlarmPublishingSettings.faultTopic.c_str(), 0, true, payload.c_str()) == -1)
+        ESP_LOGE(GeniusDevices::TAG, "Failed to publish simple fault state.");
+    else
+        _lastFaultPayload = payload;
+    endTransaction();
+}
+
 // ============================================================================
 // Private Methods - Settings Management
 // ============================================================================
@@ -1864,7 +2300,23 @@ void GeniusDevicesService::_updateAlarmPublishingSettingsCache()
 {
     if (_alarmPublishingSettings != nullptr)
     {
+        const bool faultWasEnabled = _cachedAlarmPublishingSettings.faultEnabled;
+        const String oldFaultTopic = _cachedAlarmPublishingSettings.faultTopic;
+
         _cachedAlarmPublishingSettings = _alarmPublishingSettings->getSettingsCopy();
+
+        // Fault publishing was switched off or moved to another topic: remove the retained
+        // summary from the old topic, so no subscriber keeps reading a state that is no longer
+        // maintained.
+        if (faultWasEnabled && !oldFaultTopic.isEmpty() &&
+            (!_cachedAlarmPublishingSettings.faultEnabled || _cachedAlarmPublishingSettings.faultTopic != oldFaultTopic))
+        {
+            if (_mqttClient != nullptr && _mqttClient->connected())
+                _mqttClient->publish(oldFaultTopic.c_str(), 0, true, "");
+            beginTransaction();
+            _lastFaultPayload = String();
+            endTransaction();
+        }
         ESP_LOGV(GeniusDevices::TAG, "Updated cached alarm-publishing settings (alarmEnabled: %d, topic: %s)",
                  _cachedAlarmPublishingSettings.alarmEnabled,
                  _cachedAlarmPublishingSettings.alarmTopic.c_str());
@@ -1913,6 +2365,7 @@ GeniusDevicesService::upsertDevice(JsonVariant deviceJson, GeniusDevice &out)
         // A detector that is new to the gateway has no entities in Home Assistant yet: its
         // first publish already carries the right entity IDs, so there is nothing to rename.
         newDevice.haEntityIdPrefix = _entityIdPrefixFor(newDevice);
+        newDevice.logEvent(GDE_CREATED, newDevice.registration);
         _state.devices.push_back(std::move(newDevice));
         out = _state.devices.back();
         stateChanged = true;
@@ -1949,6 +2402,52 @@ GeniusDevicesService::removeDevice(uint32_t deviceId)
 
     callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
     return DeviceOpResult::OK;
+}
+
+GeniusDevicesService::DeviceOpResult
+GeniusDevicesService::resetStatus(uint32_t deviceId, GeniusDevice &out)
+{
+    if (deviceId == 0)
+        return DeviceOpResult::INVALID_BODY;
+
+    DeviceOpResult result = DeviceOpResult::NOT_FOUND;
+
+    beginTransaction();
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (device.id != deviceId)
+            continue;
+
+        const uint32_t active = device.status.activeMask();
+        if (active != 0)
+        {
+            ESP_LOGI(GeniusDevices::TAG, "Status of smoke detector with SN '%lu' reset manually (was 0x%04lX).",
+                     device.smokeDetector.sn, (unsigned long)active);
+            // The active flags become unknown, not OK: the gateway cannot check that the fault
+            // is gone, and the detector does not announce a fault that persists a second time.
+            device.status.reset();
+            device.logEvent(GDE_STATUS_RESET);
+            result = DeviceOpResult::OK;
+        }
+        else
+        {
+            result = DeviceOpResult::UNCHANGED;
+        }
+        out = device;
+        break;
+    }
+    endTransaction();
+
+    if (result == DeviceOpResult::OK)
+    {
+        callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+        beginTransaction();
+        _publishSmokeDetectorAttributes(deviceId);
+        endTransaction();
+    }
+
+    return result;
 }
 
 GeniusDevicesService::DeviceOpResult
@@ -2160,8 +2659,67 @@ GeniusDevicesService::importCommit(const String &token)
     if (_postCommitTaskHandle)
         xTaskNotifyGive(_postCommitTaskHandle);
     else
-        callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID); // fallback if task wasn't created
+        _runPostCommit(); // fallback if task wasn't created
     return ImportResult::OK;
+}
+
+void GeniusDevicesService::_runPostCommit()
+{
+    // The handlers run in this task. Marking it lets the sync handler tell an import from an
+    // edit, although both arrive with the same origin id.
+    _importSyncTask = xTaskGetCurrentTaskHandle();
+    callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
+    _importSyncTask = nullptr;
+
+    _emitImportEvent("done");
+}
+
+void GeniusDevicesService::_emitImportEvent(const char *state)
+{
+    JsonDocument jsonDoc;
+    JsonObject jsonRoot = jsonDoc.to<JsonObject>();
+    jsonRoot["state"] = state;
+
+    if (strcmp(state, "saved") == 0)
+    {
+        // Whether a Home Assistant step follows at all
+        jsonRoot["ha"] = _haService->isEnabled();
+    }
+    else
+    {
+        // What was done for Home Assistant. Discovery messages are not acknowledged, so
+        // "sent" is all that can be claimed.
+        const char *ha = "sent";
+        if (!_haService->isEnabled())
+        {
+            ha = "disabled";
+        }
+        else if (!_haService->isReady())
+        {
+            ha = "offline"; // nothing was sent; the next MQTT connect publishes everything
+        }
+        else
+        {
+            // Detectors whose entity IDs still have to change are handled by the rename task,
+            // which reports the end of its (background) cycle with HA_ENTITY_RENAME_EVENT.
+            bool renamePending = false;
+            beginTransaction();
+            for (const GeniusDevice &device : _state.devices)
+            {
+                if (_isEntityIdRenamePending(device) && _haDevices.count(device.id))
+                {
+                    renamePending = true;
+                    break;
+                }
+            }
+            endTransaction();
+            if (renamePending)
+                ha = "renaming";
+        }
+        jsonRoot["ha"] = ha;
+    }
+
+    _eventSocket->emitEvent(DEVICE_IMPORT_EVENT, jsonRoot);
 }
 
 void GeniusDevicesService::_postCommitTask()
@@ -2171,7 +2729,7 @@ void GeniusDevicesService::_postCommitTask()
     {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         ESP_LOGI(GeniusDevices::TAG, "post-commit: running deferred FS write + HA sync.");
-        callUpdateHandlers(HTTP_ENDPOINT_ORIGIN_ID);
+        _runPostCommit();
         ESP_LOGI(GeniusDevices::TAG, "post-commit: deferred work complete.");
     }
 }

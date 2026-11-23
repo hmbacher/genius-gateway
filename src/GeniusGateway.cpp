@@ -103,6 +103,7 @@ void GeniusGateway::begin()
     _cc1101Controller.begin();
     _alarmBlocker.begin();
     _eventSocket->registerEvent(GATEWAY_EVENT_ALARM);
+    _eventSocket->registerEvent(GATEWAY_EVENT_DEVICE_STATUS);
     _eventSocket->registerEvent(GATEWAY_EVENT_CONFIG_CHECK_PROBE);
 
     /* ConfigCheckProbe survey: mutex guarding the session state. The response window and
@@ -119,6 +120,14 @@ void GeniusGateway::begin()
     _gatewayDeviceMqttService.begin();
     /* Initialize Gateway Devices Service */
     _geniusDevices.begin();
+    /* Tell the front end whenever a smoke detector's status changes - received over the air or
+     * reset manually. Both paths update the devices with the DEVICE_STATUS_CHANGE origin. The
+     * event is sent by the event task: the handler runs in the packet reception task. */
+    _geniusDevices.addUpdateHandler([this](const String &originId)
+                                    {
+                                        if (originId == DEVICE_STATUS_CHANGE)
+                                            _requestDeviceStatusEmit(); },
+                                    false);
     /* Initialize Alarm Lines Service */
     _alarmLines.begin();
     /* Initialize WS Logger */
@@ -285,19 +294,42 @@ void GeniusGateway::_emitAlarmState()
 void GeniusGateway::_requestAlarmStateEmit()
 {
     if (_alarmEventTaskHandle != nullptr)
-        xTaskNotifyGive(_alarmEventTaskHandle);
+        xTaskNotify(_alarmEventTaskHandle, EVENT_TASK_ALARM_STATE, eSetBits);
     else
         _emitAlarmState();
+}
+
+void GeniusGateway::_requestDeviceStatusEmit()
+{
+    if (_alarmEventTaskHandle != nullptr)
+        xTaskNotify(_alarmEventTaskHandle, EVENT_TASK_DEVICE_STATUS, eSetBits);
+    else
+        _emitDeviceStatus();
 }
 
 void GeniusGateway::_alarmEventTask()
 {
     while (1)
     {
-        // Block until the reception task asks for it
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        _emitAlarmState();
+        // Block until an event is asked for. Requests that arrive while one is being sent are
+        // kept as bits and lead to one more event with the latest state.
+        uint32_t requested = 0;
+        xTaskNotifyWait(0, UINT32_MAX, &requested, portMAX_DELAY);
+        if (requested & EVENT_TASK_ALARM_STATE)
+            _emitAlarmState();
+        if (requested & EVENT_TASK_DEVICE_STATUS)
+            _emitDeviceStatus();
     }
+}
+
+void GeniusGateway::_emitDeviceStatus()
+{
+    JsonDocument doc;
+    JsonObject root = doc.to<JsonObject>();
+    root["numFaulty"] = _geniusDevices.numFaultyDevices();
+    root["numBatteryLow"] = _geniusDevices.numBatteryLowDevices();
+
+    _eventSocket->emitEvent(GATEWAY_EVENT_DEVICE_STATUS, root);
 }
 
 // ============================================================================
@@ -616,97 +648,6 @@ esp_err_t GeniusGateway::_handleGetDiscovered(PsychicRequest *request)
     return response.send();
 }
 
-esp_err_t GeniusGateway::_genius_analyze_packet_data(uint8_t *packet_data, size_t data_length, genius_packet_t *analyzed_packet)
-{
-    if (!packet_data)
-    {
-        ESP_LOGE(TAG, "%s(): Pointer to CC1101 packet data is NULL.", __func__);
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (!analyzed_packet)
-    {
-        ESP_LOGE(TAG, "%s(): Pointer to analyzed packet struct is NULL.", __func__);
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    /* Clear analyzed packet */
-    memset(analyzed_packet, 0, sizeof(genius_packet_t));
-
-    /* A frame must be long enough to carry the message-type byte before we can classify it. */
-    if (data_length <= DATAPOS_MSG_TYPE)
-    {
-        analyzed_packet->type = HPT_UNKNOWN;
-        return ESP_OK;
-    }
-
-    /* Determine the Genius packet type from its on-air message-type byte (offset 27), using
-     * length as a validator. This mirrors how the genuine radio module routes a received
-     * frame: on the type-specific tail byte plus an exact per-type length. Length ALONE is
-     * ambiguous - message-type 0x00 is both Alarming (36 B) and the CommissioningProbe
-     * Request (28 B), and a 36-byte frame is either Alarming (0x00) or a ConfigCheckProbe response
-     * (0x08); classifying 36 B as an alarm can misread a ConfigCheckProbe response as ALARM_STOP. */
-    switch (packet_data[DATAPOS_MSG_TYPE])
-    {
-    case MSGTYPE_COMMISSIONING: // 0x03  (alarm-line commissioning)
-        analyzed_packet->type = (data_length == LEN_COMMISSIONING_PACKET) ? HPT_COMMISSIONING : HPT_UNKNOWN;
-        break;
-
-    case MSGTYPE_COMMISSIONING_PROBE_RESPONSE: // 0x01  (commissioning-context, carries Req-SN)
-        analyzed_packet->type = (data_length == LEN_COMMISSIONING_PROBE_RESPONSE_PACKET) ? HPT_COMMISSIONING_PROBE_RESPONSE : HPT_UNKNOWN;
-        break;
-
-    case MSGTYPE_LINE_TEST: // 0x04  (firmware: line_state_processor, event 3)
-        if (data_length != LEN_LINE_TEST_PACKET)
-            analyzed_packet->type = HPT_UNKNOWN;
-        else if (packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] == 0) // 0x00 = END/STOP of line test
-            analyzed_packet->type = HPT_LINE_TEST_STOP;
-        else if ((packet_data[DATAPOS_LINE_TEST_START_STOP_FLAG] & 0x04) > 0) // 0x04/0x06 = START
-            analyzed_packet->type = HPT_LINE_TEST_START;
-        else
-            analyzed_packet->type = HPT_UNKNOWN;
-        break;
-
-    case MSGTYPE_CONFIG_CHECK_PROBE_REQUEST: // 0x06  (ConfigCheckProbe, wildcard direct-range probe)
-        analyzed_packet->type = (data_length == LEN_CONFIG_CHECK_PROBE_REQUEST_PACKET) ? HPT_CONFIG_CHECK_PROBE_REQUEST : HPT_UNKNOWN;
-        break;
-
-    case MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE: // 0x08  (36 B - kept out of the alarm branch by the type byte)
-        analyzed_packet->type = (data_length == LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET) ? HPT_CONFIG_CHECK_PROBE_RESPONSE : HPT_UNKNOWN;
-        break;
-
-    case MSGTYPE_ALARM_OR_COMMISSIONING_PROBE_REQ: // 0x00  - shared value, split by length
-        if (data_length == LEN_ALARM_PACKET) // Alarming
-        {
-            if (packet_data[DATAPOS_ALARM_ACTIVE_FLAG] == 1)
-                analyzed_packet->type = HPT_ALARM_START;
-            else if (packet_data[DATAPOS_ALARM_SILENCE_FLAG] == 1)
-                analyzed_packet->type = HPT_ALARM_STOP;
-            else
-                analyzed_packet->type = HPT_UNKNOWN;
-        }
-        else if (data_length == LEN_COMMISSIONING_PROBE_REQUEST_PACKET) // CommissioningProbe Request
-            analyzed_packet->type = HPT_COMMISSIONING_PROBE_REQUEST;
-        else
-            analyzed_packet->type = HPT_UNKNOWN;
-        break;
-
-    default:
-        analyzed_packet->type = HPT_UNKNOWN;
-        break;
-    }
-
-    if (analyzed_packet->type != HPT_UNKNOWN)
-    {
-        analyzed_packet->origin_id = EXTRACT32(packet_data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
-        analyzed_packet->sender_id = EXTRACT32(packet_data, DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID);
-        analyzed_packet->line_id = EXTRACT32(packet_data, DATAPOS_GENERAL_LINE_ID);
-        analyzed_packet->hops = HOPS_FIRST - packet_data[DATAPOS_GENERAL_HOPS];
-    }
-
-    return ESP_OK;
-}
-
 void GeniusGateway::_mqttPublishTask()
 {
     ESP_LOGI(TAG, "HA publish task started, waiting for MQTT connect notifications.");
@@ -718,15 +659,85 @@ void GeniusGateway::_mqttPublishTask()
         ESP_LOGI(TAG, "MQTT connected - publishing all app-specific devices.");
         _geniusDevices.mqttPublishAllDevices(false); // Full republish on connect: broker state unknown after reconnect
         _geniusDevices.mqttPublishSimpleAlarmState();
+        _geniusDevices.mqttPublishSimpleFaultState();
         ESP_LOGI(TAG, "HA publish complete.");
     }
+}
+
+void GeniusGateway::_handleStatusChange(const genius_packet_t &details)
+{
+    const uint32_t detectorSN = details.detector_sn;
+
+    // Status changes the gateway transmits itself (e.g. alarms fired from the UI) carry its own ID
+    if (detectorSN == GATEWAY_ID)
+        return;
+
+    /* ---- Alarm bit: alarm start / stop ---- */
+    const bool alarmSet = details.status_set & GENIUS_STATUS_ALARM;
+    const bool alarmCleared = details.status_cleared & GENIUS_STATUS_ALARM;
+
+    if (alarmSet)
+    {
+        bool isDetectorKnown = _geniusDevices.isSmokeDetectorKnown(detectorSN);
+
+        bool deviceAdded = false;
+        if (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
+        {
+            deviceAdded = _geniusDevices.AddGeniusDevice(details.origin_id, detectorSN);
+            isDetectorKnown = true; // Now we know the detector, as it was intentionally added
+        }
+
+        if (isDetectorKnown)
+        {
+            const GeniusDevice *dev = _geniusDevices.setAlarm(detectorSN);
+            if (dev)
+            {
+                if (deviceAdded)
+                    _geniusDevices.mqttPublishAllDevices(); // New device: publish config + state
+                else
+                    _geniusDevices.mqttPublishDeviceState(detectorSN); // Known device: publish only this device's state
+            }
+        }
+    }
+    else if (alarmCleared)
+    {
+        const GeniusDevice *dev = _geniusDevices.resetAlarm(detectorSN, GAE_BY_SMOKE_DETECTOR);
+        if (dev)
+            _geniusDevices.mqttPublishDeviceState(detectorSN); // Publish only this device's state
+    }
+
+    if (alarmSet || alarmCleared)
+    {
+        /* Emit alarm state to front end */
+        _requestAlarmStateEmit(); // sent by the alarm event task, not from the reception task
+
+        /* Store alarm line id */
+        if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
+            _alarmLines.addAlarmLineFromPacket(details.line_id);
+    }
+
+    /* ---- Every other status flag: battery low, faults, ... including flags not known yet ---- */
+    const uint16_t statusSet = details.status_set & GENIUS_STATUS_TRACKED_MASK;
+    const uint16_t statusCleared = details.status_cleared & GENIUS_STATUS_TRACKED_MASK;
+    if (statusSet == 0 && statusCleared == 0)
+        return;
+
+    // Only registered detectors get a status - unknown ones are never added from a status change.
+    if (!_geniusDevices.isSmokeDetectorKnown(detectorSN))
+    {
+        ESP_LOGW(TAG, "Status change (set 0x%04X, cleared 0x%04X) of unknown smoke detector %lu ignored.",
+                 statusSet, statusCleared, detectorSN);
+        return;
+    }
+
+    // Idempotent: the many mesh-forwarded copies of one change only act on the first one.
+    _geniusDevices.applyStatusChange(detectorSN, statusSet, statusCleared);
 }
 
 void GeniusGateway::_rx_packets()
 {
     cc1101_packet_t packet;
     // Buffer for alarm line names - sized for reasonable line name lengths
-    char lineName[64] = {0};
 
     ESP_LOGI(pcTaskGetName(0), "Started.");
 
@@ -769,7 +780,7 @@ void GeniusGateway::_rx_packets()
                 if (!isDuplicate)
                 {
                     genius_packet_t packet_details;
-                    if (_genius_analyze_packet_data(packet.data, packet.length, &packet_details) == ESP_OK)
+                    if (genius_analyze_packet(packet.data, packet.length, &packet_details))
                     {
                         if (packet_details.type == HPT_COMMISSIONING)
                         {
@@ -777,68 +788,21 @@ void GeniusGateway::_rx_packets()
                             if (_gatewaySettings.isAddAlarmLineFromCommissioningPacketEnabled())
                             {
                                 uint32_t newLineID = EXTRACT32(packet.data, DATAPOS_COMISSIONING_NEW_LINE_ID);
-                                snprintf(lineName, sizeof(lineName), "Added from received comissioning packet", newLineID);
-                                _alarmLines.addAlarmLine(newLineID, String(lineName), ALA_GENIUS_PACKET);
+                                _alarmLines.addAlarmLineFromPacket(newLineID);
                             }
                         }
-                        else if (packet_details.type == HPT_ALARM_START || packet_details.type == HPT_ALARM_STOP)
+                        else if (packet_details.type == HPT_STATUS_CHANGE)
                         {
-                            uint32_t source_id = EXTRACT32_REV(packet.data, DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID);
-
-                            if (GATEWAY_ID != source_id) // only proceed for alarming/silencing packets NOT originating from Genius Gateway itself
-                            {
-                                if (packet_details.type == HPT_ALARM_START)
-                                {
-                                    bool isDetectorKnown = _geniusDevices.isSmokeDetectorKnown(source_id);
-
-                                    bool deviceAdded = false;
-                                    if (!isDetectorKnown && _gatewaySettings.isAlertOnUnknownDetectorsEnabled())
-                                    {
-                                        uint32_t snRM = EXTRACT32(packet.data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
-                                        deviceAdded = _geniusDevices.AddGeniusDevice(snRM, source_id);
-                                        isDetectorKnown = true; // Now we know the detector, as it was intentionally added
-                                    }
-
-                                    /* Set/Reset alarm */
-                                    if (isDetectorKnown)
-                                    {
-                                        const GeniusDevice *dev = _geniusDevices.setAlarm(source_id);
-                                        if (dev)
-                                        {
-                                            if (deviceAdded)
-                                                _geniusDevices.mqttPublishAllDevices(); // New device: publish config + state
-                                            else
-                                                _geniusDevices.mqttPublishDeviceState(source_id); // Known device: publish only this device's state
-                                        }
-                                    }
-                                }
-                                else // packet_details.type == HPT_ALARM_SILENCING
-                                {
-                                    const GeniusDevice *dev = _geniusDevices.resetAlarm(source_id, GAE_BY_SMOKE_DETECTOR);
-                                    if (dev)
-                                        _geniusDevices.mqttPublishDeviceState(source_id); // Publish only this device's state
-                                }
-
-                                /* Alarm state to the front end - sent by the alarm event task, not from here */
-                                _requestAlarmStateEmit();
-
-                                /* Store alarm line id */
-                                if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
-                                {
-                                    uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
-                                    snprintf(lineName, sizeof(lineName), "Added from received alarming/silencing packet", lineID);
-                                    _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
-                                }
-                            }
+                            _handleStatusChange(packet_details);
                         }
                         else if (packet_details.type == HPT_LINE_TEST_START ||
+                                 packet_details.type == HPT_NETWORK_TEST_START ||
                                  packet_details.type == HPT_LINE_TEST_STOP)
                         {
                             if (_gatewaySettings.isAddAlarmLineFromLineTestPacketEnabled())
                             {
                                 uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
-                                snprintf(lineName, sizeof(lineName), "Added from received line test packet", lineID);
-                                _alarmLines.addAlarmLine(lineID, String(lineName), ALA_GENIUS_PACKET);
+                                _alarmLines.addAlarmLineFromPacket(lineID);
                             }
                         }
                         else if (packet_details.type == HPT_CONFIG_CHECK_PROBE_RESPONSE)

@@ -138,8 +138,9 @@ export function afterDeviceSaved(device: GeniusDevice) {
 // rename that detector's entities. The editor warns about it beforehand; the gateway reports
 // the rename itself through a WebSocket event (see watchHaEntityRename).
 
-/** Last known answer; kept if a later request fails. */
+/** Last known answers; kept if a later request fails. */
 let haRenamesEntityIds = false;
+let haEnabled = false;
 
 /**
  * Ask the gateway whether a changed location renames the Home Assistant entities.
@@ -148,17 +149,23 @@ let haRenamesEntityIds = false;
  * tab, REST) while a page stays open, and the editor's warning has to match what saving will
  * really do.
  */
-async function loadHaRenameOption(): Promise<boolean> {
+export async function loadHaRenameOption(): Promise<boolean> {
 	try {
 		const response = await fetch('/rest/haSettings', { method: 'GET', headers: authHeaders() });
 		if (response.status === 200) {
 			const settings = (await response.json()) as HASettings;
+			haEnabled = settings.enabled;
 			haRenamesEntityIds = settings.enabled && settings.rename_entity_ids;
 		}
 	} catch (error) {
 		console.error('Failed to load the Home Assistant settings:', error);
 	}
 	return haRenamesEntityIds;
+}
+
+/** Whether the Home Assistant integration was enabled when the option was last loaded. */
+export function isHaEnabled(): boolean {
+	return haEnabled;
 }
 
 export interface DeviceEditorOptions {

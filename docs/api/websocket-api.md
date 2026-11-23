@@ -307,6 +307,31 @@ Global alarm state notifications
 
 ---
 
+### `device-status`
+Smoke detector status summary (battery low, faults)
+
+**Trigger:** A smoke detector's status flags change - a [status change](../reverse-engineering/protocol-analysis.md#status-change) received over the air, or a manual status reset. Repeated copies of the same change (mesh forwarding) trigger it only once.
+
+**Data Format:**
+```json
+{
+  "event": "device-status",
+  "data": {
+    "numFaulty": 1,
+    "numBatteryLow": 1
+  }
+}
+```
+
+**Fields:**
+
+- `numFaulty` - Number of smoke detectors with at least one active fault (battery low, device fault, radio link fault, dismounted)
+- `numBatteryLow` - Number of smoke detectors reporting a low battery
+
+The per-device status is part of the device list (`status` object, see [`/rest/gateway-devices`](http-api.md#device-management)); the web interface reloads it on this event.
+
+---
+
 ### `alarm-state-change`
 Individual device alarm state changes
 
@@ -438,10 +463,38 @@ Remaining alarm blocking time updates
 
 ---
 
+### `device-import`
+What the gateway does after an import was committed
+
+**Trigger:** `POST /rest/gateway-devices/import/commit` only hands the new device list over. Writing it to flash and updating Home Assistant happen afterwards in a task of their own, which reports its progress with this event
+
+**Data Format:**
+```json
+{
+  "event": "device-import",
+  "data": {
+    "state": "done",
+    "ha": "renaming"
+  }
+}
+```
+
+**Fields:**
+
+- `state` - Step that was completed:
+    - `saved` - The device list is written to flash. `ha` is a boolean: whether the Home Assistant integration is enabled, i.e. whether an update of Home Assistant follows
+    - `done` - The gateway is through. `ha` says what was done for Home Assistant:
+        - `disabled` - The integration is not enabled
+        - `offline` - No MQTT connection, nothing was sent. Everything is published on the next connect
+        - `sent` - All changes were sent. Home Assistant does not acknowledge them
+        - `renaming` - Sent, except for detectors whose entity IDs change: their rename cycle is still running and ends with a [`ha-entity-rename`](#ha-entity-rename) event that carries `background: true` (`sent`, `deferred` or `failed`). That event can also arrive before `done`
+
+---
+
 ### `ha-entity-rename`
 Progress of a Home Assistant entity-ID rename
 
-**Trigger:** The entity IDs of one or more smoke detectors have to change while the option *Update entity IDs when a detector's location changes* is enabled - after a location was edited, after the option was switched on, or when a rename that could not be sent earlier is caught up on an MQTT connect
+**Trigger:** The entity IDs of one or more smoke detectors have to change while the option *Update entity IDs when a detector's location changes* is enabled - after a location was edited, after the option was switched on, after an import changed locations or brought detectors the gateway did not know, or when a rename that could not be sent earlier is caught up on an MQTT connect
 
 **Data Format:**
 ```json
@@ -449,7 +502,8 @@ Progress of a Home Assistant entity-ID rename
   "event": "ha-entity-rename",
   "data": {
     "state": "waiting",
-    "count": 3
+    "count": 5,
+    "detectors": ["Kitchen", "Hall", "Attic"]
   }
 }
 ```
@@ -465,6 +519,8 @@ Progress of a Home Assistant entity-ID rename
     - `failed` - The MQTT connection was lost during the cycle. It is repeated on the next MQTT connect
     - `deferred` - There is no MQTT connection, nothing was sent. The rename is caught up on the next MQTT connect. Emitted on its own, without `started`
 - `count` - Number of smoke detectors in the batch
+- `detectors` - Locations of the first smoke detectors of the batch (at most 3); `count` covers the rest
+- `background` - Only present (`true`) for a cycle caused by an import. The web interface shows no progress dialog for it: the import dialog reports it as its Home Assistant step (see [`device-import`](#device-import)); without that dialog only `deferred` and `failed` are reported
 
 ---
 
@@ -503,7 +559,7 @@ eventsWs.onopen = () => {
   console.log('Connected to events stream');
   
   // Subscribe to multiple events
-  ['alarm', 'alarm-state-change', 'system_health'].forEach(eventName => {
+  ['alarm', 'alarm-state-change', 'device-status', 'system_health'].forEach(eventName => {
     eventsWs.send(JSON.stringify({
       event: 'subscribe',
       data: { id: eventName }
@@ -519,6 +575,9 @@ eventsWs.onmessage = (event) => {
   switch(msg.event) {
     case 'alarm':
       handleAlarm(msg.data);
+      break;
+    case 'device-status':
+      handleDeviceStatus(msg.data); // e.g. warn when numBatteryLow increases
       break;
     case 'system_health':
       updateHealthDisplay(msg.data);
@@ -545,7 +604,7 @@ import time
 class EventsClient:
     def __init__(self, token):
         self.token = token
-        self.subscriptions = ['alarm', 'alarm-state-change', 'system_health']
+        self.subscriptions = ['alarm', 'alarm-state-change', 'device-status', 'system_health']
         self.ws = None
         
     def on_open(self, ws):
@@ -564,6 +623,8 @@ class EventsClient:
         # Handle specific events
         if msg['event'] == 'alarm':
             self.handle_alarm(msg['data'])
+        elif msg['event'] == 'device-status':
+            self.handle_device_status(msg['data'])
         elif msg['event'] == 'system_health':
             self.update_health(msg['data'])
     
@@ -588,6 +649,10 @@ class EventsClient:
     def handle_alarm(self, data):
         if data.get('isAlarming'):
             print(f"ALARM! {data['numAlarmingDevices']} device(s) alarming")
+
+    def handle_device_status(self, data):
+        if data['numBatteryLow'] > 0:
+            print(f"{data['numBatteryLow']} smoke detector(s) report a low battery")
     
     def update_health(self, data):
         print(f"Free heap: {data['free_heap']} bytes")
@@ -604,7 +669,7 @@ const WebSocket = require('ws');
 class EventsClient {
   constructor(token) {
     this.token = token;
-    this.subscriptions = ['alarm', 'alarm-state-change', 'system_health'];
+    this.subscriptions = ['alarm', 'alarm-state-change', 'device-status', 'system_health'];
     this.reconnectDelay = 1000;
     this.maxReconnectDelay = 30000;
   }

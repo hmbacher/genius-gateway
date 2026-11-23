@@ -23,14 +23,14 @@ The assigned location name for each detector (e.g., "Living Room", "Bedroom"). I
 Model name and status of the smoke detector component:
 
 - **Model**: The smoke detector model (e.g., "Genius Plus X"), or "Unknown model" in italics if not yet identified
-- **Status**: Shown after acoustic readout - :tabler-circle-check:{ style="color: #4caf50" } **OK** if no faults, :tabler-alert-circle:{ style="color: #f44336" } **Fault** with fault details in tooltip, or "Status not available" if no readout has been performed. The status indicator is greyed out if the last readout is more than one year old.
+- **Status**: The [current status](#current-status) - :tabler-circle-check:{ style="color: #4caf50" } **OK** if no faults, :tabler-alert-circle:{ style="color: #f44336" } **Fault** with fault details in tooltip (e.g. battery low), or "Status not available" if the gateway has neither received a status from the smoke detector nor performed a readout. The status indicator is greyed out if the last readout is more than one year old.
 
 #### Radio Module
 Model name and status of the radio communication module:
 
 - **No radio module**: shown if the device has no radio module or serial number
 - **Model**: The radio module model (e.g., "FM Basis X"), or "Unknown model" in italics
-- **Status**: Same as smoke detector status - :tabler-circle-check:{ style="color: #4caf50" } OK / :tabler-alert-circle:{ style="color: #f44336" } Fault / not available, based on readout data
+- **Status**: Same as smoke detector status - :tabler-circle-check:{ style="color: #4caf50" } OK / :tabler-alert-circle:{ style="color: #f44336" } Fault (radio link fault) / not available
 
 #### Alarms
 Alarm statistics for the device:
@@ -50,7 +50,7 @@ When the device has a radio module, a :tabler-wifi: signal-strength icon also ap
 #### Manage
 Action buttons for device operations:
 
-- :tabler-logs: **Alarm Log**: View detailed alarm history (only visible if alarms exist)
+- :tabler-logs: **Activity Log**: Open the [activity log](#viewing-the-activity-log) of the detector
 - :tabler-list-details: **Device Details**: View full readout data and trigger a new acoustic readout
 - :tabler-pencil: **Edit**: Modify device configuration
 - :tabler-trash: **Delete**: Remove device from the system
@@ -79,23 +79,22 @@ You can change the display order of devices using drag-and-drop functionality:
 
 This feature is useful for organizing devices by floor level, room priority, or any custom arrangement that suits your needs.
 
-## Viewing Alarm History
+## Viewing the Activity Log
 
-Each device maintains a log of all alarm events. To view the alarm history:
+For each smoke detector the gateway keeps an activity log - one chronology of what it recorded about the detector. To view it:
 
-1. Click the :tabler-logs: **Alarm Log** button in the device's row
-2. The Alarm Log dialog displays a table with the following information for each alarm:
+1. Click the :tabler-logs: **Activity Log** button in the device's row, or click an alarming card on the [Overview](overview.md)
+2. The Activity Log dialog opens. If the detector has alarms, the switch **Alarms only** is on - switch it off to see every entry, newest first:
 
-    ![Alarm Log](../assets/images/software/gg-gateway-devices-alarmlog.png){ .off-glb }
+    | Entry | Meaning |
+    |-------|---------|
+    | :tabler-circle-plus: **Smoke detector added** | The detector was added to the gateway, and how |
+    | :tabler-microphone: **Acoustic readout** | A readout was performed, with the faults it reported |
+    | :tabler-access-point: **Status change received** | The detector announced a fault, or that a fault is gone, over the air |
+    | :tabler-restore: **Status reset** | The reported faults were [discarded](#resetting-the-status) in the gateway |
+    | :tabler-bell-ringing: **Alarm** | An alarm, with its start and - once it ended - its end and how it ended: no more smoke detected, stopped by a user in the web interface, or cleared during a device configuration import |
 
-    - :tabler-arrow-bar-right: **Start**: Date and time when the alarm was triggered
-    - :tabler-arrow-bar-to-right: **End**: Date and time when the alarm ended (only for resolved alarms)
-    - **Ending Reason**: How the alarm was resolved:
-        - :tabler-flame-off: **Automatic**: Smoke detector no longer detected smoke
-        - :tabler-volume-3: **Manual**: User manually stopped the alarm via the web interface
-        - :tabler-file-import: **Cleared by import**: Alarm was cleared during a device configuration import
-
-Active alarms show "No data" for the end time and no ending reason icon.
+The log keeps the newest 50 entries per detector. The number of alarms is counted separately, so the alarm count in the device list stays correct when old alarms drop out of the log; the dialog says so when that is the case. An entry made before the gateway's clock was set shows *Time unknown*.
 
 ## Adding a New Detector
 
@@ -149,6 +148,9 @@ When an unknown smoke detector triggers an alarm:
     - Registration type marked as :tabler-access-point: **Automatic**
 3. The alarm is immediately processed and displayed in the system
 4. MQTT notifications are published for the new device (if MQTT is enabled)
+
+!!! note "Only alarms register devices"
+    A battery warning or fault report from an unknown smoke detector does not register it - the [current status](#current-status) is only tracked for detectors already in the device list. Add the detector manually (or via acoustic readout) to receive its battery and fault status.
 
 #### Updating Automatically Discovered Devices
 
@@ -243,7 +245,8 @@ Click the :tabler-list-details: **Device Details** button in a device's row to o
 ![Viewing Device Details](../assets/images/software/gg-gateway-devices-details.png)
 
 - **General** - location, registration type, and last acoustic readout timestamp. If a readout exists, the age is shown alongside the date (e.g. `15.03.2026 10:00 (37d ago)`). A :tabler-award:{ style="color: #4caf50" } icon indicates a recent readout; :tabler-calendar-exclamation:{ style="color: #f44336" } indicates a stale one (> 1 year).
-- **Smoke Detector** - model, serial number, production date and age, and (after readout) full diagnostic status: detector fault, battery, dirt forecast, chamber drift, warranty flags with individual flag breakdown, plus lifetime statistics (last self-test, last alarm, alarm counts, deinstallation count, storage hours).
+- **Current Status** - battery, detector fault, radio link and mounting, each **OK**, active, or **Unknown**, plus the time of the last change and a **Reset Status** button - see [Current Status](#current-status).
+- **Smoke Detector** - model, serial number, production date and age, and (after readout) the diagnostic status *at the last readout*: detector fault, battery, dirt forecast, chamber drift, warranty flags with individual flag breakdown, plus lifetime statistics (last self-test, last alarm, alarm counts, deinstallation count, storage hours).
 - **Radio Module** - model, serial number, and (after readout) radio status with individual state flags, interference level, alarm line ID and character, and DIP switch configuration.
 
 The dialog also provides an **Update** button (:tabler-microphone:) to trigger a new acoustic readout for that device directly, without leaving the dialog.
@@ -252,6 +255,43 @@ The same dialog opens when a detector card is clicked on the [Overview](overview
 
 !!! info "Acoustic readout internals"
     For a detailed description of the signal modulation, framing, and the full payload field reference, see [Acoustic Readout](../reverse-engineering/acoustic-readout.md) in the Reverse Engineering section.
+
+## Current Status
+
+Besides alarms, smoke detectors announce changes of their **status flags** over the air: a **low battery**, a **device fault**, a **radio link fault** and the **dismounting** of the detector from its base (see [Status Change packet](../reverse-engineering/protocol-analysis.md#status-change)). The gateway keeps the current state of each flag per detector and shows it in the device list, the Device Details dialog and the [Overview](overview.md), publishes it to [Home Assistant](smart-home-integration.md#smoke-detectors) and optionally to a [fault topic](../setup/connections.md#simple-alarm-publishing). A new fault also pops up as a notification in the web interface, naming the detector and the fault.
+
+There is one current status, fed by two sources - whichever is newest wins, per flag:
+
+- **Received over the air** - the flag is set or cleared as announced by the smoke detector.
+- **Acoustic readout** - a readout reports battery, detector fault and radio fault (the dismount flag is only ever announced over the air; old FM Basis / FM Pro modules report no radio status in a readout).
+
+The Device Details dialog shows for every flag whether it is active, OK or unknown, since when, and from which source. Every change is recorded in the [activity log](#viewing-the-activity-log).
+
+!!! info "Unknown until reported"
+    Smoke detectors announce a flag only when it **changes** - never periodically. Until the gateway has received a flag (or performed a readout), its state is shown as **Unknown** rather than OK: a gateway that was put into operation after a battery warning was sent cannot know about it.
+
+    For the same reason the status survives a restart of the gateway.
+
+When a smoke detector is replaced - its serial number changes on the same entry - status, activity log and alarm counter start over by themselves.
+
+### Resetting the status
+
+A reported fault stays active until the smoke detector reports that it is gone or an acoustic readout shows it. If neither happens although the fault has been fixed, discard it manually:
+
+1. Open the :tabler-list-details: **Device Details** dialog of the detector
+2. Click :tabler-restore: **Reset Status** in the *Current Status* section (admins only, only shown while a fault is active)
+3. Confirm the dialog
+
+All active flags of the detector become **Unknown** - not OK. The detector is then shown as *Status unknown* (grey) on the overview and in the list, also if its last readout is still current: that readout no longer stands for the reset flags. The status builds up again from what the detector reports over the air and from the next readout. The reset is recorded in the activity log.
+
+!!! warning "Known limits of the status tracking"
+    The status is based on a protocol that is only partly understood:
+
+    - Smoke detectors announce a status change **once**. If the gateway misses it (restart, update, out of range), it does not learn about it.
+    - So far only the battery warning, the radio link fault and its muting have been observed on air. The other flags and the "fault gone" message have not been observed on air yet.
+    - A radio link fault is, as far as known, never cleared over the air - not even after the alarm line has been commissioned again.
+
+    A fault shown here may therefore already be fixed, and **Unknown** does not mean OK. An acoustic readout is the reliable way to confirm battery, detector fault and radio link. The behaviour described here may change in future versions as more is learned about the protocol.
 
 ## Editing a Detector
 
@@ -321,8 +361,14 @@ You can import a previously exported device configuration:
 4. If any device in the file is marked as alarming, a dialog asks how to handle the alarm state:
     - **Keep Alarm State** - imports as-is; connected integrations (e.g. Home Assistant) may trigger automations (useful for testing)
     - **Clear Alarm State** - resets the alarm flag on all affected devices and closes open alarm log entries with a `Cleared by import` ending reason
-5. A progress dialog shows the import status. For larger files the upload is split into chunks automatically and may take several seconds - a progress bar shows how many chunks have been sent. Wait for the *Finalizing* step to complete before navigating away
-6. All existing devices are replaced with the imported configuration once the gateway confirms the commit
+5. If the import changes the location of detectors the gateway already knows, and their Home Assistant entity IDs follow the location, a dialog lists the changes and asks before importing - the entities of these detectors are renamed, so automations, scripts and dashboards that use the old entity IDs must be updated
+6. A progress dialog follows the import through its steps:
+    1. **Upload** - the list is sent to the gateway, for larger files in several chunks. Up to here the import can be aborted, and nothing is changed
+    2. **Saving on the gateway** - the gateway replaces its device list and writes it to flash
+    3. **Updating Home Assistant** (only with the Home Assistant integration enabled) - detectors that are no longer in the list are removed, new ones are added, and changed ones are updated, including renamed entities
+7. The dialog ends with what was done: the number of imported devices and, as separate notes, whether an older file was migrated and whether the changes were sent to Home Assistant. Without an MQTT connection a warning says that the gateway sends them on the next connect
+
+From step 2 on the gateway works on its own - **Hide** closes the dialog without interrupting it. If all goes well, a short notification confirms the import; if Home Assistant could not be updated or the gateway did not confirm the save, the dialog comes back with the result. The import is only reported as done once the gateway has confirmed that the list is saved.
 
 ## Generating a PDF Report
 
@@ -335,19 +381,19 @@ The property name, address, and customer name printed on the cover page are conf
 - Gateway identification
 - Property name, address, and customer name
 - Generation timestamp
-- Summary table of all registered smoke detectors (location, model, serial number, last acoustic readout date)
+- Summary table of all registered smoke detectors (location, model, serial numbers, signal, number of alarms and the condition: *Alarm*, *Fault*, *OK*, or *Stale* / *No readout* when nothing current confirms that all is well)
 
 ### Per-Device Pages
 
 One page per registered smoke detector:
 
 - **Identity**: location, model, registration type, smoke detector and radio module serial numbers, production date and device age
-- **Diagnostic data** (only if an acoustic readout has been performed):
-    - Smoke chamber: sensor status, drift value, contamination forecast, warranty flags
-    - Battery: voltage and state
+- **Current status**: battery, detector, radio link and mounting as the gateway holds them at the time of the report - the same block as in the [Device Details](#current-status) dialog, with the date and the source (radio or readout) of each state. A state that was never reported is printed as *Unknown*
+- **Readout findings** (only if an acoustic readout has been performed):
+    - Smoke chamber: drift value, contamination forecast, warranty flags
     - Statistics: alarm count, last alarm date, last self-test date, deinstallation count, storage hours
-- **Radio module**: line ID, radio state and switch masks, interference level, DIP switch configuration
-- **Alarm history**: full log of recorded alarm events with start time, end time, and ending reason
+- **Radio module**: line ID, direct link signal, the radio state flags of the last readout, interference level, DIP switch configuration
+- **Activity log**: the same entries as in the [Activity Log](#viewing-the-activity-log) dialog, newest first - detector added, readouts, status changes received over the air, status resets and alarms with their end and duration
 
 ## Related Documentation
 

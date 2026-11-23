@@ -99,33 +99,40 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 
 ### Message Type Byte
 
-The byte at **offset 27** - the first byte after the common part - is the packet's
-**message type**. Every packet type carries a constant, distinct value here, so this byte
-(together with the packet length) identifies the packet type. In the per-packet detail
-tables below it is the offset-27 row (previously annotated *"Unknown, seems to be
-constant"*).
+The message body starts at **offset 26** with the **message family**, followed at
+**offset 27** by the **message type** within that family. Family and type together (with
+the packet length as a check) identify the packet type. The type values repeat across the
+families - type `0x00` exists in five of them - so the type byte alone is not enough. In
+the per-packet detail tables below the type is the offset-27 row (previously annotated
+*"Unknown, seems to be constant"*).
 
 <div class="pckt-table" markdown>
 
-| `data[27]` | Length | Packet type |
-|:----------:|:------:|:------------|
-| `0x00` | 28 B | [CommissioningProbe Request](#commissioningprobe-request) |
-| `0x00` | 36 B | [Alarming (Start/Stop)](#alarming-startstop) |
-| `0x01` | 32 B | [CommissioningProbe Response](#commissioningprobe-response) |
-| `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
-| `0x04` | 29 B | [Line Test (Start/Stop)](#line-test-startstop) |
-| `0x05` | 29 B | ConfigCheckProbe probe *(tentative; not yet observed in a capture)* |
-| `0x06` | 28 B | [ConfigCheckProbe **request**](#configcheckprobe) |
-| `0x08` | 36 B | [ConfigCheckProbe **response**](#configcheckprobe) |
+| Family<br>`data[26]` | Type<br>`data[27]` | Length | Packet type |
+|:----------:|:----------:|:------:|:------------|
+| `0x00` | `0x00` | 36 B | [Status Change (Alarming, Battery Low, Faults)](#status-change) |
+| `0x66` | `0x00` | 28 B | [CommissioningProbe Request](#commissioningprobe-request) |
+| `0x66` | `0x01` | 32 B | [CommissioningProbe Response](#commissioningprobe-response) |
+| `0x66` | `0x03` | 37 B | [Alarm Line Commissioning](#alarm-line-commissioning) |
+| `0x66` | `0x04` | 29 B | [Line Test / Network Test (Start/Stop)](#line-test-startstop) |
+| `0x55` | `0x05` | 29 B | ConfigCheckProbe probe *(tentative; not yet observed in a capture)* |
+| `0x55` | `0x06` | 28 B | [ConfigCheckProbe **request**](#configcheckprobe) |
+| `0x55` | `0x08` | 36 B | [ConfigCheckProbe **response**](#configcheckprobe) |
+| `0x33` | `0x00` | 28 B | Daily series of the radio link supervision (FM Pro X) - *not evaluated yet* |
+| `0x33` | `0x02` | 32 B | "Module missing" report of the radio link supervision - *not evaluated yet* |
+| `0x11`, `0x22`, `0x33` | other | 28-33 B | Seen on FM Pro X lines with radio link supervision - *function unknown* |
 
 </div>
 
-!!! note "Why the type byte matters for classification"
-    Packet length alone is ambiguous: message type `0x00` is shared by **Alarming (36 B)**
-    and the **CommissioningProbe Request (28 B)**, and a **36-byte** frame is either an **alarm
-    (`0x00`)** or a **ConfigCheckProbe response (`0x08`)** - so classifying purely by length can
-    misread a ConfigCheckProbe response as an alarm-stop. The gateway therefore classifies on
-    `data[27]` with length as a validator (since v1.5.0).
+!!! note "Why family and type matter for classification"
+    Packet length alone is ambiguous: a **36-byte** frame is either a **status change
+    (`0x00/0x00`)** or a **ConfigCheckProbe response (`0x55/0x08`)** - classifying purely by
+    length can misread a ConfigCheckProbe response as an alarm-stop. The type byte alone is
+    ambiguous as well: type `0x00` is the **Status Change** in family `0x00`, the
+    **CommissioningProbe Request** in family `0x66` and the **daily supervision series** in
+    family `0x33`, the latter two with the same length (28 B). The gateway therefore
+    classifies on family and type with the length as a validator (type since v1.5.0, family
+    since v1.6.0); packets of a family or type it does not know are shown as unknown.
 
     The ConfigCheckProbe request (`0x06`), response (`0x08`) and the `0x55` family marker at
     offset 26 were observed in an over-the-air capture of a *Linienabschlusstest*.
@@ -146,7 +153,7 @@ A packet is only forwarded when it targets the module's own line or the broadcas
 (`Line-ID` matches, or is `FF FF FF FF`) and the hop limit is not yet exhausted. Not every
 packet type is relayed: the [ConfigCheckProbe](#configcheckprobe)
 and [CommissioningProbe](#commissioningprobe-request) exchanges are **direct-range only** (never forwarded,
-always `Hops = 0`), whereas alarms, line tests and commissioning propagate across the line.
+always `Hops = 0`), whereas status changes (alarms, battery warnings, faults), line tests and commissioning propagate across the line.
 
 ### Repetition
 
@@ -157,7 +164,7 @@ The number of repetitions, the exact period for packet repetitions, as well as t
 | Packet Type | Repetitions<br>$N$ | Period Time<br>$T$ | Initial *Rem-TX*<br>$RT_{Start}$ | *Rem-TX* Decrement<br>$\Delta=\frac{RT_{Start}}{N - 1}$ |
 |:------------|------------:|-------:|----------------:|:---------:|
 | [Alarm Line Commissioning](#alarm-line-commissioning) | 309 x | ~10.06 ms | 6.348 (CC 18) | ~20,6 |
-| [Alarming (Start/Stop)](#alarming-startstop) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
+| [Status Change (Alarming, Battery Low, Faults)](#status-change) | 315 x | ~9.85 ms | 6.348 (CC 18) | ~20,2 |
 | [Line Test (Start/Stop)](#line-test-startstop) | 370 x | ~8,40 ms | 6.348 (CC 18) | ~17,2 |
 | [CommissioningProbe Request](#commissioningprobe-request) | 26 x | ~8,19 ms | 427 (AB 01) | ~17,1 |
 | [CommissioningProbe Response](#commissioningprobe-response) | 24 x| ~9,02 ms | 427 (AB 01) | ~18,6 |
@@ -229,11 +236,28 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 
 </div>
 
-#### Alarming (Start/Stop)
+#### Status Change (Alarming, Battery Low, Faults) {#status-change}
 
-The packets described here serve to signal the detection of smoke by an individual smoke detector to all other smoke detectors of an alarm line, so that they also signal the detected smoke. The exact signaling behavior of the smoke detectors can be found in the operating instructions.
+The packets described here announce a change of a smoke detector's **status flags** to all other smoke detectors of an alarm line. The most prominent case is the detection of smoke, which makes all smoke detectors of the alarm line signal it - the exact signaling behavior can be found in the operating instructions. The same packet also announces a low battery, device faults, radio link faults and the dismounting of a smoke detector.
 
-##### Observations
+The packet carries the change as a pair of masks over the same 16-bit flag field: the flags newly **set** and the flags newly **cleared**. The flag field is the *ErrorValue* of Hekatron's FM.GW interface - the identical `set/cleared/serial` triple is forwarded 1:1 by the FM.GW serial protocol (`IndNwkStateChange`), which confirms the field semantics and supplies the flag names:
+
+<div class="pckt-table" markdown>
+
+| Flag | Name | Meaning |
+|:----:|:-----|:--------|
+| `0x0001` | Alarm | Smoke detected - alarm start (set) / alarm stop or silencing (cleared) |
+| `0x0002` | Error | Device fault |
+| `0x0004` | BattLow | Battery low |
+| `0x0008` | Radio | Radio link fault |
+| `0x0010` | Mute | A radio link or dismount fault was muted (informational) |
+| `0x0020` | Dismount | Smoke detector dismounted from its base |
+
+</div>
+
+The flags are **edge-triggered**: a radio module announces a flag once when it changes (computed as `set = ~current & new`, `cleared = current & ~new`) and never repeats it periodically. A gateway that misses the announcement - e.g. because it was offline - does not learn about the flag until the next change. The FM Basis X measures the battery itself: it is powered from the smoke detector's battery, so its own supply voltage is the detector battery.
+
+##### Observations (alarming)
 
 - Each smoke detector whose smoke sensor detects smoke sends a Start Alarming packet:
     - The `Org-SN` and `Fwd-SN` fields contain the serial number of the **radio module** of the detecting smoke detector
@@ -276,6 +300,13 @@ The packets described here serve to signal the detection of smoke by an individu
 !!! danger "Start/Stop Mutual Exclusion"
     The behavior of smoke detectors when both the `Start` field and the `Stop` field are set to `0x01` in a packet is not known.
 
+`Start` and `Stop` are the low bytes of the set and cleared masks - a Start Alarming packet is a status change setting the alarm flag `0x0001`, a Stop Alarming packet one clearing it.
+
+##### Observations (battery low and faults)
+
+- A battery warning was captured as a status change with `set = 0x0004` (BattLow), `cleared = 0x0000` and the serial of the affected smoke detector in `Detector` - mesh-forwarded like an alarm, with `Org-SN` naming the radio module of that smoke detector.
+- Device faults (`0x0002`), radio link faults (`0x0008`) and dismounting (`0x0020`) use the same packet with their own flag; a flag that recovers is announced in the cleared mask.
+
 ##### Basic properties
 
 - Overall packet length: **36 bytes**
@@ -285,9 +316,9 @@ The packets described here serve to signal the detection of smoke by an individu
 ##### Compact view (complete)
 
 ```
-Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |   28  | 29 |  30  | 31 |    32-35    |
-Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | 00 | 00 |   XX  | 00 |  XX  | 00 | XX XX XX XX |
-Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        | Start |    | Stop |    |  Detector   |
+Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |  28-29  |  30-31  |    32-35    |
+Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | 00 | 00 |  XX XX  |  XX XX  | XX XX XX XX |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                        |   Set   | Cleared |  Detector   |
 ```
 
 ##### Detailed explanation (delta)
@@ -298,22 +329,49 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x00` | Type | Message type - see [Message Type Byte](#message-type-byte). |
-| 28 | 1 | `XX` | Start | Start flag<br><br>`0x01`: Starting fire alarm<br>`0x00`: Otherwise |
-| 29 | 1 | `0x00` | | Unknown, seems to be constant |
-| 30 | 1 | `XX` | Stop | Stop flag<br><br>`0x01`: Stopping or silencing alarming<br>`0x00`: Otherwise |
-| 31 | 1 | `0x00` | | Unknown, seems to be constant |
-| 32-35 | 4 | `XX XX XX XX`<br><span style="color: var(--md-typeset-a-color)">:material-alert-circle-outline: *little endian*</span> | Detector | Serial number of the smoke detector (not its radio module!) that (initially) detected smoke. |
+| 28-29 | 2 | `XX XX`<br><span style="color: var(--md-typeset-a-color)">:material-alert-circle-outline: *little endian*</span> | Set | Status flags newly **set** (see flag table above).<br><br>Low byte = former *Start* field: `0x01` starts a fire alarm. |
+| 30-31 | 2 | `XX XX`<br><span style="color: var(--md-typeset-a-color)">:material-alert-circle-outline: *little endian*</span> | Cleared | Status flags newly **cleared** (see flag table above).<br><br>Low byte = former *Stop* field: `0x01` stops or silences alarming. |
+| 32-35 | 4 | `XX XX XX XX`<br><span style="color: var(--md-typeset-a-color)">:material-alert-circle-outline: *little endian*</span> | Detector | Serial number of the smoke detector (not its radio module!) whose status changed - e.g. the one that (initially) detected smoke. |
 
 </div>
 
-#### Line Test (Start/Stop)
+!!! example "Captured battery warning"
+    ```
+    02 AE 0A 00 FF FF FF FF 00 83 5F E1 16 00 83 5F E1 15 B7 B7 AA 11 0E 26 48 00 00 00 04 00 00 00 3B F6 A5 82
+    ```
+    Type `0x00`, set `0x0004` (BattLow), cleared `0x0000`, detector `0x82A5F63B` (2191914555), originated by radio module `0x835FE116` and forwarded by `0x835FE115`.
 
-The line test function can be used to verify or confirm the membership of smoke detectors to an alarm line. When the line test is initiated, all smoke detectors on the same alarm line as the initiating smoke detector signal their presence.
+#### Line Test / Network Test (Start/Stop) {#line-test-startstop}
+
+The line test function can be used to verify or confirm the membership of smoke detectors to an alarm line. When the line test is initiated, all smoke detectors on the same alarm line as the initiating smoke detector signal their presence. The same packet starts a **network test**, which the manufacturer describes as the test across the whole network; the two differ in the test mode byte and in how long the detectors keep signalling.
 For more information on performing the line test, please refer to the smoke detector's operating instructions.
 
 The `Line-ID` field contains the ID of the alarm line for which the line test should be started or stopped.
 
 Line tests can be initiated or stopped from the Genius Gateway for known alarm lines. Further details can be found in [Alarm Lines Management](../features/alarm-lines-management.md).
+
+##### Test mode byte - how line test and network test were told apart
+
+The radio modules send exactly three values in byte 28:
+
+| Value | Sent when | Duration of the test |
+|:-----:|:----------|:----------------------|
+| `0x04` | a test is started in the first of two test states | 15 minutes - as long as the commissioning mode |
+| `0x06` | a test is started in the second test state | 30 minutes |
+| `0x00` | either test state is left | - |
+
+The manufacturer states that a line test lasts about 15 minutes and a network test about 30 minutes, and the serial protocol between the Genius Port and its radio module knows exactly the test modes *no test*, *line test* and *network test*. The two durations match, which gives the assignment above.
+
+- **Confirmed by captures:** message family `0x66`, type `0x04`, 29 bytes, and the test mode values `0x04` and `0x06` on air.
+- **Derived, not confirmed on air:** which of the two values is the line test. The assignment follows from the durations, not from a named field.
+
+Up to v1.5.0 Genius Gateway treated byte 28 as a start/stop flag with `0x06` as the start, and its **Start Line Test** action sent `0x06` - by the assignment above a network test. Since v1.6.0 it sends `0x04`.
+
+!!! example "Captured line test start"
+    ```
+    02 CC 18 00 FF FF FF FF 00 ss ss ss ss 00 ss ss ss ss ll ll ll ll 0F 5B 48 00 66 04 04
+    ```
+    Family `0x66`, type `0x04`, test mode `0x04` (line test), flags `0x48` (forward class 2). The serial number of the radio module (`ss`) and the alarm line ID (`ll`) are left out.
 
 ##### Basic properties
 
@@ -337,7 +395,7 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* |
 | 27 | 1 | `0x04` | Type | Message type - see [Message Type Byte](#message-type-byte). |
-| 28 | 1 | `XX` | Start/Stop | `0x06`: Start/Perform line test<br>`0x00`: Stop line test |
+| 28 | 1 | `XX` | Test mode | `0x04`: Start a **line test** (about 15 minutes)<br>`0x06`: Start a **network test** (about 30 minutes)<br>`0x00`: Stop the running line or network test |
 
 </div>
 

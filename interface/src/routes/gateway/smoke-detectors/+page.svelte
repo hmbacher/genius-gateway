@@ -11,6 +11,7 @@
 	import type {
 		GeniusDevices,
 		GeniusDevice,
+		GeniusAlarm,
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
 		AlarmLine,
@@ -29,8 +30,14 @@
 	} from '$lib/types/enums';
 	import type { TunerData } from '$lib/audio/tuner-pipeline';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
-	import { getSmokeDetectorFaults, getRadioModuleFaults } from '$lib/utils/deviceStatus';
+	import {
+		getDeviceFaults,
+		getSmokeDetectorFaults,
+		getRadioModuleFaults
+	} from '$lib/utils/deviceStatus';
 	import { isOldFmModule } from '$lib/genius/line';
+	import { EVENT_ALARM } from '$lib/genius/status';
+	import { deviceAlarms } from '$lib/genius/activity';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { socket } from '$lib/stores/socket';
 	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
@@ -39,7 +46,7 @@
 	import DraggableList from '$lib/components/DraggableList.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
-	import AlarmLog from './AlarmLog.svelte';
+	import ActivityLog from './ActivityLog.svelte';
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
 	import DeviceImportDialog from './DeviceImportDialog.svelte';
 	import DeviceDetailsDialog from './DeviceDetailsDialog.svelte';
@@ -47,7 +54,14 @@
 	import EditAlarmLine from '../alarm-lines/EditAlarmLine.svelte';
 	import PdfReportDialog from './PdfReportDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
-	import { apiPutDevice, afterDeviceSaved, openDeviceEditor } from './deviceSave.svelte';
+	import {
+		apiPutDevice,
+		afterDeviceSaved,
+		isHaEnabled,
+		loadHaRenameOption,
+		openDeviceEditor
+	} from './deviceSave.svelte';
+	import { escapeHtml } from '$lib/genius/entityRename';
 	import {
 		authHeaders,
 		fetchAlarmLines,
@@ -83,11 +97,40 @@
 	// well within an acceptable interactive latency budget.
 	const IMPORT_CHUNK_BYTE_BUDGET = 6000;
 
+	/** Version of the device file format, written by the export and expected by the import.
+	 *  Must match GATEWAY_DEVICES_CONFIG_VERSION of the firmware. */
+	const DEVICES_FILE_VERSION = 3;
+
 	let { data }: Props = $props();
 
 	$effect(() => {
 		if (!$user.admin) goto('/');
 	});
+
+	/** Clear all status flags of a device (fault fixed / device replaced). The server returns the
+	 *  updated device, which replaces the local store entry. */
+	async function apiResetStatus(id: number): Promise<boolean> {
+		try {
+			const response = await fetch('/rest/gateway-devices/device/reset-status', {
+				method: 'POST',
+				headers: authHeaders(),
+				body: JSON.stringify({ id })
+			});
+			if (response.status === 200) {
+				const saved = JSON.parse(await response.text(), jsonDateReviver) as GeniusDevice;
+				const idx = geniusDevices.devices.findIndex((d) => d.id === saved.id);
+				if (idx >= 0) geniusDevices.devices[idx] = saved;
+				notifications.success('Smoke detector status reset.', 3000);
+				return true;
+			}
+			notifications.error('Resetting the smoke detector status failed.', 3000);
+			return false;
+		} catch (error) {
+			console.error('Error:', error);
+			notifications.error('Resetting the smoke detector status failed.', 3000);
+			return false;
+		}
+	}
 
 	async function apiDeleteDevice(id: number): Promise<boolean> {
 		try {
@@ -437,8 +480,7 @@
 			} as GeniusRadioModuleInfo,
 			location: '',
 			registration: GeniusDeviceRegistration.Manual,
-			isAlarming: false,
-			alarms: []
+			isAlarming: false
 		};
 		openDeviceEditor(device, {
 			title: 'Add discovered device',
@@ -475,9 +517,12 @@
 	});
 
 	function handleAlarmLog(index: number) {
-		modals.open(AlarmLog, {
-			title: 'Alarms log',
-			geniusDevice: geniusDevices.devices[index]
+		const device = geniusDevices.devices[index];
+		modals.open(ActivityLog, {
+			title: 'Activity log',
+			geniusDevice: device,
+			// Filtered to the alarms if the log holds any - otherwise the dialog would open empty
+			alarmsOnly: deviceAlarms(device).length > 0
 		});
 	}
 
@@ -539,7 +584,6 @@
 			location: GENIUS_DEVICE_DEFAULT_LOCATION,
 			registration: GeniusDeviceRegistration.Acoustic,
 			isAlarming: false,
-			alarms: [],
 			readoutTime: new Date(),
 			readoutProtocolVersion: data.protocolVersion
 		} as GeniusDevice;
@@ -603,12 +647,12 @@
 		}
 	}
 
-	/** Silently update an existing device at the given index, preserving location, alarms, and position */
+	/** Silently update an existing device at the given index, preserving location and position.
+	 *  Status, activity log and alarms are kept by the gateway and need no care here. */
 	async function silentUpdateDevice(index: number, newDevice: GeniusDevice) {
 		const existing = geniusDevices.devices[index];
 		newDevice.id = existing.id;
 		newDevice.location = existing.location;
-		newDevice.alarms = existing.alarms;
 		newDevice.isAlarming = existing.isAlarming;
 		preserveManualLineIfSameModule(newDevice, existing);
 		const ok = await apiPutDevice(newDevice);
@@ -658,7 +702,8 @@
 						confirm: { label: 'Replace', icon: Check }
 					},
 					onConfirm: () => {
-						// Keep location and position, but reset alarms
+						// Keep location and position. The gateway starts status, activity log and
+						// alarm counter over when the serial of the smoke detector changes.
 						newDevice.id = existing.id;
 						newDevice.location = existing.location;
 						// Same RM serial confirms this is the same physical module, just
@@ -816,7 +861,14 @@
 			.filter((d) => d.readoutTime)
 			.map((d) => ({
 				sn: d.smokeDetector.sn,
-				faults: [...getSmokeDetectorFaults(d.smokeDetector), ...getRadioModuleFaults(d.radioModule)]
+				// status flags of the file, plus the readout fields that files from before v1.6.0 carry
+				faults: [
+					...new Set([
+						...getDeviceFaults(d),
+						...getSmokeDetectorFaults(d.smokeDetector),
+						...getRadioModuleFaults(d.radioModule)
+					])
+				]
 			}))
 			.filter((x) => x.faults.length > 0);
 		if (faulty.length === 0) return;
@@ -841,7 +893,29 @@
 			title: 'Device Details',
 			device: geniusDevices.devices[index],
 			onReadout: () => handleDeviceReadout(index),
-			onSetLine: () => handleEdit(index)
+			onSetLine: () => handleEdit(index),
+			onResetStatus: () => confirmResetStatus(index)
+		});
+	}
+
+	function confirmResetStatus(index: number) {
+		const device = geniusDevices.devices[index];
+		modals.close();
+		modals.open(ConfirmDialog, {
+			title: 'Reset smoke detector status',
+			message:
+				`Reset all reported faults of the smoke detector <strong>${device.smokeDetector.sn} (${device.location})</strong>?` +
+				`<br><br>Do this once the fault has been fixed or the device replaced. ` +
+				`The reported faults then read <strong>Unknown</strong>, not OK - until the smoke detector reports them again or an acoustic readout shows their state.`,
+			labels: {
+				cancel: { label: 'Cancel', icon: Cancel },
+				confirm: { label: 'Reset', icon: Check }
+			},
+			confirmClass: 'btn-warning',
+			onConfirm: async () => {
+				modals.close();
+				await apiResetStatus(device.id);
+			}
 		});
 	}
 
@@ -921,11 +995,22 @@
 		for (const device of devices) {
 			if (!device.isAlarming) continue;
 			device.isAlarming = false;
-			if (device.alarms.length > 0) {
-				const lastAlarm = device.alarms[device.alarms.length - 1];
+			// Files written before v1.6.0 carry the alarms as a list of their own
+			const legacyAlarms = (device as { alarms?: GeniusAlarm[] }).alarms ?? [];
+			if (legacyAlarms.length > 0) {
+				const lastAlarm = legacyAlarms[legacyAlarms.length - 1];
 				if (lastAlarm.endingReason === GeniusAlarmEnding.AlarmActive) {
 					lastAlarm.endTime = new Date();
 					lastAlarm.endingReason = GeniusAlarmEnding.ByImport;
+				}
+			}
+			for (const event of device.events ?? []) {
+				if (
+					event.type === EVENT_ALARM &&
+					(event.endingReason ?? GeniusAlarmEnding.AlarmActive) === GeniusAlarmEnding.AlarmActive
+				) {
+					event.end = new Date();
+					event.endingReason = GeniusAlarmEnding.ByImport;
 				}
 			}
 		}
@@ -939,7 +1024,7 @@
 		let cancelled = false;
 		reader.onload = async () => {
 			if (cancelled) return;
-			const CURRENT_VERSION = 2;
+			const CURRENT_VERSION = DEVICES_FILE_VERSION;
 			const fileContent = reader.result as string;
 			try {
 				const importedGeniusDevices = JSON.parse(fileContent, jsonDateReviver) as GeniusDevices;
@@ -959,26 +1044,59 @@
 						migrateGeniusDevices(importedGeniusDevices, fileVersion);
 					}
 
+					// One dialog follows the import through all its steps - upload, saving on the
+					// gateway, Home Assistant - and says in the end what was done, including that
+					// an older file was migrated.
 					const finishImport = () => {
 						modals.open(DeviceImportDialog, {
 							totalDevices: importedGeniusDevices.devices.length,
+							haEnabled: isHaEnabled(),
+							migrationNote:
+								fileVersion < CURRENT_VERSION
+									? `The file was an older backup (v${fileVersion}) and was migrated to the current format (v${CURRENT_VERSION}). Export a fresh backup.`
+									: undefined,
 							task: (onProgress, signal) =>
 								replaceAllDevices(importedGeniusDevices.devices, onProgress, signal),
-							onSuccess: () => {
-								if (fileVersion < CURRENT_VERSION) {
-									modals.open(InfoDialog, {
-										title: 'Migration Successful',
-										message: `The file was from an older backup (v${fileVersion}) and has been automatically migrated to the current format (v${CURRENT_VERSION}).<br><br>Please verify your smoke detector configuration and export a fresh backup.`,
-										variant: 'info',
-										onDismiss: () => {
-											modals.close();
-											checkImportedDeviceFaults(importedGeniusDevices.devices);
-										}
-									});
-								} else {
-									notifications.success('Smoke detectors imported.', 3000);
-									checkImportedDeviceFaults(importedGeniusDevices.devices);
-								}
+							onSuccess: () => checkImportedDeviceFaults(importedGeniusDevices.devices)
+						});
+					};
+
+					// Entity IDs in Home Assistant follow the location. An import that changes the
+					// location of a known detector renames its entities - the same consequence the
+					// detector editor warns about, so ask before importing.
+					const confirmLocationsThenImport = async () => {
+						const changed = importedGeniusDevices.devices.flatMap((imported) => {
+							const current = geniusDevices.devices.find((d) => d.id === imported.id);
+							return current && current.location !== imported.location
+								? [{ from: current.location, to: imported.location }]
+								: [];
+						});
+						// Asked for every import: the answer also tells the import dialog whether
+						// Home Assistant is one of its steps.
+						const renamesEntities = await loadHaRenameOption();
+						if (changed.length === 0 || !renamesEntities) {
+							finishImport();
+							return;
+						}
+
+						const MAX_LISTED = 5;
+						const list = changed
+							.slice(0, MAX_LISTED)
+							.map((c) => `&bull; ${escapeHtml(c.from)} &rarr; <strong>${escapeHtml(c.to)}</strong>`)
+							.join('<br>');
+						const more =
+							changed.length > MAX_LISTED ? `<br>&bull; and ${changed.length - MAX_LISTED} more` : '';
+						const one = changed.length === 1;
+						modals.open(ConfirmDialog, {
+							title: 'Import Changes Locations',
+							message: `The import changes the location of <strong>${changed.length}</strong> smoke detector${one ? '' : 's'}:<br><br>${list}${more}<br><br>${one ? 'Its' : 'Their'} entities in Home Assistant are renamed to match. Automations, scripts and dashboards that use the old entity IDs must be updated.`,
+							labels: {
+								cancel: { label: 'Cancel', icon: Cancel },
+								confirm: { label: 'Import', icon: Load }
+							},
+							onConfirm: () => {
+								modals.close();
+								finishImport();
 							}
 						});
 					};
@@ -996,16 +1114,16 @@
 							cancelClass: 'btn-warning',
 							onCancel: () => {
 								modals.close();
-								finishImport();
+								void confirmLocationsThenImport();
 							},
 							onConfirm: () => {
 								modals.close();
 								clearAlarmingDevices(importedGeniusDevices.devices);
-								finishImport();
+								void confirmLocationsThenImport();
 							}
 						});
 					} else {
-						finishImport();
+						void confirmLocationsThenImport();
 					}
 				}
 			} catch (error) {
@@ -1129,7 +1247,7 @@
 						disabled={!geniusDevices.isLoaded}
 						onclick={() =>
 							downloadObjectAsJson(
-								{ version: 2, devices: geniusDevices.devices },
+								{ version: DEVICES_FILE_VERSION, devices: geniusDevices.devices },
 								'genius-smoke-detectors'
 							)}
 					>

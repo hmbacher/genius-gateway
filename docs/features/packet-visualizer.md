@@ -65,6 +65,8 @@ The main packet display area shows all captured RF packets with real-time update
 
 Each displayed packet shows general information and packet-specific details based on the packet type. For complete field descriptions and packet structure details, see the [Protocol Analysis](../reverse-engineering/protocol-analysis.md) documentation.
 
+[Status changes](../reverse-engineering/protocol-analysis.md#status-change) are labelled **Start Alarm** when they set the alarm flag, **Stop Alarm** when they clear it, and **Status Change** otherwise (e.g. battery low). For all three, the set and cleared flags are decoded by name - flags not known yet are shown by value.
+
 ### Packet Actions
 
 The toolbar provides several actions for managing captured packets:

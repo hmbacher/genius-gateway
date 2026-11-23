@@ -30,6 +30,7 @@ Authorization: Bearer <token>
 |----------|--------|------|-------------|
 | `/rest/gateway-devices` | GET | 🔒 | Read the smoke detector devices |
 | `/rest/gateway-devices` | POST | 🛡️ | Replace the smoke detector devices |
+| `/rest/gateway-devices/device/reset-status` | POST | 🛡️ | Reset a smoke detector's status flags |
 | `/rest/alarm-lines` | GET, POST | 🛡️ | Manage alarm lines (RF groups) |
 | `/rest/alarm-lines/do` | POST | 🛡️ | Execute alarm line actions |
 | `/rest/gateway-settings` | GET, POST | 🛡️ | Configure gateway behavior |
@@ -70,12 +71,15 @@ Authorization: Bearer <token>
       "location": "Living Room",
       "isAlarming": false,
       "registration": 1,
-      "alarms": [
-        {
-          "startTime": "2025-01-15T10:30:00Z",
-          "endTime": "2025-01-15T10:35:00Z",
-          "endingReason": 0
-        }
+      "alarmCount": 1,
+      "status": [
+        { "flag": 4, "active": true, "since": "2026-11-12T10:55:53Z", "source": 2 },
+        { "flag": 2, "active": false, "since": "2026-10-28T09:14:03Z", "source": 1 }
+      ],
+      "events": [
+        { "time": "2025-01-15T10:30:00Z", "type": 5, "end": "2025-01-15T10:35:00Z", "endingReason": 0 },
+        { "time": "2026-10-28T09:14:03Z", "type": 1, "set": 0, "cleared": 14 },
+        { "time": "2026-11-12T10:55:53Z", "type": 2, "set": 4, "cleared": 0 }
       ]
     }
   ]
@@ -90,13 +94,41 @@ Authorization: Bearer <token>
 - `location` - Human-readable location string
 - `isAlarming` - Current alarm state
 - `registration` - How device was added (0=built-in, 1=packet, 2=manual)
-- `alarms` - History of alarm events
-- `endingReason` - How alarm ended (-1=active, 0=detector, 1=manual)
+- `alarmCount` - Number of alarms of this smoke detector. The alarms themselves are entries of the activity log (`events`), which only keeps the newest ones
 - `haEntityIdPrefix` - Read-only, only present once set. Entity-ID prefix the gateway last announced to Home Assistant for this detector (see `rename_entity_ids` in [`/rest/haSettings`](#resthasettings)). A value sent by a client is ignored
+- `status` - [Current status](../features/device-management.md#current-status): one entry per status flag whose state is known. A flag without an entry was never reported and is neither OK nor active
+    - `flag` - The [status flag](../reverse-engineering/protocol-analysis.md#status-change): `2` device fault, `4` battery low, `8` radio link fault, `16` fault muted on the detector, `32` dismounted; `65536` is set by the gateway itself when another detector reports this detector's radio module as missing
+    - `active` - `true` = the fault is present, `false` = reported OK
+    - `since` - Since when this state holds (ISO 8601); missing if the gateway's clock was not set at the time
+    - `source` - Where the state comes from: `1` acoustic readout, `2` status change received over the air
+- `events` - Activity log of the device, oldest first, at most 50 entries (the oldest are dropped). Every entry has a `type` and, unless the gateway's clock was not set, a `time`:
+    - `0` device added - `registration`
+    - `1` acoustic readout - `set` (flags reported active) and `cleared` (flags reported OK)
+    - `2` status change received over the air - `set` and `cleared` hold the flags that changed; a packet that changes nothing is not logged
+    - `3` status reset
+    - `4` the radio link supervision of this detector reports a radio module as missing - `cause` is that module's serial
+    - `5` alarm - `time` is the start, `end` the end (missing while it lasts), `endingReason` how it ended (-1=active, 0=detector, 1=manual, 2=cleared on import)
+
+    `status`, `events` and `alarmCount` are owned by the gateway: they are ignored when a device is updated and only taken over for a new device, e.g. from an import file. Files written before v1.6.0 carry an `alarms` list instead (`startTime`, `endTime`, `endingReason`); it is converted into alarm entries, and the status is derived from the last readout.
 
 **POST Request:** Same format as GET response
 
 **POST Response:** 200 OK with updated device list
+
+---
+
+#### `/rest/gateway-devices/device/reset-status`
+- **Method:** POST
+- **Auth:** 🛡️ Admin
+- **Description:** Discard the reported faults of a smoke detector: every active status flag becomes unknown again - not OK - until the smoke detector reports a change or an acoustic readout is performed. Flags reported OK are kept. The reset is recorded in the activity log.
+- **Request:**
+```json
+{
+  "id": 1
+}
+```
+
+**Response:** 200 OK with the updated device (same format as one entry of the device list), 404 if no device has that `id`
 
 ---
 
@@ -201,7 +233,9 @@ Authorization: Bearer <token>
 ```json
 {
   "alarmEnabled": true,
-  "alarmTopic": "smarthome/genius-gateway/alarm"
+  "alarmTopic": "smarthome/genius-gateway/alarm",
+  "faultEnabled": true,
+  "faultTopic": "smarthome/genius-gateway/fault"
 }
 ```
 
@@ -209,6 +243,8 @@ Authorization: Bearer <token>
 
 - `alarmEnabled` - Enable alarm state publishing to a central MQTT topic
 - `alarmTopic` - MQTT topic for global alarm state
+- `faultEnabled` - Enable fault publishing (battery low, device faults) to a central MQTT topic
+- `faultTopic` - MQTT topic for the [global fault state](mqtt-topics.md#global-fault-state-topic)
 
 **POST Response:** 200 OK with updated settings
 

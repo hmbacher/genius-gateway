@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- The smoke detector of smoke-detector-m.svg, struck through (device fault). The mask keeps a
+     gap around the slash, like the "off" icons of the Tabler set. -->
+<svg
+   stroke="currentColor"
+   viewBox="0 0 24 24"
+   version="1.1"
+   width="24"
+   height="24"
+   xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <mask id="smoke-detector-off-gap" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+    <rect x="0" y="0" width="24" height="24" fill="#ffffff" stroke="none" />
+    <path d="M 3,3 21,21" fill="none" stroke="#000000" stroke-width="5.5" stroke-linecap="round" />
+  </mask>
+</defs>
+<g mask="url(#smoke-detector-off-gap)" style="fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round">
+  <path d="m 1.017927,15.686472 c 0,-2.050553 4.9208545,-3.712855 10.991037,-3.712855 C 18.079146,11.973617 23,13.635919 23,15.686472 m 0,0 c 0,2.050552 -4.920854,3.712853 -10.991036,3.712854 -6.0701825,0 -10.991037,-1.662301 -10.991037,-3.712854" />
+  <path d="M 1.0048467,15.598874 H 1 V 8.2128548 C 1,6.1623016 5.9208544,4.5 11.991037,4.5 c 6.070182,5e-7 10.991036,1.662302 10.991036,3.7128548 v 7.4230062" />
+  <path d="m 1,12.365327 c 0,-2.050553 4.9208544,-3.7128549 10.991037,-3.7128549 6.070182,5e-7 10.991036,1.6623019 10.991036,3.7128549" />
+</g>
+<path d="M 3,3 21,21" style="fill:none;stroke-width:2;stroke-linecap:round" />
+</svg>

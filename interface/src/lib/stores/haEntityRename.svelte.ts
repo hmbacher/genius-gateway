@@ -3,13 +3,23 @@ import { socket } from '$lib/stores/socket';
 import type { HaEntityRenameEvent, HaEntityRenameStatus } from '$lib/types/models';
 import HaEntityRenameDialog from '$lib/components/HaEntityRenameDialog.svelte';
 import InfoDialog from '$lib/components/InfoDialog.svelte';
+import { detectorCount, escapeHtml, renamedDetectorItems } from '$lib/genius/entityRename';
 
 const EVENT = 'ha-entity-rename';
 
 /** Latest state reported by the gateway; the progress dialog renders straight from it. */
-const status: HaEntityRenameStatus = $state({ state: null, count: 0 });
+const status: HaEntityRenameStatus = $state({ state: null, count: 0, detectors: [] });
 
 let watchers = 0;
+
+// While the import dialog follows the gateway, it reports the outcome of the rename the
+// import caused as one of its steps - no separate notice then.
+let importTracking = false;
+
+/** Tell the store that an import dialog reports the background rename itself (or stopped doing so). */
+export function setImportTracking(active: boolean) {
+	importTracking = active;
+}
 let progressOpen = false;
 let deferredOpen = false;
 
@@ -38,9 +48,54 @@ function openWhenIdle(kind: QueuedDialog['kind'], open: () => void) {
 	}, 100);
 }
 
+/**
+ * Tell the user that new entity IDs have not reached Home Assistant. A dialog instead of a
+ * toast, because the user has to know the update is still outstanding.
+ */
+function openNotSentNotice(event: HaEntityRenameEvent, reason: string) {
+	if (deferredOpen) return;
+	deferredOpen = true;
+	// A fixed introduction, then the detectors as a list. The message is HTML and locations
+	// are entered by the user: escape them. The wrapper keeps the dialog from growing as wide
+	// as its longest sentence.
+	const items = renamedDetectorItems(event.count, event.detectors);
+	const who =
+		items.length > 0
+			? `the new entity IDs have not been sent for:<ul class="my-2 list-disc pl-6 font-semibold">${items
+					.map((item) => `<li>${escapeHtml(item)}</li>`)
+					.join('')}</ul>`
+			: `the new entity IDs of ${detectorCount(event.count)} have not been sent.<br><br>`;
+	openWhenIdle('deferred', () =>
+		modals.open(InfoDialog, {
+			title: 'Entity IDs not updated yet',
+			message: `<div class="max-w-md">Entity IDs in Home Assistant follow the location of a smoke detector. ${reason}, so ${who}The gateway catches up automatically on the next MQTT connect, also after a restart.</div>`,
+			variant: 'info',
+			onDismiss: () => {
+				deferredOpen = false;
+				modals.close();
+			}
+		})
+	);
+}
+
 function handleEvent(event: HaEntityRenameEvent) {
+	// A cycle caused by an import runs in the background: whoever imports expects Home
+	// Assistant to be brought in line without further ado. The import dialog shows it as one
+	// of its steps and reports its outcome, also after it was hidden. Without an import
+	// followed here (it was started in another tab) only what did not work is reported.
+	if (event.background) {
+		if (importTracking) return;
+		if (event.state === 'deferred') {
+			openNotSentNotice(event, 'The MQTT connection is down');
+		} else if (event.state === 'failed') {
+			openNotSentNotice(event, 'The MQTT connection was lost during the update');
+		}
+		return;
+	}
+
 	status.state = event.state;
 	status.count = event.count;
+	status.detectors = event.detectors ?? [];
 
 	if (event.state === 'started') {
 		// The rename is running now. A notice about a deferred rename that is still waiting
@@ -63,22 +118,9 @@ function handleEvent(event: HaEntityRenameEvent) {
 				progressOpen = false;
 			});
 		});
-	} else if (event.state === 'deferred' && !deferredOpen) {
-		// No MQTT connection: nothing was sent and there is no progress to show. A dialog
-		// instead of a toast, because the user has to know the rename is still outstanding.
-		deferredOpen = true;
-		const detectors = event.count === 1 ? '1 smoke detector' : `${event.count} smoke detectors`;
-		openWhenIdle('deferred', () =>
-			modals.open(InfoDialog, {
-				title: 'Entity IDs not updated yet',
-				message: `The MQTT connection is down, so the new Home Assistant entity IDs of <strong>${detectors}</strong> have not been sent.<br><br>The gateway catches up automatically on the next MQTT connect, also after a restart.`,
-				variant: 'info',
-				onDismiss: () => {
-					deferredOpen = false;
-					modals.close();
-				}
-			})
-		);
+	} else if (event.state === 'deferred') {
+		// No MQTT connection: nothing was sent and there is no progress to show.
+		openNotSentNotice(event, 'The MQTT connection is down');
 	}
 }
 

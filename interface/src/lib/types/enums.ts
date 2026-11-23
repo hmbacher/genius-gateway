@@ -91,7 +91,7 @@ export enum GeniusDeviceRegistration {
   Acoustic,
 }
 
-// From GeniusGateway.h
+// From GeniusPacket.h
 export enum GeniusPacketType {
   /** /< Unknown packet type */
   Unknown = -1,
@@ -101,16 +101,16 @@ export enum GeniusPacketType {
   CommissioningProbeRequest,
   /** /< CommissioningProbe response packet (smoke detector identification response) */
   CommissioningProbeResponse,
-  /** /< Alarm start packet (smoke detection notification) */
-  AlarmStart,
-  /** /< Alarm stop packet (smoke cleared or alarm silenced) */
-  AlarmStop,
-  /** /< Line test start packet (line test initiation) */
+  /** /< Status change packet: set/cleared status flags of one smoke detector (alarm start/stop is the alarm-bit case) */
+  StatusChange,
+  /** /< Line test start packet (test mode 0x04) */
   LineTestStart,
-  /** /< Line test stop packet (line test completion) */
+  /** /< Line / network test stop packet (test mode 0x00, ends either test) */
   LineTestStop,
   /** /< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe) */
   ConfigCheckProbeRequest,
   /** /< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status) */
   ConfigCheckProbeResponse,
+  /** /< Network test start packet (test mode 0x06) */
+  NetworkTestStart,
 }

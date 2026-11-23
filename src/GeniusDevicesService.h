@@ -43,6 +43,7 @@
 #include <Utils.hpp>
 #include <PsramAllocator.h>
 #include <AlarmPublishingSettingsService.h>
+#include <GeniusDeviceStatus.h>
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
 #include <HomeAssistant/HABinarySensor.h>
@@ -57,6 +58,7 @@
 #define GATEWAY_DEVICES_DEVICE_PATH         "/rest/gateway-devices/device"          ///< PUT: upsert single device
 #define GATEWAY_DEVICES_DEVICE_DELETE_PATH  "/rest/gateway-devices/device/delete"   ///< POST: delete single device (body: { id })
 #define GATEWAY_DEVICES_REORDER_PATH        "/rest/gateway-devices/reorder"         ///< POST: reorder (body: { order: [id...] })
+#define GATEWAY_DEVICES_RESET_STATUS_PATH   "/rest/gateway-devices/device/reset-status" ///< POST: clear a device's status flags (body: { id })
 
 // Chunked import endpoints (let arbitrarily large device lists land without holding the whole payload in heap)
 #define GATEWAY_DEVICES_IMPORT_BEGIN_PATH   "/rest/gateway-devices/import/begin"
@@ -69,9 +71,9 @@
 #ifndef GATEWAY_MAX_DEVICES
 #define GATEWAY_MAX_DEVICES 50   ///< Maximum number of devices supported (override via build flag for no-PSRAM boards)
 #endif
-#define GATEWAY_MAX_ALARMS 100   ///< Maximum number of alarms supported
 
 #define ALARM_STATE_CHANGE "alarm-state-change"  ///< WebSocket event for alarm state changes
+#define DEVICE_STATUS_CHANGE "device-status-change"  ///< Update origin for status flag changes (received over the air or reset manually)
 
 #define GENIUS_DEVICE_ADDED_FROM_PACKET "genius-device-added-from-packet"  ///< Event for device discovery
 #define RSSI_SURVEY_UPDATE "rssi-survey-update"  ///< Update origin for a ConfigCheckProbe RSSI write (persist only; no HA/sub-device sync)
@@ -79,9 +81,13 @@
 #define GENIUS_DEVICE_DEFAULT_LOCATION "Unknown location"  ///< Default location for new devices
 
 #define HA_ENTITY_RENAME_EVENT "ha-entity-rename"  ///< WebSocket event reporting the progress of a Home Assistant entity-ID rename
+#define DEVICE_IMPORT_EVENT "device-import"        ///< WebSocket event reporting what the gateway does after an import was committed
 #define HA_ENTITY_RENAME_SETTLE_MS 3000            ///< Pause between removing and re-publishing entities, so HA finishes the removal first
+#define HA_ENTITY_RENAME_EVENT_MAX_NAMES 3         ///< Detectors named by location in a HA_ENTITY_RENAME_EVENT; the count covers the rest
+#define HA_RENAME_NOTIFY_ANNOUNCED 0x01            ///< Rename task notification: a cycle whose progress is shown in the web interface
+#define HA_RENAME_NOTIFY_BACKGROUND 0x02           ///< Rename task notification: a cycle caused by an import, run without progress
 
-#define GATEWAY_DEVICES_CONFIG_VERSION 2  ///< Current config file version (for JSON migration support)
+#define GATEWAY_DEVICES_CONFIG_VERSION 3  ///< Current config file version (for JSON migration support)
 
 typedef enum genius_alarm_ending
 {
@@ -93,17 +99,6 @@ typedef enum genius_alarm_ending
     GAE_MAX                    ///< Maximum value (for enum range checks)
 } genius_alarm_ending_t;
 
-typedef struct genius_device_alarm
-{
-    time_t startTime;                   ///< Alarm start timestamp
-    time_t endTime;                     ///< Alarm end timestamp
-    genius_alarm_ending_t endingReason; ///< How the alarm was ended
-
-    bool operator==(const genius_device_alarm &o) const
-    {
-        return startTime == o.startTime && endTime == o.endTime && endingReason == o.endingReason;
-    }
-} genius_device_alarm_t;
 
 typedef enum genius_smoke_detector
 {
@@ -171,8 +166,8 @@ struct GeniusSmokeDetectorInfo
     uint8_t alarmCountLast3Months; ///< Alarm count in last 3 months
     uint16_t hoursInStorageMode;   ///< Hours spent in storage mode
     uint16_t warrantyFlags;        ///< Warranty condition flags bitmask
-    bool batteryLowFault;          ///< Battery low fault flag
-    bool deviceFault;              ///< Device fault flag
+    bool batteryLowFault;          ///< Battery low fault flag - readout input only, see GeniusDevice::applyReadoutStatus()
+    bool deviceFault;              ///< Device fault flag - readout input only
     uint8_t driftState;            ///< Drift state (0=Normal ... 7=Defekt)
     bool dirtForecastNegative;     ///< Negative dirt forecast flag
 
@@ -233,7 +228,7 @@ struct GeniusRadioModuleInfo
     uint8_t radioStateMask;   ///< Radio state flags bitmask
     uint8_t radioSwitchMask;  ///< Radio switch flags bitmask
     float radioInterference;  ///< Radio interference level (0.0-100.0%)
-    bool radioNetworkFault;   ///< Radio network fault flag
+    bool radioNetworkFault;   ///< Radio network fault flag - readout input only, see GeniusDevice::applyReadoutStatus()
     bool lineManual;          ///< True if the alarm line was entered by hand (old FM modules)
 
     // --- Direct-link signal (populated by the ConfigCheckProbe range test) ---
@@ -324,14 +319,7 @@ public:
         root["location"] = this->location;
         root["isAlarming"] = this->isAlarming;
         root["registration"] = this->registration;
-        JsonArray alarms = root["alarms"].to<JsonArray>();
-        for (auto &alarm : this->alarms)
-        {
-            JsonObject alarm_as_json = alarms.add<JsonObject>();
-            alarm_as_json["startTime"] = Utils::time_t_to_iso8601(alarm.startTime);
-            alarm_as_json["endTime"] = Utils::time_t_to_iso8601(alarm.endTime);
-            alarm_as_json["endingReason"] = alarm.endingReason;
-        }
+        root["alarmCount"] = this->alarmCount;
         if (readoutTime > 0)
         {
             root["readoutTime"] = Utils::time_t_to_iso8601(readoutTime);
@@ -339,13 +327,16 @@ public:
         }
         if (!haEntityIdPrefix.isEmpty())
             root["haEntityIdPrefix"] = haEntityIdPrefix;
+        statusToJson(root);
     }
 
     uint32_t id;                          ///< Unique identifier for device (auto-generated, immutable)
     GeniusSmokeDetectorInfo smokeDetector;
     GeniusRadioModuleInfo radioModule;
     String location;
-    std::vector<genius_device_alarm_t> alarms;
+    /// Number of alarms of this smoke detector. Counted separately, as the alarms themselves are
+    /// entries of the activity log (status.events), which only keeps the newest ones.
+    uint32_t alarmCount = 0;
     genius_device_registration_t registration;
     bool isAlarming;
     bool published;                       ///< Whether current device config has been published via MQTT
@@ -363,8 +354,32 @@ public:
      */
     String haEntityIdPrefix;
 
-    /// Parse an "alarms" JsonArray into a vector, capped at GATEWAY_MAX_ALARMS.
-    static std::vector<genius_device_alarm_t> parseAlarms(JsonArray jsonAlarms);
+    /// Current status (state per flag) and activity log - see GeniusDeviceStatus.h. Backend-owned:
+    /// fed by status changes received over the air, acoustic readouts and manual resets.
+    GeniusDeviceStatus status;
+
+    /// Write the "status" and "events" arrays (each omitted while empty).
+    void statusToJson(JsonObject &root) const;
+
+    /// Read the "status" and "events" arrays written by statusToJson(). Returns false (status
+    /// untouched) if neither is present.
+    bool statusFromJson(JsonVariant src);
+
+    /// Take battery / detector fault / radio fault over from the acoustic readout and log the
+    /// readout - called when a new readout arrives, or to derive the status of a device that
+    /// has none stored yet. Returns true if a flag changed.
+    bool applyReadoutStatus();
+
+    /// Append an entry with the current time to the activity log.
+    void logEvent(genius_device_event_t type, uint32_t value = 0);
+
+    /// Take over the "alarms" list of a file written before v1.6.0: every alarm becomes an
+    /// activity log entry and counts towards alarmCount.
+    void importLegacyAlarms(JsonArray jsonAlarms);
+
+    /// Another smoke detector took the place of this entry (its serial changed): status,
+    /// activity log and alarm counter start over.
+    void detectorReplaced();
 
     /// Build a fresh GeniusDevice from a JSON object. Returns false if `id` is missing or zero.
     static bool buildFromJson(JsonVariant src, GeniusDevice &out);
@@ -430,6 +445,27 @@ public:
     /// Get the number of devices currently alarming
     uint32_t numAlarmingDevices();
 
+    /**
+     * @brief Apply a received status change to the device with smoke detector serial @p detectorSN.
+     *
+     * Flags in @p setMask become active, flags in @p clearedMask inactive; both become known.
+     * Idempotent - repeated copies of the same change (mesh forwarding) leave the device untouched.
+     * On an actual change the device is persisted, its HA status entities are published and the
+     * update handlers run with origin DEVICE_STATUS_CHANGE.
+     *
+     * @param detectorSN  Smoke detector serial number
+     * @param setMask     Status flags newly set (alarm bit ignored)
+     * @param clearedMask Status flags newly cleared (alarm bit ignored)
+     * @return The updated device, or nullptr if nothing changed or the detector is unknown
+     */
+    const GeniusDevice *applyStatusChange(uint32_t detectorSN, uint32_t setMask, uint32_t clearedMask);
+
+    /// Number of devices with at least one active fault (GENIUS_STATUS_FAULT_MASK)
+    uint32_t numFaultyDevices();
+
+    /// Number of devices reporting a low battery
+    uint32_t numBatteryLowDevices();
+
     /// Check if a smoke detector is known/registered
     bool isSmokeDetectorKnown(uint32_t detectorSN);
 
@@ -487,6 +523,9 @@ public:
     /// Publish global alarm state to the simple alarm topic (independent of HA integration)
     void mqttPublishSimpleAlarmState();
 
+    /// Publish the smoke detectors' status summary to the simple fault topic (independent of HA integration)
+    void mqttPublishSimpleFaultState();
+
     /**
      * @brief Re-publish alarm state for all devices.
      *
@@ -526,6 +565,11 @@ public:
 
     /// Delete a single device by id.
     DeviceOpResult removeDevice(uint32_t deviceId);
+
+    /// Manually clear all status flags of a device (e.g. after the fault was fixed or the device
+    /// replaced). Flags stay known, so they read as OK afterwards. UNCHANGED if none was active.
+    /// On success, the updated device is written to `out`.
+    DeviceOpResult resetStatus(uint32_t deviceId, GeniusDevice &out);
 
     /// Reorder devices to match the given id list. The list MUST contain exactly the
     /// current device id set (no additions, no removals) - otherwise INVALID_BODY.
@@ -575,6 +619,11 @@ private:
     bool _isAlarming;      ///< Current global alarming state
     uint32_t _numAlarming; ///< Number of devices currently alarming
 
+    // Status summary tracking
+    uint32_t _numFaulty = 0;      ///< Number of devices with an active fault
+    uint32_t _numBatteryLow = 0;  ///< Number of devices reporting a low battery
+    String _lastFaultPayload;     ///< Last payload sent to the simple fault topic (publish on change only)
+
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client (for simple alarm topic)
     AlarmPublishingSettingsService *_alarmPublishingSettings; ///< Alarm-publishing settings service
@@ -587,7 +636,7 @@ private:
     struct SmokeDetectorHA {
         HADevice                                  *device;
         HABinarySensor                            *sensor;       ///< smoke alarm binary_sensor (Control)
-        std::unique_ptr<HAGroupedSensorPublisher>  diagnostics;  ///< 13 readout entities on one shared state topic
+        std::unique_ptr<HAGroupedSensorPublisher>  diagnostics;  ///< status + readout entities on one shared state topic
     };
     std::map<uint32_t, SmokeDetectorHA> _haDevices;  ///< maps device.id → HA objects
 
@@ -619,6 +668,24 @@ private:
     // heartbeat and causes the front end to time out the commit request.
     TaskHandle_t _postCommitTaskHandle = nullptr;
     void _postCommitTask();
+
+    /**
+     * @brief Work that follows a committed import: flash write and Home Assistant sync
+     *
+     * Runs the update handlers and reports the progress with DEVICE_IMPORT_EVENT:
+     * "saved" once the device list is written to flash, "done" when the handlers have
+     * returned - with what was done for Home Assistant. An entity-ID rename the sync left
+     * pending is carried out by the rename task afterwards, as a background cycle.
+     */
+    void _runPostCommit();
+
+    /// True while the calling task runs the update handlers for a committed import
+    bool _isImportSync() const { return _importSyncTask.load() == xTaskGetCurrentTaskHandle(); }
+
+    /// Emit DEVICE_IMPORT_EVENT: "saved" (with `ha`: integration enabled) or "done" (with `ha`: outcome)
+    void _emitImportEvent(const char *state);
+
+    std::atomic<TaskHandle_t> _importSyncTask{nullptr}; ///< Task that runs the update handlers for a committed import, if any
     static void _postCommitTaskImpl(void *ctx) { static_cast<GeniusDevicesService *>(ctx)->_postCommitTask(); }
 
     // ------------------------------------------------------------------------
@@ -639,6 +706,12 @@ private:
 
     /// Update internal alarming state counters
     void _updateAlarmingState();
+
+    /// Update the status summary counters and the simple fault topic (publishes on change only)
+    void _updateStatusSummary();
+
+    /// Build the simple fault topic payload from the current device list
+    String _buildSimpleFaultPayload();
 
     // ========================================================================
     // ID Generation
@@ -725,8 +798,14 @@ private:
      */
     bool _publishSmokeDetectorDiscovery(uint32_t deviceId, String *announcedPrefix = nullptr);
 
-    /// Wake the rename task (cheap; safe from any task)
-    void _requestEntityIdRename();
+    /**
+     * @brief Wake the rename task (cheap; safe from any task)
+     *
+     * @param background true for a cycle caused by an import: the user asked for an import,
+     *                   not for a rename, so the web interface shows no progress for it. An
+     *                   announced request that arrives before the cycle starts wins.
+     */
+    void _requestEntityIdRename(bool background = false);
 
     /**
      * @brief Rename the HA entities of all detectors with a pending rename, in one batch
@@ -738,10 +817,12 @@ private:
      * runs again on the next connect. If the connection drops half-way the
      * prefixes are not stored, so the next connect repeats the cycle.
      */
-    void _runEntityIdRename();
+    void _runEntityIdRename(bool background);
 
-    /// Emit HA_ENTITY_RENAME_EVENT with the given state and detector count
-    void _emitEntityRenameEvent(const char *state, uint32_t count);
+    /// Emit HA_ENTITY_RENAME_EVENT with the given state, the detector count and the locations
+    /// of the first detectors of the batch, so the web interface can say who is renamed.
+    /// `background` marks a cycle caused by an import (see _requestEntityIdRename()).
+    void _emitEntityRenameEvent(const char *state, uint32_t count, const std::vector<String> &names, bool background);
 
     /// Trigger a diagnostics state publish for one device (by stable device ID).
     /// Reads all values directly from _state.devices - no separate cache needed.

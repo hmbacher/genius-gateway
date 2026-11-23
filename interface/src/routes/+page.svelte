@@ -13,7 +13,7 @@
 	import AlarmEndingDialog from './AlarmEndingDialog.svelte';
 	import DeviceDetailsDialog from './gateway/smoke-detectors/DeviceDetailsDialog.svelte';
 	import { openDeviceEditor } from './gateway/smoke-detectors/deviceSave.svelte';
-	import AlarmLog from './gateway/smoke-detectors/AlarmLog.svelte';
+	import ActivityLog from './gateway/smoke-detectors/ActivityLog.svelte';
 	import Info from '~icons/tabler/info-circle';
 	import BellOff from '~icons/tabler/bell-off';
 
@@ -37,9 +37,10 @@
 	 */
 	function openDevice(device: GeniusDevice) {
 		if (device.isAlarming) {
-			modals.open(AlarmLog, {
-				title: 'Alarms log',
+			modals.open(ActivityLog, {
+				title: 'Activity log',
 				geniusDevice: device,
+				alarmsOnly: true,
 				onDetails: () => openDetails(device)
 			});
 		} else {

@@ -24,7 +24,8 @@
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { cc1101Status } from '$lib/stores/cc1101.svelte';
 	import { jsonDateReviver } from '$lib/utils/misc';
-	import type { GeniusDevices, AlarmState, CC1101Status } from '$lib/types/models';
+	import { activeStatusFlags, statusFlagLabels, STATUS_FAULT_MASK } from '$lib/genius/status';
+	import type { GeniusDevices, AlarmState, DeviceStatusEvent, CC1101Status } from '$lib/types/models';
 
 	interface Props {
 		data: LayoutData;
@@ -72,6 +73,8 @@
 		if (page.data.features.download_firmware) socket.on('otastatus', handleOTA);
 		// Genius Gateway: Listen for alarm state changes
 		socket.on<AlarmState>('alarm', handleAlarm);
+		// Genius Gateway: Listen for smoke detector status changes (battery low, faults)
+		socket.on<DeviceStatusEvent>('device-status', handleDeviceStatus);
 		// Genius Gateway: Listen for CC1101 radio lifecycle state
 		socket.on<CC1101Status>('cc1101_status', handleCC1101Status);
 	};
@@ -86,6 +89,7 @@
 		socket.off('otastatus', handleOTA);
 		// Genius Gateway: Stop listening for alarm state changes
 		socket.off('alarm', handleAlarm);
+		socket.off('device-status', handleDeviceStatus);
 		socket.off('cc1101_status', handleCC1101Status);
 	};
 
@@ -202,6 +206,23 @@
 		}
 		// Reload Genius devices to obtain alarming ones
 		await getGeniusDevices();
+	};
+
+	const handleDeviceStatus = async () => {
+		// The event only says that something changed. Remember which faults every detector
+		// reported so far, reload the list and name what is new - per detector and fault.
+		const before = new Map(
+			geniusDevices.devices.map((d) => [d.id, activeStatusFlags(d) & STATUS_FAULT_MASK])
+		);
+		await getGeniusDevices();
+		for (const device of geniusDevices.devices) {
+			const known = before.get(device.id);
+			if (known === undefined) continue; // detector new to this browser: nothing to compare with
+			const added = activeStatusFlags(device) & STATUS_FAULT_MASK & ~known;
+			if (!added) continue;
+			const name = device.location || `Smoke detector ${device.smokeDetector.sn}`;
+			notifications.warning(`${name}: ${statusFlagLabels(added).join(', ')}`, 8000);
+		}
 	};
 
 	/* Handles successful sign-in by initializing the socket connection

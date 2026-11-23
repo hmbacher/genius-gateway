@@ -141,6 +141,8 @@ Field| rs | RM-Serial   | Line-ID     | line| sw  | int |
 | 3–6 | `0x78` | `driftState` | Smoke chamber drift indicator. Observed values: `0` = OK, `2` = warning, `4` = defect. Other values are unspecified. |
 | 7 | `0x80` | `dirtForecastNegative` | Predictive dust accumulation will cause failure before end of warranty. |
 
+Bits 0–2 correspond to the over-the-air status flags *BattLow*, *Error* and *Radio* of the [Status Change packet](protocol-analysis.md#status-change). The gateway takes them over as the detector's [current status](../features/device-management.md#current-status) whenever a new readout arrives (for old FM.Basis / FM.Pro modules, which report no radio status, only bits 0–1).
+
 #### Warranty Flags (bytes 17–18, LE) {#warranty-flags}
 
 If `warrantyFlagsRaw == 0`, the warranty is fully intact and the parser surfaces a synthetic flag `WarrantyPossible`. Otherwise, each set bit corresponds to a specific voiding reason:

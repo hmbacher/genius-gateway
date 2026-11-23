@@ -569,10 +569,10 @@ Each configured smoke detector is published as an **HA sub-device** nested under
 Each smoke detector sub-device publishes:
 
 - **1 binary_sensor** (Control) - `smoke` device class, alarm state `ON`/`OFF`
-- **3 binary_sensor** (Diagnostic) - battery low, smoke detector fault, radio module fault; available after acoustic readout
-- **11 sensor** (Diagnostic) - deinstallation count, last service timestamp, radio module model, alarm line ID, alarm line, production date, radio module serial, total alarm count, 3-month alarm count, radio interference; available after acoustic readout
+- **4 binary_sensor** (Diagnostic) - battery low, smoke detector fault, radio module fault, dismount; the **current status**, each available once its state is known
+- **10 sensor** (Diagnostic) - deinstallation count, last service timestamp, radio module model, alarm line ID, alarm line, production date, radio module serial, total alarm count, 3-month alarm count, radio interference; available after acoustic readout
 
-Readout-derived entities (all except the main smoke sensor) report as **unavailable** until the first acoustic readout is performed via the gateway's [SmartSonic interface](../features/device-management.md).
+The status entities reflect the newest of: a [status change](../reverse-engineering/protocol-analysis.md#status-change) received over the air (live), the last acoustic readout, or a [manual status reset](../features/device-management.md#current-status). Each one reports as **unavailable** until the gateway knows the state of its flag - a freshly commissioned gateway cannot tell "OK" from "never announced", since smoke detectors announce a status flag only when it changes. The readout entities report as **unavailable** until the first acoustic readout is performed via the gateway's [SmartSonic interface](../features/device-management.md).
 
 **Topic Structure:**
 
@@ -655,9 +655,9 @@ homeassistant/genius-gateway-aabbcc/genius-1746234159/...
 
 ---
 
-#### Readout-Derived Diagnostic Entities
+#### Diagnostic Entities (Status and Readout)
 
-All 13 readout-derived diagnostic entities share a **single state topic** that carries a JSON object with all values. Availability is folded into the same JSON payload - no separate availability topic is needed.
+All 14 diagnostic entities share a **single state topic** that carries a JSON object with all values. Availability is folded into the same JSON payload - no separate availability topic is needed.
 
 **:material-message-outline: Shared State Topic**
 ```
@@ -673,6 +673,7 @@ All 13 readout-derived diagnostic entities share a **single state topic** that c
   "battery_low": false,
   "device_fault": false,
   "radio_fault": false,
+  "dismounted": false,
   "deinstall_count": 2,
   "last_readout": "2026-04-30T14:22:00",
   "radio_module_model": "FM Basis X",
@@ -686,25 +687,37 @@ All 13 readout-derived diagnostic entities share a **single state topic** that c
 }
 ```
 
-`available` is `false` (and all other fields absent or stale) until the first successful acoustic readout. Each entity's discovery config uses `availability_template` on this same topic:
+Each entity's discovery config uses `availability_template` on this same topic, in two flavours:
 
-```yaml
-availability_topic: "{base_topic}/genius-{device_id}/diagnostics/state"
-availability_template: "{{ 'online' if value_json.available else 'offline' }}"
-```
+- **Status entities** - a field is present only once the state of its flag is known (from a status change received over the air, a readout or a manual reset). The entity is available while its own field is defined:
+
+    ```yaml
+    availability_topic: "{base_topic}/genius-{device_id}/diagnostics/state"
+    availability_template: "{{ 'online' if value_json.battery_low is defined else 'offline' }}"
+    ```
+
+- **Readout entities** - `available` is `false` (and the readout fields absent) until the first successful acoustic readout:
+
+    ```yaml
+    availability_topic: "{base_topic}/genius-{device_id}/diagnostics/state"
+    availability_template: "{{ 'online' if value_json.available else 'offline' }}"
+    ```
 
 **Discovery Config Topic Pattern:**
 ```
 {discovery_prefix}{component}/genius-{device_id}/{object_id}/config
 ```
 
-**Diagnostic binary_sensor entities** (`value_template` extracts a boolean as `ON`/`OFF`):
+**Status binary_sensor entities** (`value_template` extracts a boolean as `ON`/`OFF`):
 
-| Object ID | Name | Device Class | `value_template` |
-|-----------|------|-------------|-----------------|
-| `battery_low` | Battery | `battery` | `{{ 'ON' if value_json.battery_low else 'OFF' }}` |
-| `device_fault` | Smoke Detector State | `problem` | `{{ 'ON' if value_json.device_fault else 'OFF' }}` |
-| `radio_fault` | Radio Module State | `problem` | `{{ 'ON' if value_json.radio_fault else 'OFF' }}` |
+| Object ID | Name | Device Class | Status flag | `value_template` |
+|-----------|------|-------------|-------------|-----------------|
+| `battery_low` | Battery | `battery` | `0x0004` BattLow | `{{ 'ON' if value_json.battery_low else 'OFF' }}` |
+| `device_fault` | Smoke Detector State | `problem` | `0x0002` Error | `{{ 'ON' if value_json.device_fault else 'OFF' }}` |
+| `radio_fault` | Radio Module State | `problem` | `0x0008` Radio | `{{ 'ON' if value_json.radio_fault else 'OFF' }}` |
+| `dismounted` | Dismount | `tamper` | `0x0020` Dismount | `{{ 'ON' if value_json.dismounted else 'OFF' }}` |
+
+An acoustic readout reports battery, smoke detector fault and radio module fault as well, so a readout makes these three known. The dismount flag is only ever reported over the air.
 
 **Diagnostic sensor entities** (`value_template` extracts the relevant field):
 
@@ -724,8 +737,8 @@ availability_template: "{{ 'online' if value_json.available else 'offline' }}"
 **:material-publish: Publishing Behavior**
 
 - Configs published on MQTT (re)connect alongside the main smoke sensor config
-- State published immediately after a successful acoustic readout
-- State re-published on MQTT (re)connect; `available: false` until first readout
+- State published immediately after a received status change, a manual status reset and a successful acoustic readout
+- State re-published on MQTT (re)connect; status fields absent until known, `available: false` until first readout
 
 !!! note "Migration from pre-1.x firmware"
     Firmware upgrading from a version that used per-entity state topics will automatically clear the 13 stale retained state topics and the old `readout/avail` topic on the first MQTT connect after upgrade. Entity history and customizations in Home Assistant are preserved because all object IDs remain unchanged.
@@ -964,3 +977,81 @@ Published when two smoke detectors are alarming (example):
 **:material-home-automation: Integration**
 
 This topic enables integration with *all* smart home systems that support MQTT.
+---
+
+## Global Fault State Topic
+
+**:material-message-outline: Topic (Default)**
+```
+smarthome/genius-gateway/fault
+```
+
+**:material-information-outline: Description:** Status summary of all smoke detectors - battery low, device faults, radio link faults, dismounting
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** true
+
+**:material-code-json: Payload:**
+
+Published if no smoke detector reports a fault:
+```json
+{
+  "numFaulty": 0,
+  "numBatteryLow": 0,
+  "devices": []
+}
+```
+
+Published when one smoke detector reports a low battery (example):
+```json
+{
+  "numFaulty": 1,
+  "numBatteryLow": 1,
+  "devices": [
+    {
+      "sn": 2191914555,
+      "location": "Kitchen",
+      "status": ["battery_low"]
+    }
+  ]
+}
+```
+
+**:material-format-list-bulleted: Payload Fields**
+
+- `numFaulty` - Number of smoke detectors with at least one active fault
+- `numBatteryLow` - Number of smoke detectors reporting a low battery
+- `devices` - The smoke detectors counted in `numFaulty`:
+    - `sn` - Smoke detector serial number
+    - `location` - Configured location
+    - `status` - The active faults:
+
+        | Value | Flag | Meaning |
+        |-------|------|---------|
+        | `battery_low` | `0x0004` | Battery low |
+        | `device_fault` | `0x0002` | Device fault |
+        | `radio_fault` | `0x0008` | Radio link fault |
+        | `dismounted` | `0x0020` | Dismounted from its base |
+        | `reported_missing` | - | Set by the gateway: another detector reports this detector's radio module as missing |
+
+    - `info` - Only present if the detector has further active flags that are no fault: `fault_muted` (`0x0010`, a radio link or dismount fault was muted on the detector) or `flag_0xNNNN` (a flag not known yet, reported by value so nothing is lost)
+
+The flags reflect each detector's [current status](../features/device-management.md#current-status): received over the air or taken over from an acoustic readout - whichever is newest.
+
+!!! warning "No fault listed does not mean all is well"
+    Smoke detectors announce a status change once. A gateway that has not heard about a flag - because it was put into operation later, or missed the announcement - does not know its state, and an unknown state is not listed. `numFaulty: 0` therefore means that no fault is known, not that every detector was confirmed to be fine.
+
+**:material-publish: Publishing Behavior**
+
+- Published whenever the payload changes - a fault is reported or cleared, a status is reset manually, a readout changes the status, or a listed detector is renamed or deleted
+- When fault publishing is switched off or its topic is changed, the retained message on the old topic is removed (an empty retained payload is published)
+- Published when MQTT connection is established or re-established, and when the publishing settings change
+
+!!! info "Status after restart"
+    Unlike the alarm state, the status of each smoke detector is persisted - smoke detectors announce a flag only when it changes, so a restart must not forget a pending battery warning. A flag stays active until the smoke detector clears it or it is [reset manually](../features/device-management.md#current-status).
+
+!!! note "Independent of Home Assistant integration"
+    Simple fault publishing works independently of the [Home Assistant integration](../features/smart-home-integration.md#home-assistants-mqtt-discovery). It is controlled solely by the **Enable simple fault publishing** toggle.
+
+- Published only if [simple fault publishing](../setup/connections.md#simple-alarm-publishing) is enabled
