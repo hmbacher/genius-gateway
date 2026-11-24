@@ -824,6 +824,11 @@ void GeniusGateway::_rx_packets()
                             // Radio link supervision: the originator misses another radio module
                             _geniusDevices.applyModuleMissing(packet_details.origin_id, packet_details.missing_module_sn);
                         }
+                        else if (packet_details.type == HPT_MODULE_PRESENT)
+                        {
+                            // Radio link supervision: the originator hears a module that was reported missing
+                            _geniusDevices.applyModulePresent(packet_details.origin_id, packet_details.present_module_sn);
+                        }
                         else if (packet_details.type == HPT_CONFIG_CHECK_PROBE_RESPONSE)
                         {
                             // Collect the responder into the active ConfigCheckProbe survey (no-op if

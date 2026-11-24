@@ -239,8 +239,8 @@
 
 	// Current status: status flags received over the air, taken over from the last readout or
 	// reset manually - whichever is newest. A flag the gateway never heard about stays "Unknown".
-	// "Reported missing" has no OK of its own (a supervised line reports no recovery), so its row
-	// is shown only while it is active.
+	// "Reported missing" says that a report is pending. When it is over, the radio link is not
+	// thereby known to be OK, so its row is shown only while it is active.
 	const STATUS_ROWS = [
 		{ bit: STATUS_BATTERY_LOW, label: 'Battery', activeText: 'Low', icon: IconBattery, activeIcon: IconBatteryOff },
 		{ bit: STATUS_DEVICE_FAULT, label: 'Detector', activeText: 'Fault', icon: IconSmokeDetector, activeIcon: IconSmokeDetector },

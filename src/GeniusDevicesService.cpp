@@ -595,22 +595,40 @@ void GeniusDevicesService::applyModuleMissing(uint32_t reporterModuleSN, uint32_
 
     beginTransaction();
 
+    // A module that stays missing is reported again in every supervision round (4 h apart).
+    // Such a report continues the previous one as long as the module was not heard or
+    // confirmed present in between - for a registered detector that is its status flag.
+    bool missingRegistered = false;
+    bool wasMissing = false;
+    for (const GeniusDevice &device : _state.devices)
+    {
+        if (device.radioModule.sn == missingModuleSN)
+        {
+            missingRegistered = true;
+            wasMissing = (device.status.activeMask() & GENIUS_STATUS_REPORTED_MISSING) != 0;
+            break;
+        }
+    }
+
     for (GeniusDevice &device : _state.devices)
     {
         if (device.radioModule.sn == reporterModuleSN)
         {
-            // The report is repeated and forwarded through the mesh: one log entry per report,
-            // not one per copy that arrives.
-            if (!device.status.hasRecentEvent(GDE_MODULE_MISSING, missingModuleSN, now, GENIUS_MODULE_MISSING_REPEAT_S))
-            {
-                device.status.addEvent({now, GDE_MODULE_MISSING, 0, 0, missingModuleSN});
+            // One log entry per missing module: the copies of a report (repeated, forwarded
+            // through the mesh) are one report, and the reports of later rounds are counted
+            // on that entry. Of a module the gateway does not know nothing but the reports is
+            // known, so there a pause of more than a day starts a new entry.
+            const bool ongoing = missingRegistered ? wasMissing : true;
+            const long maxGap = missingRegistered ? 0 : GENIUS_MODULE_MISSING_ONGOING_S;
+            if (device.status.logReport(GDE_MODULE_MISSING, missingModuleSN, now, GENIUS_MODULE_MISSING_REPEAT_S,
+                                        ongoing, maxGap) != GeniusDeviceStatus::REPORT_COPY)
                 changed = true;
-            }
         }
         else if (device.radioModule.sn == missingModuleSN)
         {
             // Edge-triggered like every status flag: the state stays until a frame of this
-            // module is heard again (moduleHeard()) or the status is reset by hand.
+            // module is heard again (moduleHeard()), another module confirms that it hears
+            // it (applyModulePresent()) or the status is reset by hand.
             const GeniusStatusDelta delta = device.status.apply(GENIUS_STATUS_REPORTED_MISSING, 0, now, GDE_MODULE_MISSING);
             if (delta.any())
             {
@@ -638,6 +656,47 @@ void GeniusDevicesService::applyModuleMissing(uint32_t reporterModuleSN, uint32_
         _publishSmokeDetectorAttributes(missingDeviceId); // HA: radio module state
         endTransaction();
     }
+}
+
+void GeniusDevicesService::applyModulePresent(uint32_t confirmingModuleSN, uint32_t presentModuleSN)
+{
+    // Called from the RX path: stay out of the mutex unless a detector is reported missing.
+    if (presentModuleSN == 0 || _numReportedMissing.load() == 0)
+        return;
+
+    uint32_t presentDeviceId = 0;
+    const time_t now = time(nullptr);
+
+    beginTransaction();
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (device.radioModule.sn != presentModuleSN)
+            continue;
+        if (!(device.status.activeMask() & GENIUS_STATUS_REPORTED_MISSING))
+            continue;
+
+        // Another module hears it: the module is there, it is only out of range of the one
+        // that reported it (which now stops supervising it instead of raising a fault).
+        const GeniusStatusDelta delta = device.status.apply(0, GENIUS_STATUS_REPORTED_MISSING, now, GDE_MODULE_MISSING);
+        if (delta.any())
+        {
+            device.status.addEvent({now, GDE_MODULE_MISSING, 0, GENIUS_STATUS_REPORTED_MISSING, confirmingModuleSN});
+            presentDeviceId = device.id;
+        }
+    }
+    endTransaction();
+
+    if (!presentDeviceId)
+        return;
+
+    ESP_LOGI(GeniusDevices::TAG, "Radio module %lu, reported missing before, is confirmed present by radio module %lu.",
+             (unsigned long)presentModuleSN, (unsigned long)confirmingModuleSN);
+
+    callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+    beginTransaction();
+    _publishSmokeDetectorAttributes(presentDeviceId); // HA: radio module state
+    endTransaction();
 }
 
 bool GeniusDevicesService::moduleHeard(uint32_t originModuleSN, uint32_t senderModuleSN, int8_t rssiDbm)
@@ -1111,8 +1170,9 @@ void GeniusDevice::statusToJson(JsonObject &root) const
                 break;
             case GDE_MODULE_MISSING:
                 // Three shapes: this device reports another module as missing (cause = that
-                // module), this device is reported missing (set, cause = the reporter), or its
-                // radio module was heard again (cleared).
+                // module), this device is reported missing (set, cause = the reporter), or it
+                // is no longer (cleared; cause = the module that confirmed it present, none
+                // if its own radio module was heard again).
                 if (event.value)
                     obj["cause"] = event.value;
                 if (event.set)
@@ -1127,6 +1187,13 @@ void GeniusDevice::statusToJson(JsonObject &root) const
                 break;
             default:
                 break;
+            }
+            // A report that was made again while its cause lasted: how often, and when last
+            if (event.count > 1)
+            {
+                obj["count"] = event.count;
+                if (geniusTimeValid(event.last))
+                    obj["last"] = Utils::time_t_to_iso8601(event.last);
             }
         }
     }
@@ -1168,6 +1235,9 @@ bool GeniusDevice::statusFromJson(JsonVariant src)
             if (event.type >= GDE_MAX)
                 continue;
             event.time = item["time"].is<String>() ? Utils::iso8601_to_time_t(item["time"].as<String>()) : 0;
+            const uint32_t count = item["count"] | 1U;
+            event.count = count < 1 ? 1 : (count > UINT16_MAX ? UINT16_MAX : static_cast<uint16_t>(count));
+            event.last = (event.count > 1 && item["last"].is<String>()) ? Utils::iso8601_to_time_t(item["last"].as<String>()) : 0;
             switch (event.type)
             {
             case GDE_CREATED:

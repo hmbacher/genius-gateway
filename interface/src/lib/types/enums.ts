@@ -117,4 +117,10 @@ export enum GeniusPacketType {
   SupervisionSeries,
   /** /< A radio module reports another one as missing (family 0x33, type 0x02) */
   ModuleMissing,
+  /** /< Roll call of the radio link supervision (family 0x33, type 0x01) */
+  SupervisionRollCall,
+  /** /< A radio module answers a "module missing" report: it hears the named module (family 0x33, type 0x03) */
+  ModulePresent,
+  /** /< Line clock, distributed in a supervision round (family 0x22, type 0x00) */
+  LineClock,
 }

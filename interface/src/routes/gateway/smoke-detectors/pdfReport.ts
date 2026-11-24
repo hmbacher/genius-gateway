@@ -241,7 +241,7 @@ const STATUS_ROWS = [
 	{ bit: STATUS_BATTERY_LOW, label: 'Battery', activeText: 'Low' },
 	{ bit: STATUS_DEVICE_FAULT, label: 'Detector', activeText: 'Fault' },
 	{ bit: STATUS_RADIO_FAULT, label: 'Radio Link', activeText: 'Fault' },
-	// No OK of its own (a supervised line reports no recovery): shown only while active
+	// A pending report, without an OK state of its own: shown only while active
 	{
 		bit: STATUS_REPORTED_MISSING,
 		label: 'Radio Module',

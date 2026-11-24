@@ -89,12 +89,27 @@ bool genius_analyze_packet(const uint8_t *data, size_t length, genius_packet_t *
         {
             out->type = HPT_SUPERVISION_SERIES;
         }
+        else if (msgType == MSGTYPE_SUPERVISION_ROLL_CALL && length == LEN_SUPERVISION_ROLL_CALL_PACKET)
+        {
+            out->type = HPT_SUPERVISION_ROLL_CALL;
+        }
         else if (msgType == MSGTYPE_MODULE_MISSING && length == LEN_MODULE_MISSING_PACKET)
         {
             out->type = HPT_MODULE_MISSING;
             out->missing_module_sn = readU32BE(data, DATAPOS_MODULE_MISSING_SN);
         }
-        break; // 0x33/0x01 was seen on air as well - its function is unknown
+        else if (msgType == MSGTYPE_MODULE_PRESENT && length == LEN_MODULE_PRESENT_PACKET)
+        {
+            // Not captured on air yet (same layout as "module missing")
+            out->type = HPT_MODULE_PRESENT;
+            out->present_module_sn = readU32BE(data, DATAPOS_MODULE_PRESENT_SN);
+        }
+        break;
+
+    case MSGFAMILY_LINE_CLOCK: // 0x22  (sent in a supervision round, before the roll call)
+        if (msgType == MSGTYPE_LINE_CLOCK && length == LEN_LINE_CLOCK_PACKET)
+            out->type = HPT_LINE_CLOCK;
+        break;
 
     case MSGFAMILY_COMMISSIONING: // 0x66
         switch (msgType)

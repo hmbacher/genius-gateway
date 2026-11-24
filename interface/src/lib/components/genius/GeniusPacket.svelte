@@ -12,6 +12,8 @@
 	import GeniusPacketContentCommissioningProbeResponse from './GeniusPacketContentCommissioningProbeResponse.svelte';
 	import GeniusPacketContentStatusChange from './GeniusPacketContentStatusChange.svelte';
 	import GeniusPacketContentConfigCheckProbeResponse from './GeniusPacketContentConfigCheckProbeResponse.svelte';
+	import GeniusPacketContentNamedModule from './GeniusPacketContentNamedModule.svelte';
+	import GeniusPacketContentLineClock from './GeniusPacketContentLineClock.svelte';
 	import IconChevronDown from '~icons/tabler/chevron-down';
 
 	interface Props {
@@ -90,6 +92,11 @@
 				<GeniusPacketContentStatusChange {packet} {showDetails} />
 			{:else if packet.type?.name === PacketTypeNames.ConfigCheckProbeResponse}
 				<GeniusPacketContentConfigCheckProbeResponse {packet} {showDetails} />
+			{:else if packet.type?.name === PacketTypeNames.ModuleMissing || packet.type?.name === PacketTypeNames.ModulePresent}
+				<!-- both name a radio module by its serial number -->
+				<GeniusPacketContentNamedModule {packet} {showDetails} />
+			{:else if packet.type?.name === PacketTypeNames.LineClock}
+				<GeniusPacketContentLineClock {packet} {showDetails} />
 			{:else if packet.generalInfo && packet.data.length >= 24}
 				<GeniusPacketContentHeader {packet} {showDetails} />
 				<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(24)} />
@@ -176,6 +183,18 @@
 
 	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-module-missing) {
 		@apply bg-rose-400 dark:bg-rose-700 font-normal;
+	}
+
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-module-present) {
+		@apply bg-emerald-300 dark:bg-emerald-700 font-normal;
+	}
+
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-supervision-roll-call) {
+		@apply bg-sky-500 dark:bg-sky-800 font-normal text-white;
+	}
+
+	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-line-clock) {
+		@apply bg-emerald-200 dark:bg-emerald-900 font-normal;
 	}
 
 	:global(div.genius-packet>div.meta-row-outer>div.meta-row-chips>div.type-unknown) {

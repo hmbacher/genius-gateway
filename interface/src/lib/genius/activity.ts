@@ -81,6 +81,14 @@ export function radioModuleName(devices: GeniusDevice[], serial: number): string
 		: `radio module ${serial}`;
 }
 
+/** " (3 times, last ...)" for a report that was made again while its cause lasted. */
+function repeated(e: GeniusDeviceEvent): string {
+	if (!e.count || e.count < 2) return '';
+	return e.last
+		? ` (${e.count} times, last ${formatDateTimeSeconds(e.last)})`
+		: ` (${e.count} times)`;
+}
+
 /**
  * Title and detail text of one activity log entry.
  *
@@ -111,16 +119,26 @@ export function describeEvent(
 		case EVENT_STATUS_RESET:
 			return { title: 'Status reset', detail: 'Reported faults discarded' };
 		case EVENT_MODULE_MISSING: {
-			// Three shapes (radio link supervision): the detector's own radio module was heard
-			// again, the detector is reported missing by another module, or it reports one.
+			// Radio link supervision: the detector is no longer reported missing (another module
+			// confirmed that it hears it, or its own radio module was heard again), it is
+			// reported missing by another module, or it reports one.
 			const module = e.cause ? moduleName(e.cause) : 'a radio module';
 			if ((e.cleared ?? 0) & STATUS_REPORTED_MISSING) {
-				return { title: 'Radio module heard again', detail: 'No longer reported missing' };
+				return e.cause
+					? {
+							title: 'Confirmed present',
+							detail: `No longer reported missing - heard by ${module}`
+						}
+					: { title: 'Radio module heard again', detail: 'No longer reported missing' };
 			}
 			if ((e.set ?? 0) & STATUS_REPORTED_MISSING) {
 				return { title: 'Reported missing', detail: `Reported missing by ${module}` };
 			}
-			return { title: 'Radio module missing', detail: `Reports ${module} as missing` };
+			// Reported again in every supervision round while the module stays missing
+			return {
+				title: 'Radio module missing',
+				detail: `Reports ${module} as missing${repeated(e)}`
+			};
 		}
 		case EVENT_ALARM: {
 			const reason = e.endingReason ?? GeniusAlarmEnding.AlarmActive;

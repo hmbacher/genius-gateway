@@ -14,6 +14,8 @@
 		CommissioningProbeResponseInfo,
 		AlarmLines,
 		StatusChangeInfo,
+		NamedModuleInfo,
+		LineClockInfo,
 		WSLoggerSettings
 	} from '$lib/types/models';
 	import {geniusDevices} from '$lib/stores/geniusDevices.svelte';
@@ -141,6 +143,20 @@
 				smokeDetector: dv.getUint32(32, true),
 				location: getDetectorLocationBySmokeDetectorSN(dv.getUint32(32, true))
 			} as StatusChangeInfo;
+		} else if (
+			packet.type?.name === PacketTypeNames.ModuleMissing ||
+			packet.type?.name === PacketTypeNames.ModulePresent
+		) {
+			// Radio link supervision: the radio module that is reported missing / confirmed present
+			packet.specificInfo = {
+				radioModule: dv.getUint32(28),
+				location: getDetectorLocationByRadioModuleSN(dv.getUint32(28))
+			} as NamedModuleInfo;
+		} else if (packet.type?.name === PacketTypeNames.LineClock) {
+			packet.specificInfo = {
+				timeStr: `${dv.getUint8(28).toString().padStart(2, '0')}:${dv.getUint8(29).toString().padStart(2, '0')}:${dv.getUint8(30).toString().padStart(2, '0')}`,
+				day: dv.getUint16(31, true)
+			} as LineClockInfo;
 		}
 	}
 

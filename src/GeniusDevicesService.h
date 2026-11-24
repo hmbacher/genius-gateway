@@ -465,16 +465,30 @@ public:
     /**
      * @brief A radio module reports another one as missing (radio link supervision)
      *
-     * The reporting detector gets an activity log entry naming the missing module. The
-     * detector with the missing module - if it is registered - gets the status flag
-     * GENIUS_STATUS_REPORTED_MISSING, which counts as a fault. Like every status flag it
-     * stays until something reports otherwise: here until a frame of that module is heard
-     * again (moduleHeard()) or the status is reset by hand.
+     * The reporting detector gets an activity log entry naming the missing module; reports
+     * of later supervision rounds (4 h apart while the module stays missing) are counted on
+     * that entry. The detector with the missing module - if it is registered - gets the
+     * status flag GENIUS_STATUS_REPORTED_MISSING, which counts as a fault. Like every status
+     * flag it stays until something reports otherwise: here until a frame of that module is
+     * heard again (moduleHeard()), another module confirms that it hears it
+     * (applyModulePresent()) or the status is reset by hand.
      *
      * @param reporterModuleSN Serial of the radio module that sent the report
      * @param missingModuleSN  Serial of the radio module it reports as missing
      */
     void applyModuleMissing(uint32_t reporterModuleSN, uint32_t missingModuleSN);
+
+    /**
+     * @brief A radio module answers a "module missing" report: it hears the named module
+     *
+     * The named module is there, only out of range of the module that reported it. Ends
+     * GENIUS_STATUS_REPORTED_MISSING of its detector, with an activity log entry naming the
+     * confirming module. Not captured on air yet.
+     *
+     * @param confirmingModuleSN Serial of the radio module that sent the answer
+     * @param presentModuleSN    Serial of the radio module it hears
+     */
+    void applyModulePresent(uint32_t confirmingModuleSN, uint32_t presentModuleSN);
 
     /**
      * @brief A frame of these radio modules was received
