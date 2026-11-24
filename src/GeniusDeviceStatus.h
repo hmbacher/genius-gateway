@@ -110,7 +110,8 @@ static inline bool geniusTimeValid(time_t t)
 
 #define GENIUS_MODULE_MISSING_REPEAT_S 600 ///< Copies of one "module missing" report that arrive within this time are one report
 /// A "module missing" report about a radio module the gateway does not know continues the
-/// previous one if that is at most this old (a module that stays missing is reported every 4 h).
+/// previous one if that is at most this old (a module that stays missing is reported up to three
+/// times, about 5 h apart; then the reporting module raises its fault and stops supervising).
 #define GENIUS_MODULE_MISSING_ONGOING_S 86400L
 
 #ifndef GENIUS_MAX_DEVICE_EVENTS

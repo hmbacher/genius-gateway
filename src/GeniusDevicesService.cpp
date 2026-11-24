@@ -595,7 +595,7 @@ void GeniusDevicesService::applyModuleMissing(uint32_t reporterModuleSN, uint32_
 
     beginTransaction();
 
-    // A module that stays missing is reported again in every supervision round (4 h apart).
+    // A module that stays missing is reported in up to three supervision rounds (about 5 h apart).
     // Such a report continues the previous one as long as the module was not heard or
     // confirmed present in between - for a registered detector that is its status flag.
     bool missingRegistered = false;

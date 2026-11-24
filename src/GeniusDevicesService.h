@@ -466,7 +466,7 @@ public:
      * @brief A radio module reports another one as missing (radio link supervision)
      *
      * The reporting detector gets an activity log entry naming the missing module; reports
-     * of later supervision rounds (4 h apart while the module stays missing) are counted on
+     * of later supervision rounds (up to three, about 5 h apart, while the module stays missing) are counted on
      * that entry. The detector with the missing module - if it is registered - gets the
      * status flag GENIUS_STATUS_REPORTED_MISSING, which counts as a fault. Like every status
      * flag it stays until something reports otherwise: here until a frame of that module is
