@@ -59,6 +59,7 @@
 #define GATEWAY_DEVICES_DEVICE_DELETE_PATH  "/rest/gateway-devices/device/delete"   ///< POST: delete single device (body: { id })
 #define GATEWAY_DEVICES_REORDER_PATH        "/rest/gateway-devices/reorder"         ///< POST: reorder (body: { order: [id...] })
 #define GATEWAY_DEVICES_RESET_STATUS_PATH   "/rest/gateway-devices/device/reset-status" ///< POST: clear a device's status flags (body: { id })
+#define GATEWAY_DEVICES_RUNTIME_PATH        "/rest/gateway-devices/runtime"         ///< GET: what was heard of the supervised radio modules since the gateway started
 
 // Chunked import endpoints (let arbitrarily large device lists land without holding the whole payload in heap)
 #define GATEWAY_DEVICES_IMPORT_BEGIN_PATH   "/rest/gateway-devices/import/begin"
@@ -82,6 +83,7 @@
 
 #define HA_ENTITY_RENAME_EVENT "ha-entity-rename"  ///< WebSocket event reporting the progress of a Home Assistant entity-ID rename
 #define DEVICE_IMPORT_EVENT "device-import"        ///< WebSocket event reporting what the gateway does after an import was committed
+#define DEVICE_RUNTIME_EVENT "device-runtime"      ///< WebSocket event: last seen / signal of radio modules changed (RAM-only values)
 #define HA_ENTITY_RENAME_SETTLE_MS 3000            ///< Pause between removing and re-publishing entities, so HA finishes the removal first
 #define HA_ENTITY_RENAME_EVENT_MAX_NAMES 3         ///< Detectors named by location in a HA_ENTITY_RENAME_EVENT; the count covers the rest
 #define HA_RENAME_NOTIFY_ANNOUNCED 0x01            ///< Rename task notification: a cycle whose progress is shown in the web interface
@@ -477,14 +479,30 @@ public:
     /**
      * @brief A frame of these radio modules was received
      *
-     * Ends "reported missing" for a detector whose radio module originated or transmitted
-     * the frame. Cheap while no detector is reported missing (no mutex), so it can be
-     * called from the RX path for every frame.
+     * Called from the RX path for every frame. Two things follow from it:
+     * - "reported missing" ends for a detector whose radio module originated or
+     *   transmitted the frame (no mutex is taken while no detector is reported missing)
+     * - for FM Pro X modules - the ones that send a daily supervision series - the time
+     *   is kept as "last seen", and for the transmitting module the signal strength.
+     *   These values live in RAM only, behind a mutex of their own that is never held
+     *   during file or network operations.
      *
      * @param originModuleSN Serial of the radio module that originated the frame
      * @param senderModuleSN Serial of the radio module that transmitted it (differs when relayed)
+     * @param rssiDbm        Signal strength of the frame, i.e. of the transmitting module
+     * @return true if a last seen / signal value changed (the web clients should be told)
      */
-    void moduleHeard(uint32_t originModuleSN, uint32_t senderModuleSN);
+    bool moduleHeard(uint32_t originModuleSN, uint32_t senderModuleSN, int8_t rssiDbm);
+
+    /**
+     * @brief Last seen / signal of the supervised radio modules as JSON
+     * @param root        Receives `devices`: [{ id, lastSeen, rssi?, rssiTime? }]
+     * @param changedOnly Only the entries that changed since they were last sent with this flag
+     */
+    void runtimeToJson(JsonObject root, bool changedOnly);
+
+    /// Send DEVICE_RUNTIME_EVENT with the entries that changed. Not for the RX task.
+    void emitRuntimeChanges();
 
     /// Number of devices with at least one active fault (GENIUS_STATUS_FAULT_MASK)
     uint32_t numFaultyDevices();
@@ -649,6 +667,27 @@ private:
     uint32_t _numFaulty = 0;      ///< Number of devices with an active fault
     uint32_t _numBatteryLow = 0;  ///< Number of devices reporting a low battery
     std::atomic<uint32_t> _numReportedMissing{0}; ///< Number of devices reported missing; read by the RX path without the mutex
+
+    /// What the gateway heard of a radio module since it started. Kept for FM Pro X modules
+    /// only - they send a daily supervision series, so "last seen" means something there.
+    struct ModuleRuntime
+    {
+        uint32_t deviceId = 0;
+        uint32_t moduleSn = 0;
+        time_t lastSeen = 0;  ///< Last frame this module originated or transmitted (0: none yet)
+        int8_t rssi = 0;      ///< Signal strength of the last frame it transmitted itself
+        time_t rssiTime = 0;  ///< When that frame was received (0: no signal value yet)
+        bool changed = false; ///< Not yet sent to the web clients
+    };
+    std::vector<ModuleRuntime> _runtime;         ///< RAM only; guarded by _runtimeMutex
+    SemaphoreHandle_t _runtimeMutex = nullptr;   ///< Guards _runtime; never held together with the state mutex
+    std::atomic<bool> _runtimeAny{false};        ///< _runtime is not empty; lets the RX path skip the mutex
+
+    /// Bring _runtime in line with the device list: one entry per detector with an FM Pro X module
+    void _syncRuntimeTable();
+
+    /// Second half of moduleHeard(): end "reported missing" for the detectors of these modules
+    void _endReportedMissing(uint32_t originModuleSN, uint32_t senderModuleSN);
     String _lastFaultPayload;     ///< Last payload sent to the simple fault topic (publish on change only)
 
     // MQTT

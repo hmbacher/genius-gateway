@@ -58,6 +58,7 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
                                                                                                                                                         _eventSocket(sveltekit->getSocket())
 {
     _importMutex = xSemaphoreCreateRecursiveMutex();
+    _runtimeMutex = xSemaphoreCreateMutex();
 }
 
 // ============================================================================
@@ -85,6 +86,7 @@ void GeniusDevicesService::begin()
     // reconnects early can then subscribe without an "unregistered event" warning.
     _eventSocket->registerEvent(HA_ENTITY_RENAME_EVENT);
     _eventSocket->registerEvent(DEVICE_IMPORT_EVENT);
+    _eventSocket->registerEvent(DEVICE_RUNTIME_EVENT);
 
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
@@ -183,6 +185,19 @@ void GeniusDevicesService::begin()
                 }
             },
             AuthenticationPredicates::IS_ADMIN));
+
+    // ---- GET /rest/gateway-devices/runtime: last seen / signal of the supervised modules ----
+    _server->on(
+        GATEWAY_DEVICES_RUNTIME_PATH,
+        HTTP_GET,
+        _securityManager->wrapRequest(
+            [this](PsychicRequest *request) -> esp_err_t {
+                PsychicJsonResponse response(request, false);
+                JsonObject root = response.getRoot().to<JsonObject>();
+                this->runtimeToJson(root, false);
+                return response.send();
+            },
+            AuthenticationPredicates::IS_AUTHENTICATED));
 
     // ---- Per-device CRUD: POST /rest/gateway-devices/reorder  body: { order: [id...] } ----
     _server->on(
@@ -307,12 +322,14 @@ void GeniusDevicesService::begin()
 
     // Status counters for the devices just loaded (readFromFS does not run the update handlers)
     _updateStatusSummary();
+    _syncRuntimeTable();
 
     /* Update alarming state and status summary after every device update */
     this->addUpdateHandler([&](const String &originId)
                            {
                                _updateAlarmingState();
-                               _updateStatusSummary(); },
+                               _updateStatusSummary();
+                               _syncRuntimeTable(); },
                            false);
 
     /* Sync HA sub-devices after device list changes (not for packet-originated adds, alarm or
@@ -623,7 +640,110 @@ void GeniusDevicesService::applyModuleMissing(uint32_t reporterModuleSN, uint32_
     }
 }
 
-void GeniusDevicesService::moduleHeard(uint32_t originModuleSN, uint32_t senderModuleSN)
+bool GeniusDevicesService::moduleHeard(uint32_t originModuleSN, uint32_t senderModuleSN, int8_t rssiDbm)
+{
+    bool runtimeChanged = false;
+
+    // ---- Last seen / signal of the supervised modules: RAM only, own mutex ----
+    // Without a valid clock there is no time to keep; the values would be useless.
+    const time_t now = time(nullptr);
+    if (_runtimeAny.load() && geniusTimeValid(now))
+    {
+        xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
+        for (ModuleRuntime &entry : _runtime)
+        {
+            const bool transmitted = entry.moduleSn == senderModuleSN;
+            if (!transmitted && entry.moduleSn != originModuleSN)
+                continue;
+
+            entry.lastSeen = now;
+            if (transmitted)
+            {
+                // The signal belongs to the module whose radio was actually heard: the
+                // sender, not the originator of a relayed frame.
+                entry.rssi = rssiDbm;
+                entry.rssiTime = now;
+            }
+            entry.changed = true;
+            runtimeChanged = true;
+        }
+        xSemaphoreGive(_runtimeMutex);
+    }
+
+    _endReportedMissing(originModuleSN, senderModuleSN);
+    return runtimeChanged;
+}
+
+void GeniusDevicesService::runtimeToJson(JsonObject root, bool changedOnly)
+{
+    JsonArray devices = root["devices"].to<JsonArray>();
+
+    xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
+    for (ModuleRuntime &entry : _runtime)
+    {
+        if (changedOnly ? !entry.changed : entry.lastSeen == 0)
+            continue;
+        if (changedOnly)
+            entry.changed = false;
+
+        JsonObject obj = devices.add<JsonObject>();
+        obj["id"] = entry.deviceId;
+        obj["lastSeen"] = Utils::time_t_to_iso8601(entry.lastSeen);
+        if (entry.rssiTime != 0)
+        {
+            obj["rssi"] = entry.rssi;
+            obj["rssiTime"] = Utils::time_t_to_iso8601(entry.rssiTime);
+        }
+    }
+    xSemaphoreGive(_runtimeMutex);
+}
+
+void GeniusDevicesService::emitRuntimeChanges()
+{
+    JsonDocument doc;
+    JsonObject root = doc.to<JsonObject>();
+    runtimeToJson(root, true);
+    if (root["devices"].size() > 0)
+        _eventSocket->emitEvent(DEVICE_RUNTIME_EVENT, root);
+}
+
+void GeniusDevicesService::_syncRuntimeTable()
+{
+    // Which detectors have a radio module that takes part in the radio link supervision.
+    // The criterion is the stored module model - from a readout or entered by hand.
+    std::vector<ModuleRuntime> wanted;
+
+    beginTransaction();
+    for (const GeniusDevice &device : _state.devices)
+    {
+        if (device.radioModule.model != GRM_FM_PRO_X || device.radioModule.sn == 0)
+            continue;
+        ModuleRuntime entry;
+        entry.deviceId = device.id;
+        entry.moduleSn = device.radioModule.sn;
+        wanted.push_back(entry);
+    }
+    endTransaction();
+
+    // Keep what is known about the modules that stay. The two mutexes are never nested.
+    xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
+    for (ModuleRuntime &entry : wanted)
+    {
+        for (const ModuleRuntime &known : _runtime)
+        {
+            if (known.deviceId == entry.deviceId && known.moduleSn == entry.moduleSn)
+            {
+                entry = known;
+                break;
+            }
+        }
+    }
+    _runtime = std::move(wanted);
+    _runtimeAny = !_runtime.empty();
+    xSemaphoreGive(_runtimeMutex);
+}
+
+void GeniusDevicesService::_endReportedMissing(uint32_t originModuleSN, uint32_t senderModuleSN)
 {
     // Called from the RX path for every frame: stay out of the mutex unless a detector is
     // actually reported missing.

@@ -25,7 +25,14 @@
 	import { cc1101Status } from '$lib/stores/cc1101.svelte';
 	import { jsonDateReviver } from '$lib/utils/misc';
 	import { activeStatusFlags, statusFlagLabels, STATUS_FAULT_MASK } from '$lib/genius/status';
-	import type { GeniusDevices, AlarmState, DeviceStatusEvent, CC1101Status } from '$lib/types/models';
+	import type {
+		GeniusDevices,
+		AlarmState,
+		DeviceStatusEvent,
+		DeviceRuntimeEvent,
+		CC1101Status
+	} from '$lib/types/models';
+	import { deviceRuntime } from '$lib/stores/deviceRuntime.svelte';
 
 	interface Props {
 		data: LayoutData;
@@ -43,6 +50,8 @@
 
 			// Fetch Genius devices on page load
 			await getGeniusDevices();
+			// Genius Gateway: last seen / signal of the supervised radio modules (RAM-only values)
+			await getDeviceRuntime();
 			// Fetch initial CC1101 radio status
 			await getCC1101Status();
 		}
@@ -75,6 +84,8 @@
 		socket.on<AlarmState>('alarm', handleAlarm);
 		// Genius Gateway: Listen for smoke detector status changes (battery low, faults)
 		socket.on<DeviceStatusEvent>('device-status', handleDeviceStatus);
+		// Genius Gateway: Listen for last seen / signal changes of supervised radio modules
+		socket.on<DeviceRuntimeEvent>('device-runtime', deviceRuntime.apply);
 		// Genius Gateway: Listen for CC1101 radio lifecycle state
 		socket.on<CC1101Status>('cc1101_status', handleCC1101Status);
 	};
@@ -90,6 +101,7 @@
 		// Genius Gateway: Stop listening for alarm state changes
 		socket.off('alarm', handleAlarm);
 		socket.off('device-status', handleDeviceStatus);
+		socket.off('device-runtime', deviceRuntime.apply);
 		socket.off('cc1101_status', handleCC1101Status);
 	};
 
@@ -156,6 +168,25 @@
 	/* Fetches the Genius devices from the backend and updates the geniusDevices store.
 	 * This function is called on page load to populate the devices.
 	 */
+	async function getDeviceRuntime() {
+		try {
+			const response = await fetch('/rest/gateway-devices/runtime', {
+				method: 'GET',
+				headers: {
+					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
+					'Content-Type': 'application/json'
+				}
+			});
+			if (response.status === 200) {
+				// The values live in the gateway's RAM: what it returns is all there is
+				deviceRuntime.clear();
+				deviceRuntime.apply((await response.json()) as DeviceRuntimeEvent);
+			}
+		} catch (error) {
+			console.error('Error:', error);
+		}
+	}
+
 	async function getGeniusDevices() {
 		try {
 			const response = await fetch('/rest/gateway-devices', {

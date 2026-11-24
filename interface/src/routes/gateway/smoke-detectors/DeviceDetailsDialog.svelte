@@ -11,6 +11,7 @@
 	} from '$lib/types/enums';
 	import { isStaleReadout } from '$lib/utils/deviceStatus';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
+	import { deviceRuntime } from '$lib/stores/deviceRuntime.svelte';
 	import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
 	import {
 		STATUS_BATTERY_LOW,
@@ -90,6 +91,11 @@
 	// open reloads the list, and the dialog follows. The prop is the fallback (e.g. a device
 	// that is not part of the list).
 	let device = $derived(geniusDevices.devices.find((d) => d.id === openedDevice.id) ?? openedDevice);
+
+	// Heard over the air since the gateway started (RAM only). Kept for FM Pro X modules: they
+	// send a daily supervision series, so only there "last seen" says something.
+	let supervised = $derived(device.radioModule.model === GeniusRadioModule.FmProX);
+	let runtime = $derived(deviceRuntime.byId[device.id]);
 
 	const titleId = `device-details-title-${Math.random().toString(36).slice(2)}`;
 
@@ -525,6 +531,24 @@
 								value={radioModuleModelName[device.radioModule.model ?? -1] ?? 'Unknown'}
 							/>
 							<DetailRow icon={IconNumber} label="Serial Number" value={device.radioModule.sn} />
+
+							{#if supervised}
+								<DetailRow icon={IconClock} label="Last Seen">
+									{#if runtime}
+										<span class="font-medium">{formatDateTime(runtime.lastSeen)}</span>
+									{:else}
+										<span class="italic text-base-content/50"
+											>Not heard since the gateway started</span
+										>
+									{/if}
+								</DetailRow>
+								{#if runtime?.rssi !== undefined}
+									<DetailRow icon={IconSignal} label="Signal">
+										<span class="font-medium">{runtime.rssi} dBm</span>
+										<span class="text-base-content/50">({formatDateTime(runtime.rssiTime)})</span>
+									</DetailRow>
+								{/if}
+							{/if}
 
 							{#snippet alarmLineRows()}
 								{#if device.radioModule.lineId}

@@ -303,6 +303,25 @@ export type AlarmState = {
 };
 
 /** Payload of the `device-status` WebSocket event. */
+/**
+ * What the gateway heard of a supervised radio module (FM Pro X) since it started. RAM only on
+ * the gateway: a module without an entry has not been heard since the last restart.
+ */
+export type GeniusModuleRuntime = {
+	/** Device id of the smoke detector the radio module belongs to. */
+	id: number;
+	/** Last packet this module originated or transmitted. */
+	lastSeen: Date;
+	/** Signal strength (dBm) of the last packet the module transmitted itself. */
+	rssi?: number;
+	rssiTime?: Date;
+};
+
+/** Payload of `GET /rest/gateway-devices/runtime` and of the `device-runtime` WebSocket event. */
+export type DeviceRuntimeEvent = {
+	devices: { id: number; lastSeen: string; rssi?: number; rssiTime?: string }[];
+};
+
 export type DeviceStatusEvent = {
 	/** Devices with at least one active fault. */
 	numFaulty: number;

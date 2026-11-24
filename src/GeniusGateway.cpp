@@ -319,6 +319,8 @@ void GeniusGateway::_alarmEventTask()
             _emitAlarmState();
         if (requested & EVENT_TASK_DEVICE_STATUS)
             _emitDeviceStatus();
+        if (requested & EVENT_TASK_DEVICE_RUNTIME)
+            _geniusDevices.emitRuntimeChanges();
     }
 }
 
@@ -784,8 +786,15 @@ void GeniusGateway::_rx_packets()
                     {
                         // Whatever the frame says: its originator and its sender are there.
                         // Ends "reported missing" for their detectors (no-op otherwise).
-                        if (packet_details.origin_id != 0)
-                            _geniusDevices.moduleHeard(packet_details.origin_id, packet_details.sender_id);
+                        // For supervised modules the time and the signal are kept as well; the
+                        // web clients are told by the event task, not from here.
+                        if (packet_details.origin_id != 0 &&
+                            _geniusDevices.moduleHeard(packet_details.origin_id, packet_details.sender_id,
+                                                       cc1101_packet_rssi_dbm(&packet)) &&
+                            _alarmEventTaskHandle != nullptr)
+                        {
+                            xTaskNotify(_alarmEventTaskHandle, EVENT_TASK_DEVICE_RUNTIME, eSetBits);
+                        }
 
                         if (packet_details.type == HPT_COMMISSIONING)
                         {
