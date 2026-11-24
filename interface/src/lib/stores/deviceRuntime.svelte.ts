@@ -10,11 +10,18 @@ import type { DeviceRuntimeEvent, GeniusModuleRuntime } from '$lib/types/models'
 
 function createDeviceRuntime() {
 	let byId: Record<number, GeniusModuleRuntime> = $state({});
+	// Ticks once a minute, so relative times ("3 h ago") stay current without new data
+	let now = $state(Date.now());
+	if (typeof window !== 'undefined') setInterval(() => (now = Date.now()), 60_000);
 
 	return {
 		/** Runtime values by device id; a device without an entry was not heard yet. */
 		get byId() {
 			return byId;
+		},
+		/** Current time in ms, updated once a minute - for relative times. */
+		get now() {
+			return now;
 		},
 		/** Take over the entries of a REST reply or an event; other devices keep theirs. */
 		apply(payload: DeviceRuntimeEvent) {

@@ -294,6 +294,8 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 | **Alarms (Total)** | Diagnostic | After readout | Lifetime alarm count |
 | **Alarms (3 Months)** | Diagnostic | After readout | Alarm count in last 3 months |
 | **Radio Interference** | Diagnostic | After readout | Radio interference level (%) |
+| **Last Seen** | Diagnostic | FM Pro X only, once heard | When a packet of the radio module was last received - see [Radio link supervision](device-management.md#radio-link-supervision) |
+| **Signal Strength** | Diagnostic | FM Pro X only, once heard | Signal strength (dBm) of the last packet the radio module transmitted itself |
 
 The four status entities (Battery, Smoke Detector State, Radio Module State, Dismount) show the detector's [current status](device-management.md#current-status) and update **live** when the detector reports a change over the air. Each one shows as **unavailable** until its state is known - from a status the detector reported, an acoustic readout (except Dismount) or a manual reset. Smoke detectors report a flag only when it changes, so an "OK" before that would be a guess.
 

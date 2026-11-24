@@ -745,6 +745,35 @@ An acoustic readout reports battery, smoke detector fault and radio module fault
 
 ---
 
+#### Radio Link Supervision Entities (FM Pro X)
+
+Smoke detectors with an FM Pro X radio module get two more diagnostic entities. Such modules send a daily series when their radio link supervision is switched on, so the gateway can tell when it last heard them - see [Radio link supervision](../features/device-management.md#radio-link-supervision). The entities are created and removed with the stored radio module model.
+
+**:material-publish: State Topic** (shared, retained)
+```
+homeassistant/genius-gateway-1a2b3c4d5e6f/genius-1/link/state
+```
+
+```json
+{
+  "last_seen": "2026-11-23T17:14:12",
+  "signal": -87
+}
+```
+
+| Field | Entity | Device class / unit | Available |
+|:------|:-------|:--------------------|:----------|
+| `last_seen` | Last Seen | `timestamp` | once a packet of the module was received since the gateway started |
+| `signal` | Signal Strength | `signal_strength` / dBm | once a packet the module transmitted itself was received |
+
+**:material-publish: Publishing Behavior**
+
+- Configs published on MQTT (re)connect alongside the other entities of the detector
+- State published whenever a packet of the module is received
+- The values are kept in the gateway's memory only. After a restart the state is published empty, and both entities are **unavailable** until the module is heard again - a module is never assumed to be there
+
+---
+
 ### Alarm Lines
 
 The following topics enable remote control of alarm line actions (line tests and fire alarm tests) via MQTT.

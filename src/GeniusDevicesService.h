@@ -680,11 +680,24 @@ private:
         bool changed = false; ///< Not yet sent to the web clients
     };
     std::vector<ModuleRuntime> _runtime;         ///< RAM only; guarded by _runtimeMutex
-    SemaphoreHandle_t _runtimeMutex = nullptr;   ///< Guards _runtime; never held together with the state mutex
+    SemaphoreHandle_t _runtimeMutex = nullptr;   ///< Guards _runtime. May be taken while the state mutex is held, never the other way round
     std::atomic<bool> _runtimeAny{false};        ///< _runtime is not empty; lets the RX path skip the mutex
 
     /// Bring _runtime in line with the device list: one entry per detector with an FM Pro X module
     void _syncRuntimeTable();
+
+    /// Copy the runtime entry of a detector; false if it has none
+    bool _runtimeOf(uint32_t deviceId, ModuleRuntime &out);
+
+    /**
+     * @brief Give a detector its Home Assistant entities "Last Seen" and "Signal Strength", or take them away
+     *
+     * They exist only while the detector has an FM Pro X module - other modules send nothing
+     * periodically. The two entities share a state topic of their own ("link") and are
+     * unavailable until the module was heard since the gateway started.
+     * The caller holds the HA registry lock and the state mutex, like for the other HA objects.
+     */
+    void _syncLinkEntities(const GeniusDevice &device);
 
     /// Second half of moduleHeard(): end "reported missing" for the detectors of these modules
     void _endReportedMissing(uint32_t originModuleSN, uint32_t senderModuleSN);
@@ -703,6 +716,7 @@ private:
         HADevice                                  *device;
         HABinarySensor                            *sensor;       ///< smoke alarm binary_sensor (Control)
         std::unique_ptr<HAGroupedSensorPublisher>  diagnostics;  ///< status + readout entities on one shared state topic
+        std::unique_ptr<HAGroupedSensorPublisher>  link;         ///< last seen + signal strength; only while the detector has an FM Pro X module
     };
     std::map<uint32_t, SmokeDetectorHA> _haDevices;  ///< maps device.id → HA objects
 

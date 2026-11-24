@@ -281,7 +281,7 @@ FM Pro X radio modules can supervise their line (DIP switch 5 on the module, off
 
 - **Reported missing** - a detector whose radio module is named in such a report gets this status. It counts as a fault: the card on the overview turns yellow, the *Radio Module State* in Home Assistant reports a problem and the fault topic lists the detector. The detector that sent the report gets an entry in its activity log; hours later it announces a **radio link fault** of its own, which is the fault the detectors beep for.
 - A supervised line does not report a recovery. **Reported missing** therefore ends when any packet of that radio module is received again - in practice after the line was commissioned anew, which the manufacturer prescribes for this fault - or when the status is [reset](#resetting-the-status).
-- **Last Seen** and **Signal** - for detectors with an FM Pro X module the Device Details dialog shows when a packet of the module was last received and with which signal strength. Because of the daily series a module that is fine is heard at least once a day, provided it is in range of the gateway.
+- **Last Seen** and **Signal** - for detectors with an FM Pro X module the device list shows how long ago a packet of the module was received (*Seen 3 h ago*), and the Device Details dialog the time and the signal strength. Home Assistant gets both as entities. Because of the daily series a module that is fine is heard at least once a day, provided it is in range of the gateway.
 
 !!! info "Last seen is not stored"
     These two values live in the gateway's memory only. After a restart the dialog says *Not heard since the gateway started* until the next packet of the module arrives - it never assumes that a module is there.

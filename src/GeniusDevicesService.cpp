@@ -703,8 +703,39 @@ void GeniusDevicesService::emitRuntimeChanges()
     JsonDocument doc;
     JsonObject root = doc.to<JsonObject>();
     runtimeToJson(root, true);
-    if (root["devices"].size() > 0)
-        _eventSocket->emitEvent(DEVICE_RUNTIME_EVENT, root);
+    if (root["devices"].size() == 0)
+        return;
+
+    _eventSocket->emitEvent(DEVICE_RUNTIME_EVENT, root);
+
+    // Home Assistant: last seen / signal strength of the detectors that changed
+    if (!_haService->isReady())
+        return;
+    beginTransaction();
+    for (JsonObject changed : root["devices"].as<JsonArray>())
+    {
+        auto it = _haDevices.find(changed["id"].as<uint32_t>());
+        if (it != _haDevices.end() && it->second.link)
+            it->second.link->publishState();
+    }
+    endTransaction();
+}
+
+bool GeniusDevicesService::_runtimeOf(uint32_t deviceId, ModuleRuntime &out)
+{
+    bool found = false;
+    xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
+    for (const ModuleRuntime &entry : _runtime)
+    {
+        if (entry.deviceId == deviceId)
+        {
+            out = entry;
+            found = true;
+            break;
+        }
+    }
+    xSemaphoreGive(_runtimeMutex);
+    return found;
 }
 
 void GeniusDevicesService::_syncRuntimeTable()
@@ -725,7 +756,8 @@ void GeniusDevicesService::_syncRuntimeTable()
     }
     endTransaction();
 
-    // Keep what is known about the modules that stay. The two mutexes are never nested.
+    // Keep what is known about the modules that stay. The runtime mutex is not taken while
+    // the state mutex is needed afterwards - only the other order occurs.
     xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
     for (ModuleRuntime &entry : wanted)
     {
@@ -2041,6 +2073,65 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         if (entry.diagnostics)
             entry.diagnostics->publishAll();
     }
+
+    _syncLinkEntities(device);
+}
+
+void GeniusDevicesService::_syncLinkEntities(const GeniusDevice &device)
+{
+    auto it = _haDevices.find(device.id);
+    if (it == _haDevices.end() || it->second.device == nullptr)
+        return;
+
+    const bool supervised = device.radioModule.model == GRM_FM_PRO_X && device.radioModule.sn != 0;
+    if (supervised == (it->second.link != nullptr))
+        return;
+
+    if (!supervised)
+    {
+        // The module was replaced by one without radio link supervision: the entities go
+        if (_haService->isReady())
+            it->second.link->unpublishAll();
+        it->second.link.reset();
+        return;
+    }
+
+    const uint32_t devId = device.id;
+    auto link = std::make_unique<HAGroupedSensorPublisher>(
+        _haService, "link",
+        [this, devId](JsonObject &state) {
+            // RAM-only values. A field is present once it is known, i.e. once the module was
+            // heard since the gateway started - until then the entities are unavailable.
+            ModuleRuntime entry;
+            if (!_runtimeOf(devId, entry) || entry.lastSeen == 0)
+                return;
+            state["last_seen"] = Utils::time_t_to_iso8601(entry.lastSeen);
+            if (entry.rssiTime != 0)
+                state["signal"] = entry.rssi;
+        },
+        it->second.device);
+
+    link->addSensor("sensor", "last_seen", "Last Seen", "mdi:radio-tower", HACategory::Diagnostic,
+        [](JsonObject &c) {
+            c["value_template"]        = "{{ value_json.last_seen }}";
+            c["device_class"]          = "timestamp";
+            c["availability_topic"]    = "~/link/state";
+            c["availability_template"] = "{{ 'online' if value_json.last_seen is defined else 'offline' }}";
+        })
+    .addSensor("sensor", "signal_strength", "Signal Strength", "", HACategory::Diagnostic,
+        [](JsonObject &c) {
+            c["value_template"]        = "{{ value_json.signal }}";
+            c["device_class"]          = "signal_strength";
+            c["unit_of_measurement"]   = "dBm";
+            c["state_class"]           = "measurement";
+            c["availability_topic"]    = "~/link/state";
+            c["availability_template"] = "{{ 'online' if value_json.signal is defined else 'offline' }}";
+        });
+
+    link->begin();
+    if (_haService->isReady())
+        link->publishAll();
+    it->second.link = std::move(link);
 }
 
 void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
@@ -2050,6 +2141,8 @@ void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
     {
         if (it->second.diagnostics && _haService->isReady())
             it->second.diagnostics->unpublishAll();
+        if (it->second.link && _haService->isReady())
+            it->second.link->unpublishAll();
         _haDevices.erase(it);
     }
     _haService->removeSubDevice("genius-" + String(deviceId));
@@ -2102,6 +2195,7 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices(bool requestRename, std:
         // discovery. Avoids remove+re-add, which causes HA to ignore the new
         // suggested_area because its device registry entry persists (Bug 2).
         const bool identityChanged = _applySmokeDetectorIdentity(*it->second.device, device);
+        _syncLinkEntities(device); // the radio module model decides whether they exist
         if (!device.published || identityChanged)
         {
             // A detector with a pending rename is published by the rename task, after its
@@ -2158,6 +2252,8 @@ bool GeniusDevicesService::_publishSmokeDetectorDiscovery(uint32_t deviceId, Str
         haDevice->publishAll();
         if (it->second.diagnostics)
             it->second.diagnostics->publishAll();
+        if (it->second.link)
+            it->second.link->publishAll();
 
         published = _haService->isReady() && haDevice->configPublishFailures() == failuresBefore;
     }
@@ -2294,6 +2390,8 @@ void GeniusDevicesService::_runEntityIdRename(bool background)
             it->second.device->unpublishAll(1);
             if (it->second.diagnostics)
                 it->second.diagnostics->unpublishAll(1, true);
+            if (it->second.link)
+                it->second.link->unpublishAll(1, true);
         }
         endTransaction();
         vTaskDelay(pdMS_TO_TICKS(1));
