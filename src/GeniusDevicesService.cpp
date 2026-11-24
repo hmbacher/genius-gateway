@@ -1927,9 +1927,12 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
             const uint32_t flags = d->status.activeMask();
             if (known & GENIUS_STATUS_BATT_LOW) state["battery_low"]  = (flags & GENIUS_STATUS_BATT_LOW) != 0;
             if (known & GENIUS_STATUS_ERROR)    state["device_fault"] = (flags & GENIUS_STATUS_ERROR) != 0;
-            // A radio module that other detectors report as missing is a radio problem of this detector too
+            // A radio module that other detectors report as missing is a radio problem of this
+            // detector too. OK needs the radio link flag itself to be known: that a module is no
+            // longer reported missing says nothing about its own radio link.
             const uint32_t radioFlags = GENIUS_STATUS_RADIO | GENIUS_STATUS_REPORTED_MISSING;
-            if (known & radioFlags)             state["radio_fault"]  = (flags & radioFlags) != 0;
+            if (flags & radioFlags)             state["radio_fault"]  = true;
+            else if (known & GENIUS_STATUS_RADIO) state["radio_fault"] = false;
             if (known & GENIUS_STATUS_DISMOUNT) state["dismounted"]   = (flags & GENIUS_STATUS_DISMOUNT) != 0;
 
             // Readout entities

@@ -282,7 +282,7 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 | **Smoke Detector** (binary_sensor) | Control | Always | Alarm state `ON`/`OFF` |
 | **Battery** (binary_sensor) | Diagnostic | Once known | Battery low |
 | **Smoke Detector State** (binary_sensor) | Diagnostic | Once known | Internal device fault |
-| **Radio Module State** (binary_sensor) | Diagnostic | Once known | Radio link fault |
+| **Radio Module State** (binary_sensor) | Diagnostic | Once known | Radio link fault, or radio module [reported missing](device-management.md#radio-link-supervision) |
 | **Dismount** (binary_sensor) | Diagnostic | Once known | Detector dismounted from its base (`tamper`) |
 | **Deinstallation Count** | Diagnostic | After readout | Lifetime deinstall count |
 | **Last Service** | Diagnostic | After readout | Timestamp of last acoustic readout |

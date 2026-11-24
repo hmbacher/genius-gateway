@@ -719,6 +719,8 @@ Each entity's discovery config uses `availability_template` on this same topic, 
 
 An acoustic readout reports battery, smoke detector fault and radio module fault as well, so a readout makes these three known. The dismount flag is only ever reported over the air.
 
+`radio_fault` is also `true` while the radio module is [reported missing](../features/device-management.md#radio-link-supervision) by another detector. When that ends, the field goes back to what the radio link flag says - and is left out again if that flag is not known.
+
 **Diagnostic sensor entities** (`value_template` extracts the relevant field):
 
 | Object ID | Name | Unit / Class | JSON field |
