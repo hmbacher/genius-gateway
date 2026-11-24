@@ -31,6 +31,7 @@ Authorization: Bearer <token>
 | `/rest/gateway-devices` | GET | 🔒 | Read the smoke detector devices |
 | `/rest/gateway-devices` | POST | 🛡️ | Replace the smoke detector devices |
 | `/rest/gateway-devices/device/reset-status` | POST | 🛡️ | Reset a smoke detector's status flags |
+| `/rest/gateway-devices/runtime` | GET | 🔒 | Last seen / signal of supervised radio modules |
 | `/rest/alarm-lines` | GET, POST | 🛡️ | Manage alarm lines (RF groups) |
 | `/rest/alarm-lines/do` | POST | 🛡️ | Execute alarm line actions |
 | `/rest/gateway-settings` | GET, POST | 🛡️ | Configure gateway behavior |
@@ -129,6 +130,31 @@ Authorization: Bearer <token>
 ```
 
 **Response:** 200 OK with the updated device (same format as one entry of the device list), 404 if no device has that `id`
+
+---
+
+#### `/rest/gateway-devices/runtime`
+- **Method:** GET
+- **Auth:** 🔒 User
+- **Description:** What the gateway heard of the radio modules with radio link supervision (FM Pro X) since it started. The values are kept in memory only and are not part of the device list; a detector that is not listed has not been heard since the last restart. Changes are announced with the [`device-runtime`](websocket-api.md#device-runtime) WebSocket event
+
+**Response:**
+```json
+{
+  "devices": [
+    {
+      "id": 1758215385,
+      "lastSeen": "2026-11-23T17:14:12.000Z",
+      "rssi": -87,
+      "rssiTime": "2026-11-23T17:14:12.000Z"
+    }
+  ]
+}
+```
+
+- `id` - Device id of the smoke detector
+- `lastSeen` - Last packet the detector's radio module originated or transmitted
+- `rssi`, `rssiTime` - Signal strength in dBm of the last packet the module transmitted itself, and when. Missing while the module was only heard through another module that forwarded its packet
 
 ---
 

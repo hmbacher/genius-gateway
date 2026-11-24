@@ -41,6 +41,16 @@ Smoke detectors announce more than alarms over the air: the 36-byte packet the g
 - **Packet visualizer**: status changes are decoded flag by flag - labelled *Start Alarm* / *Stop Alarm* for the alarm flag and *Status Change* otherwise
 - **Device configuration file version 3**: the alarms moved into the activity log (`events`), `alarmCount` counts them, `status` holds the state per flag. Older files and exports are converted when they are loaded or imported. **Clients of `GET /rest/gateway-devices` that read the `alarms` list have to switch to `events`**
 
+## Radio Link Supervision (FM Pro X)
+FM Pro X radio modules with the DIP switch *radio link supervision* check their line once a day and report a module they no longer hear. The gateway now understands this: it shows which detector is missing, hours before the detectors start to beep, and when each supervised module was last heard. Contributed by danielrdt (#27), who captured and analysed the telegrams; rebuilt here on the status model above.
+
+- **Reported missing**: a detector whose radio module is named in a "module missing" report gets this status. It counts as a fault on the overview, in Home Assistant (*Radio Module State*) and on the fault topic. The reporting detector gets an entry in its activity log; the radio link fault it announces later is the status flag already handled above
+- **Ends when the module is heard again**: a supervised line does not report a recovery, so the status ends with the next packet of that module - in practice after the new commissioning the manufacturer prescribes - or with *Reset Status*. Both ends are in the activity log
+- **Last seen and signal**: for detectors with an FM Pro X module the Device Details dialog shows when the module was last heard and how strong. The values are kept in memory only: after a restart a module is *not heard* until its next packet (`GET /rest/gateway-devices/runtime`, new `device-runtime` WebSocket event)
+- **Packet visualizer**: the daily *Supervision Series* and *Module Missing* are named. The series was shown as a CommissioningProbe Request before - both have the same type byte and length
+- **Documentation**: the protocol analysis describes both telegrams with their byte layout and captured examples, and says how far each statement is verified - by the manufacturer's product information and the captures. The four other telegrams seen on supervised lines are listed as unknown
+- **Built from captures**: the evaluation rests on the contributor's captures of one line with two FM Pro X modules; a test of this version on a supervised line is pending. FM Basis X modules do not supervise their line, so nothing changes for installations without FM Pro X
+
 ## Line Test and Network Test Told Apart
 The packet that starts a line test also starts a network test. The byte that was taken for a start/stop flag is a test mode: `0x04` starts a line test (about 15 minutes), `0x06` a network test (about 30 minutes), `0x00` stops either. The assignment follows from the durations of the two tests, 15 and 30 minutes, which are the ones the manufacturer states; it is not yet confirmed on air which of the two values is the line test.
 
