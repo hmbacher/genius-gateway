@@ -107,8 +107,10 @@ Authorization: Bearer <token>
     - `1` acoustic readout - `set` (flags reported active) and `cleared` (flags reported OK)
     - `2` status change received over the air - `set` and `cleared` hold the flags that changed; a packet that changes nothing is not logged
     - `3` status reset
-    - `4` the radio link supervision of this detector reports a radio module as missing - `cause` is that module's serial
+    - `4` radio link supervision, in three shapes: this detector reports a radio module as missing (`cause` = that module's serial); this detector is reported missing (`set` = 65536, `cause` = the reporting module); or it is no longer reported missing (`cleared` = 65536, `cause` = the module that confirmed it present - missing if its own radio module was heard again)
     - `5` alarm - `time` is the start, `end` the end (missing while it lasts), `endingReason` how it ended (-1=active, 0=detector, 1=manual, 2=cleared on import)
+
+    An entry can carry `count` (greater than 1) and `last`: the report was made again while its cause lasted and was counted on its entry instead of logged again - `time` is the first report, `last` the latest. Used for a module that stays missing, which is reported in every supervision round (four hours apart).
 
     `status`, `events` and `alarmCount` are owned by the gateway: they are ignored when a device is updated and only taken over for a new device, e.g. from an import file. Files written before v1.6.0 carry an `alarms` list instead (`startTime`, `endTime`, `endingReason`); it is converted into alarm entries, and the status is derived from the last readout.
 
