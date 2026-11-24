@@ -91,9 +91,9 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 | 18-21 | 4 | `XX XX XX XX`<br>*big endian* | Line-ID | The alarm line ID that this packet should affect.<br>Special IDs:<br>- `00 00 00 00 (0)`: The radio module is not (yet) assigned to any alarm line.<br>- `FF FF FF FF` (4294967295): Broadcast (all alarm lines) |
 | 22 | 1 | `0x0F - 0x00`<br>(`15 - 0`) | Hops | This appears to be a hop counter for forwarded packets, tracking the number of times the packet has been retransmitted. The original packet always contains `0x0F`, which is reduced to `0x0E` after the first forwarding. This suggests that the field is decremented by one with each subsequent forwarding. |
 | 23 | 1 | `XX` | | Sequence number - changes from one originated packet to the next. |
-| 24 | 1 | `XX` | Flags | Bit-fields: `(type & 3) << 5 \| (relay & 1) << 4 \| (fwd_class & 3) << 2 \| (flag01 & 3)`.<br>Only the **forward-class** (bits 2-3) and **flag01** (bits 0-1, `1` for commissioning and `0` for every other frame) vary; the **type** (bits 5-6) and **relay** (bit 4) fields carry a constant `0x40` (type = 2, relay = 0) on the captured firmware. Observed values: **Alarm Line Commissioning `0x45`**, Line Test / Alarming `0x48`, ConfigCheckProbe `0x40`. |
+| 24 | 1 | `XX` | Flags | Bit-fields: `(type & 3) << 5 \| (relay & 1) << 4 \| (fwd_class & 3) << 2 \| (flag01 & 3)`.<br>Only the **forward-class** (bits 2-3) and **flag01** (bits 0-1, `1` for commissioning and `0` for every other frame) vary; the **type** (bits 5-6) and **relay** (bit 4) fields carry a constant `0x40` (type = 2, relay = 0) in these frames. Observed values: **Alarm Line Commissioning `0x45`**, Line Test / Alarming `0x48`, ConfigCheckProbe `0x40`.<br>The frames of the [radio link supervision](#radio-link-supervision) show that the type bits do vary: Supervision Series `0x20` (forward class 0), Module Missing `0x24` (forward class 1). |
 | 25 | 1 | `0x00` | | Unknown, seems to be constant |
-| 26 | 1 | `XX` | | First byte of the message body - a **family marker**: `0x55` = ConfigCheckProbe, `0x66` = CommissioningProbe / Line test, `0x00` = alarm. The [message‑type](#message-type-byte) subtype follows at offset 27. |
+| 26 | 1 | `XX` | | First byte of the message body - a **family marker**: `0x55` = ConfigCheckProbe, `0x66` = CommissioningProbe / Line test, `0x00` = status change (alarm, faults), `0x33` = radio link supervision. The [message‑type](#message-type-byte) subtype follows at offset 27. |
 
 </div>
 
@@ -118,9 +118,11 @@ the per-packet detail tables below the type is the offset-27 row (previously ann
 | `0x55` | `0x05` | 29 B | ConfigCheckProbe probe *(tentative; not yet observed in a capture)* |
 | `0x55` | `0x06` | 28 B | [ConfigCheckProbe **request**](#configcheckprobe) |
 | `0x55` | `0x08` | 36 B | [ConfigCheckProbe **response**](#configcheckprobe) |
-| `0x33` | `0x00` | 28 B | Daily series of the radio link supervision (FM Pro X) - *not evaluated yet* |
-| `0x33` | `0x02` | 32 B | "Module missing" report of the radio link supervision - *not evaluated yet* |
-| `0x11`, `0x22`, `0x33` | other | 28-33 B | Seen on FM Pro X lines with radio link supervision - *function unknown* |
+| `0x33` | `0x00` | 28 B | [Supervision Series](#supervision-series) (radio link supervision, FM Pro X) |
+| `0x33` | `0x02` | 32 B | [Module Missing](#module-missing) (radio link supervision, FM Pro X) |
+| `0x33` | `0x01` | 28 B | Seen on supervised lines - [function unknown](#other-telegrams-on-supervised-lines) |
+| `0x11` | `0x00`, `0x01` | 30 B, 28 B | Seen on supervised lines - [function unknown](#other-telegrams-on-supervised-lines) |
+| `0x22` | `0x00` | 33 B | Seen on supervised lines - [function unknown](#other-telegrams-on-supervised-lines) |
 
 </div>
 
@@ -155,6 +157,12 @@ packet type is relayed: the [ConfigCheckProbe](#configcheckprobe)
 and [CommissioningProbe](#commissioningprobe-request) exchanges are **direct-range only** (never forwarded,
 always `Hops = 0`), whereas status changes (alarms, battery warnings, faults), line tests and commissioning propagate across the line.
 
+Whether a packet may be forwarded at all is decided by its originator: the **forward class** in bits 2-3 of the
+`Flags` byte (offset 24). Class 0 is never forwarded, class 1 only within the own line, class 2 within the own line and -
+under further conditions - beyond it. This matches every
+capture so far: the [Supervision Series](#supervision-series) carries class 0 and was never seen relayed, a status change
+carries class 2.
+
 ### Repetition
 
 All packets are transmitted multiple times by the radio module. The packets are sent with a period of approximately 10 ms. The repeated packets are identical except for the `Rem-TX` (*Remaining transmission time*) field (see [Base Packet Structure](#base-packet-structure)). This field starts at an individual initial value in the first packet and is decremented with each repetition until it reaches ~0, when transmission stops.
@@ -168,6 +176,8 @@ The number of repetitions, the exact period for packet repetitions, as well as t
 | [Line Test (Start/Stop)](#line-test-startstop) | 370 x | ~8,40 ms | 6.348 (CC 18) | ~17,2 |
 | [CommissioningProbe Request](#commissioningprobe-request) | 26 x | ~8,19 ms | 427 (AB 01) | ~17,1 |
 | [CommissioningProbe Response](#commissioningprobe-response) | 24 x| ~9,02 ms | 427 (AB 01) | ~18,6 |
+| [Supervision Series](#supervision-series) | 26 x | not measured | 427 (AB 01) | ~17,1 *(calculated)* |
+| [Module Missing](#module-missing) | 10 - 20 x *(received)* | not measured | 427 (AB 01) | - |
 
 !!! note "Rem-TX decrement"
     It can be observed that the decrement is not constant across packet repetitions but exhibits a certain amount of jitter. This is caused by the higher-resolution underlying timer (the radio module's ~2 kHz clock-tick counter): the remaining transmission time is sampled each iteration and rounded to an unsigned integer when stored in the `Rem-TX` field.
@@ -543,6 +553,188 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 | 35 | 1 | `XX` | | Trailing byte, varies per frame (checksum or metric - not confirmed) |
 
 </div>
+
+#### Radio Link Supervision (FM Pro X) {#radio-link-supervision}
+
+FM Pro X radio modules can supervise their line: with DIP switch 5 (*Funkstreckenüberwachung*, off by default) switched
+on, the modules of a line check once a day whether all of them are still there. The manufacturer describes it like this
+(product information *Funkmodule Basis X und Pro X für Genius Plus X*, 7050611b, issue 26.06.2020):
+
+> Jedes Funkmodul besitzt eine eindeutige Seriennummer. Bei der Inbetriebnahme speichert jedes Funkmodul die Seriennummer
+> der Funkmodule, die zu einer Linie zusammengefasst wurden (max. 20 Funk-Teilnehmer pro Linie). [...] Die
+> Funkstreckenüberwachung überprüft anhand der Seriennummer täglich, ob alle miteinander vernetzten Funk-Rauchwarnmelder
+> noch vorhanden sind. Ist die Linie unvollständig, wird dies über ein akustisches Signal ausgegeben.
+
+The FM Basis X has no DIP switches; according to the same document all these functions are fixed to *off* there.
+
+On the air the supervision shows up as message family `0x33`. Two of its telegrams are understood and evaluated by
+Genius Gateway: the daily [Supervision Series](#supervision-series) and the [Module Missing](#module-missing) report.
+Both were captured and analysed by [danielrdt :material-open-in-new:](https://github.com/danielrdt){ target=_blank } on a
+test line with two FM Pro X modules over 14 days
+([raw captures :material-open-in-new:](https://github.com/danielrdt/genius-log/blob/main/docs/captures-radio-link-supervision.md){ target=_blank },
+[telegram overview :material-open-in-new:](https://github.com/danielrdt/genius-log/blob/main/docs/genius-telegramme.md){ target=_blank }).
+
+##### What happens when a module goes missing
+
+Timeline of the one complete failure that was captured (one of the two modules unscrewed from its base):
+
+| Time after the first missed series | Telegram | Remark |
+|:--|:--|:--|
+| 0 | - | The daily series of the removed module does not come |
+| about 32 min | `0x11/0x00` | function unknown |
+| + 90 s | `0x22/0x00` | function unknown; carries a clock time and a day counter |
+| + 60 s | `0x33/0x01` | function unknown |
+| about 50 min later | [`0x33/0x02` Module Missing](#module-missing) | names the serial number of the missing module |
+| roughly 10.5 h after the first missed series | [`0x33/0x02` Module Missing](#module-missing) again, 2 min later `0x11/0x01`, 2 s later a [Status Change](#status-change) with set mask `0x0008` | radio link fault - the detector starts to beep |
+| later, by hand | [Status Change](#status-change), set mask `0x0010` | the fault was muted on the detector |
+
+A line does not recover by itself. After the module was screwed back in, both modules stayed silent - no series, no
+"fault cleared" status change. Only a new commissioning brought the daily series back. This matches the manufacturer's
+instruction for this fault: *"Netzwerk überprüfen und Funk-Inbetriebnahme neu durchführen."*
+
+##### How far this is verified
+
+| Statement | Source |
+|:--|:--|
+| Supervision is a function of the FM Pro X only | Manufacturer (DIP switch only on the Pro X) |
+| The modules check each other daily, by serial number | Manufacturer. Captures: one series per module per day; the report names a serial number |
+| The series is not forwarded | Captures (never relayed in 10 days). Its forward class is 0, which is never relayed |
+| `0x33/0x02` names the missing module | Captures: three reports, each with the serial number of the module that had been removed |
+| `0x33/0x02` is forwarded within the line | **Not observed** (the test line had two modules). Its forward class 1 says so |
+| A radio link fault follows as status flag `0x0008`, muting as `0x0010` | Captures. The host protocol of the Genius Port names exactly these two flags (*Funkstreckenfehler*, *Mute eines Funkstrecken- oder Demontage-Fehlers*) |
+| 26 repetitions | Captures. The initial `Rem-TX` of 427 is the one of the other packets with 26 repetitions |
+
+Not verified: everything about *why* a module sends these
+telegrams is derived from captures of one line with two modules. Lines with three or more modules, with FM Basis X
+modules among them, or with several missing modules have not been observed.
+
+#### Supervision Series {#supervision-series}
+
+The daily sign of life of a module with radio link supervision switched on. Every module of the line sends its own
+series; there is no reply. The modules apparently only check whether they hear the series of the others.
+
+##### Observations
+
+- One series per module and day, at 00:03 of a clock the line keeps for itself (it starts at the commissioning and is
+  not the local time). A series consists of about 6 - 8 bursts roughly 2 minutes apart, each burst being one packet
+  repeated 26 times.
+- The start moves about 8 s earlier per day, so the period is slightly below 24 hours.
+- The packet is never forwarded and never answered. At the edge of the range single bursts are missed.
+- Same length and same type byte as the [CommissioningProbe Request](#commissioningprobe-request) - only the family
+  byte tells them apart. Up to v1.5.0 Genius Gateway showed it as a CommissioningProbe Request.
+- For Genius Gateway the series is what makes the supervision useful beyond the fault itself: a module that sends it
+  was heard today.
+
+##### Basic properties
+
+- Overall packet length: **28 bytes**
+- Repetitions: **26** per burst
+- Forwarded within network: **no** (forward class 0)
+
+##### Compact view (complete)
+
+```
+Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |
+Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  0F  | XX | 20 | 00 | 33 | 00 |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |    |Flags|   |Fam.|Type|
+```
+
+##### Detailed explanation (delta)
+
+<div class="pckt-table" markdown>
+
+| Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
+|:------:|:-----------------:|:-----:|:------|:--------------------|
+| *0-25* | *26* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* `Org-SN` and `Fwd-SN` are always the sending module, `Hops` is always `0x0F`. |
+| 24 | 1 | `0x20` | Flags | Forward class 0 - never forwarded. |
+| 26 | 1 | `0x33` | Family | Radio link supervision - see [Message Type Byte](#message-type-byte). |
+| 27 | 1 | `0x00` | Type | Supervision series. |
+
+</div>
+
+!!! example "Captured series packet"
+    ```
+    02 AB 01 03 FF FF FF FF 03 83 A7 C9 0B 03 83 A7 C9 0B A3 1A D9 0B 0F D5 20 00 33 00
+    ```
+    Module `0x83A7C90B` on line `0xA31AD90B`, flags `0x20`. Capture by danielrdt.
+
+#### Module Missing {#module-missing}
+
+A module reports that it no longer hears another module of its line, and names it by its serial number.
+
+##### Observations
+
+- Seen three times, always after a module had been removed, and always with the serial number of that module.
+- It is not the fault itself: in the one complete sequence the first report came well over an hour after the first
+  missed series, while the radio link fault ([Status Change](#status-change) with set mask `0x0008`) followed hours
+  later, 2 minutes after another report. The report can therefore serve as an early warning - and it is the only
+  telegram that says *which* module is missing. The status change carries the serial number of the detector that
+  reports the fault, not of the one that is gone.
+- 10 - 20 repetitions were received per burst. The initial `Rem-TX` of 427 suggests 26, as for the series; the capture
+  was taken at the edge of the range.
+- Whether it is forwarded could not be observed on a line with two modules. Its forward class 1 says: within the own
+  line, yes.
+
+##### Basic properties
+
+- Overall packet length: **32 bytes**
+- Repetitions: **10 - 20** received (26 expected)
+- Forwarded within network: **presumably yes**, within the own line (forward class 1) - not observed
+
+##### Compact view (complete)
+
+```
+Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 |    28-31    |
+Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | 24 | 00 | 33 | 02 | XX XX XX XX |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |    |Flags|   |Fam.|Type| Missing-SN  |
+```
+
+##### Detailed explanation (delta)
+
+<div class="pckt-table" markdown>
+
+| Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
+|:------:|:-----------------:|:-----:|:------|:--------------------|
+| *0-25* | *26* | | | *See [Base Packet Structure](#base-packet-structure) for details on the common packet part.* `Org-SN` is the module that reports. |
+| 24 | 1 | `0x24` | Flags | Forward class 1 - forwarded within the own line only. |
+| 26 | 1 | `0x33` | Family | Radio link supervision - see [Message Type Byte](#message-type-byte). |
+| 27 | 1 | `0x02` | Type | Module missing. |
+| 28-31 | 4 | `XX XX XX XX`<br>*big endian* | Missing-SN | Serial number of the radio module that is missing - same notation as `Org-SN`. |
+
+</div>
+
+!!! example "Captured report"
+    ```
+    02 AB 01 03 FF FF FF FF 03 83 A7 C9 0B 03 83 A7 C9 0B A3 1A D9 0B 0F A8 24 00 33 02 83 A7 BC 5F
+    ```
+    Module `0x83A7C90B` reports module `0x83A7BC5F` as missing, flags `0x24`. Capture by danielrdt.
+
+##### What Genius Gateway does with it
+
+- The detector with the reporting module gets an entry in its [activity log](../features/device-management.md#viewing-the-activity-log).
+- The detector with the missing module - if it is registered - gets the status **Reported missing**. It counts as a
+  fault, like the radio link fault that the reporting detector announces later.
+- As a line does not report a recovery, the state ends when any packet that the missing module originated or
+  transmitted is received again - in practice after the new commissioning - or when the status is reset by hand.
+
+#### Other telegrams on supervised lines
+
+Four more telegrams were captured on the supervised test line. Their function is unknown; Genius Gateway shows them
+as *Unknown* in the packet visualizer and only takes them as a sign of life of the sending module.
+
+<div class="pckt-table" markdown>
+
+| Family / Type | Length | Flags | Repetitions | Seen |
+|:-------------:|:------:|:-----:|:-----------:|:-----|
+| `0x33` / `0x01` | 28 B | `0x04` | 26 | After a commissioning and after a module failure, following `0x11` and `0x22`. Forwarded. |
+| `0x11` / `0x00` | 30 B | `0x48` | about 350 | Long burst after a commissioning and on a module failure; the two payload bytes were always `B6 08`. Forwarded. |
+| `0x11` / `0x01` | 28 B | `0x28` | 11 | Twice, 2 s before the radio link fault. |
+| `0x22` / `0x00` | 33 B | `0x08` | 23 | About 90 s after every `0x11/0x00`. Payload: hour, minute and second of the line's own clock and a 16-bit day counter. Forwarded. |
+
+</div>
+
+The family `0x11` is not specific to the FM Pro X: FM Basis X modules can send both of its telegrams as well
+(`0x11/0x00` with a 16-bit value, `0x11/0x01` without payload). What they are for is open there, too.
 
 ## Line Addressing: FM Basis X vs. old FM Basis
 
