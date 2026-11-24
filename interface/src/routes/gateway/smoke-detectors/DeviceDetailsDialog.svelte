@@ -18,6 +18,7 @@
 		STATUS_DEVICE_FAULT,
 		STATUS_RADIO_FAULT,
 		STATUS_DISMOUNTED,
+		STATUS_REPORTED_MISSING,
 		flagState,
 		activeStatusFlags,
 		EVENT_READOUT,
@@ -64,6 +65,7 @@
 	import IconLink from '~icons/tabler/link';
 	import IconLinkOff from '~icons/tabler/link-off';
 	import IconUnknown from '~icons/tabler/help-circle';
+	import IconReportedMissing from '~icons/tabler/antenna-off';
 	import IconRestore from '~icons/tabler/restore';
 
 	interface Props extends ModalProps {
@@ -237,10 +239,13 @@
 
 	// Current status: status flags received over the air, taken over from the last readout or
 	// reset manually - whichever is newest. A flag the gateway never heard about stays "Unknown".
+	// "Reported missing" has no OK of its own (a supervised line reports no recovery), so its row
+	// is shown only while it is active.
 	const STATUS_ROWS = [
 		{ bit: STATUS_BATTERY_LOW, label: 'Battery', activeText: 'Low', icon: IconBattery, activeIcon: IconBatteryOff },
 		{ bit: STATUS_DEVICE_FAULT, label: 'Detector', activeText: 'Fault', icon: IconSmokeDetector, activeIcon: IconSmokeDetector },
 		{ bit: STATUS_RADIO_FAULT, label: 'Radio Link', activeText: 'Fault', icon: IconRadioModule, activeIcon: IconRadioModule },
+		{ bit: STATUS_REPORTED_MISSING, label: 'Radio Module', activeText: 'Reported missing', icon: IconReportedMissing, activeIcon: IconReportedMissing, activeOnly: true },
 		{ bit: STATUS_DISMOUNTED, label: 'Mounting', activeText: 'Dismounted', icon: IconLink, activeIcon: IconLinkOff }
 	];
 	const STATUS_ROW_MASK = STATUS_ROWS.reduce((acc, r) => acc | r.bit, 0);
@@ -357,26 +362,28 @@
 						{#each STATUS_ROWS as row}
 							{@const state = flagState(device, row.bit)}
 							{@const origin = stateOrigin(row.bit)}
-							<DetailRow icon={state === 'active' ? row.activeIcon : row.icon} label={row.label}>
-								{#if state === 'active'}
-									<span class="inline-flex items-center gap-1">
-										<IconError class="h-4 w-4 flex-shrink-0 text-error" />
-										<span class="font-medium text-error">{row.activeText}</span>
-										{#if origin}<span class="text-base-content/50">({origin})</span>{/if}
-									</span>
-								{:else if state === 'ok'}
-									<span class="inline-flex items-center gap-1">
-										<IconCheckCircle class="h-4 w-4 flex-shrink-0 text-success" />
-										<span class="font-medium">OK</span>
-										{#if origin}<span class="text-base-content/50">({origin})</span>{/if}
-									</span>
-								{:else}
-									<span class="inline-flex items-center gap-1">
-										<IconUnknown class="h-4 w-4 flex-shrink-0 text-base-content/40" />
-										<span class="italic text-base-content/50">Unknown</span>
-									</span>
-								{/if}
-							</DetailRow>
+							{#if !row.activeOnly || state === 'active'}
+								<DetailRow icon={state === 'active' ? row.activeIcon : row.icon} label={row.label}>
+									{#if state === 'active'}
+										<span class="inline-flex items-center gap-1">
+											<IconError class="h-4 w-4 flex-shrink-0 text-error" />
+											<span class="font-medium text-error">{row.activeText}</span>
+											{#if origin}<span class="text-base-content/50">({origin})</span>{/if}
+										</span>
+									{:else if state === 'ok'}
+										<span class="inline-flex items-center gap-1">
+											<IconCheckCircle class="h-4 w-4 flex-shrink-0 text-success" />
+											<span class="font-medium">OK</span>
+											{#if origin}<span class="text-base-content/50">({origin})</span>{/if}
+										</span>
+									{:else}
+										<span class="inline-flex items-center gap-1">
+											<IconUnknown class="h-4 w-4 flex-shrink-0 text-base-content/40" />
+											<span class="italic text-base-content/50">Unknown</span>
+										</span>
+									{/if}
+								</DetailRow>
+							{/if}
 						{/each}
 
 						{#each otherActiveFlags as flag}

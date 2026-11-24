@@ -21,6 +21,7 @@ import {
 	STATUS_DISMOUNTED,
 	STATUS_FAULT_MASK,
 	STATUS_RADIO_FAULT,
+	STATUS_REPORTED_MISSING,
 	activeStatusFlags,
 	flagState,
 	statusBits,
@@ -240,6 +241,13 @@ const STATUS_ROWS = [
 	{ bit: STATUS_BATTERY_LOW, label: 'Battery', activeText: 'Low' },
 	{ bit: STATUS_DEVICE_FAULT, label: 'Detector', activeText: 'Fault' },
 	{ bit: STATUS_RADIO_FAULT, label: 'Radio Link', activeText: 'Fault' },
+	// No OK of its own (a supervised line reports no recovery): shown only while active
+	{
+		bit: STATUS_REPORTED_MISSING,
+		label: 'Radio Module',
+		activeText: 'Reported missing',
+		activeOnly: true
+	},
 	{ bit: STATUS_DISMOUNTED, label: 'Mounting', activeText: 'Dismounted' }
 ];
 const STATUS_ROW_MASK = STATUS_ROWS.reduce((acc, r) => acc | r.bit, 0);
@@ -277,7 +285,9 @@ function statusRow(
 
 /** The "Current Status" rows of a device. A flag the gateway never heard about is "Unknown". */
 function currentStatusRows(device: GeniusDevice, labelWidth: number): PdfContent[] {
-	const rows = STATUS_ROWS.map((row) => {
+	const rows = STATUS_ROWS.filter(
+		(row) => !row.activeOnly || flagState(device, row.bit) === 'active'
+	).map((row) => {
 		const state = flagState(device, row.bit);
 		const origin = statusOrigin(device, row.bit);
 		return state === 'active'
@@ -286,7 +296,7 @@ function currentStatusRows(device: GeniusDevice, labelWidth: number): PdfContent
 				? statusRow(row.label, 'OK', C_OK, origin, labelWidth)
 				: statusRow(row.label, 'Unknown', C_MUTED, '', labelWidth);
 	});
-	// Active flags without a row of their own, e.g. "Reported missing" or "Fault muted"
+	// Active flags without a row of their own: "Fault muted" and flags not known yet
 	for (const bit of statusBits(activeStatusFlags(device) & ~STATUS_ROW_MASK)) {
 		rows.push(
 			statusRow(
