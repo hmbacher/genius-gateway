@@ -44,6 +44,10 @@
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import DraggableList from '$lib/components/DraggableList.svelte';
+	import AlarmLineHeading from '$lib/components/genius/AlarmLineHeading.svelte';
+	import { groupByAlarmLine, reorderWithinGroup } from '$lib/genius/lineGroups';
+	import { lineGrouping } from '$lib/stores/lineGrouping.svelte';
+	import IconGroupByLine from '~icons/tabler/folders';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
 	import ActivityLog from './ActivityLog.svelte';
@@ -524,6 +528,21 @@
 			// Filtered to the alarms if the log holds any - otherwise the dialog would open empty
 			alarmsOnly: deviceAlarms(device).length > 0
 		});
+	}
+
+	// Grouping by alarm line. The line is a property of the radio module, so a detector cannot
+	// be dragged into another group; reordering inside a group changes the one global order.
+	let grouped = $derived(lineGrouping.active(geniusDevices.devices));
+	let lineGroups = $derived(groupByAlarmLine(geniusDevices.devices, lineGrouping.names));
+	// Groups the user folded away, by alarm line; not remembered
+	let collapsedLines = $state<Record<number, boolean>>({});
+
+	$effect(() => {
+		if (geniusDevices.isLoaded) lineGrouping.loadNames();
+	});
+
+	function handleGroupReorder(reorderedGroup: GeniusDevice[]) {
+		handleDeviceReorder(reorderWithinGroup(geniusDevices.devices, reorderedGroup));
 	}
 
 	function handleDeviceReorder(reorderedDevices: GeniusDevice[]) {
@@ -1254,6 +1273,22 @@
 						<Save class="h-6 w-6" />
 					</button>
 				</div>
+				{#if lineGroups.length > 1}
+					<!-- only offered when there is something to group -->
+					<div
+						class="tooltip tooltip-left"
+						data-tip={grouped ? 'Show as one list' : 'Group by alarm line'}
+					>
+						<button
+							class="btn btn-md {grouped ? 'btn-primary' : 'btn-outline btn-primary'}"
+							aria-label="Group smoke detectors by alarm line"
+							aria-pressed={grouped}
+							onclick={() => lineGrouping.set(!grouped)}
+						>
+							<IconGroupByLine class="h-6 w-6" />
+						</button>
+					</div>
+				{/if}
 				<div class="tooltip tooltip-left" data-tip="Generate PDF report">
 					<button
 						class="btn btn-primary btn-md"
@@ -1308,24 +1343,56 @@
 						<div class="text-right">Manage</div>
 					</div>
 
-					<!-- Draggable device list -->
-					<DraggableList
-						items={geniusDevices.devices}
-						onReorder={handleDeviceReorder}
-						useHandleMode={true}
-						class="space-y-1"
-					>
-						{#snippet children({ item: device, index }: { item: GeniusDevice; index: number })}
-							<SmokeDetectorRow
-								{device}
-								{index}
-								onEdit={handleEdit}
-								onDelete={confirmDelete}
-								onAlarmLog={handleAlarmLog}
-								onDetails={openDeviceDetails}
-							/>
-						{/snippet}
-					</DraggableList>
+					{#snippet deviceRow(device: GeniusDevice, index: number)}
+						<SmokeDetectorRow
+							{device}
+							{index}
+							onEdit={handleEdit}
+							onDelete={confirmDelete}
+							onAlarmLog={handleAlarmLog}
+							onDetails={openDeviceDetails}
+						/>
+					{/snippet}
+
+					{#if grouped}
+						<!-- One draggable list per alarm line -->
+						<div class="space-y-3">
+							{#each lineGroups as group (group.key)}
+								<section>
+									<AlarmLineHeading
+										{group}
+										class="px-3 pb-1 pt-2"
+										collapsed={collapsedLines[group.key]}
+										onToggle={() => (collapsedLines[group.key] = !collapsedLines[group.key])}
+									/>
+									{#if !collapsedLines[group.key]}
+										<DraggableList
+											items={group.devices}
+											onReorder={handleGroupReorder}
+											useHandleMode={true}
+											class="space-y-1"
+										>
+											{#snippet children({ item: device }: { item: GeniusDevice; index: number })}
+												{@render deviceRow(device, geniusDevices.devices.findIndex((d) => d.id === device.id))}
+											{/snippet}
+										</DraggableList>
+									{/if}
+								</section>
+							{/each}
+						</div>
+					{:else}
+						<!-- Draggable device list -->
+						<DraggableList
+							items={geniusDevices.devices}
+							onReorder={handleDeviceReorder}
+							useHandleMode={true}
+							class="space-y-1"
+						>
+							{#snippet children({ item: device, index }: { item: GeniusDevice; index: number })}
+								{@render deviceRow(device, index)}
+							{/snippet}
+						</DraggableList>
+					{/if}
 				</div>
 			{/if}
 		</SettingsCard>

@@ -54,6 +54,15 @@ FM Pro X radio modules with the DIP switch *radio link supervision* check their 
 - **API**: an activity log entry can carry `count` and `last` - a report that was repeated while its cause lasted
 - **Not yet seen on a line with more than two modules**: the captures come from the contributor's line with two FM Pro X modules. *Module Present* has not been captured yet. A test of this version on a supervised line is pending. FM Basis X modules do not supervise their line, so nothing changes for installations without FM Pro X
 
+## Smoke Detectors Grouped by Alarm Line
+Installations with several alarm lines get their smoke detectors in one group per line, in the smoke detector list and on the Overview. Contributed by danielrdt (#27).
+
+- **One group per alarm line**, under a heading with the name of the line, the number of its detectors and how many of them are alarming or have a fault. Detectors whose line is not known - no acoustic readout yet - form the last group
+- **Only when there is more than one line**: with a single alarm line nothing changes. A button above the smoke detector list switches between groups and one list; the choice is kept in the browser and applies to the Overview as well
+- **Reordering stays**: detectors are dragged inside their group; the one saved order is kept
+- **Groups can be folded**: a click on a heading in the smoke detector list hides the detectors of that line; the heading keeps showing how many of them are alarming or have a fault
+- **Line names for every user**: the groups are named after the alarm lines. For that the list of alarm lines can now be read by every signed-in user (`GET /rest/alarm-lines`); changing it stays with administrators
+
 ## Line Test and Network Test Told Apart
 The packet that starts a line test also starts a network test. The byte that was taken for a start/stop flag is a test mode: `0x04` starts a line test (about 15 minutes), `0x06` a network test (about 30 minutes), `0x00` stops either. The assignment follows from the durations of the two tests, 15 and 30 minutes, which are the ones the manufacturer states; it is not yet confirmed on air which of the two values is the line test.
 

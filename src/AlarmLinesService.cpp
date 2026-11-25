@@ -159,7 +159,10 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClien
                                                                                                                                                                sveltekit->getServer(),
                                                                                                                                                                ALARMLINES_SERVICE_PATH,
                                                                                                                                                                sveltekit->getSecurityManager(),
-                                                                                                                                                               AuthenticationPredicates::IS_ADMIN),
+                                                                                                                                                               AuthenticationPredicates::IS_ADMIN,
+                                                                                                                                                               // The names of the alarm lines title the groups of smoke detectors for every signed-in
+                                                                                                                                                               // user; only reading is opened up
+                                                                                                                                                               AuthenticationPredicates::IS_AUTHENTICATED),
                                                                                                                                                  _fsPersistence(AlarmLines::read,
                                                                                                                                                                 AlarmLines::update,
                                                                                                                                                                 this,

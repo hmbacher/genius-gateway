@@ -30,6 +30,8 @@ The Overview page displays all registered smoke detectors in a responsive grid l
 
 Acoustic readout and changing the alarm line remain on the [Device Management](device-management.md) page. Users without administrator rights can open both dialogs, but are not offered the edit action.
 
+When the smoke detectors are on more than one alarm line, the cards are shown in one group per line, under a heading with the name of the line, the number of its detectors and how many of them are alarming or have a fault. The grouping can be switched in the [smoke detector list](device-management.md#grouping-by-alarm-line).
+
 ### Card Conditions
 
 Every card shows one of four conditions - the most important one that applies, in this order. The colour and a status line below the location name say which:
