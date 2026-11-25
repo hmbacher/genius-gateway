@@ -111,7 +111,7 @@ Packets are now identified by the radio module's on-air **message-type byte** (o
 - **Recognizes the ConfigCheckProbe family**: ConfigCheckProbe request/response packets are now decoded (message type, group/line, status) in the backend and the packet visualizer
 
 ## Packet Visualizer
-- **Header field `Counter` renamed to `Remaining TX Time`**: reverse-engineering the radio-module firmware confirmed that bytes 2-3 are not a packet counter but the **remaining transmission time** - a countdown of the packet's repetition window. The visualizer label and the underlying field naming now reflect that
+- **Header field `Counter` renamed to `Remaining TX Time`**: bytes 2-3 are not a packet counter but the **remaining transmission time** - a countdown of the packet's repetition window. The visualizer label and the underlying field naming now reflect that
 
 ## Modal Dialog Title Icons
 Every modal dialog now shows an icon beside its title, so add/edit/replace and info dialogs are recognizable at a glance and visually consistent across the app.
