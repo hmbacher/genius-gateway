@@ -264,7 +264,9 @@ Authorization: Bearer <token>
   "alarmEnabled": true,
   "alarmTopic": "smarthome/genius-gateway/alarm",
   "faultEnabled": true,
-  "faultTopic": "smarthome/genius-gateway/fault"
+  "faultTopic": "smarthome/genius-gateway/fault",
+  "treeEnabled": false,
+  "treeBaseTopic": ""
 }
 ```
 
@@ -274,6 +276,10 @@ Authorization: Bearer <token>
 - `alarmTopic` - MQTT topic for global alarm state
 - `faultEnabled` - Enable fault publishing (battery low, device faults) to a central MQTT topic
 - `faultTopic` - MQTT topic for the [global fault state](mqtt-topics.md#global-fault-state-topic)
+- `treeEnabled` - Enable the [MQTT value tree](mqtt-topics.md#mqtt-value-tree)
+- `treeBaseTopic` - Root topic of the value tree; empty = `genius-gateway/{mac}`
+
+A POST may carry any subset of these fields; fields that are left out keep their value.
 
 **POST Response:** 200 OK with updated settings
 
