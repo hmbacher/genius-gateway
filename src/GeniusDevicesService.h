@@ -31,6 +31,8 @@
 #define GeniusDevicesService_h
 
 #include <atomic>
+#include <deque>
+#include <functional>
 #include <map>
 #include <vector>
 #include <EventSocket.h>
@@ -44,6 +46,7 @@
 #include <PsramAllocator.h>
 #include <AlarmPublishingSettingsService.h>
 #include <GeniusDeviceStatus.h>
+#include <GeniusMqttTree.h>
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
 #include <HomeAssistant/HABinarySensor.h>
@@ -518,6 +521,18 @@ public:
     /// Send DEVICE_RUNTIME_EVENT with the entries that changed. Not for the RX task.
     void emitRuntimeChanges();
 
+    // ------------------------------------------------------------------
+    // MQTT value tree: one retained topic per value as plain text, for systems other than
+    // Home Assistant. See GeniusMqttTree.h for the topic layout. Off unless switched on in
+    // the alarm-publishing settings (treeEnabled, treeBaseTopic).
+    // ------------------------------------------------------------------
+
+    /// Something the tree publishes may have changed outside this service (e.g. the alarm lines)
+    void treeMarkDirty() { _treeDirty = true; }
+
+    /// Where the tree gets the names of the configured alarm lines (called on the loop task, outside of our lock)
+    void setLineNameProvider(std::function<std::vector<genius_tree::LineName>()> provider) { _treeLineNames = std::move(provider); }
+
     /// Number of devices with at least one active fault (GENIUS_STATUS_FAULT_MASK)
     uint32_t numFaultyDevices();
 
@@ -716,6 +731,20 @@ private:
     /// Second half of moduleHeard(): end "reported missing" for the detectors of these modules
     void _endReportedMissing(uint32_t originModuleSN, uint32_t senderModuleSN);
     String _lastFaultPayload;     ///< Last payload sent to the simple fault topic (publish on change only)
+
+    // MQTT value tree. Only the loop task touches these, except the two flags.
+    genius_tree::Tree _tree;                    ///< What was published: change detection and throttling
+    std::deque<genius_tree::Message> _treeQueue; ///< Planned messages (full topics) that are not sent yet
+    std::string _treeRoot;                      ///< Active root topic, empty = tree off
+    std::string _treeMac;                       ///< MAC without delimiters, for the default root
+    volatile bool _treeDirty = false;           ///< A value may have changed (set from any task)
+    volatile bool _treeForce = true;            ///< Publish everything again (connect, switched on, root changed)
+    uint32_t _treeLastTick = 0;                 ///< millis() of the last tick
+    uint32_t _treeLastPlan = 0;                 ///< millis() of the last comparison of all values
+    std::function<std::vector<genius_tree::LineName>()> _treeLineNames; ///< Names of the configured alarm lines
+    void _treeLoop();                           ///< Loop function: runs _treeTick() about once a second
+    void _treeTick();                           ///< Send what is queued, or plan what is due
+    bool _treeSend();                           ///< Send one batch of the queue; false if publishing failed
 
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client (for simple alarm topic)

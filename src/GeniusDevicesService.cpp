@@ -59,6 +59,9 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
 {
     _importMutex = xSemaphoreCreateRecursiveMutex();
     _runtimeMutex = xSemaphoreCreateMutex();
+
+    // MQTT value tree: publishes from the loop task, never from the task that changed a value
+    sveltekit->addLoopFunction([this]() { _treeLoop(); });
 }
 
 // ============================================================================
@@ -329,7 +332,8 @@ void GeniusDevicesService::begin()
                            {
                                _updateAlarmingState();
                                _updateStatusSummary();
-                               _syncRuntimeTable(); },
+                               _syncRuntimeTable();
+                               _treeDirty = true; },
                            false);
 
     /* Sync HA sub-devices after device list changes (not for packet-originated adds, alarm or
@@ -360,6 +364,7 @@ void GeniusDevicesService::begin()
         _alarmPublishingSettings->addUpdateHandler([this](const String &originId)
                                                    {
                                                        this->_updateAlarmPublishingSettingsCache();
+                                                       this->_treeDirty = true;
                                                        this->mqttPublishSimpleAlarmState();
                                                        this->mqttPublishSimpleFaultState(); },
                                                    false);
@@ -766,6 +771,7 @@ void GeniusDevicesService::emitRuntimeChanges()
         return;
 
     _eventSocket->emitEvent(DEVICE_RUNTIME_EVENT, root);
+    _treeDirty = true; // last seen / signal are topics of the MQTT value tree
 
     // Home Assistant: last seen / signal strength of the detectors that changed
     if (!_haService->isReady())

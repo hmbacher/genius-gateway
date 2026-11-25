@@ -538,6 +538,19 @@ esp_err_t AlarmLinesService::addAlarmLineFromPacket(uint32_t id)
     return addAlarmLine(id, String(name), ALA_GENIUS_PACKET);
 }
 
+std::vector<std::pair<uint32_t, std::string>> AlarmLinesService::getLineNames()
+{
+    std::vector<std::pair<uint32_t, std::string>> names;
+
+    beginTransaction();
+    names.reserve(_state.lines.size());
+    for (const auto &line : _state.lines)
+        names.emplace_back(line.id, std::string(line.name.c_str()));
+    endTransaction();
+
+    return names;
+}
+
 // ============================================================================
 // Private Methods - Event Emission
 // ============================================================================

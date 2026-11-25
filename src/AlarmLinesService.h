@@ -285,6 +285,9 @@ public:
      */
     esp_err_t addAlarmLineFromPacket(uint32_t id);
 
+    /// Snapshot of (id, name) of all configured alarm lines, taken under the state lock
+    std::vector<std::pair<uint32_t, std::string>> getLineNames();
+
     /// Increment packet sequence number and persist it
     uint8_t incPcktSeqNum();
 
