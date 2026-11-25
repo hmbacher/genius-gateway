@@ -8,6 +8,9 @@
 	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
+	import AlarmLineHeading from '$lib/components/genius/AlarmLineHeading.svelte';
+	import { groupByAlarmLine } from '$lib/genius/lineGroups';
+	import { lineGrouping } from '$lib/stores/lineGrouping.svelte';
 	import RadioSetupBanner from '$lib/components/RadioSetupBanner.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import AlarmEndingDialog from './AlarmEndingDialog.svelte';
@@ -22,6 +25,15 @@
 	}
 
 	let { data }: Props = $props();
+
+	// Smoke detectors grouped by alarm line - like the smoke detector list, where the grouping
+	// can be switched; by default only if the detectors are on more than one line
+	let grouped = $derived(lineGrouping.active(geniusDevices.devices));
+	let groups = $derived(groupByAlarmLine(geniusDevices.devices, lineGrouping.names));
+
+	$effect(() => {
+		if (geniusDevices.isLoaded) lineGrouping.loadNames();
+	});
 
 	// Editing a location here can make the gateway rename the detector's Home Assistant
 	// entities; it reports that through a WebSocket event (progress dialog). Only administrators
@@ -118,7 +130,7 @@
 						</div>
 					</div>
 				{/if}
-				{#each geniusDevices.devices as device (device.id)}
+				{#snippet deviceCard(device: GeniusDevice)}
 					<button
 						type="button"
 						onclick={() => openDevice(device)}
@@ -129,7 +141,23 @@
 					>
 						<DeviceStatusCard detector={device} />
 					</button>
-				{/each}
+				{/snippet}
+				{#if grouped}
+					{#each groups as group (group.key)}
+						<!-- Alarm line heading, spans the whole grid row -->
+						<AlarmLineHeading
+							{group}
+							class="col-span-full justify-self-stretch border-b border-base-300 pb-1"
+						/>
+						{#each group.devices as device (device.id)}
+							{@render deviceCard(device)}
+						{/each}
+					{/each}
+				{:else}
+					{#each geniusDevices.devices as device (device.id)}
+						{@render deviceCard(device)}
+					{/each}
+				{/if}
 			{:else}
 				<div class="col-span-full">
 					<div class="alert alert-info shadow-lg">
