@@ -32,7 +32,8 @@ Authorization: Bearer <token>
 | `/rest/gateway-devices` | POST | 🛡️ | Replace the smoke detector devices |
 | `/rest/gateway-devices/device/reset-status` | POST | 🛡️ | Reset a smoke detector's status flags |
 | `/rest/gateway-devices/runtime` | GET | 🔒 | Last seen / signal of supervised radio modules |
-| `/rest/alarm-lines` | GET, POST | 🛡️ | Manage alarm lines (RF groups) |
+| `/rest/alarm-lines` | GET | 🔒 | Read the alarm lines (RF groups) |
+| `/rest/alarm-lines` | POST | 🛡️ | Replace the alarm lines |
 | `/rest/alarm-lines/do` | POST | 🛡️ | Execute alarm line actions |
 | `/rest/gateway-settings` | GET, POST | 🛡️ | Configure gateway behavior |
 | `/rest/alarm-publishing` | GET, POST | 🛡️ | Configure simple alarm publishing |
@@ -164,7 +165,7 @@ Authorization: Bearer <token>
 
 #### `/rest/alarm-lines`
 - **Methods:** GET, POST
-- **Auth:** 🛡️ Admin
+- **Auth:** GET 🔒 User, POST 🛡️ Admin
 - **Description:** Manage configured alarm lines (RF communication groups)
 
 **GET Response:**

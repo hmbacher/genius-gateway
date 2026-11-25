@@ -3,8 +3,8 @@
  *
  * Without a choice of the user the detectors are grouped only if they are on more than one alarm
  * line. The choice (button in the smoke detector list) is kept in this browser.
- * The names of the lines come from the alarm line settings, which only administrators may read;
- * for other users the groups are titled "Line <id>".
+ * The names of the lines come from the alarm line settings; a line that is not listed there is
+ * titled "Line <id>".
  */
 import { get } from 'svelte/store';
 import { page } from '$app/state';
@@ -28,7 +28,7 @@ function createLineGrouping() {
 	let names: Record<number, string> = $state({});
 
 	return {
-		/** Names of the alarm lines by ID; empty until loaded and for users who may not read them. */
+		/** Names of the alarm lines by ID; empty until loaded. */
 		get names() {
 			return names;
 		},
@@ -45,9 +45,8 @@ function createLineGrouping() {
 				/* not remembered */
 			}
 		},
-		/** Load the names of the alarm lines (administrators only; a failure leaves them as they are). */
+		/** Load the names of the alarm lines (a failure leaves them as they are). */
 		async loadNames() {
-			if (!get(user).admin) return;
 			try {
 				const response = await fetch('/rest/alarm-lines', {
 					method: 'GET',

@@ -84,7 +84,8 @@ This feature is useful for organizing devices by floor level, room priority, or 
 When the smoke detectors are on more than one alarm line, the list shows them in one group per line, each under a heading with the name of the line, the number of its detectors and - if there are any - how many of them are alarming or have a fault. The [Overview](overview.md#device-status-grid) groups its cards the same way.
 
 - The line of a detector is the one its radio module is commissioned to. The gateway knows it from an [acoustic readout](#adding-via-acoustic-readout); detectors without one are listed last under **Alarm line unknown**.
-- The groups are named after the [alarm lines](alarm-lines-management.md) and sorted by name. A line that is not in the list of alarm lines is shown as *Line* followed by its ID. Users without administrator rights see all lines that way, as only administrators can read the alarm line settings.
+- The groups are named after the [alarm lines](alarm-lines-management.md) and sorted by name. A line that is not in the list of alarm lines is shown as *Line* followed by its ID.
+- A click on a heading folds its group away, another click shows it again. The heading keeps showing how many of its detectors are alarming or have a fault.
 - The :tabler-folders: button above the list switches between the groups and one plain list. It is only there when there is something to group. The choice is remembered in the browser and also applies to the Overview; without a choice the detectors are grouped only if they are on more than one line.
 - [Reordering](#reordering-devices) works inside a group. A detector cannot be dragged to another line - the line is a property of its radio module.
 

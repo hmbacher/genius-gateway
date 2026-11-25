@@ -534,6 +534,8 @@
 	// be dragged into another group; reordering inside a group changes the one global order.
 	let grouped = $derived(lineGrouping.active(geniusDevices.devices));
 	let lineGroups = $derived(groupByAlarmLine(geniusDevices.devices, lineGrouping.names));
+	// Groups the user folded away, by alarm line; not remembered
+	let collapsedLines = $state<Record<number, boolean>>({});
 
 	$effect(() => {
 		if (geniusDevices.isLoaded) lineGrouping.loadNames();
@@ -1357,17 +1359,24 @@
 						<div class="space-y-3">
 							{#each lineGroups as group (group.key)}
 								<section>
-									<AlarmLineHeading {group} class="px-3 pb-1 pt-2" />
-									<DraggableList
-										items={group.devices}
-										onReorder={handleGroupReorder}
-										useHandleMode={true}
-										class="space-y-1"
-									>
-										{#snippet children({ item: device }: { item: GeniusDevice; index: number })}
-											{@render deviceRow(device, geniusDevices.devices.findIndex((d) => d.id === device.id))}
-										{/snippet}
-									</DraggableList>
+									<AlarmLineHeading
+										{group}
+										class="px-3 pb-1 pt-2"
+										collapsed={collapsedLines[group.key]}
+										onToggle={() => (collapsedLines[group.key] = !collapsedLines[group.key])}
+									/>
+									{#if !collapsedLines[group.key]}
+										<DraggableList
+											items={group.devices}
+											onReorder={handleGroupReorder}
+											useHandleMode={true}
+											class="space-y-1"
+										>
+											{#snippet children({ item: device }: { item: GeniusDevice; index: number })}
+												{@render deviceRow(device, geniusDevices.devices.findIndex((d) => d.id === device.id))}
+											{/snippet}
+										</DraggableList>
+									{/if}
 								</section>
 							{/each}
 						</div>
