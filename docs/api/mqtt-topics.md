@@ -719,6 +719,8 @@ Each entity's discovery config uses `availability_template` on this same topic, 
 
 An acoustic readout reports battery, smoke detector fault and radio module fault as well, so a readout makes these three known. The dismount flag is only ever reported over the air.
 
+`radio_fault` is also `true` while the radio module is [reported missing](../features/device-management.md#radio-link-supervision) by another detector. When that ends, the field goes back to what the radio link flag says - and is left out again if that flag is not known.
+
 **Diagnostic sensor entities** (`value_template` extracts the relevant field):
 
 | Object ID | Name | Unit / Class | JSON field |
@@ -742,6 +744,35 @@ An acoustic readout reports battery, smoke detector fault and radio module fault
 
 !!! note "Migration from pre-1.x firmware"
     Firmware upgrading from a version that used per-entity state topics will automatically clear the 13 stale retained state topics and the old `readout/avail` topic on the first MQTT connect after upgrade. Entity history and customizations in Home Assistant are preserved because all object IDs remain unchanged.
+
+---
+
+#### Radio Link Supervision Entities (FM Pro X)
+
+Smoke detectors with an FM Pro X radio module get two more diagnostic entities. Such modules send a daily series when their radio link supervision is switched on, so the gateway can tell when it last heard them - see [Radio link supervision](../features/device-management.md#radio-link-supervision). The entities are created and removed with the stored radio module model.
+
+**:material-publish: State Topic** (shared, retained)
+```
+homeassistant/genius-gateway-1a2b3c4d5e6f/genius-1/link/state
+```
+
+```json
+{
+  "last_seen": "2026-11-23T17:14:12",
+  "signal": -87
+}
+```
+
+| Field | Entity | Device class / unit | Available |
+|:------|:-------|:--------------------|:----------|
+| `last_seen` | Last Seen | `timestamp` | once a packet of the module was received since the gateway started |
+| `signal` | Signal Strength | `signal_strength` / dBm | once a packet the module transmitted itself was received |
+
+**:material-publish: Publishing Behavior**
+
+- Configs published on MQTT (re)connect alongside the other entities of the detector
+- State published whenever a packet of the module is received
+- The values are kept in the gateway's memory only. After a restart the state is published empty, and both entities are **unavailable** until the module is heard again - a module is never assumed to be there
 
 ---
 

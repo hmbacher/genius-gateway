@@ -491,6 +491,32 @@ What the gateway does after an import was committed
 
 ---
 
+### `device-runtime`
+Last seen / signal of supervised radio modules changed
+
+**Trigger:** A packet that a radio module with radio link supervision (FM Pro X) originated or transmitted was received
+
+**Data Format:**
+```json
+{
+  "event": "device-runtime",
+  "data": {
+    "devices": [
+      {
+        "id": 1758215385,
+        "lastSeen": "2026-11-23T17:14:12.000Z",
+        "rssi": -87,
+        "rssiTime": "2026-11-23T17:14:12.000Z"
+      }
+    ]
+  }
+}
+```
+
+**Fields:** only the detectors whose values changed, in the format of [`GET /rest/gateway-devices/runtime`](http-api.md#restgateway-devicesruntime). The values are not persisted on the gateway.
+
+---
+
 ### `ha-entity-rename`
 Progress of a Home Assistant entity-ID rename
 

@@ -52,6 +52,21 @@ export function formatDateTimeSeconds(date?: Date | null): string {
 }
 
 /**
+ * "just now", "3 min ago", "5 h ago", "2 d ago" - coarse relative time for status displays.
+ * `nowMs` is passed in so callers can re-render on a clock tick.
+ */
+export function formatAgo(date?: Date | null, nowMs: number = Date.now()): string {
+	if (!date) return '-';
+	const s = Math.max(0, Math.floor((nowMs - date.getTime()) / 1000));
+	if (s < 60) return 'just now';
+	const min = Math.floor(s / 60);
+	if (min < 60) return `${min} min ago`;
+	const h = Math.floor(min / 60);
+	if (h < 48) return `${h} h ago`;
+	return `${Math.floor(h / 24)} d ago`;
+}
+
+/**
  * "5y 32d" or "147d" - coarse human age, locale-independent.
  * Uses calendar-year boundaries (anniversary in the current year) rather than
  * dividing by 365.25, so "1y 0d" lines up with the actual anniversary.

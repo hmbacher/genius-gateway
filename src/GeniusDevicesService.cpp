@@ -58,6 +58,7 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
                                                                                                                                                         _eventSocket(sveltekit->getSocket())
 {
     _importMutex = xSemaphoreCreateRecursiveMutex();
+    _runtimeMutex = xSemaphoreCreateMutex();
 }
 
 // ============================================================================
@@ -85,6 +86,7 @@ void GeniusDevicesService::begin()
     // reconnects early can then subscribe without an "unregistered event" warning.
     _eventSocket->registerEvent(HA_ENTITY_RENAME_EVENT);
     _eventSocket->registerEvent(DEVICE_IMPORT_EVENT);
+    _eventSocket->registerEvent(DEVICE_RUNTIME_EVENT);
 
     _httpEndpoint.begin();
     _fsPersistence.readFromFS();
@@ -183,6 +185,19 @@ void GeniusDevicesService::begin()
                 }
             },
             AuthenticationPredicates::IS_ADMIN));
+
+    // ---- GET /rest/gateway-devices/runtime: last seen / signal of the supervised modules ----
+    _server->on(
+        GATEWAY_DEVICES_RUNTIME_PATH,
+        HTTP_GET,
+        _securityManager->wrapRequest(
+            [this](PsychicRequest *request) -> esp_err_t {
+                PsychicJsonResponse response(request, false);
+                JsonObject root = response.getRoot().to<JsonObject>();
+                this->runtimeToJson(root, false);
+                return response.send();
+            },
+            AuthenticationPredicates::IS_AUTHENTICATED));
 
     // ---- Per-device CRUD: POST /rest/gateway-devices/reorder  body: { order: [id...] } ----
     _server->on(
@@ -307,12 +322,14 @@ void GeniusDevicesService::begin()
 
     // Status counters for the devices just loaded (readFromFS does not run the update handlers)
     _updateStatusSummary();
+    _syncRuntimeTable();
 
     /* Update alarming state and status summary after every device update */
     this->addUpdateHandler([&](const String &originId)
                            {
                                _updateAlarmingState();
-                               _updateStatusSummary(); },
+                               _updateStatusSummary();
+                               _syncRuntimeTable(); },
                            false);
 
     /* Sync HA sub-devices after device list changes (not for packet-originated adds, alarm or
@@ -567,6 +584,297 @@ const GeniusDevice *GeniusDevicesService::applyStatusChange(uint32_t detectorSN,
     return updatedDevice;
 }
 
+void GeniusDevicesService::applyModuleMissing(uint32_t reporterModuleSN, uint32_t missingModuleSN)
+{
+    if (missingModuleSN == 0 || reporterModuleSN == missingModuleSN)
+        return;
+
+    bool changed = false;
+    uint32_t missingDeviceId = 0;
+    const time_t now = time(nullptr);
+
+    beginTransaction();
+
+    // A module that stays missing is reported in up to three supervision rounds (about 5 h apart).
+    // Such a report continues the previous one as long as the module was not heard or
+    // confirmed present in between - for a registered detector that is its status flag.
+    bool missingRegistered = false;
+    bool wasMissing = false;
+    for (const GeniusDevice &device : _state.devices)
+    {
+        if (device.radioModule.sn == missingModuleSN)
+        {
+            missingRegistered = true;
+            wasMissing = (device.status.activeMask() & GENIUS_STATUS_REPORTED_MISSING) != 0;
+            break;
+        }
+    }
+
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (device.radioModule.sn == reporterModuleSN)
+        {
+            // One log entry per missing module: the copies of a report (repeated, forwarded
+            // through the mesh) are one report, and the reports of later rounds are counted
+            // on that entry. Of a module the gateway does not know nothing but the reports is
+            // known, so there a pause of more than a day starts a new entry.
+            const bool ongoing = missingRegistered ? wasMissing : true;
+            const long maxGap = missingRegistered ? 0 : GENIUS_MODULE_MISSING_ONGOING_S;
+            if (device.status.logReport(GDE_MODULE_MISSING, missingModuleSN, now, GENIUS_MODULE_MISSING_REPEAT_S,
+                                        ongoing, maxGap) != GeniusDeviceStatus::REPORT_COPY)
+                changed = true;
+        }
+        else if (device.radioModule.sn == missingModuleSN)
+        {
+            // Edge-triggered like every status flag: the state stays until a frame of this
+            // module is heard again (moduleHeard()), another module confirms that it hears
+            // it (applyModulePresent()) or the status is reset by hand.
+            const GeniusStatusDelta delta = device.status.apply(GENIUS_STATUS_REPORTED_MISSING, 0, now, GDE_MODULE_MISSING);
+            if (delta.any())
+            {
+                device.status.addEvent({now, GDE_MODULE_MISSING, GENIUS_STATUS_REPORTED_MISSING, 0, reporterModuleSN});
+                missingDeviceId = device.id;
+                changed = true;
+            }
+        }
+    }
+
+    endTransaction();
+
+    ESP_LOGI(GeniusDevices::TAG, "Radio module %lu reports radio module %lu as missing%s.",
+             (unsigned long)reporterModuleSN, (unsigned long)missingModuleSN,
+             missingDeviceId ? "" : (changed ? " (not a registered detector or already known)" : " (nothing new)"));
+
+    if (!changed)
+        return;
+
+    callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+    if (missingDeviceId)
+    {
+        beginTransaction();
+        _publishSmokeDetectorAttributes(missingDeviceId); // HA: radio module state
+        endTransaction();
+    }
+}
+
+void GeniusDevicesService::applyModulePresent(uint32_t confirmingModuleSN, uint32_t presentModuleSN)
+{
+    // Called from the RX path: stay out of the mutex unless a detector is reported missing.
+    if (presentModuleSN == 0 || _numReportedMissing.load() == 0)
+        return;
+
+    uint32_t presentDeviceId = 0;
+    const time_t now = time(nullptr);
+
+    beginTransaction();
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (device.radioModule.sn != presentModuleSN)
+            continue;
+        if (!(device.status.activeMask() & GENIUS_STATUS_REPORTED_MISSING))
+            continue;
+
+        // Another module hears it: the module is there, it is only out of range of the one
+        // that reported it (which now stops supervising it instead of raising a fault).
+        const GeniusStatusDelta delta = device.status.apply(0, GENIUS_STATUS_REPORTED_MISSING, now, GDE_MODULE_MISSING);
+        if (delta.any())
+        {
+            device.status.addEvent({now, GDE_MODULE_MISSING, 0, GENIUS_STATUS_REPORTED_MISSING, confirmingModuleSN});
+            presentDeviceId = device.id;
+        }
+    }
+    endTransaction();
+
+    if (!presentDeviceId)
+        return;
+
+    ESP_LOGI(GeniusDevices::TAG, "Radio module %lu, reported missing before, is confirmed present by radio module %lu.",
+             (unsigned long)presentModuleSN, (unsigned long)confirmingModuleSN);
+
+    callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+    beginTransaction();
+    _publishSmokeDetectorAttributes(presentDeviceId); // HA: radio module state
+    endTransaction();
+}
+
+bool GeniusDevicesService::moduleHeard(uint32_t originModuleSN, uint32_t senderModuleSN, int8_t rssiDbm)
+{
+    bool runtimeChanged = false;
+
+    // ---- Last seen / signal of the supervised modules: RAM only, own mutex ----
+    // Without a valid clock there is no time to keep; the values would be useless.
+    const time_t now = time(nullptr);
+    if (_runtimeAny.load() && geniusTimeValid(now))
+    {
+        xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
+        for (ModuleRuntime &entry : _runtime)
+        {
+            const bool transmitted = entry.moduleSn == senderModuleSN;
+            if (!transmitted && entry.moduleSn != originModuleSN)
+                continue;
+
+            entry.lastSeen = now;
+            if (transmitted)
+            {
+                // The signal belongs to the module whose radio was actually heard: the
+                // sender, not the originator of a relayed frame.
+                entry.rssi = rssiDbm;
+                entry.rssiTime = now;
+            }
+            entry.changed = true;
+            runtimeChanged = true;
+        }
+        xSemaphoreGive(_runtimeMutex);
+    }
+
+    _endReportedMissing(originModuleSN, senderModuleSN);
+    return runtimeChanged;
+}
+
+void GeniusDevicesService::runtimeToJson(JsonObject root, bool changedOnly)
+{
+    JsonArray devices = root["devices"].to<JsonArray>();
+
+    xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
+    for (ModuleRuntime &entry : _runtime)
+    {
+        if (changedOnly ? !entry.changed : entry.lastSeen == 0)
+            continue;
+        if (changedOnly)
+            entry.changed = false;
+
+        JsonObject obj = devices.add<JsonObject>();
+        obj["id"] = entry.deviceId;
+        obj["lastSeen"] = Utils::time_t_to_iso8601(entry.lastSeen);
+        if (entry.rssiTime != 0)
+        {
+            obj["rssi"] = entry.rssi;
+            obj["rssiTime"] = Utils::time_t_to_iso8601(entry.rssiTime);
+        }
+    }
+    xSemaphoreGive(_runtimeMutex);
+}
+
+void GeniusDevicesService::emitRuntimeChanges()
+{
+    JsonDocument doc;
+    JsonObject root = doc.to<JsonObject>();
+    runtimeToJson(root, true);
+    if (root["devices"].size() == 0)
+        return;
+
+    _eventSocket->emitEvent(DEVICE_RUNTIME_EVENT, root);
+
+    // Home Assistant: last seen / signal strength of the detectors that changed
+    if (!_haService->isReady())
+        return;
+    beginTransaction();
+    for (JsonObject changed : root["devices"].as<JsonArray>())
+    {
+        auto it = _haDevices.find(changed["id"].as<uint32_t>());
+        if (it != _haDevices.end() && it->second.link)
+            it->second.link->publishState();
+    }
+    endTransaction();
+}
+
+bool GeniusDevicesService::_runtimeOf(uint32_t deviceId, ModuleRuntime &out)
+{
+    bool found = false;
+    xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
+    for (const ModuleRuntime &entry : _runtime)
+    {
+        if (entry.deviceId == deviceId)
+        {
+            out = entry;
+            found = true;
+            break;
+        }
+    }
+    xSemaphoreGive(_runtimeMutex);
+    return found;
+}
+
+void GeniusDevicesService::_syncRuntimeTable()
+{
+    // Which detectors have a radio module that takes part in the radio link supervision.
+    // The criterion is the stored module model - from a readout or entered by hand.
+    std::vector<ModuleRuntime> wanted;
+
+    beginTransaction();
+    for (const GeniusDevice &device : _state.devices)
+    {
+        if (device.radioModule.model != GRM_FM_PRO_X || device.radioModule.sn == 0)
+            continue;
+        ModuleRuntime entry;
+        entry.deviceId = device.id;
+        entry.moduleSn = device.radioModule.sn;
+        wanted.push_back(entry);
+    }
+    endTransaction();
+
+    // Keep what is known about the modules that stay. The runtime mutex is not taken while
+    // the state mutex is needed afterwards - only the other order occurs.
+    xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
+    for (ModuleRuntime &entry : wanted)
+    {
+        for (const ModuleRuntime &known : _runtime)
+        {
+            if (known.deviceId == entry.deviceId && known.moduleSn == entry.moduleSn)
+            {
+                entry = known;
+                break;
+            }
+        }
+    }
+    _runtime = std::move(wanted);
+    _runtimeAny = !_runtime.empty();
+    xSemaphoreGive(_runtimeMutex);
+}
+
+void GeniusDevicesService::_endReportedMissing(uint32_t originModuleSN, uint32_t senderModuleSN)
+{
+    // Called from the RX path for every frame: stay out of the mutex unless a detector is
+    // actually reported missing.
+    if (_numReportedMissing.load() == 0)
+        return;
+
+    std::vector<uint32_t> heardDeviceIds;
+    const time_t now = time(nullptr);
+
+    beginTransaction();
+    for (GeniusDevice &device : _state.devices)
+    {
+        const uint32_t sn = device.radioModule.sn;
+        if (sn == 0 || (sn != originModuleSN && sn != senderModuleSN))
+            continue;
+        if (!(device.status.activeMask() & GENIUS_STATUS_REPORTED_MISSING))
+            continue;
+
+        // A frame this module originated or transmitted proves that it is there.
+        const GeniusStatusDelta delta = device.status.apply(0, GENIUS_STATUS_REPORTED_MISSING, now, GDE_MODULE_MISSING);
+        if (delta.any())
+        {
+            device.status.addEvent({now, GDE_MODULE_MISSING, 0, GENIUS_STATUS_REPORTED_MISSING, 0});
+            heardDeviceIds.push_back(device.id);
+            ESP_LOGI(GeniusDevices::TAG, "Radio module %lu, reported missing before, was heard again.", (unsigned long)sn);
+        }
+    }
+    endTransaction();
+
+    if (heardDeviceIds.empty())
+        return;
+
+    callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, update summary, notify front end
+
+    beginTransaction();
+    for (uint32_t deviceId : heardDeviceIds)
+        _publishSmokeDetectorAttributes(deviceId);
+    endTransaction();
+}
+
 // ============================================================================
 // Private Methods - State Management
 // ============================================================================
@@ -599,6 +907,7 @@ void GeniusDevicesService::_updateStatusSummary()
 {
     uint32_t numFaulty = 0;
     uint32_t numBatteryLow = 0;
+    uint32_t numReportedMissing = 0;
 
     beginTransaction();
     for (const GeniusDevice &device : _state.devices)
@@ -609,9 +918,12 @@ void GeniusDevicesService::_updateStatusSummary()
             numFaulty++;
         if (active & GENIUS_STATUS_BATT_LOW)
             numBatteryLow++;
+        if (active & GENIUS_STATUS_REPORTED_MISSING)
+            numReportedMissing++;
     }
     _numFaulty = numFaulty;
     _numBatteryLow = numBatteryLow;
+    _numReportedMissing = numReportedMissing; // read by the RX path, see moduleHeard()
     endTransaction();
 
     // The payload names devices and their locations, so it can change without the counters
@@ -857,7 +1169,16 @@ void GeniusDevice::statusToJson(JsonObject &root) const
                 obj["cleared"] = event.cleared;
                 break;
             case GDE_MODULE_MISSING:
-                obj["cause"] = event.value;
+                // Three shapes: this device reports another module as missing (cause = that
+                // module), this device is reported missing (set, cause = the reporter), or it
+                // is no longer (cleared; cause = the module that confirmed it present, none
+                // if its own radio module was heard again).
+                if (event.value)
+                    obj["cause"] = event.value;
+                if (event.set)
+                    obj["set"] = event.set;
+                if (event.cleared)
+                    obj["cleared"] = event.cleared;
                 break;
             case GDE_ALARM:
                 if (event.value != GENIUS_ALARM_RUNNING && geniusTimeValid(event.time))
@@ -866,6 +1187,13 @@ void GeniusDevice::statusToJson(JsonObject &root) const
                 break;
             default:
                 break;
+            }
+            // A report that was made again while its cause lasted: how often, and when last
+            if (event.count > 1)
+            {
+                obj["count"] = event.count;
+                if (geniusTimeValid(event.last))
+                    obj["last"] = Utils::time_t_to_iso8601(event.last);
             }
         }
     }
@@ -907,6 +1235,9 @@ bool GeniusDevice::statusFromJson(JsonVariant src)
             if (event.type >= GDE_MAX)
                 continue;
             event.time = item["time"].is<String>() ? Utils::iso8601_to_time_t(item["time"].as<String>()) : 0;
+            const uint32_t count = item["count"] | 1U;
+            event.count = count < 1 ? 1 : (count > UINT16_MAX ? UINT16_MAX : static_cast<uint16_t>(count));
+            event.last = (event.count > 1 && item["last"].is<String>()) ? Utils::iso8601_to_time_t(item["last"].as<String>()) : 0;
             switch (event.type)
             {
             case GDE_CREATED:
@@ -918,7 +1249,9 @@ bool GeniusDevice::statusFromJson(JsonVariant src)
                 event.cleared = item["cleared"].as<uint32_t>();
                 break;
             case GDE_MODULE_MISSING:
-                event.value = item["cause"].as<uint32_t>();
+                event.value = item["cause"] | 0U;
+                event.set = item["set"] | 0U;
+                event.cleared = item["cleared"] | 0U;
                 break;
             case GDE_ALARM:
             {
@@ -1664,9 +1997,12 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
             const uint32_t flags = d->status.activeMask();
             if (known & GENIUS_STATUS_BATT_LOW) state["battery_low"]  = (flags & GENIUS_STATUS_BATT_LOW) != 0;
             if (known & GENIUS_STATUS_ERROR)    state["device_fault"] = (flags & GENIUS_STATUS_ERROR) != 0;
-            // A radio module that other detectors report as missing is a radio problem of this detector too
+            // A radio module that other detectors report as missing is a radio problem of this
+            // detector too. OK needs the radio link flag itself to be known: that a module is no
+            // longer reported missing says nothing about its own radio link.
             const uint32_t radioFlags = GENIUS_STATUS_RADIO | GENIUS_STATUS_REPORTED_MISSING;
-            if (known & radioFlags)             state["radio_fault"]  = (flags & radioFlags) != 0;
+            if (flags & radioFlags)             state["radio_fault"]  = true;
+            else if (known & GENIUS_STATUS_RADIO) state["radio_fault"] = false;
             if (known & GENIUS_STATUS_DISMOUNT) state["dismounted"]   = (flags & GENIUS_STATUS_DISMOUNT) != 0;
 
             // Readout entities
@@ -1810,6 +2146,65 @@ void GeniusDevicesService::_addSmokeDetectorSubDevice(const GeniusDevice &device
         if (entry.diagnostics)
             entry.diagnostics->publishAll();
     }
+
+    _syncLinkEntities(device);
+}
+
+void GeniusDevicesService::_syncLinkEntities(const GeniusDevice &device)
+{
+    auto it = _haDevices.find(device.id);
+    if (it == _haDevices.end() || it->second.device == nullptr)
+        return;
+
+    const bool supervised = device.radioModule.model == GRM_FM_PRO_X && device.radioModule.sn != 0;
+    if (supervised == (it->second.link != nullptr))
+        return;
+
+    if (!supervised)
+    {
+        // The module was replaced by one without radio link supervision: the entities go
+        if (_haService->isReady())
+            it->second.link->unpublishAll();
+        it->second.link.reset();
+        return;
+    }
+
+    const uint32_t devId = device.id;
+    auto link = std::make_unique<HAGroupedSensorPublisher>(
+        _haService, "link",
+        [this, devId](JsonObject &state) {
+            // RAM-only values. A field is present once it is known, i.e. once the module was
+            // heard since the gateway started - until then the entities are unavailable.
+            ModuleRuntime entry;
+            if (!_runtimeOf(devId, entry) || entry.lastSeen == 0)
+                return;
+            state["last_seen"] = Utils::time_t_to_iso8601(entry.lastSeen);
+            if (entry.rssiTime != 0)
+                state["signal"] = entry.rssi;
+        },
+        it->second.device);
+
+    link->addSensor("sensor", "last_seen", "Last Seen", "mdi:radio-tower", HACategory::Diagnostic,
+        [](JsonObject &c) {
+            c["value_template"]        = "{{ value_json.last_seen }}";
+            c["device_class"]          = "timestamp";
+            c["availability_topic"]    = "~/link/state";
+            c["availability_template"] = "{{ 'online' if value_json.last_seen is defined else 'offline' }}";
+        })
+    .addSensor("sensor", "signal_strength", "Signal Strength", "", HACategory::Diagnostic,
+        [](JsonObject &c) {
+            c["value_template"]        = "{{ value_json.signal }}";
+            c["device_class"]          = "signal_strength";
+            c["unit_of_measurement"]   = "dBm";
+            c["state_class"]           = "measurement";
+            c["availability_topic"]    = "~/link/state";
+            c["availability_template"] = "{{ 'online' if value_json.signal is defined else 'offline' }}";
+        });
+
+    link->begin();
+    if (_haService->isReady())
+        link->publishAll();
+    it->second.link = std::move(link);
 }
 
 void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
@@ -1819,6 +2214,8 @@ void GeniusDevicesService::_removeSmokeDetectorSubDevice(uint32_t deviceId)
     {
         if (it->second.diagnostics && _haService->isReady())
             it->second.diagnostics->unpublishAll();
+        if (it->second.link && _haService->isReady())
+            it->second.link->unpublishAll();
         _haDevices.erase(it);
     }
     _haService->removeSubDevice("genius-" + String(deviceId));
@@ -1871,6 +2268,7 @@ void GeniusDevicesService::_syncSmokeDetectorSubDevices(bool requestRename, std:
         // discovery. Avoids remove+re-add, which causes HA to ignore the new
         // suggested_area because its device registry entry persists (Bug 2).
         const bool identityChanged = _applySmokeDetectorIdentity(*it->second.device, device);
+        _syncLinkEntities(device); // the radio module model decides whether they exist
         if (!device.published || identityChanged)
         {
             // A detector with a pending rename is published by the rename task, after its
@@ -1927,6 +2325,8 @@ bool GeniusDevicesService::_publishSmokeDetectorDiscovery(uint32_t deviceId, Str
         haDevice->publishAll();
         if (it->second.diagnostics)
             it->second.diagnostics->publishAll();
+        if (it->second.link)
+            it->second.link->publishAll();
 
         published = _haService->isReady() && haDevice->configPublishFailures() == failuresBefore;
     }
@@ -2063,6 +2463,8 @@ void GeniusDevicesService::_runEntityIdRename(bool background)
             it->second.device->unpublishAll(1);
             if (it->second.diagnostics)
                 it->second.diagnostics->unpublishAll(1, true);
+            if (it->second.link)
+                it->second.link->unpublishAll(1, true);
         }
         endTransaction();
         vTaskDelay(pdMS_TO_TICKS(1));

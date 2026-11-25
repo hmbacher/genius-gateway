@@ -84,6 +84,33 @@ bool genius_analyze_packet(const uint8_t *data, size_t length, genius_packet_t *
         }
         break;
 
+    case MSGFAMILY_SUPERVISION: // 0x33  (FM Pro X with the DIP switch "radio link supervision")
+        if (msgType == MSGTYPE_SUPERVISION_SERIES && length == LEN_SUPERVISION_SERIES_PACKET)
+        {
+            out->type = HPT_SUPERVISION_SERIES;
+        }
+        else if (msgType == MSGTYPE_SUPERVISION_ROLL_CALL && length == LEN_SUPERVISION_ROLL_CALL_PACKET)
+        {
+            out->type = HPT_SUPERVISION_ROLL_CALL;
+        }
+        else if (msgType == MSGTYPE_MODULE_MISSING && length == LEN_MODULE_MISSING_PACKET)
+        {
+            out->type = HPT_MODULE_MISSING;
+            out->missing_module_sn = readU32BE(data, DATAPOS_MODULE_MISSING_SN);
+        }
+        else if (msgType == MSGTYPE_MODULE_PRESENT && length == LEN_MODULE_PRESENT_PACKET)
+        {
+            // Not captured on air yet (same layout as "module missing")
+            out->type = HPT_MODULE_PRESENT;
+            out->present_module_sn = readU32BE(data, DATAPOS_MODULE_PRESENT_SN);
+        }
+        break;
+
+    case MSGFAMILY_LINE_CLOCK: // 0x22  (sent in a supervision round, before the roll call)
+        if (msgType == MSGTYPE_LINE_CLOCK && length == LEN_LINE_CLOCK_PACKET)
+            out->type = HPT_LINE_CLOCK;
+        break;
+
     case MSGFAMILY_COMMISSIONING: // 0x66
         switch (msgType)
         {
@@ -141,11 +168,13 @@ bool genius_analyze_packet(const uint8_t *data, size_t length, genius_packet_t *
         }
         break;
 
-    default: // 0x11, 0x22, 0x33 (radio link supervision) and anything not known yet
+    default: // 0x11, 0x22 and anything not known yet
         break;
     }
 
-    if (out->type != HPT_UNKNOWN)
+    /* The header is the same for every message, also for those not known yet: who originated
+     * the frame, who transmitted it, on which line. A frame of an unknown type is still a sign
+     * of life of these radio modules. */
     {
         out->origin_id = readU32BE(data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
         out->sender_id = readU32BE(data, DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID);

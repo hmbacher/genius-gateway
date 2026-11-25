@@ -8,7 +8,8 @@
 		getCurrentSmokeDetectorFaults,
 		getCurrentRadioModuleFaults
 	} from '$lib/utils/deviceStatus';
-	import { formatDate } from '$lib/utils/formatDate';
+	import { formatAgo, formatDate, formatDateTime } from '$lib/utils/formatDate';
+	import { deviceRuntime } from '$lib/stores/deviceRuntime.svelte';
 	import { isOldFmModule } from '$lib/genius/line';
 	import { dragHandle } from 'svelte-dnd-action';
 	import DetectorStatusBadge from './DetectorStatusBadge.svelte';
@@ -87,6 +88,13 @@
 	// Current status: status flags (over the air / readout / manual reset) + readout-only findings
 	const sdStatus = $derived(hasSmokeDetectorStatus(device));
 	const rmStatus = $derived(hasRadioModuleStatus(device));
+	// Radio link supervision: FM Pro X modules send a daily series, so the gateway knows when it
+	// last heard them (kept in its RAM only - not heard since its start: no entry)
+	const supervised = $derived(device.radioModule.model === GeniusRadioModule.FmProX);
+	const lastSeen = $derived(deviceRuntime.byId[device.id]?.lastSeen);
+	const lastSeenText = $derived(
+		lastSeen ? `Seen ${formatAgo(lastSeen, deviceRuntime.now)}` : 'Not heard yet'
+	);
 	const sdFaults = $derived(getCurrentSmokeDetectorFaults(device));
 	const rmFaults = $derived(getCurrentRadioModuleFaults(device));
 	// Old FM module (FM.Basis / FM.Pro) without a manually-entered alarm line.
@@ -230,6 +238,12 @@
 					compact
 					onclick={() => onDetails(index)}
 				/>
+				{#if supervised}
+					<span class="text-current/30">·</span>
+					<span class="text-xs {lastSeen ? 'text-current/60' : 'italic text-current/40'}"
+						>{lastSeenText}</span
+					>
+				{/if}
 				{#if lineRequired}
 					<button
 						class="btn btn-warning btn-xs gap-1"
@@ -310,6 +324,16 @@
 					faults={rmFaults}
 					onclick={() => onDetails(index)}
 				/>
+				{#if supervised}
+					<div
+						class="truncate text-xs {lastSeen ? 'text-current/60' : 'italic text-current/40'}"
+						title={lastSeen
+							? `Last packet of this radio module: ${formatDateTime(lastSeen)}`
+							: 'No packet of this radio module since the gateway started'}
+					>
+						{lastSeenText}
+					</div>
+				{/if}
 				{#if lineRequired}
 					<button
 						class="btn btn-warning btn-xs gap-1"

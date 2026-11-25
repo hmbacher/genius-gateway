@@ -108,6 +108,12 @@ static inline bool geniusTimeValid(time_t t)
     return t >= (time_t)GENIUS_TIME_VALID_MIN;
 }
 
+#define GENIUS_MODULE_MISSING_REPEAT_S 600 ///< Copies of one "module missing" report that arrive within this time are one report
+/// A "module missing" report about a radio module the gateway does not know continues the
+/// previous one if that is at most this old (a module that stays missing is reported up to three
+/// times, about 5 h apart; then the reporting module raises its fault and stops supervising).
+#define GENIUS_MODULE_MISSING_ONGOING_S 86400L
+
 #ifndef GENIUS_MAX_DEVICE_EVENTS
 #define GENIUS_MAX_DEVICE_EVENTS 50 ///< Entries kept in a device's activity log (ring buffer)
 #endif
@@ -120,7 +126,8 @@ enum genius_device_event_t : uint8_t
     GDE_READOUT = 1,        ///< Acoustic readout (set = flags reported active, cleared = flags reported OK)
     GDE_STATUS_PACKET = 2,  ///< Status change received over the air (set / cleared = flags that changed)
     GDE_STATUS_RESET = 3,   ///< Status reset in the gateway: the active flags became unknown
-    GDE_MODULE_MISSING = 4, ///< Radio link supervision of this device names a missing radio module (value = its serial)
+    GDE_MODULE_MISSING = 4, ///< Radio link supervision: this device reports a module as missing (value = that module), is reported
+                            ///< missing (set, value = the reporter) or is no longer (cleared, value = the module that confirmed it, 0 = heard itself)
     GDE_ALARM = 5,          ///< Alarm (time = start, set = duration in seconds once it ended, value = ending reason)
     GDE_MAX
 };
@@ -145,8 +152,10 @@ struct GeniusDeviceEvent
     uint8_t type;     ///< genius_device_event_t
     uint32_t set;     ///< GDE_READOUT / GDE_STATUS_PACKET: flags reported active; GDE_ALARM: duration in seconds
     uint32_t cleared; ///< GDE_READOUT / GDE_STATUS_PACKET: flags reported OK
-    uint32_t value;   ///< GDE_CREATED: registration type; GDE_MODULE_MISSING: serial of the missing radio module;
+    uint32_t value;   ///< GDE_CREATED: registration type; GDE_MODULE_MISSING: serial of the other radio module;
                       ///< GDE_ALARM: ending reason (genius_alarm_ending_t), GENIUS_ALARM_RUNNING while it lasts
+    uint16_t count = 1; ///< How often it was reported: a report that is made again while its cause lasts is counted here instead of logged again
+    time_t last = 0;    ///< When it was reported last (only with count > 1; time is the first report)
 };
 
 /// What a report changed.
@@ -294,6 +303,55 @@ public:
     {
         events.push_back(event);
         trimEvents();
+    }
+
+    /// What logReport() did with a report.
+    enum ReportLog : uint8_t
+    {
+        REPORT_COPY,     ///< Another copy of a report that is logged already - nothing changed
+        REPORT_REPEATED, ///< The report was made again: counted on the existing entry
+        REPORT_NEW       ///< New log entry
+    };
+
+    /**
+     * @brief Log a report that its sender repeats for as long as the cause lasts
+     *
+     * Used for "module missing". Such a report is transmitted in many copies and forwarded:
+     * that is one report, not one per copy. And it is made again in every supervision round
+     * while the module stays missing: that is counted on the existing entry instead of logged
+     * again, so the rounds do not push everything else out of the log.
+     *
+     * @param type          Entry type; the entry is one without set / cleared flags
+     * @param value         Entry value (e.g. the serial of the missing module)
+     * @param copySeconds   A report at most this long after the last one is a copy of it.
+     *                      Without a valid clock every report counts as a copy.
+     * @param ongoing       The reported condition has lasted since the last report
+     * @param maxGapSeconds With @p ongoing: count on the existing entry only if its last
+     *                      report is at most this old (0 = no limit)
+     */
+    ReportLog logReport(uint8_t type, uint32_t value, time_t now, long copySeconds, bool ongoing, long maxGapSeconds = 0)
+    {
+        for (auto it = events.rbegin(); it != events.rend(); ++it)
+        {
+            if (it->type != type || it->value != value || it->set != 0 || it->cleared != 0)
+                continue;
+            const time_t latest = (it->count > 1 && geniusTimeValid(it->last)) ? it->last : it->time;
+            if (!geniusTimeValid(now) || !geniusTimeValid(latest))
+                return REPORT_COPY;
+            const long age = (long)(now - latest);
+            if (age <= copySeconds)
+                return REPORT_COPY;
+            if (ongoing && (maxGapSeconds == 0 || age <= maxGapSeconds))
+            {
+                if (it->count < UINT16_MAX)
+                    it->count++;
+                it->last = now;
+                return REPORT_REPEATED;
+            }
+            break; // the condition ended in between: this is a new one
+        }
+        addEvent({now, type, 0, 0, value});
+        return REPORT_NEW;
     }
 
     /// Drop the oldest entries beyond GENIUS_MAX_DEVICE_EVENTS.

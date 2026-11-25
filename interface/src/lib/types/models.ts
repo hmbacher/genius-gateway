@@ -285,8 +285,16 @@ export type GeniusDeviceEvent = {
 	cleared?: number;
 	/** Created: registration type of the device. */
 	registration?: number;
-	/** Module missing: serial of the radio module reported as missing. */
+	/**
+	 * Radio link supervision: serial of the other radio module - the one this detector reports
+	 * as missing, the one that reports it (with `set`) or the one that confirmed it present
+	 * (with `cleared`; none if its own radio module was heard again).
+	 */
 	cause?: number;
+	/** How often it was reported, if more than once: a report that is made again while its cause lasts is counted on its entry. */
+	count?: number;
+	/** With `count`: when it was reported last (`time` is the first report). */
+	last?: Date;
 	/** Alarm: when it ended; missing while it lasts. */
 	end?: Date;
 	/** Alarm: how it ended (GeniusAlarmEnding), AlarmActive while it lasts. */
@@ -303,6 +311,25 @@ export type AlarmState = {
 };
 
 /** Payload of the `device-status` WebSocket event. */
+/**
+ * What the gateway heard of a supervised radio module (FM Pro X) since it started. RAM only on
+ * the gateway: a module without an entry has not been heard since the last restart.
+ */
+export type GeniusModuleRuntime = {
+	/** Device id of the smoke detector the radio module belongs to. */
+	id: number;
+	/** Last packet this module originated or transmitted. */
+	lastSeen: Date;
+	/** Signal strength (dBm) of the last packet the module transmitted itself. */
+	rssi?: number;
+	rssiTime?: Date;
+};
+
+/** Payload of `GET /rest/gateway-devices/runtime` and of the `device-runtime` WebSocket event. */
+export type DeviceRuntimeEvent = {
+	devices: { id: number; lastSeen: string; rssi?: number; rssiTime?: string }[];
+};
+
 export type DeviceStatusEvent = {
 	/** Devices with at least one active fault. */
 	numFaulty: number;
@@ -351,7 +378,12 @@ export const PacketTypeNames = {
 	StopAlarm: 'Stop Alarm',
 	StatusChange: 'Status Change',
 	ConfigCheckProbeRequest: 'ConfigCheckProbe Request',
-	ConfigCheckProbeResponse: 'ConfigCheckProbe Response'
+	ConfigCheckProbeResponse: 'ConfigCheckProbe Response',
+	SupervisionSeries: 'Supervision Series',
+	SupervisionRollCall: 'Supervision Roll Call',
+	ModuleMissing: 'Module Missing',
+	ModulePresent: 'Module Present',
+	LineClock: 'Line Clock'
 } as const;
 
 /** Names of the packet types that are a status change (alarm start/stop are its alarm-bit cases). */
@@ -452,6 +484,56 @@ export const PacketTypes: PacketType[] = [
 		]
 	},
 	{
+		name: PacketTypeNames.SupervisionSeries,
+		cssClass: 'type-supervision-series',
+		familyByte: 0x33,
+		typeByte: 0x00,
+		packetLength: 28,
+		description:
+			'Daily series of the radio link supervision (FM Pro X with the DIP switch switched on) - a sign of life of the sender.',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.ModuleMissing,
+		cssClass: 'type-module-missing',
+		familyByte: 0x33,
+		typeByte: 0x02,
+		packetLength: 32,
+		description:
+			'Radio link supervision: the sender reports a radio module as missing (bytes 28-31: its serial number).',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.ModulePresent,
+		cssClass: 'type-module-present',
+		familyByte: 0x33,
+		typeByte: 0x03,
+		packetLength: 32,
+		description:
+			'Radio link supervision: answer to a Module Missing report - the sender hears the named radio module (bytes 28-31: its serial number).',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.SupervisionRollCall,
+		cssClass: 'type-supervision-roll-call',
+		familyByte: 0x33,
+		typeByte: 0x01,
+		packetLength: 28,
+		description:
+			'Radio link supervision: roll call - every radio module that hears it sends its series.',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.LineClock,
+		cssClass: 'type-line-clock',
+		familyByte: 0x22,
+		typeByte: 0x00,
+		packetLength: 33,
+		description:
+			"The line's own clock, sent in a supervision round (bytes 28-30: hour, minute, second; bytes 31-32: day counter).",
+		identifiers: []
+	},
+	{
 		name: PacketTypeNames.StatusChange,
 		cssClass: 'type-status-change',
 		familyByte: 0x00,
@@ -504,6 +586,20 @@ export type CommissioningProbeResponseInfo = {
 	requestingLocation: string;
 };
 
+/** Radio module named by a Module Missing / Module Present packet (uint32 BE at offset 28). */
+export type NamedModuleInfo = {
+	radioModule: number;
+	location: string;
+};
+
+/** Decoded tail of a Line Clock packet. */
+export type LineClockInfo = {
+	/** Time of the line's own clock (bytes 28-30). It is not the time of day. */
+	timeStr: string;
+	/** Day counter (uint16 LE at offset 31). */
+	day: number;
+};
+
 /** Decoded tail of a status-change packet (Start Alarm / Stop Alarm / Status Change). */
 export type StatusChangeInfo = {
 	/** Status flags newly set (STATUS_* bits, uint16 LE at offset 28). */
@@ -524,7 +620,13 @@ export type Packet = {
 	counter: number;
 	hash: number;
 	generalInfo: GeneralInfo | null;
-	specificInfo: CommissioningInfo | CommissioningProbeResponseInfo | StatusChangeInfo | null;
+	specificInfo:
+		| CommissioningInfo
+		| CommissioningProbeResponseInfo
+		| StatusChangeInfo
+		| NamedModuleInfo
+		| LineClockInfo
+		| null;
 };
 
 export type AlarmLine = {

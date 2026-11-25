@@ -92,6 +92,7 @@ For each smoke detector the gateway keeps an activity log - one chronology of wh
     | :tabler-microphone: **Acoustic readout** | A readout was performed, with the faults it reported |
     | :tabler-access-point: **Status change received** | The detector announced a fault, or that a fault is gone, over the air |
     | :tabler-restore: **Status reset** | The reported faults were [discarded](#resetting-the-status) in the gateway |
+    | :tabler-antenna-off: **Radio module missing** / **Reported missing** / **Confirmed present** / **Radio module heard again** | [Radio link supervision](#radio-link-supervision): the detector reports another radio module as missing (repeated reports are counted on the entry: *3 times, last ...*), is reported missing itself (with the module that reported it), is confirmed present by another module that hears it, or its radio module was heard again. Radio modules are named with the location of their detector if they are registered |
     | :tabler-bell-ringing: **Alarm** | An alarm, with its start and - once it ended - its end and how it ended: no more smoke detected, stopped by a user in the web interface, or cleared during a device configuration import |
 
 The log keeps the newest 50 entries per detector. The number of alarms is counted separately, so the alarm count in the device list stays correct when old alarms drop out of the log; the dialog says so when that is the case. An entry made before the gateway's clock was set shows *Time unknown*.
@@ -247,7 +248,7 @@ Click the :tabler-list-details: **Device Details** button in a device's row to o
 - **General** - location, registration type, and last acoustic readout timestamp. If a readout exists, the age is shown alongside the date (e.g. `15.03.2026 10:00 (37d ago)`). A :tabler-award:{ style="color: #4caf50" } icon indicates a recent readout; :tabler-calendar-exclamation:{ style="color: #f44336" } indicates a stale one (> 1 year).
 - **Current Status** - battery, detector fault, radio link and mounting, each **OK**, active, or **Unknown**, plus the time of the last change and a **Reset Status** button - see [Current Status](#current-status).
 - **Smoke Detector** - model, serial number, production date and age, and (after readout) the diagnostic status *at the last readout*: detector fault, battery, dirt forecast, chamber drift, warranty flags with individual flag breakdown, plus lifetime statistics (last self-test, last alarm, alarm counts, deinstallation count, storage hours).
-- **Radio Module** - model, serial number, and (after readout) radio status with individual state flags, interference level, alarm line ID and character, and DIP switch configuration.
+- **Radio Module** - model, serial number, and (after readout) radio status with individual state flags, interference level, alarm line ID and character, and DIP switch configuration. For FM Pro X modules also **Last Seen** and **Signal** - see [Radio link supervision](#radio-link-supervision).
 
 The dialog also provides an **Update** button (:tabler-microphone:) to trigger a new acoustic readout for that device directly, without leaving the dialog.
 
@@ -273,6 +274,21 @@ The Device Details dialog shows for every flag whether it is active, OK or unkno
     For the same reason the status survives a restart of the gateway.
 
 When a smoke detector is replaced - its serial number changes on the same entry - status, activity log and alarm counter start over by themselves.
+
+### Radio link supervision
+
+FM Pro X radio modules can supervise their line (DIP switch 5 on the module, off by default): once a day every module sends a series of packets, and a module that no longer hears another one reports it. Genius Gateway evaluates the series, the report and the answer to it - see [Radio Link Supervision](../reverse-engineering/protocol-analysis.md#radio-link-supervision) for the protocol and for what is verified about it.
+
+- **Reported missing** - a detector whose radio module is named in such a report gets this status. It counts as a fault: the card on the overview turns yellow, the *Radio Module State* in Home Assistant reports a problem and the fault topic lists the detector. The detector that sent the report gets an entry in its activity log. If the module stays missing, the report is made again about five and about ten hours later; these repetitions are counted on that entry (*3 times, last ...*). With the third report the reporting detector announces a **radio link fault** of its own, which is the fault the detectors beep for - and its radio module stops supervising: no more reports and no more daily series.
+- **Reported missing** ends when the gateway receives any packet of that radio module again, when another radio module answers the report because it still hears the module (*Confirmed present* - the module is there, only out of range of the one that reported it), or when the status is [reset](#resetting-the-status). The answer needs a line with at least three modules and has not been observed on a real line yet. None of this alone makes the radio module *OK*: its *Radio Link* stays what it was, which is *Unknown* (in Home Assistant: unavailable) unless a readout or a status change of the detector has reported it.
+- The **radio link fault** of the reporting detector does not end by itself, even when the missing module is back: a radio module that announced it has switched its supervision off. Two things clear it. A reset on the radio module (a short press on its button) sends a status change, so the gateway shows the fault as gone. A new commissioning of the line - what the manufacturer prescribes for this fault - clears it **without any telegram**: the gateway keeps showing the fault until the status is [reset](#resetting-the-status) by hand.
+- **Last Seen** and **Signal** - for detectors with an FM Pro X module the device list shows how long ago a packet of the module was received (*Seen 3 h ago*), and the Device Details dialog the time and the signal strength. Home Assistant gets both as entities. Because of the daily series a module that is fine is heard at least once a day, provided it is in range of the gateway. The exception is a module that has announced a radio link fault: it sends no series until that fault is cleared, so its *Last Seen* gets older although the module is there.
+
+!!! info "Last seen is not stored"
+    These two values live in the gateway's memory only. After a restart the dialog says *Not heard since the gateway started* until the next packet of the module arrives - it never assumes that a module is there.
+
+!!! note "Only FM Pro X"
+    FM Basis X modules do not supervise their line (they have no DIP switch to switch it on). They send nothing periodically, so the gateway shows no *Last Seen* for them. Which module a detector has is taken from its stored model - from an acoustic readout or entered by hand.
 
 ### Resetting the status
 

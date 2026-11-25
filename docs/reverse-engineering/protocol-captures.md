@@ -44,3 +44,10 @@ The following decoders should be installed for evaluating the trace files:
 | [:material-download: firealarm-start-stop.dsl](../assets/downloads/logic-analyzer/firealarm-start-stop.dsl){ target=_blank } | Fire alarm is triggered and ended on a smoke detector. | :material-check-bold: | | |
 
 </div>
+
+## Captures by contributors
+
+| Source | Content |
+|:-------|:--------|
+| [danielrdt/genius-log: Radio link supervision, raw captures :material-open-in-new:](https://github.com/danielrdt/genius-log/blob/main/docs/captures-radio-link-supervision.md){ target=_blank } | Packets of a line with two FM Pro X modules and radio link supervision switched on, recorded with the gateway's WebSocket logger over 14 days: daily supervision series, module missing, radio link fault and its muting, commissioning. Basis of [Radio Link Supervision](protocol-analysis.md#radio-link-supervision). |
+| [danielrdt/genius-log: Genius telegrams :material-open-in-new:](https://github.com/danielrdt/genius-log/blob/main/docs/genius-telegramme.md){ target=_blank } | Overview of all telegrams seen on that line with counts, forwarding and timing, including the line clock and the drift of the daily series. |

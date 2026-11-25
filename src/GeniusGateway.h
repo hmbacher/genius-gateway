@@ -219,6 +219,7 @@ private:
 
   static constexpr uint32_t EVENT_TASK_ALARM_STATE = 0x01;   ///< Notification bit: send the alarm state
   static constexpr uint32_t EVENT_TASK_DEVICE_STATUS = 0x02; ///< Notification bit: send the device status summary
+  static constexpr uint32_t EVENT_TASK_DEVICE_RUNTIME = 0x04; ///< Notification bit: send the changed last seen / signal values
 
   /// Static wrapper for the alarm event task
   static void _alarmEventTaskImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_alarmEventTask(); }

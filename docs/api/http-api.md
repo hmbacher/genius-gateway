@@ -31,6 +31,7 @@ Authorization: Bearer <token>
 | `/rest/gateway-devices` | GET | 🔒 | Read the smoke detector devices |
 | `/rest/gateway-devices` | POST | 🛡️ | Replace the smoke detector devices |
 | `/rest/gateway-devices/device/reset-status` | POST | 🛡️ | Reset a smoke detector's status flags |
+| `/rest/gateway-devices/runtime` | GET | 🔒 | Last seen / signal of supervised radio modules |
 | `/rest/alarm-lines` | GET, POST | 🛡️ | Manage alarm lines (RF groups) |
 | `/rest/alarm-lines/do` | POST | 🛡️ | Execute alarm line actions |
 | `/rest/gateway-settings` | GET, POST | 🛡️ | Configure gateway behavior |
@@ -106,8 +107,10 @@ Authorization: Bearer <token>
     - `1` acoustic readout - `set` (flags reported active) and `cleared` (flags reported OK)
     - `2` status change received over the air - `set` and `cleared` hold the flags that changed; a packet that changes nothing is not logged
     - `3` status reset
-    - `4` the radio link supervision of this detector reports a radio module as missing - `cause` is that module's serial
+    - `4` radio link supervision, in three shapes: this detector reports a radio module as missing (`cause` = that module's serial); this detector is reported missing (`set` = 65536, `cause` = the reporting module); or it is no longer reported missing (`cleared` = 65536, `cause` = the module that confirmed it present - missing if its own radio module was heard again)
     - `5` alarm - `time` is the start, `end` the end (missing while it lasts), `endingReason` how it ended (-1=active, 0=detector, 1=manual, 2=cleared on import)
+
+    An entry can carry `count` (greater than 1) and `last`: the report was made again while its cause lasted and was counted on its entry instead of logged again - `time` is the first report, `last` the latest. Used for a module that stays missing, which is reported up to three times, about five hours apart.
 
     `status`, `events` and `alarmCount` are owned by the gateway: they are ignored when a device is updated and only taken over for a new device, e.g. from an import file. Files written before v1.6.0 carry an `alarms` list instead (`startTime`, `endTime`, `endingReason`); it is converted into alarm entries, and the status is derived from the last readout.
 
@@ -129,6 +132,31 @@ Authorization: Bearer <token>
 ```
 
 **Response:** 200 OK with the updated device (same format as one entry of the device list), 404 if no device has that `id`
+
+---
+
+#### `/rest/gateway-devices/runtime`
+- **Method:** GET
+- **Auth:** 🔒 User
+- **Description:** What the gateway heard of the radio modules with radio link supervision (FM Pro X) since it started. The values are kept in memory only and are not part of the device list; a detector that is not listed has not been heard since the last restart. Changes are announced with the [`device-runtime`](websocket-api.md#device-runtime) WebSocket event
+
+**Response:**
+```json
+{
+  "devices": [
+    {
+      "id": 1758215385,
+      "lastSeen": "2026-11-23T17:14:12.000Z",
+      "rssi": -87,
+      "rssiTime": "2026-11-23T17:14:12.000Z"
+    }
+  ]
+}
+```
+
+- `id` - Device id of the smoke detector
+- `lastSeen` - Last packet the detector's radio module originated or transmitted
+- `rssi`, `rssiTime` - Signal strength in dBm of the last packet the module transmitted itself, and when. Missing while the module was only heard through another module that forwarded its packet
 
 ---
 
