@@ -28,6 +28,17 @@
 		faultTopic: 'smarthome/genius-gateway/fault'
 	};
 
+	// The settings object also holds the MQTT value tree (ValueTreeConfig.svelte). This card reads
+	// and writes only its own four fields.
+	function ownFields(settings: Partial<AlarmPublishingSettings>): AlarmPublishingSettings {
+		return {
+			alarmEnabled: settings.alarmEnabled === true,
+			alarmTopic: settings.alarmTopic ?? defaultSettings.alarmTopic,
+			faultEnabled: settings.faultEnabled === true,
+			faultTopic: settings.faultTopic ?? defaultSettings.faultTopic
+		};
+	}
+
 	const f = createDirtyState<AlarmPublishingSettings>({ ...defaultSettings });
 	let settingsLoaded = $state(false);
 
@@ -40,7 +51,7 @@
 					'Content-Type': 'application/json'
 				}
 			});
-			f.reset(await response.json());
+			f.reset(ownFields(await response.json()));
 			settingsLoaded = true;
 		} catch (error) {
 			console.error('Error:', error);
@@ -71,11 +82,11 @@
 					Authorization: page.data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(f.current)
+				body: JSON.stringify(ownFields(f.current))
 			});
 			if (response.status == 200) {
 				notifications.success('Alarm settings updated.', 3000);
-				f.reset(await response.json());
+				f.reset(ownFields(await response.json()));
 			} else {
 				notifications.error('Updating alarm settings failed.', 3000);
 			}
