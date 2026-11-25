@@ -201,8 +201,8 @@ When commissioning is initiated via a new radio module (i.e., not yet assigned t
 
 The principle by which new alarm line IDs are generated is not fully understood.
 
-!!! note "Commissioning eligibility is line-ID-state based, not group/line - firmware-confirmed"
-    Verified against the FM Basis X firmware reverse-engineering, the decision to join a line
+!!! note "Commissioning eligibility is line-ID-state based, not group/line"
+    The decision to join a line
     during commissioning is made **solely from stored line-ID state**:
 
     - an **unassigned** module (`Line-ID == 0`) adopts the broadcast `New Line-ID` regardless of
@@ -883,7 +883,7 @@ The `Line-ID` field (offset 18–21) means different things depending on the **g
 - The line is identified by a **32-bit Identifikationscode** that is assigned **automatically and uniquely during Funk-Inbetriebnahme (commissioning)** and stored by every module of that line. After commissioning, a module only reacts to packets carrying *both* the same line and the same ID; neighbouring systems are ignored.[^3]
 - The code is effectively **random** (see [New Line-ID generation](#alarm-line-commissioning) - "the principle by which new alarm line IDs are generated is not fully understood").
 - FM Basis X has **no rotary switch** - it is permanently fixed to the label "A.0" ex factory. The displayed "A.0" is therefore *not* the network identity; the 32-bit ID is.
-- The **group/line label** (e.g. `C.3`) is **device metadata, not a line key**: the firmware never uses it to gate commissioning (see the note under [Alarm-line commissioning](#observations)), neighbouring installations reuse the same labels, and modules on one line can carry different labels. Use it for display only; key lines on `Line-ID`.
+- The **group/line label** (e.g. `C.3`) is **device metadata, not a line key**: the modules never use it to gate commissioning (see the note under [Alarm-line commissioning](#observations)), neighbouring installations reuse the same labels, and modules on one line can carry different labels. Use it for display only; key lines on `Line-ID`.
 - Over smartsonic [acoustic readout](acoustic-readout.md), bytes 25–28 carry this commissioned 32-bit `lineId` (non-zero once commissioned; `0` = unassigned).
 
 ### Old generation - FM Basis
@@ -891,7 +891,7 @@ The `Line-ID` field (offset 18–21) means different things depending on the **g
 - The line is set **physically via two rotary switches** (major `A–G`/`H`, minor `0–9`; up to ~70 lines). Factory default is A.0 but it **is changeable** (unlike Basis X).
 - There is **no Identifikationscode** and **no commissioning-assigned ID** - the rotary position *is* the entire line identity.
 - Over smartsonic, an old FM Basis transmits **only its type and serial number** - *not* the radio dataset. Consequently the acoustic `lineId` (bytes 25–28) reads **`0`**.
-- Because the rotary is the module's *only* source of line identity, the 32-bit `Line-ID` it emits on the 868 MHz radio **must be a deterministic function of the rotary setting** (there is no other entropy source). I.e. a fixed rotary→Line-ID mapping, hardcoded in the module firmware.
+- Because the rotary is the module's *only* source of line identity, the 32-bit `Line-ID` it emits on the 868 MHz radio **must be a deterministic function of the rotary setting** (there is no other entropy source). I.e. a fixed rotary→Line-ID mapping, hardcoded in the module.
 
 ### Working hypothesis & test
 
