@@ -1086,3 +1086,58 @@ The flags reflect each detector's [current status](../features/device-management
     Simple fault publishing works independently of the [Home Assistant integration](../features/smart-home-integration.md#home-assistants-mqtt-discovery). It is controlled solely by the **Enable simple fault publishing** toggle.
 
 - Published only if [simple fault publishing](../setup/connections.md#simple-alarm-publishing) is enabled
+
+---
+
+## MQTT Value Tree {#mqtt-value-tree}
+
+For smart home systems other than Home Assistant (openHAB, ioBroker, Node-RED, FHEM, shell scripts, ...) the gateway can publish every value of every smoke detector and of every alarm line to a **topic of its own, as plain text**: `true` / `false`, a number or text - no JSON to parse. The idea and the planning logic were contributed by danielrdt (#27).
+
+**:material-message-outline: Root topic**
+```
+genius-gateway/{device-mac}
+```
+The root can be changed in the [settings](../setup/connections.md#mqtt-value-tree) (`treeBaseTopic`; empty = the default above, with the MAC address in lowercase and without colons). A smoke detector is addressed by its **internal device ID** (`{id}`, the number also used in the Home Assistant sub-device name `genius-{id}`), which stays the same when its location is changed or its smoke detector is replaced.
+
+**:material-speedometer: QoS:** 0 &nbsp;&nbsp; **:material-content-save-outline: Retain:** true
+
+| Topic | Payload |
+|:------|:--------|
+| `{root}/alarm` | `true` / `false`: at least one smoke detector is alarming |
+| `{root}/alarming_count` | integer: smoke detectors that are alarming |
+| `{root}/fault_count` | integer: smoke detectors with at least one fault |
+| `{root}/devices/{id}/alarm` | `true` / `false` |
+| `{root}/devices/{id}/location` | text |
+| `{root}/devices/{id}/serial/detector` | integer: serial number of the smoke detector |
+| `{root}/devices/{id}/serial/radio` | integer: serial number of the radio module |
+| `{root}/devices/{id}/line_id` | integer: alarm line ID of the radio module |
+| `{root}/devices/{id}/battery_low` | `true` / `false`, empty while not known |
+| `{root}/devices/{id}/device_fault` | `true` / `false`, empty while not known |
+| `{root}/devices/{id}/radio_fault` | `true` / `false`, empty while not known: radio link fault |
+| `{root}/devices/{id}/dismounted` | `true` / `false`, empty while not known |
+| `{root}/devices/{id}/reported_missing` | `true` / `false`: another radio module reports this one as missing - see [Radio link supervision](../features/device-management.md#radio-link-supervision) |
+| `{root}/devices/{id}/last_seen` | ISO 8601 (UTC): last packet of the radio module. FM Pro X only, empty until the module was heard since the gateway started |
+| `{root}/devices/{id}/rssi` | integer, dBm: signal strength of the last packet the radio module transmitted itself. FM Pro X only |
+| `{root}/lines/{lineId}/name` | text: name of the alarm line (empty if the line has no name) |
+| `{root}/lines/{lineId}/alarm` | `true` / `false`: at least one detector of the line is alarming |
+| `{root}/lines/{lineId}/alarming_count` | integer: detectors of the line that are alarming |
+| `{root}/lines/{lineId}/fault_count` | integer: detectors of the line with at least one fault |
+| `{root}/lines/{lineId}/device_count` | integer: detectors on the line |
+
+`{lineId}` is the alarm line ID as a decimal number, the same value as `devices/{id}/line_id`. A line is published if it is in the list of [alarm lines](../features/alarm-lines-management.md) or if a detector is on it; detectors without a known line and the broadcast line are not lines.
+
+The four status topics follow the [current status](../features/device-management.md#current-status) of the detector: a flag has a value once the detector reported it over the air or an acoustic readout delivered it, and none before - the gateway does not publish an OK that nobody confirmed.
+
+**:material-publish: Publishing Behavior**
+
+- **Only changes are published.** `last_seen` at most once a minute per detector, `rssi` on a change of 3 dB or after 10 minutes at the latest. Alarms and faults go out with the next check, within about a second.
+- **A value that is not known has no payload**: its retained topic is cleared (empty payload). An empty `battery_low` or `last_seen` therefore means "not known", never a stale value.
+- After every (re)connect all topics are sent again, the ones without a value as clears, so no stale retained value survives a restart of the gateway. This takes a few seconds: the messages go out in batches of 25 per second. The alarm topics go out first, and a value that changes meanwhile is sent ahead of the rest.
+- Deleting a detector clears all its topics. Switching the tree off, or changing the root, clears everything published under the old root.
+- **Leftovers are removed.** With every full publish - after a (re)connect, and when the tree is switched on - the gateway looks under its root for retained topics of smoke detectors and alarm lines that are not part of the installation any more, and clears them. Such topics are left behind when the gateway restarts before it could clear them, for example when a detector is deleted right after a restart. Only topics of the tree's own layout are touched (`devices/<id>/...` and `lines/<line id>/...` with the names listed above); anything else under the root is left alone. Do not let another system keep retained topics of this layout under the same root.
+- Topics under a root that is no longer configured are not found by this. After changing the root or switching the tree off, give the gateway about ten seconds to clear the old topics before restarting it.
+- The values are separate topics, so two of them cannot be read atomically.
+- The tree only publishes. Commands (line test, fire alarm) are available as [Home Assistant buttons](#button-entities-configuration) and over the [REST API](http-api.md).
+
+!!! note "Independent of the other MQTT features"
+    The value tree works independently of the [Home Assistant integration](../features/smart-home-integration.md#home-assistants-mqtt-discovery) and of the [simple alarm and fault topics](../setup/connections.md#simple-alarm-publishing); any of them can be switched on together.

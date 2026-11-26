@@ -234,6 +234,21 @@ MQTT topic where the status summary of all smoke detectors is published whenever
 !!! abstract "Global Fault State Topic"
     See [Global Fault State Topic](../api/mqtt-topics.md#global-fault-state-topic) for the exact payload format.
 
+### :tabler-binary-tree: MQTT Value Tree {#mqtt-value-tree}
+
+The **MQTT Value Tree** collapsible card switches on a third way of publishing, meant for smart home systems other than Home Assistant: every value of every smoke detector and alarm line gets a topic of its own, with a plain text payload.
+
+**Enable MQTT value tree**
+
+Toggle to enable/disable the value tree. Switching it off clears the topics it published.
+
+**Root Topic**
+
+The topic under which the tree is published. Leave it empty for the default `genius-gateway/<mac>` (the gateway's MAC address without colons). Same syntax rules as the alarm topic. Changing it clears the topics under the old root.
+
+!!! abstract "Topics of the value tree"
+    See [MQTT Value Tree](../api/mqtt-topics.md#mqtt-value-tree) for the list of topics and when they are published.
+
 ## :tabler-clock-check: Network Time (NTP)
 
 Network Time Protocol (NTP) synchronizes the device's internal clock with internet time servers, ensuring accurate timestamps for logs, alarms, and event recording.

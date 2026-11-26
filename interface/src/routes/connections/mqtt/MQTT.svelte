@@ -20,6 +20,7 @@
 	import type { MQTTSettings, MQTTStatus } from '$lib/types/models';
 	import AlarmPublishingConfig from './AlarmPublishingConfig.svelte';
 	import HAConfig from './HAConfig.svelte';
+	import ValueTreeConfig from './ValueTreeConfig.svelte';
 
 	const mqttProtocols: UriProtocol[] = [
 		{ scheme: 'mqtt', defaultPort: 1883 },
@@ -369,5 +370,6 @@
 
 		<HAConfig />
 		<AlarmPublishingConfig />
+		<ValueTreeConfig />
 	{/if}
 </SettingsCard>

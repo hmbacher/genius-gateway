@@ -130,6 +130,16 @@ void GeniusGateway::begin()
                                     false);
     /* Initialize Alarm Lines Service */
     _alarmLines.begin();
+    /* MQTT value tree: its per-line topics carry the names of the alarm lines */
+    _geniusDevices.setLineNameProvider([this]()
+                                       {
+                                           std::vector<genius_tree::LineName> names;
+                                           for (const auto &line : _alarmLines.getLineNames())
+                                               names.push_back({line.first, line.second});
+                                           return names; });
+    _alarmLines.addUpdateHandler([this](const String &originId)
+                                 { _geniusDevices.treeMarkDirty(); },
+                                 false);
     /* Initialize WS Logger */
     _wsLogger.begin();
     /* Initialize Packet Vizualizer Settings */

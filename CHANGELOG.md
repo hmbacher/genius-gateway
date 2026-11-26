@@ -63,6 +63,17 @@ Installations with several alarm lines get their smoke detectors in one group pe
 - **Groups can be folded**: a click on a heading in the smoke detector list hides the detectors of that line; the heading keeps showing how many of them are alarming or have a fault
 - **Line names for every user**: the groups are named after the alarm lines. For that the list of alarm lines can now be read by every signed-in user (`GET /rest/alarm-lines`); changing it stays with administrators
 
+## MQTT Value Tree
+A third way of publishing over MQTT, for smart home systems other than Home Assistant: every value of every smoke detector and alarm line on a topic of its own, as plain text - `true` / `false`, a number or text, no JSON. Contributed by danielrdt (#27).
+
+- **Opt-in, with a settings card of its own** under Connections → MQTT: on/off and the root topic (default `genius-gateway/<mac>`; `treeEnabled`, `treeBaseTopic` in `/rest/alarm-publishing`)
+- **Per smoke detector**: alarm, location, serial numbers, alarm line, the status flags (`battery_low`, `device_fault`, `radio_fault`, `dismounted`, `reported_missing`) and, for FM Pro X, `last_seen` and `rssi`
+- **Per alarm line and overall**: name, alarm, number of alarming and faulty detectors
+- **Nothing is assumed**: a value that is not known has an empty payload; a status flag gets a value once it was reported or read out
+- **Only changes are published**, everything again after a reconnect; deleting a detector, switching the tree off or changing the root clears the old topics
+- **Cleans up after itself**: with every full publish, retained topics of smoke detectors and alarm lines that no longer exist are cleared - only topics of the tree's own layout, nothing else under the root
+- **Does not get in the way of alarms**: the tree publishes in the background, in batches, never from the packet receiver. When everything is published again, the alarm topics go out first and a value that changes meanwhile is sent ahead of the rest
+
 ## Line Test and Network Test Told Apart
 The packet that starts a line test also starts a network test. The byte that was taken for a start/stop flag is a test mode: `0x04` starts a line test (about 15 minutes), `0x06` a network test (about 30 minutes), `0x00` stops either. The assignment follows from the durations of the two tests, 15 and 30 minutes, which are the ones the manufacturer states; it is not yet confirmed on air which of the two values is the line test.
 
