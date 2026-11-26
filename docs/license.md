@@ -20,6 +20,8 @@ The Genius Gateway project uses different licenses for different components to e
 
 **Files:** `docs/assets/downloads/cae/*`, `docs/assets/downloads/cad/*`
 
+**Community designs:** designs contributed by users (`docs/assets/downloads/cad/community/*`) are published under the same license and are credited to their designers on the [Community](hardware/community.md) page.
+
 **License:** Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
 
 **License URL:** https://creativecommons.org/licenses/by-nc-sa/4.0/

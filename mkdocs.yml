@@ -27,7 +27,9 @@ nav:
     - EEPROM Analysis: reverse-engineering/eeprom-analysis.md # Describing the EEPROM structure and the data stored there
     - Acoustic Readout: reverse-engineering/acoustic-readout.md # SmartSonic acoustic readout signal modulation, framing, and payload format
   
-  - Hardware: hardware.md # Schematics, PCB layout, BOM & manufacturing, CAD files
+  - Hardware:
+    - hardware/index.md # Schematics, PCB layout, BOM & manufacturing, CAD files
+    - Community: hardware/community.md # Hardware designed by users, by category - for now 3D-printable cases
 
   - Features:
     - features/index.md

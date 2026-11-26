@@ -37,6 +37,9 @@ Get your Genius Gateway up and running:
 2. Perform the [General Setup](setup/general-setup.md)
 3. [Configure Genius Gateway](setup/configure-gateway.md) to use its full potential
 
+!!! tip "Hardware from the community"
+    Users of the project share their own designs for the gateway, such as 3D-printable cases - see [Hardware - Community](hardware/community.md).
+
 ## Source Code
 
 [View on GitHub :fontawesome-brands-github:{ .github }](https://github.com/hmbacher/genius-gateway){ .md-button .md-button--primary }

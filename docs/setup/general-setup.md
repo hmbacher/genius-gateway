@@ -2,7 +2,7 @@
 
 ## Hardware Setup
 
-Choose either the [experimental setup](../hardware.md#experimental-setup) to test the functions of Genius Gateway, or the [Genius Gateway PCB](../hardware.md#final-hardware) to put Genius Gateway into operation.
+Choose either the [experimental setup](../hardware/index.md#experimental-setup) to test the functions of Genius Gateway, or the [Genius Gateway PCB](../hardware/index.md#final-hardware) to put Genius Gateway into operation.
 
 ## Build and Install Software
 
