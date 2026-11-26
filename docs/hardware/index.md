@@ -88,6 +88,10 @@ PCB design-related files are available in various formats as part of the Design 
     - Option 1: [BOPLA XM 130804 G 7035 (Order no. 07413084) :material-open-in-new:](https://www.bopla.de/en/enclosure-technology/euromas-x/pc-crystal-clear-lid-1/enclosures-polycarbonate-crystal-clear-lid/xm-130804-g-7035)
     - Option 2: BOX4U 6U07130804437 (fully compatible to BOPLA case), e.g. at [Reichelt Elektronik :material-open-in-new:](https://www.reichelt.de/de/de/shop/produkt/industriegehaeuse_125_x_75_x_37_2mm_ip65_lichtgrau-340529)
     - 4 pcs. of PCB mounting screws for direct fastening into plastic material
+
+    !!! tip "3D-printable cases from the community"
+        Prefer to print the case yourself? Users of the project share their designs - see [Community - Cases](community.md#cases).
+
 2. External antennas
     - [2.4 GHz rod antenna :material-open-in-new:](https://www.seeedstudio.com/2-4GHz-2-81dBi-Antenna-for-XIAO-ESP32C3-p-5475.html) (for WiFi network)
     - 868 MHz antenna [TX868-JKD-20 :material-open-in-new:](https://www.cdebyte.com/products/TX868-JKD-20) (for [Hekatron Genius Plus X :material-open-in-new:](https://www.hekatron-brandschutz.de/produkte/rauchmelder/produkte/genius-plus-x){ target=_blank} network)

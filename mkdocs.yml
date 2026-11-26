@@ -29,6 +29,7 @@ nav:
   
   - Hardware:
     - hardware/index.md # Schematics, PCB layout, BOM & manufacturing, CAD files
+    - Community: hardware/community.md # Hardware designed by users, by category - for now 3D-printable cases
 
   - Features:
     - features/index.md
