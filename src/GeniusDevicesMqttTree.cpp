@@ -34,6 +34,13 @@
  *
  * A full publish (after a connect, or when the tree is switched on) is many messages. They are
  * sent in batches, one batch per tick, so that the MQTT client stays free for alarms.
+ *
+ * The tree keeps in RAM what it published, so it can only clear what it published since the
+ * gateway started. A detector deleted right after a restart, or a restart while clears were still
+ * queued, would leave retained topics on the broker for good. Therefore every full publish comes
+ * with a sweep: the tree subscribes to its own detector and line topics for a few seconds, notes
+ * which detectors and lines the broker retains topics for, and clears those it does not know.
+ * Only topics of the tree's own layout are touched; anything else under the root is left alone.
  */
 
 #include <GeniusDevicesService.h>
@@ -42,6 +49,8 @@
 #define TREE_TICK_MS 1000     ///< The tree looks for work this often
 #define TREE_RECHECK_MS 10000 ///< ... and compares everything at least this often, also without a hint
 #define TREE_BATCH 25         ///< Messages sent per tick
+#define TREE_SWEEP_MS 5000    ///< A sweep listens at least this long for what the broker retains
+#define TREE_SWEEP_MAX_IDS 250 ///< ... and notes at most this many detectors / lines (bounds the memory)
 
 static std::string macWithoutDelimiters()
 {
@@ -76,6 +85,87 @@ bool GeniusDevicesService::_treeSend()
     return true;
 }
 
+void GeniusDevicesService::_treeOnMessage(const char *topic, const char *payload, int retain)
+{
+    // MQTT task. Every message the gateway receives passes here; all but the retained ones of a
+    // running sweep leave at once (what the tree publishes itself comes back without the retain flag).
+    if (!_treeSweepActive.load() || !retain || topic == nullptr || payload == nullptr || payload[0] == '\0')
+        return;
+
+    xSemaphoreTake(_treeSweepMutex, portMAX_DELAY);
+    const size_t n = _treeSweepPrefix.size();
+    if (n != 0 && strncmp(topic, _treeSweepPrefix.c_str(), n) == 0)
+    {
+        bool isLine = false;
+        uint32_t id = 0;
+        if (genius_tree::ownTopic(std::string(topic + n), isLine, id))
+        {
+            std::set<uint32_t> &ids = isLine ? _treeSweepLines : _treeSweepDevices;
+            if (ids.size() < TREE_SWEEP_MAX_IDS)
+                ids.insert(id);
+        }
+    }
+    xSemaphoreGive(_treeSweepMutex);
+}
+
+void GeniusDevicesService::_treeSweepBegin()
+{
+    _treeSweepEnd(false); // a sweep that is still running starts over
+
+    // A root with wildcards would subscribe to more than the tree's own topics
+    if (_treeRoot.empty() || _treeRoot.find_first_of("#+") != std::string::npos)
+        return;
+
+    xSemaphoreTake(_treeSweepMutex, portMAX_DELAY);
+    _treeSweepPrefix = _treeRoot + "/";
+    _treeSweepDevices.clear();
+    _treeSweepLines.clear();
+    xSemaphoreGive(_treeSweepMutex);
+
+    _treeSweepStart = millis();
+    _treeSweepActive = true; // before subscribing: the retained messages follow at once
+    const std::string devices = _treeRoot + "/devices/#";
+    const std::string lines = _treeRoot + "/lines/#";
+    if (_mqttClient->subscribe(devices.c_str(), 0) == -1 || _mqttClient->subscribe(lines.c_str(), 0) == -1)
+    {
+        ESP_LOGW(GeniusDevices::TAG, "MQTT value tree: could not subscribe to look for leftover topics.");
+        _treeSweepEnd(false);
+    }
+}
+
+void GeniusDevicesService::_treeSweepEnd(bool evaluate)
+{
+    if (!_treeSweepActive.exchange(false))
+        return;
+
+    std::string prefix;
+    std::set<uint32_t> devices, lines;
+    xSemaphoreTake(_treeSweepMutex, portMAX_DELAY);
+    prefix.swap(_treeSweepPrefix);
+    devices.swap(_treeSweepDevices);
+    lines.swap(_treeSweepLines);
+    xSemaphoreGive(_treeSweepMutex);
+
+    if (_mqttClient->connected())
+    {
+        _mqttClient->unsubscribe((prefix + "devices/#").c_str());
+        _mqttClient->unsubscribe((prefix + "lines/#").c_str());
+    }
+    if (!evaluate)
+        return;
+
+    // Detectors and lines the broker has topics for, but the tree does not know: leftovers
+    size_t count = 0;
+    for (const genius_tree::Message &m : _tree.sweep(devices, lines))
+    {
+        _treeQueue.push_back({prefix + m.topic, std::string()});
+        count++;
+    }
+    if (count != 0)
+        ESP_LOGI(GeniusDevices::TAG, "MQTT value tree: clearing %u leftover topics of smoke detectors or alarm lines that no longer exist.",
+                 (unsigned)count);
+}
+
 void GeniusDevicesService::_treeTick()
 {
     if (_mqttClient == nullptr || _alarmPublishingSettings == nullptr)
@@ -87,6 +177,7 @@ void GeniusDevicesService::_treeTick()
         // A changed root is handled then as well, so the old topics can still be cleared.
         _treeQueue.clear();
         _treeForce = true;
+        _treeSweepEnd(false);
         return;
     }
 
@@ -100,6 +191,7 @@ void GeniusDevicesService::_treeTick()
                                  : std::string();
     if (root != _treeRoot)
     {
+        _treeSweepEnd(false);
         _treeQueue.clear();
         if (!_treeRoot.empty())
             for (const genius_tree::Message &m : _tree.clearAll())
@@ -125,11 +217,23 @@ void GeniusDevicesService::_treeTick()
         return; // the value tree is off
 
     const uint32_t now = millis();
+
+    // A sweep ends once the full publish is out (the tree knows every detector and line by then)
+    // and the broker had time to deliver what it retains.
+    if (_treeSweepActive.load() && !_treeForce && now - _treeSweepStart >= TREE_SWEEP_MS)
+    {
+        _treeSweepEnd(true);
+        if (!_treeQueue.empty())
+            return; // the clears go out with the next ticks
+    }
+
     if (!_treeDirty && !_treeForce && now - _treeLastPlan < TREE_RECHECK_MS)
         return;
 
     const bool force = _treeForce;
     _treeForce = false;
+    if (force)
+        _treeSweepBegin(); // every full publish looks for leftovers of an earlier run
     _treeDirty = false; // changes that arrive while this runs set it again
     _treeLastPlan = now;
 

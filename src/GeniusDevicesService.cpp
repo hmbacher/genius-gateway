@@ -61,6 +61,10 @@ GeniusDevicesService::GeniusDevicesService(ESP32SvelteKit *sveltekit, PsychicMqt
     _runtimeMutex = xSemaphoreCreateMutex();
 
     // MQTT value tree: publishes from the loop task, never from the task that changed a value
+    _treeSweepMutex = xSemaphoreCreateMutex();
+    if (_mqttClient != nullptr)
+        _mqttClient->onMessage([this](char *topic, char *payload, int retain, int qos, bool dup)
+                               { _treeOnMessage(topic, payload, retain); });
     sveltekit->addLoopFunction([this]() { _treeLoop(); });
 }
 

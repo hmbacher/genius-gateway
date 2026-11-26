@@ -351,6 +351,43 @@ static void testLines()
     CHECK(t.plan({a, b, c, none_}, {{L1, "First floor"}}, g, 5 * S, false).empty());
 }
 
+static void testSweep()
+{
+    bool isLine = true;
+    uint32_t id = 0;
+    // the tree's own topics
+    CHECK(ownTopic("devices/7/alarm", isLine, id) && !isLine && id == 7);
+    CHECK(ownTopic("devices/900201/serial/detector", isLine, id) && !isLine && id == 900201);
+    CHECK(ownTopic("devices/4294967295/rssi", isLine, id) && id == 4294967295u);
+    CHECK(ownTopic("lines/2119672224/device_count", isLine, id) && isLine && id == 2119672224u);
+    CHECK(ownTopic("devices/0/alarm", isLine, id) && id == 0);
+    // everything else is somebody else's
+    CHECK(!ownTopic("alarm", isLine, id) && !ownTopic("alarming_count", isLine, id));
+    CHECK(!ownTopic("devices/7/custom", isLine, id) && !ownTopic("devices/7/serial", isLine, id));
+    CHECK(!ownTopic("devices/7/alarm/extra", isLine, id) && !ownTopic("devices/7", isLine, id) && !ownTopic("devices//alarm", isLine, id));
+    CHECK(!ownTopic("devices/abc/alarm", isLine, id) && !ownTopic("devices/7a/alarm", isLine, id) && !ownTopic("devices/-7/alarm", isLine, id));
+    CHECK(!ownTopic("devices/007/alarm", isLine, id)); // not written by the tree
+    CHECK(!ownTopic("devices/4294967296/alarm", isLine, id) && !ownTopic("devices/12345678901/alarm", isLine, id));
+    CHECK(!ownTopic("lines/7/location", isLine, id) && !ownTopic("devices/7/name", isLine, id)); // suffix of the other kind
+    CHECK(!ownTopic("status", isLine, id) && !ownTopic("device/7/alarm", isLine, id) && !ownTopic("", isLine, id));
+
+    // the tree knows detectors 1 and 2 on one line; the broker also has topics of detector 3 and of another line
+    Tree t;
+    Globals g;
+    t.plan({dev(1), dev(2)}, NO_NAMES, g, 0, true);
+    auto m = asMap(t.sweep({1, 2, 3}, {2119672224u, 1234}));
+    CHECK(m.size() == (size_t)T_COUNT + L_COUNT);
+    CHECK(has(m, "devices/3/alarm", "") && has(m, "devices/3/serial/radio", "") && has(m, "devices/3/rssi", ""));
+    CHECK(has(m, "lines/1234/name", "") && has(m, "lines/1234/device_count", ""));
+    CHECK(m.find("devices/1/alarm") == m.end() && m.find("lines/2119672224/name") == m.end());
+    // nothing left over: nothing to do; the sweep does not change what the tree knows
+    CHECK(t.sweep({1, 2}, {2119672224u}).empty() && t.sweep({}, {}).empty());
+    CHECK(t.plan({dev(1), dev(2)}, NO_NAMES, g, S, false).empty());
+    // a tree that published nothing yet knows nobody: everything found is a leftover
+    Tree fresh;
+    CHECK(fresh.sweep({1}, {}).size() == (size_t)T_COUNT);
+}
+
 int main()
 {
     testRoot();
@@ -364,6 +401,7 @@ int main()
     testRemovedDevices();
     testClearAll();
     testLines();
+    testSweep();
     std::printf("%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }

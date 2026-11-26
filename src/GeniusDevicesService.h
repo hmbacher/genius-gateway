@@ -34,6 +34,7 @@
 #include <deque>
 #include <functional>
 #include <map>
+#include <set>
 #include <vector>
 #include <EventSocket.h>
 #include <FSPersistence.h>
@@ -745,6 +746,17 @@ private:
     void _treeLoop();                           ///< Loop function: runs _treeTick() about once a second
     void _treeTick();                           ///< Send what is queued, or plan what is due
     bool _treeSend();                           ///< Send one batch of the queue; false if publishing failed
+
+    // Sweep for leftover topics (see GeniusDevicesMqttTree.cpp): the MQTT task collects, the loop task evaluates
+    SemaphoreHandle_t _treeSweepMutex = nullptr; ///< Guards the prefix and the two sets
+    std::string _treeSweepPrefix;               ///< "<root>/" of the running sweep
+    std::set<uint32_t> _treeSweepDevices;       ///< Detector ids that have retained topics on the broker
+    std::set<uint32_t> _treeSweepLines;         ///< Alarm line ids that have retained topics on the broker
+    std::atomic<bool> _treeSweepActive{false};  ///< A sweep is collecting; lets the MQTT task skip everything else
+    uint32_t _treeSweepStart = 0;               ///< millis() when the running sweep subscribed
+    void _treeSweepBegin();                     ///< Subscribe to the tree's own topics and collect what the broker retains
+    void _treeSweepEnd(bool evaluate);          ///< Unsubscribe; with `evaluate`, queue the clears for the leftovers
+    void _treeOnMessage(const char *topic, const char *payload, int retain); ///< MQTT task: a message arrived
 
     // MQTT
     PsychicMqttClient *_mqttClient;                   ///< MQTT client (for simple alarm topic)

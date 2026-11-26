@@ -56,12 +56,17 @@
  *
  * <lineId> is the alarm line ID as a decimal number, the same value as devices/<id>/line_id.
  * A value that is not known has no payload: its retained topic is cleared (empty payload).
+ *
+ * The tree only knows what it published since the gateway started. Retained topics of a detector
+ * or a line that was removed without the tree clearing them (a restart got in the way) are found
+ * by a sweep after every forced publish: ownTopic() and Tree::sweep().
  */
 
 #include <GeniusDeviceStatus.h>
 
 #include <array>
 #include <map>
+#include <set>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string>
@@ -316,6 +321,60 @@ inline std::string rootTopic(const std::string &configured, const std::string &m
     return r;
 }
 
+/**
+ * Is a topic found on the broker (relative to the root) one of the tree's own detector or alarm
+ * line topics: "devices/<id>/<suffix>" or "lines/<id>/<suffix>", with a suffix of the layout and
+ * the id written the way the tree writes it? Everything else is not the tree's and is left alone.
+ */
+inline bool ownTopic(const std::string &rel, bool &isLine, uint32_t &id)
+{
+    size_t start;
+    if (rel.compare(0, 8, "devices/") == 0)
+    {
+        isLine = false;
+        start = 8;
+    }
+    else if (rel.compare(0, 6, "lines/") == 0)
+    {
+        isLine = true;
+        start = 6;
+    }
+    else
+        return false;
+
+    const size_t slash = rel.find('/', start);
+    if (slash == std::string::npos || slash == start || slash - start > 10)
+        return false;
+    if (rel[start] == '0' && slash - start > 1)
+        return false; // the tree writes no leading zeros
+    uint64_t n = 0;
+    for (size_t i = start; i < slash; i++)
+    {
+        if (rel[i] < '0' || rel[i] > '9')
+            return false;
+        n = n * 10 + (uint64_t)(rel[i] - '0');
+    }
+    if (n > 0xFFFFFFFFull)
+        return false;
+
+    const std::string tail = rel.substr(slash + 1);
+    bool known = false;
+    if (isLine)
+    {
+        for (size_t i = 0; i < L_COUNT && !known; i++)
+            known = tail == lineSuffix((LineTopic)i);
+    }
+    else
+    {
+        for (size_t i = 0; i < T_COUNT && !known; i++)
+            known = tail == suffix((Topic)i);
+    }
+    if (!known)
+        return false;
+    id = (uint32_t)n;
+    return true;
+}
+
 /// A message to publish: `topic` is relative to the root, an empty payload clears the retained topic.
 struct Message
 {
@@ -415,6 +474,26 @@ public:
         for (size_t i = 0; i < GLOBAL_COUNT; i++)
             clearSlot(_global[i], globalName(i), out);
         reset();
+        return out;
+    }
+
+    /**
+     * Clears for leftovers. `deviceIds` and `lineIds` are the detectors and alarm lines that have
+     * retained topics on the broker (collected with ownTopic()); those the tree does not know are
+     * not part of the installation any more, and all their topics are cleared. Call it after a
+     * forced plan(), when the tree knows every detector and line there is.
+     */
+    std::vector<Message> sweep(const std::set<uint32_t> &deviceIds, const std::set<uint32_t> &lineIds) const
+    {
+        std::vector<Message> out;
+        for (uint32_t id : deviceIds)
+            if (_devices.find(id) == _devices.end())
+                for (size_t i = 0; i < T_COUNT; i++)
+                    out.push_back({"devices/" + std::to_string(id) + "/" + suffix((Topic)i), std::string()});
+        for (uint32_t id : lineIds)
+            if (_lines.find(id) == _lines.end())
+                for (size_t i = 0; i < L_COUNT; i++)
+                    out.push_back({"lines/" + std::to_string(id) + "/" + lineSuffix((LineTopic)i), std::string()});
         return out;
     }
 
