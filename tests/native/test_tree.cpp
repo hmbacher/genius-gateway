@@ -194,6 +194,41 @@ static void testThrottle()
     CHECK(has(m, "devices/7/rssi", "-84") && !deferred);
 }
 
+static void testFirstValueIsNotThrottled()
+{
+    Tree t;
+    Globals g;
+    bool deferred = false;
+    DeviceSnapshot d = dev();
+    t.plan({d}, NO_NAMES, g, 0, false); // the detector is known, its module was not heard yet
+
+    // heard for the first time a few seconds later: both values appear at once
+    d.lastSeen = "2026-11-24T18:33:40.000Z";
+    d.hasRssi = true;
+    d.rssi = -2; // closer to 0 than the change threshold
+    auto m = asMap(t.plan({d}, NO_NAMES, g, 5 * S, false, &deferred));
+    CHECK(m.size() == 2 && has(m, "devices/7/last_seen", "2026-11-24T18:33:40.000Z") && has(m, "devices/7/rssi", "-2"));
+    CHECK(!deferred);
+
+    // the value after it is spaced out as usual
+    d.lastSeen = "2026-11-24T18:33:50.000Z";
+    CHECK(t.plan({d}, NO_NAMES, g, 15 * S, false, &deferred).empty() && deferred);
+
+    // values that disappear are cleared at once
+    d.lastSeen.clear();
+    d.hasRssi = false;
+    m = asMap(t.plan({d}, NO_NAMES, g, 20 * S, false, &deferred));
+    CHECK(m.size() == 2 && has(m, "devices/7/last_seen", "") && has(m, "devices/7/rssi", "") && !deferred);
+
+    // the same after a forced publish (MQTT connect), which sends the empty topics as clears
+    Tree f;
+    DeviceSnapshot e = dev();
+    f.plan({e}, NO_NAMES, g, 0, true);
+    e.lastSeen = "2026-11-24T18:33:40.000Z";
+    m = asMap(f.plan({e}, NO_NAMES, g, 5 * S, false, &deferred));
+    CHECK(m.size() == 1 && has(m, "devices/7/last_seen", "2026-11-24T18:33:40.000Z") && !deferred);
+}
+
 static void testClearsUnknownValues()
 {
     Tree t;
@@ -323,6 +358,7 @@ int main()
     testStatusValues();
     testFirstPublishAndChangeOnly();
     testThrottle();
+    testFirstValueIsNotThrottled();
     testClearsUnknownValues();
     testForce();
     testRemovedDevices();

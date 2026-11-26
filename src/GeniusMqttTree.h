@@ -448,7 +448,10 @@ private:
             slot = {true, hashOf(""), nowMs, 0};
             return;
         }
-        switch (decide(slot, hashOf(payload), v.num, nowMs, p, force))
+        // The throttle spaces out the values that follow each other. A value that appears (the topic
+        // was empty until now) or disappears is not held back.
+        const bool edge = !v.present || slot.hash == hashOf("");
+        switch (decide(slot, hashOf(payload), v.num, nowMs, edge ? Policy{} : p, force))
         {
         case Act::Publish:
             out.push_back({topic, payload});
