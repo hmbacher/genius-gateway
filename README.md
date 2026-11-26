@@ -65,6 +65,7 @@ The documentation includes:
 
 ### Hardware
 - **[Hardware](https://hmbacher.github.io/genius-gateway/hardware/)** - PCB design, schematics, and components
+- **[Community Hardware](https://hmbacher.github.io/genius-gateway/hardware/community/)** - Designs contributed by users, such as 3D-printable cases
 
 ### Setup & Installation
 - **[General Setup](https://hmbacher.github.io/genius-gateway/setup/general-setup/)** - Hardware assembly, firmware flashing and basic connectivity settings
