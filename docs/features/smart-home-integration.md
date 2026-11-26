@@ -139,6 +139,7 @@ This integration enables proactive monitoring, remote maintenance, and dynamic c
 | **Sensor** | Status | Device registration in Home Assistant | On connect | diagnostic |
 | **Sensor** | Free Heap | Memory usage monitoring (percentage) | Every 60 seconds | diagnostic |
 | **Sensor** | Core Temperature | Internal temperature monitoring (°C) | Every 60 seconds | diagnostic |
+| **Sensor** | Last Reset Reason | Why the gateway last restarted (power-on, software restart, watchdog, brownout, ...) | Every 60 seconds | diagnostic |
 | **Button** | Restart | Trigger gateway restart remotely | On demand | - |
 | **Switch** | Alert on Unknown Detectors | Enable/disable processing of unknown detectors | On change | config |
 | **Switch** | Add Line from Commissioning | Auto-add lines from commissioning packets | On change | config |

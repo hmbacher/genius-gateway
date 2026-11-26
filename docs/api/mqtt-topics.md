@@ -62,7 +62,7 @@ The Genius Gateway itself is published as a Home Assistant device with diagnosti
 The gateway device publishes:
 
 - **1 Status Sensor** - Registers the gateway device in Home Assistant
-- **2 Diagnostic Sensors** - Free heap memory (%) and core temperature (°C)
+- **3 Diagnostic Sensors** - Free heap memory (%), core temperature (°C) and the reason of the last reset
 - **1 Restart Button** - Remote gateway restart capability
 - **4 Configuration Switches** - Remote control of gateway settings
 
@@ -230,6 +230,57 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 }
 ```
 
+##### Last Reset Reason Sensor
+
+**:material-message-outline: Config Topic**
+```
+{discovery_prefix}sensor/{gateway_device_id}/reset_reason/config
+```
+
+**Example:** `homeassistant/sensor/genius-gateway-1a2b3c4d5e6f/reset_reason/config`
+
+**:material-information-outline: Description:** Why the gateway last restarted - power-on, software restart, exception, watchdog, brownout and so on. The value is the same text as *Reset Reason* in the [System Status](../setup/system.md) of the web interface. The sensor is an enum: Home Assistant knows every possible value, so an automation can react to a certain reason.
+
+**:material-speedometer: QoS:** 0
+
+**:material-content-save-outline: Retain:** true
+
+**:material-code-json: Config Payload**
+```json
+{
+  "~": "homeassistant/genius-gateway-1a2b3c4d5e6f",
+  "name": "Last Reset Reason",
+  "unique_id": "genius-gateway-1a2b3c4d5e6f_reset_reason",
+  "state_topic": "~/diagnostics/state",
+  "value_template": "{{value_json.reset_reason}}",
+  "device_class": "enum",
+  "options": [
+    "Reset reason can not be determined",
+    "Reset due to power-on event",
+    "Reset by external pin (not applicable for ESP32)",
+    "Software reset via esp_restart",
+    "Software reset due to exception/panic",
+    "Reset (software or hardware) due to interrupt watchdog",
+    "Reset due to task watchdog",
+    "Reset due to other watchdogs",
+    "Reset after exiting deep sleep mode",
+    "Brownout reset (software or hardware)",
+    "Reset over SDIO",
+    "Reset by USB peripheral",
+    "Reset by JTAG",
+    "Reset due to efuse error",
+    "Reset due to power glitch detected",
+    "Reset due to CPU lock up (double exception)",
+    "Unknown reset reason"
+  ],
+  "icon": "mdi:restart-alert",
+  "entity_category": "diagnostic",
+  "device": {
+    "identifiers": ["genius-gateway-1a2b3c4d5e6f"]
+  }
+}
+```
+
 ##### Diagnostic State Topic
 
 **:material-message-outline: Topic**
@@ -239,7 +290,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 
 **Example:** `homeassistant/genius-gateway-1a2b3c4d5e6f/diagnostics/state`
 
-**:material-information-outline: Description:** Combined state topic for both diagnostic sensors
+**:material-information-outline: Description:** Combined state topic of the diagnostic sensors
 
 **:material-speedometer: QoS:** 0
 
@@ -249,7 +300,8 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 ```json
 {
   "free_heap_percent": 73.5,
-  "core_temp": 42.3
+  "core_temp": 42.3,
+  "reset_reason": "Reset due to power-on event"
 }
 ```
 
@@ -257,6 +309,7 @@ The gateway publishes two diagnostic sensors that share a common state topic for
 
 - `free_heap_percent` - Available heap memory as percentage of total heap (float, 0-100)
 - `core_temp` - ESP32 internal core temperature in degrees Celsius (float)
+- `reset_reason` - Reason of the last reset (string), one of the `options` of the [Last Reset Reason Sensor](#last-reset-reason-sensor); it stays the same until the gateway restarts
 
 **:material-publish: Publishing Behavior**
 

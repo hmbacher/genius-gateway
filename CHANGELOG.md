@@ -74,6 +74,13 @@ A third way of publishing over MQTT, for smart home systems other than Home Assi
 - **Cleans up after itself**: with every full publish, retained topics of smoke detectors and alarm lines that no longer exist are cleared - only topics of the tree's own layout, nothing else under the root
 - **Does not get in the way of alarms**: the tree publishes in the background, in batches, never from the packet receiver. When everything is published again, the alarm topics go out first and a value that changes meanwhile is sent ahead of the rest
 
+## Home Assistant: Last Reset Reason
+The gateway device in Home Assistant gets a diagnostic sensor **Last Reset Reason**: why the gateway last restarted - power-on, software restart, exception, watchdog, brownout and so on. Contributed by aoswald82 (#37).
+
+- **The same texts as in the web interface**: the sensor shows what *Reset Reason* under System → System Status shows
+- **An enum sensor**: Home Assistant knows every possible value and offers them in automations, for example to get notified after a watchdog or brownout reset
+- **No new topic**: the value is part of the existing diagnostics state (`reset_reason`)
+
 ## Line Test and Network Test Told Apart
 The packet that starts a line test also starts a network test. The byte that was taken for a start/stop flag is a test mode: `0x04` starts a line test (about 15 minutes), `0x06` a network test (about 30 minutes), `0x00` stops either. The assignment follows from the durations of the two tests, 15 and 30 minutes, which are the ones the manufacturer states; it is not yet confirmed on air which of the two values is the line test.
 
@@ -104,6 +111,7 @@ See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/set
 - **Status Change packet**: the protocol analysis describes the former *Alarming* packet as the generic status change, with the full flag table and a captured battery warning
 
 ## Bugfixes
+- **Reset Reason showed "Unknown reset reason (11)" for some resets**: a reset by the USB peripheral, by JTAG, after an efuse error, a power glitch or a CPU lock-up had no text in the System Status. These reasons are named now
 - **Restart when a smoke detector or alarm line was added or removed while the gateway published to Home Assistant**: after every MQTT connect, and after applying the Home Assistant settings, the gateway republishes all entities in a background task - a few seconds with many detectors. Adding or deleting a detector or an alarm line during that time changed the lists that task was working on and could crash the gateway (present since v1.3.0). The Home Assistant registry is now locked per device while it is published: a change waits for the device in progress instead of pulling it away
 - **Web interface held up for seconds after applying the Home Assistant settings**: the gateway republished every entity before it answered the request, so **Apply Settings** showed no reaction for about five seconds with a dozen detectors. The republish now runs in the background and the gateway answers at once. The button shows a spinner and is locked while a request is under way - switching the integration off still removes all entities before the gateway answers
 - **Radio packets could be missed while a browser did not respond**: the gateway sent web interface events (alarm state, packet log, system values) straight from the task that emitted them and waited up to 60 seconds for every client that did not take the data - for example a browser tab on a phone in standby. The alarm state was sent by the task that receives the radio packets, so during that wait further packets were lost: in a test the all-clear of an alarm was never processed and the alarm event reached other browsers 56 seconds late. The first alarm message to MQTT / Home Assistant was not affected. A client now gets one second to take an event and is disconnected if it does not (browsers reconnect by themselves), and the alarm state is sent by a task of its own
