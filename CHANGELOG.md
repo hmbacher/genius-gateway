@@ -72,7 +72,7 @@ A third way of publishing over MQTT, for smart home systems other than Home Assi
 - **Nothing is assumed**: a value that is not known has an empty payload; a status flag gets a value once it was reported or read out
 - **Only changes are published**, everything again after a reconnect; deleting a detector, switching the tree off or changing the root clears the old topics
 - **Cleans up after itself**: with every full publish, retained topics of smoke detectors and alarm lines that no longer exist are cleared - only topics of the tree's own layout, nothing else under the root
-- **Does not get in the way of alarms**: the tree publishes in the background, in batches, never from the packet receiver
+- **Does not get in the way of alarms**: the tree publishes in the background, in batches, never from the packet receiver. When everything is published again, the alarm topics go out first and a value that changes meanwhile is sent ahead of the rest
 
 ## Line Test and Network Test Told Apart
 The packet that starts a line test also starts a network test. The byte that was taken for a start/stop flag is a test mode: `0x04` starts a line test (about 15 minutes), `0x06` a network test (about 30 minutes), `0x00` stops either. The assignment follows from the durations of the two tests, 15 and 30 minutes, which are the ones the manufacturer states; it is not yet confirmed on air which of the two values is the line test.
