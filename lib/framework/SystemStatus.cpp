@@ -42,74 +42,57 @@
 #define ARDUINO_VERSION ARDUINO_VERSION_STR(ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH)
 #endif
 
-String verbosePrintResetReason(int reason)
+namespace
 {
-    switch (reason)
+struct ResetReasonText
+{
+    int reason; ///< esp_reset_reason_t
+    const char *text;
+};
+
+// The texts follow the descriptions of esp_reset_reason_t. ESP_RST_USB and the reasons after it
+// were added in later ESP-IDF versions; they are enum constants, so #ifdef cannot test for them.
+// Their numbers are used instead, which compiles with every version.
+const ResetReasonText RESET_REASON_TEXTS[] = {
+    {ESP_RST_UNKNOWN, "Reset reason can not be determined"},
+    {ESP_RST_POWERON, "Reset due to power-on event"},
+    {ESP_RST_EXT, "Reset by external pin (not applicable for ESP32)"},
+    {ESP_RST_SW, "Software reset via esp_restart"},
+    {ESP_RST_PANIC, "Software reset due to exception/panic"},
+    {ESP_RST_INT_WDT, "Reset (software or hardware) due to interrupt watchdog"},
+    {ESP_RST_TASK_WDT, "Reset due to task watchdog"},
+    {ESP_RST_WDT, "Reset due to other watchdogs"},
+    {ESP_RST_DEEPSLEEP, "Reset after exiting deep sleep mode"},
+    {ESP_RST_BROWNOUT, "Brownout reset (software or hardware)"},
+    {ESP_RST_SDIO, "Reset over SDIO"},
+    {11, "Reset by USB peripheral"},                     // ESP_RST_USB
+    {12, "Reset by JTAG"},                               // ESP_RST_JTAG
+    {13, "Reset due to efuse error"},                    // ESP_RST_EFUSE
+    {14, "Reset due to power glitch detected"},          // ESP_RST_PWR_GLITCH
+    {15, "Reset due to CPU lock up (double exception)"}, // ESP_RST_CPU_LOCKUP
+};
+
+/// For a code that is not in the table (a reason added by a newer ESP-IDF)
+const char *const RESET_REASON_UNKNOWN_CODE = "Unknown reset reason";
+} // namespace
+
+const char *resetReasonText(int reason)
+{
+    for (const ResetReasonText &entry : RESET_REASON_TEXTS)
     {
-    case ESP_RST_UNKNOWN:
-        return ("Reset reason can not be determined");
-        break;
-    case ESP_RST_POWERON:
-        return ("Reset due to power-on event");
-        break;
-    case ESP_RST_EXT:
-        return ("Reset by external pin (not applicable for ESP32)");
-        break;
-    case ESP_RST_SW:
-        return ("Software reset via esp_restart");
-        break;
-    case ESP_RST_PANIC:
-        return ("Software reset due to exception/panic");
-        break;
-    case ESP_RST_INT_WDT:
-        return ("Reset (software or hardware) due to interrupt watchdog");
-        break;
-    case ESP_RST_TASK_WDT:
-        return ("Reset due to task watchdog");
-        break;
-    case ESP_RST_WDT:
-        return ("Reset due to other watchdogs");
-        break;
-    case ESP_RST_DEEPSLEEP:
-        return ("Reset after exiting deep sleep mode");
-        break;
-    case ESP_RST_BROWNOUT:
-        return ("Brownout reset (software or hardware)");
-        break;
-    case ESP_RST_SDIO:
-        return ("Reset over SDIO");
-        break;
-#ifdef ESP_RST_USB
-    case ESP_RST_USB:
-        return ("Reset by USB peripheral");
-        break;
-#endif
-#ifdef ESP_RST_JSVK_TAG
-    case ESP_RST_JSVK_TAG:
-        return ("Reset by JSVK_TAG");
-        break;
-#endif
-#ifdef ESP_RST_EFUSE
-    case ESP_RST_EFUSE:
-        return ("Reset due to efuse error");
-        break;
-#endif
-#ifdef ESP_RST_PWR_GLITCH
-    case ESP_RST_PWR_GLITCH:
-        return ("Reset due to power glitch detected");
-        break;
-#endif
-#ifdef ESP_RST_CPU_LOCKUP
-    case ESP_RST_CPU_LOCKUP:
-        return ("Reset due to CPU lock up (double exception)");
-        break;
-#endif
-    default:
-        char buffer[50];
-        snprintf(buffer, sizeof(buffer), "Unknown reset reason (%d)", reason);
-        return String(buffer);
-        break;
+        if (entry.reason == reason)
+            return entry.text;
     }
+    return RESET_REASON_UNKNOWN_CODE;
+}
+
+std::vector<const char *> resetReasonTexts()
+{
+    std::vector<const char *> texts;
+    for (const ResetReasonText &entry : RESET_REASON_TEXTS)
+        texts.push_back(entry.text);
+    texts.push_back(RESET_REASON_UNKNOWN_CODE);
+    return texts;
 }
 
 SystemStatus::SystemStatus(PsychicHttpServer *server,
@@ -160,7 +143,7 @@ esp_err_t SystemStatus::systemStatus(PsychicRequest *request)
     root["fs_total"] = ESPFS.totalBytes();
     root["fs_used"] = ESPFS.usedBytes();
     root["core_temp"] = temperatureRead();
-    root["cpu_reset_reason"] = verbosePrintResetReason(esp_reset_reason());
+    root["cpu_reset_reason"] = resetReasonText(esp_reset_reason());
     root["uptime"] = millis() / 1000;
 
     return response.send();
