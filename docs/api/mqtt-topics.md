@@ -1134,6 +1134,8 @@ The four status topics follow the [current status](../features/device-management
 - **A value that is not known has no payload**: its retained topic is cleared (empty payload). An empty `battery_low` or `last_seen` therefore means "not known", never a stale value.
 - After every (re)connect all topics are sent again, the ones without a value as clears, so no stale retained value survives a restart of the gateway. This takes a few seconds: the messages go out in batches of 25 per second.
 - Deleting a detector clears all its topics. Switching the tree off, or changing the root, clears everything published under the old root.
+- **Leftovers are removed.** With every full publish - after a (re)connect, and when the tree is switched on - the gateway looks under its root for retained topics of smoke detectors and alarm lines that are not part of the installation any more, and clears them. Such topics are left behind when the gateway restarts before it could clear them, for example when a detector is deleted right after a restart. Only topics of the tree's own layout are touched (`devices/<id>/...` and `lines/<line id>/...` with the names listed above); anything else under the root is left alone. Do not let another system keep retained topics of this layout under the same root.
+- Topics under a root that is no longer configured are not found by this. After changing the root or switching the tree off, give the gateway about ten seconds to clear the old topics before restarting it.
 - The values are separate topics, so two of them cannot be read atomically.
 - The tree only publishes. Commands (line test, fire alarm) are available as [Home Assistant buttons](#button-entities-configuration) and over the [REST API](http-api.md).
 

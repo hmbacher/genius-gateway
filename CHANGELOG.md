@@ -71,6 +71,7 @@ A third way of publishing over MQTT, for smart home systems other than Home Assi
 - **Per alarm line and overall**: name, alarm, number of alarming and faulty detectors
 - **Nothing is assumed**: a value that is not known has an empty payload; a status flag gets a value once it was reported or read out
 - **Only changes are published**, everything again after a reconnect; deleting a detector, switching the tree off or changing the root clears the old topics
+- **Cleans up after itself**: with every full publish, retained topics of smoke detectors and alarm lines that no longer exist are cleared - only topics of the tree's own layout, nothing else under the root
 - **Does not get in the way of alarms**: the tree publishes in the background, in batches, never from the packet receiver
 
 ## Line Test and Network Test Told Apart
