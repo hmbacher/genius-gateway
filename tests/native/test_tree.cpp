@@ -388,6 +388,62 @@ static void testSweep()
     CHECK(fresh.sweep({1}, {}).size() == (size_t)T_COUNT);
 }
 
+static void testAlarmsFirst()
+{
+    CHECK(alarmTopic("alarm") && alarmTopic("alarming_count") && alarmTopic("devices/7/alarm"));
+    CHECK(alarmTopic("lines/2119672224/alarm") && alarmTopic("lines/2119672224/alarming_count"));
+    CHECK(!alarmTopic("fault_count") && !alarmTopic("devices/7/location") && !alarmTopic("devices/7/battery_low"));
+    CHECK(!alarmTopic("lines/7/name") && !alarmTopic("lines/7/device_count") && !alarmTopic("devices/7/xalarm") && !alarmTopic(""));
+
+    // a full publish of two detectors on one line: the alarm topics lead, in their old order
+    Tree t;
+    Globals g;
+    g.alarming = true;
+    g.alarmingCount = 1;
+    DeviceSnapshot a = dev(1), b = dev(2);
+    b.alarming = true;
+    std::vector<Message> m = t.plan({a, b}, NO_NAMES, g, 0, true);
+    const size_t total = m.size();
+    alarmsFirst(m);
+    CHECK(m.size() == total && total == 2 * T_COUNT + L_COUNT + Tree::GLOBAL_COUNT);
+    CHECK(m[0].topic == "devices/1/alarm" && m[0].payload == "false");
+    CHECK(m[1].topic == "devices/2/alarm" && m[1].payload == "true");
+    CHECK(m[2].topic == "lines/2119672224/alarm" && m[3].topic == "lines/2119672224/alarming_count");
+    CHECK(m[4].topic == "alarm" && m[4].payload == "true" && m[5].topic == "alarming_count" && m[5].payload == "1");
+    CHECK(m[6].topic == "devices/1/location"); // the rest follows as planned
+    for (size_t i = 6; i < m.size(); i++)
+        CHECK(!alarmTopic(m[i].topic));
+}
+
+static void testEnqueueFirst()
+{
+    // a full publish is queued; an alarm comes in while it drains
+    std::deque<Message> q = {{"r/devices/1/alarm", "false"}, {"r/devices/1/location", "Hallway"}, {"r/alarm", "false"}, {"r/fault_count", "0"}};
+    enqueueFirst(q, {{"r/devices/1/alarm", "true"}, {"r/alarm", "true"}, {"r/alarming_count", "1"}});
+    CHECK(q.size() == 5);
+    CHECK(q[0].topic == "r/devices/1/alarm" && q[0].payload == "true");
+    CHECK(q[1].topic == "r/alarm" && q[1].payload == "true");
+    CHECK(q[2].topic == "r/alarming_count" && q[2].payload == "1");
+    // the older values of these topics are gone, the rest keeps its order
+    CHECK(q[3].topic == "r/devices/1/location" && q[4].topic == "r/fault_count");
+
+    // the alarm ends before the first one was sent: only the newest value stays
+    enqueueFirst(q, {{"r/devices/1/alarm", "false"}});
+    CHECK(q.size() == 5 && q[0].topic == "r/devices/1/alarm" && q[0].payload == "false" && q[1].topic == "r/alarm");
+
+    // topics of another root (still being cleared) are not touched
+    std::deque<Message> old = {{"old/devices/1/alarm", ""}};
+    enqueueFirst(old, {{"new/devices/1/alarm", "true"}});
+    CHECK(old.size() == 2 && old[0].topic == "new/devices/1/alarm" && old[1].topic == "old/devices/1/alarm");
+
+    // an empty queue, and nothing to add
+    std::deque<Message> e;
+    enqueueFirst(e, {{"r/a", "1"}, {"r/b", "2"}});
+    CHECK(e.size() == 2 && e[0].topic == "r/a" && e[1].topic == "r/b");
+    enqueueFirst(e, {});
+    CHECK(e.size() == 2);
+}
+
 int main()
 {
     testRoot();
@@ -402,6 +458,8 @@ int main()
     testClearAll();
     testLines();
     testSweep();
+    testAlarmsFirst();
+    testEnqueueFirst();
     std::printf("%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }

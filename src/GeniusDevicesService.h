@@ -744,7 +744,8 @@ private:
     uint32_t _treeLastPlan = 0;                 ///< millis() of the last comparison of all values
     std::function<std::vector<genius_tree::LineName>()> _treeLineNames; ///< Names of the configured alarm lines
     void _treeLoop();                           ///< Loop function: runs _treeTick() about once a second
-    void _treeTick();                           ///< Send what is queued, or plan what is due
+    void _treeTick();                           ///< Plan what is due, send a batch of what is queued
+    void _treePlan(uint32_t now);               ///< Compare the state with what was published and queue the differences
     bool _treeSend();                           ///< Send one batch of the queue; false if publishing failed
 
     // Sweep for leftover topics (see GeniusDevicesMqttTree.cpp): the MQTT task collects, the loop task evaluates

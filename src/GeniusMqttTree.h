@@ -64,7 +64,10 @@
 
 #include <GeniusDeviceStatus.h>
 
+#include <algorithm>
 #include <array>
+#include <deque>
+#include <iterator>
 #include <map>
 #include <set>
 #include <stdint.h>
@@ -381,6 +384,37 @@ struct Message
     std::string topic;
     std::string payload;
 };
+
+/// Topics that tell about an alarm (relative to the root): of a detector, of a line and the global ones.
+inline bool alarmTopic(const std::string &rel)
+{
+    auto endsWith = [&rel](const char *tail)
+    {
+        const std::string t(tail);
+        return rel.size() >= t.size() && rel.compare(rel.size() - t.size(), t.size(), t) == 0;
+    };
+    return rel == "alarm" || rel == "alarming_count" || endsWith("/alarm") || endsWith("/alarming_count");
+}
+
+/// Alarm topics first, everything else behind them; the order within both groups is kept.
+inline void alarmsFirst(std::vector<Message> &messages)
+{
+    std::stable_partition(messages.begin(), messages.end(), [](const Message &m) { return alarmTopic(m.topic); });
+}
+
+/**
+ * Put messages in front of a queue of planned messages: a value that changed while a full publish
+ * is going out overtakes it. A queued message for the same topic is the older value and is dropped,
+ * so the newer one is also the last one the broker gets. The order of `urgent` is kept.
+ */
+inline void enqueueFirst(std::deque<Message> &queue, std::vector<Message> &&urgent)
+{
+    if (!queue.empty())
+        for (const Message &u : urgent)
+            queue.erase(std::remove_if(queue.begin(), queue.end(), [&u](const Message &q) { return q.topic == u.topic; }),
+                        queue.end());
+    queue.insert(queue.begin(), std::make_move_iterator(urgent.begin()), std::make_move_iterator(urgent.end()));
+}
 
 class Tree
 {

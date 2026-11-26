@@ -33,7 +33,11 @@
  * snapshots under the locks of the service and publishes without them. Nothing here writes to flash.
  *
  * A full publish (after a connect, or when the tree is switched on) is many messages. They are
- * sent in batches, one batch per tick, so that the MQTT client stays free for alarms.
+ * sent in batches, one batch per tick, so that the MQTT client stays free for alarms. The state
+ * is compared also while such a queue drains: a value that changes meanwhile - an alarm - goes to
+ * the front of the queue and replaces what was queued for its topic. Within everything that is
+ * planned at once the alarm topics come first, and a full publish goes ahead of the clears of an
+ * old root.
  *
  * The tree keeps in RAM what it published, so it can only clear what it published since the
  * gateway started. A detector deleted right after a restart, or a restart while clears were still
@@ -201,7 +205,13 @@ void GeniusDevicesService::_treeTick()
         _treeForce = true;
     }
 
-    // What is planned goes out first, a batch per tick; only then is the state compared again.
+    // Compare the state when a change was reported, when a full publish is due, and every few
+    // seconds anyway - also while a queue is still going out (the tree is off with an empty root).
+    const uint32_t now = millis();
+    if (!_treeRoot.empty() && (_treeDirty || _treeForce || now - _treeLastPlan >= TREE_RECHECK_MS))
+        _treePlan(now);
+
+    // A batch per tick
     if (!_treeQueue.empty())
     {
         if (!_treeSend())
@@ -213,23 +223,14 @@ void GeniusDevicesService::_treeTick()
         return;
     }
 
-    if (_treeRoot.empty())
-        return; // the value tree is off
-
-    const uint32_t now = millis();
-
     // A sweep ends once the full publish is out (the tree knows every detector and line by then)
-    // and the broker had time to deliver what it retains.
+    // and the broker had time to deliver what it retains. Its clears go out with the next ticks.
     if (_treeSweepActive.load() && !_treeForce && now - _treeSweepStart >= TREE_SWEEP_MS)
-    {
         _treeSweepEnd(true);
-        if (!_treeQueue.empty())
-            return; // the clears go out with the next ticks
-    }
+}
 
-    if (!_treeDirty && !_treeForce && now - _treeLastPlan < TREE_RECHECK_MS)
-        return;
-
+void GeniusDevicesService::_treePlan(uint32_t now)
+{
     const bool force = _treeForce;
     _treeForce = false;
     if (force)
@@ -281,14 +282,13 @@ void GeniusDevicesService::_treeTick()
 
     // --- what is due --------------------------------------------------------------------------
     bool deferred = false;
-    for (genius_tree::Message &m : _tree.plan(devices, lineNames, globals, (uint64_t)millis(), force, &deferred))
-        _treeQueue.push_back({_treeRoot + "/" + m.topic, std::move(m.payload)});
+    std::vector<genius_tree::Message> due = _tree.plan(devices, lineNames, globals, (uint64_t)millis(), force, &deferred);
+    genius_tree::alarmsFirst(due); // an alarm that is on must not wait behind hundreds of other topics
+    for (genius_tree::Message &m : due)
+        m.topic = _treeRoot + "/" + m.topic;
+    // To the front: a change overtakes a full publish that is still going out, and a full publish
+    // goes ahead of what is still clearing an old root.
+    genius_tree::enqueueFirst(_treeQueue, std::move(due));
     if (deferred)
         _treeDirty = true; // a changed value is only held back by its throttle: look again
-
-    if (!_treeQueue.empty() && !_treeSend())
-    {
-        _treeQueue.clear();
-        _treeForce = true;
-    }
 }
