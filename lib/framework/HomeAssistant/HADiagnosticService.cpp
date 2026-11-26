@@ -16,6 +16,7 @@
 #include <HomeAssistant/HAButton.h>
 #include <HomeAssistant/HADevice.h>
 #include <RestartService.h>
+#include <SystemStatus.h>
 
 HADiagnosticService::HADiagnosticService(HAService *haService)
     : _haService(haService),
@@ -42,6 +43,17 @@ HADiagnosticService::HADiagnosticService(HAService *haService)
                        c["unit_of_measurement"] = "°C";
                        c["device_class"]        = "temperature";
                        c["state_class"]         = "measurement";
+                   })
+        // The same texts as in the system status of the web interface, as an enum: Home Assistant
+        // then offers them as the possible states, e.g. in automations.
+        .addSensor("sensor", "reset_reason", "Last Reset Reason", "mdi:restart-alert", HACategory::Diagnostic,
+                   [](JsonObject &c)
+                   {
+                       c["value_template"] = "{{value_json.reset_reason}}";
+                       c["device_class"]   = "enum";
+                       JsonArray options   = c["options"].to<JsonArray>();
+                       for (const char *text : resetReasonTexts())
+                           options.add(text);
                    });
 
     if (_haService != nullptr)
@@ -64,6 +76,9 @@ HADiagnosticService::HADiagnosticService(HAService *haService)
 void HADiagnosticService::begin()
 {
     _diagnosticSensors.begin();
+
+    const int resetReason = esp_reset_reason();
+    ESP_LOGI(TAG, "Last reset reason: %s (%d)", resetReasonText(resetReason), resetReason);
 
     _diagnosticSensorTimer = xTimerCreate(
         "HADiagSensor",
@@ -95,6 +110,7 @@ void HADiagnosticService::_readDiagnosticState(JsonObject &state)
     state["state"] = "online";
     state["free_heap_percent"] = freeHeapPercent;
     state["core_temp"] = temperatureRead();
+    state["reset_reason"] = resetReasonText(esp_reset_reason());
 }
 
 void HADiagnosticService::_diagnosticSensorTimerCallback(TimerHandle_t timer)
