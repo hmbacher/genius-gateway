@@ -172,6 +172,13 @@ With this option enabled:
 
 An edit that does not change the resulting IDs (e.g. `Kitchen` to `kitchen`) does not trigger a rename. With the option off nothing changes: detectors keep their model name and Home Assistant generates the entity IDs itself.
 
+#### Areas in Home Assistant {#areas-in-home-assistant}
+
+The gateway suggests the detector's location as its area. Home Assistant uses the suggestion once, when it registers the device, and creates the area if it does not exist yet. Afterwards the area belongs to Home Assistant: the gateway does not move a detector to another area, and Home Assistant does not remove an area when its last device is gone.
+
+- **After changing a location**, the detector stays in its old area - with the option above it is registered again and lands in an area named after the new location. Move the device in Home Assistant if you like.
+- **After deleting a detector or changing its location**, the old area (e.g. *Kitchen*) may be left empty. Remove it in Home Assistant under *Settings* :material-arrow-right: *Areas, labels & zones*.
+
 The option needs Home Assistant 2025.10 or newer, which introduced `default_entity_id` in MQTT discovery.
 
 !!! warning "References to the old entity IDs"

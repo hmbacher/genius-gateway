@@ -168,11 +168,16 @@ public:
      * we want HA to keep the retained device config. Call explicitly before
      * destroying a sub-device that should disappear from HA.
      *
+     * The retained state topics of the entities are cleared as well, so nothing of a
+     * removed device stays on the broker.
+     *
      * @param qos MQTT QoS for the empty payloads. Use 1 when a lost removal
      *            would leave HA in the wrong state (e.g. before re-creating the
      *            entities under a new entity ID).
+     * @param keepState Keep the retained states - for entities that are published again
+     *            right away (a rename), so their states are not lost meanwhile.
      */
-    void unpublishAll(int qos = 0);
+    void unpublishAll(int qos = 0, bool keepState = false);
 
     /** @brief Number of entities registered with this device. */
     size_t entityCount() const { return _entities.size(); }
