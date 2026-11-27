@@ -983,17 +983,20 @@ Collective packets were not captured so far; nothing of this was verified on air
 ### What the gateway makes of it
 
 - **Receiving.** The gateway listens to every packet, whatever its line code and `Line-ID`. It keys alarm lines on
-  the `Line-ID` and does not evaluate the line code yet; the [packet visualizer](../features/packet-visualizer.md)
-  shows it.
+  the `Line-ID`. The line code of the originator (`Org-Line`) gives the line setting of a detector with an
+  *FM Pro X* or a module of unknown type, and of an alarm line that is added from the packet or whose detectors do
+  not tell it - never from a packet originated by a gateway. The [packet visualizer](../features/packet-visualizer.md)
+  shows all three line codes.
 - **Alarm line of a detector.** It is **taken over from the radio packets of its module**: an alarm, a status change,
   a line test or a telegram of the radio link supervision names the `Line-ID`. For old modules that is the only
   source, see [Device Management](../features/device-management.md#detectors-with-an-old-radio-module). Their rotary
   position is entered by hand.
-- **Transmitting.** Line test, fire alarm and commissioning packets of the gateway carry the line code `0x00` (A.0)
-  at the offsets 3, 8 and 13. By the receive rule above, modules set to another rotary position do not accept them.
-  Observed with the line code the other way round: a line test start with the line code `0x01` was ignored by a
-  line set to A.0 (see [Receiving](#receiving)). It fits the report in #33 that a commissioning started by the
-  gateway had no effect on a line set to A.1. The range test is not affected: its [ConfigCheckProbe](#configcheckprobe) addresses every line.
+- **Transmitting.** Line test, fire alarm and commissioning packets of the gateway carry the
+  [line setting](../features/alarm-lines-management.md#line-setting) of the alarm line at the offsets 3, 8 and 13.
+  Up to v1.6.0 it was always `0x00` (A.0), and by the receive rule above modules set to another rotary position did
+  not accept them - observed with the line code the other way round: a line test start with the line code `0x01`
+  was ignored by a line set to A.0 (see [Receiving](#receiving)). It fits the report in #33 that a commissioning
+  started by the gateway had no effect on a line set to A.1. The range test is not affected: its [ConfigCheckProbe](#configcheckprobe) addresses every line.
 - Old modules were observed **not** to answer the [ConfigCheckProbe](#configcheckprobe) of the range test.
 
 [^1]: See [Packet Fragmentation](#packet-fragmentation) section for details on the 64-byte total packet size limit that constrains the maximum payload to 59 bytes in practice.

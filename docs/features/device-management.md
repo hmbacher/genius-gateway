@@ -213,7 +213,9 @@ Old-generation radio modules (**FM Basis** / **FM Pro**, the ones with rotary sw
 - **Alarm line** - the gateway takes it over from the **radio packets** of the module: the first alarm, status change, line test or radio link supervision telegram it receives from the detector names the alarm line. Until then the detector has no alarm line; afterwards it appears in its [group](#grouping-by-alarm-line) and on the [Alarm Lines](alarm-lines-management.md) page like every other detector.
 - **Rotary switches** - the position (for example `A.1`) is the line the module is set to. Together with the alarm line ID it decides which modules work together (see [Line Addressing](../reverse-engineering/protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis)), and an acoustic readout does not report it. A detector without it is marked **Line required**; enter the position as it is set on the module.
 
-For every other radio module the packets do the same job in the background: after a new commissioning the detector follows to its new alarm line by itself. A known alarm line is only replaced by a packet the module transmitted itself, not by a copy another module forwarded.
+For every other radio module the packets do the same job in the background: after a new commissioning the detector follows to its new alarm line by itself. A known alarm line is only replaced by a packet the module transmitted itself, not by a copy another module forwarded. The packets of an *FM Pro X* also tell its rotary position; the detector takes it over when it was not read out acoustically or has changed.
+
+The rotary position of the detectors gives the [line setting](alarm-lines-management.md#line-setting) of their alarm line - the line the gateway sends line test, fire alarm and commissioning for.
 
 ## Signal Probe Discovery
 

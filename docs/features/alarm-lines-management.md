@@ -21,6 +21,8 @@ In Genius smoke detector systems, an **alarm line** is a communication channel i
 
 Each alarm line in your system must be registered in the gateway to enable proper monitoring and control.
 
+Besides its ID, every alarm line has a **line setting**: the line its radio modules are set to with their rotary switches, for example `A.3` (Hekatron calls it the *Linie* of a module). An *FM Basis X* has no rotary switches and is fixed to `A.0`; an *FM Pro X* and the old *FM Basis* / *FM Pro* can be set to `A.0` - `G.9` and the collective alarm lines `H.0`, `H.1`, `H.2`, `H.4`, `H.5`, `H.7`. A radio module only reacts to packets of its alarm line ID **and** its line setting, so the gateway sends line test, fire alarm and commissioning for the line setting of the alarm line - see [Line Setting](#line-setting).
+
 ### MQTT Integration
 
 When [Home Assistant Integration](../setup/connections.md#home-assistant-integration) is enabled, each alarm line is automatically published to MQTT with:
@@ -43,8 +45,17 @@ The unique numeric identifier for the alarm line (1-4294967294). This ID must ma
 #### Name
 A descriptive label for the alarm line (e.g., "First Floor", "Building A"). This helps identify the line in the interface and notifications.
 
-#### Registered
-The date and time when the alarm line was first added to the gateway, displayed in DD.MM.YYYY HH:MM:SS format.
+#### Smoke Detectors
+The locations of the smoke detectors whose alarm line is known to be this one - from an acoustic readout, a range test or the radio packets of their modules. Shown as soon as a detector with a radio module is registered.
+
+#### Line Setting {#line-setting-column}
+The line setting the gateway sends line test, fire alarm and commissioning for, see [Line Setting](#line-setting). Hover over it for where it comes from:
+
+| Display | Meaning |
+|---|---|
+| `A.0` in light grey | Only *FM Basis X* modules on the line (fixed to A.0), or the line setting is not known and the gateway falls back to A.0 |
+| dark badge, e.g. **`A.3`** | The line setting matters: the line has radio modules with rotary switches, or it is set to something other than A.0 |
+| yellow badge | Something does not fit: the smoke detectors of the line are set differently (e.g. `A.1 / A.3`), or a line setting set by hand or taken from a packet differs from the detectors |
 
 #### Acquisition
 Indicates how the alarm line was added to the system:
@@ -102,6 +113,9 @@ To manually register a new alarm line:
     ***Name***  
     Enter a descriptive name (1-100 characters) to identify this alarm line. Use meaningful names like "First Floor", "East Wing", or "Building A - Zone 1" to help distinguish between multiple alarm lines.
 
+    ***Line Setting***  
+    Leave it on **Automatic** to take it from the smoke detectors of the line, or select the line the radio modules are set to with their rotary switches, see [Line Setting](#line-setting). For a line of *FM Basis X* modules Automatic is always right.
+
 4. Click **Save** to register the alarm line
 
 The new alarm line will immediately appear in the table and is ready to receive and process alarm packets.
@@ -118,6 +132,7 @@ When [automatic alarm line registration](gateway-settings.md#alarm-lines) is ena
     - **ID**: Extracted from the packet
     - **Name**: The ID followed by "(automatically added)", e.g. `2119672224 (automatically added)` - rename it as you like
     - **Acquisition**: Marked as "Automatic" (:tabler-access-point:)
+    - **Line setting**: Taken from the packet - the rotary position of the radio module that sent it. Packets of another gateway tell none; such a line starts on Automatic
 4. A success notification appears: "New alarm line detected."
 
 You can later edit automatically discovered alarm lines to assign meaningful names.
@@ -134,12 +149,28 @@ To modify an existing alarm line:
 
     ![Edit Alarm Line](../assets/images/software/gg-gateway-alarm-lines-edit.png)
 
-3. Modify the **ID** and/or **Name** fields as needed
+3. Modify the **ID**, **Name** and/or **Line Setting** fields as needed
 
     !!! danger "Changing the ID"
         If you change an alarm line's ID, ensure your physical smoke detectors are reconfigured to match. Mismatched IDs will prevent proper alarm communication.
     
 4. Click **Save** to apply changes
+
+## Line Setting {#line-setting}
+
+A radio module accepts a packet only if it carries both its alarm line ID and its line setting, and it forwards only packets of its own line setting. A packet sent for the wrong line setting is ignored by every module of the line - it does not even reach the ones in direct range (see [Line Addressing](../reverse-engineering/protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis)). That is why the gateway sends its [line actions](#alarm-line-actions) for the line setting of the alarm line. Where it comes from:
+
+| Source | Where the line setting comes from | Shown as |
+|---|---|---|
+| **Automatic** (default) | The smoke detectors of the line: an *FM Basis X* is A.0, an *FM Pro X* tells it in an acoustic readout or in its radio packets, an old module by the rotary position entered by hand. Detectors set differently: the most frequent line setting is used | as described in the [Line Setting column](#line-setting-column) |
+| **Automatic, not known** | No smoke detector of the line tells it, e.g. a line without registered detectors. The gateway sends for A.0 - and takes the line setting from the next radio packet of the line, which then counts as *taken from a radio packet* | light grey `A.0` |
+| **Set by hand** | Selected in the [edit dialog](#editing-an-alarm-line) | badge, tooltip "Set by hand" |
+| **Taken from a radio packet** | The packet that added the line [automatically](#automatic-alarm-line-discovery), or the first packet of a line whose detectors did not tell it | badge, tooltip "Taken from a radio packet" |
+
+A line setting set by hand or taken from a packet stays until it is changed in the edit dialog - also when the detectors tell another one; the page then marks the line yellow. Select **Automatic** to follow the detectors again.
+
+!!! info "Packets of a gateway"
+    Packets sent by a gateway (originator `FF FF FF FE`) are never used for the line setting: up to v1.6.0 a gateway sent every packet for A.0, whatever the line was set to.
 
 ## Deleting an Alarm Line
 
@@ -179,8 +210,8 @@ To restore alarm lines from a previously exported file:
 
 Each alarm line supports several commissioning, test and diagnostic actions. These actions transmit RF commands to all smoke detectors configured for that alarm line.
 
-!!! warning "Lines that are not set to A.0"
-    The gateway transmits its line test, fire alarm and commissioning packets for the rotary position **A.0** - the fixed setting of every FM Basis X. Radio modules with rotary switches (FM Pro X, old FM Basis / FM Pro) that are set to another position do not react to them, see [Line Addressing](../reverse-engineering/protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis): a packet for another rotary position was observed to be ignored by every module. On an installation set to A.1 a commissioning started by the gateway was reported to have no effect ([#33](https://github.com/hmbacher/genius-gateway/issues/33)). On such a line start the action on a detector, as the manual of the radio module describes it. Receiving - alarms, status changes, the range test - is not affected.
+!!! info "Sent for the line setting"
+    Every action is sent for the [line setting](#line-setting) of the alarm line, e.g. `A.3`. Radio modules set to another line ignore it - check the *Line Setting* column if an action has no effect.
 
 !!! info "Action Behavior"
     - Only one action can be triggered at a time across all alarm lines
