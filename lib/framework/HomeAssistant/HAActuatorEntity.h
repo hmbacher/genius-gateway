@@ -120,16 +120,15 @@ private:
         if (_haService == nullptr)
             return;
 
-        // Capture _alive so the callback stays safe to invoke after this
-        // entity is destroyed - HAService/PsychicMqttClient have no
-        // unsubscribe API, so the lambda outlives the entity.
+        // The destructor removes the handler again. _alive still guards a call
+        // that was already handed out when the entity goes away.
         auto alive = _alive;
-        _haService->subscribe(_commandTopicAbs(),
-                              [this, alive](char *, char *payload, int, int, bool)
-                              {
-                                  if (*alive && payload != nullptr)
-                                      _onCommand(payload);
-                              });
+        _subscribeCommand(_commandTopicAbs(),
+                          [this, alive](char *, char *payload, int, int, bool)
+                          {
+                              if (*alive && payload != nullptr)
+                                  _onCommand(payload);
+                          });
     }
 
     void _onCommand(const char *rawPayload)

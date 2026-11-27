@@ -145,6 +145,17 @@ protected:
     // _publishCallbacks, so the lambda can outlive us.
     std::shared_ptr<bool> _alive;
 
+    // Command topic subscription (HACommandEntity, HAActuatorEntity), removed in the destructor
+    String _subscribedTopic;
+    uint32_t _subscriptionId = 0;
+
+    /**
+     * Subscribe the handler of the command topic. Called again on every publish: HAService replaces
+     * the handler of the topic instead of adding one. A topic that changed (other base topic) gives
+     * up the old one.
+     */
+    void _subscribeCommand(const String &topic, std::function<void(char *, char *, int, int, bool)> handler);
+
     /**
      * Returns the device ID that should appear in entity `unique_id` values.
      * Uses the owner device's ID when registered via HADevice, otherwise falls

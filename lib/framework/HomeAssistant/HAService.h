@@ -21,7 +21,10 @@
 #include <IPUtils.h>
 #include <SettingValue.h>
 #include <functional>
+#include <map>
 #include <memory>
+#include <set>
+#include <string>
 #include <vector>
 
 #include <freertos/FreeRTOS.h>
@@ -278,15 +281,32 @@ public:
      */
     bool publish(const String &topic, const String &payload, int qos = 0, bool retain = true, bool async = true);
 
+    /// Handler of the messages of one topic: (topic, payload, retain, qos, dup)
+    using MessageHandler = std::function<void(char *, char *, int, int, bool)>;
+
     /**
-     * @brief Subscribe to a MQTT topic with callback
+     * @brief Subscribe a handler to a MQTT topic
+     *
+     * A topic is registered with the MQTT client only once, the first time; HAService then hands its
+     * messages to the handler registered for it at that moment. A later call for the same topic
+     * replaces the handler - entities subscribe again on every publishAll() (each MQTT connect) and
+     * when a sub-device is re-created, and the client has no way to remove a registration, so
+     * registering again each time would pile up callbacks and call each handler several times.
+     *
      * @param topic Full MQTT topic
      * @param callback Message handler
-     * @param qos QoS level (default 0)
+     * @param qos QoS level (default 0), used for the first registration of the topic
+     * @return ID of this registration for unsubscribe() (0 without a MQTT client)
      */
-    void subscribe(const String &topic,
-                   std::function<void(char *, char *, int, int, bool)> callback,
-                   int qos = 0);
+    uint32_t subscribe(const String &topic, MessageHandler callback, int qos = 0);
+
+    /**
+     * @brief Remove the handler of a topic, if it is still the one registered under @p id
+     *
+     * The MQTT subscription stays (the client cannot remove it); its messages are ignored until a
+     * handler is subscribed again. A handler that replaced the one of @p id is left alone.
+     */
+    void unsubscribe(const String &topic, uint32_t id);
 
     // ========================================================================
     // Entity lifecycle management
@@ -520,6 +540,21 @@ private:
     // Serialises the registry (callbacks, main device, sub-devices) between the
     // publish task and the tasks that add, remove or modify HA objects. See Lock.
     SemaphoreHandle_t _registryMutex;
+
+    // Topic subscriptions: the topics registered with the MQTT client (never removed - the client has
+    // no API for it) and the handler currently registered for each. Guarded by _topicMutex.
+    struct TopicHandler
+    {
+        uint32_t id;
+        MessageHandler handler;
+    };
+    SemaphoreHandle_t _topicMutex;
+    std::set<std::string> _clientTopics;
+    std::map<std::string, TopicHandler> _topicHandlers;
+    uint32_t _nextSubscriptionId;
+
+    /// Hand a message of a subscribed topic to its current handler (MQTT task)
+    void _dispatch(const std::string &topic, char *msgTopic, char *payload, int retain, int qos, bool dup);
 
     /**
      * @brief Recompute the pre-v1.6.0 topic identity from the display name.

@@ -36,6 +36,18 @@ HAEntityBase::~HAEntityBase()
     // Taking it here waits for a run that is in progress before the entity goes away.
     HAService::Lock guard(_haService);
     *_alive = false;
+    if (_haService != nullptr)
+        _haService->unsubscribe(_subscribedTopic, _subscriptionId);
+}
+
+void HAEntityBase::_subscribeCommand(const String &topic, std::function<void(char *, char *, int, int, bool)> handler)
+{
+    if (_haService == nullptr)
+        return;
+    if (_subscriptionId != 0 && topic != _subscribedTopic)
+        _haService->unsubscribe(_subscribedTopic, _subscriptionId);
+    _subscriptionId = _haService->subscribe(topic, std::move(handler));
+    _subscribedTopic = topic;
 }
 
 void HAEntityBase::begin()
