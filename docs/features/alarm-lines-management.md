@@ -39,25 +39,22 @@ The Home Assistant integration provides comparable functionality to the Web Inte
 
 The alarm lines table displays all registered alarm lines with the following columns:
 
-#### ID
-The unique numeric identifier for the alarm line (1-4294967294). This ID must match the configuration in your smoke detectors for proper communication.
-
 #### Name
-A descriptive label for the alarm line (e.g., "First Floor", "Building A"). This helps identify the line in the interface and notifications.
+A descriptive label for the alarm line (e.g., "First Floor", "Building A"), which helps identify the line in the interface and notifications. Below it, in grey, the unique numeric identifier of the alarm line (`#1` - `#4294967294`). This ID must match the configuration in your smoke detectors for proper communication.
 
 #### Smoke Detectors
 The locations of the smoke detectors whose alarm line is known to be this one - from an acoustic readout, a range test or the radio packets of their modules. Shown as soon as a detector with a radio module is registered.
 
-While a smoke detector of the line is set to another line than the one the gateway sends for, every detector of the line shows its line as a small badge: yellow for the ones that differ - they would have to be set again - and grey for the others.
+While a smoke detector of the line is set to another line than the one the gateway sends for, every detector of the line shows its line as a small badge: yellow for the ones that differ - they would have to be set again - and outlined for the others.
 
 #### Line Setting {#line-setting-column}
-The one line the gateway sends line test, fire alarm and commissioning for, see [Line Setting](#line-setting). The :tabler-info-circle: next to the column title explains it; hover over a value for where it comes from:
+The one line the gateway sends line test, fire alarm and commissioning for, see [Line Setting](#line-setting). The :tabler-info-circle: next to the column title explains it briefly; hover over a value for where it comes from:
 
 | Display | Meaning |
 |---|---|
 | `A.0` in light grey | Only *FM Basis X* modules on the line (fixed to A.0), or the line setting is not known and the gateway falls back to A.0 |
-| dark badge, e.g. **`A.3`** | The line setting matters: the line has radio modules with rotary switches, or it is set to something other than A.0 |
-| yellow badge | Smoke detectors of the line are set to another line - they carry a yellow badge with their line in the *Smoke Detectors* column and will not react to the gateway's packets. That happens when the detectors are set differently, or when a line setting set by hand or taken from a packet differs from theirs |
+| badge, e.g. **`A.3`** | The line setting matters: the line has radio modules with rotary switches, or it is set to something other than A.0. The colour tells where it comes from: black from the smoke detectors, primary colour set by hand, secondary colour taken from a radio packet |
+| yellow badge with a number | Smoke detectors of the line are set to another line - the number says how many. They carry a yellow badge with their line in the *Smoke Detectors* column and will not react to the gateway's packets. That happens when the detectors are set differently, or when a line setting set by hand or taken from a packet differs from theirs |
 
 #### Source
 Indicates how the alarm line was added to the system:
