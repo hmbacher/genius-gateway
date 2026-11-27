@@ -52,10 +52,9 @@
 
 	const automaticText = $derived.by(() => {
 		const codes = detectorLineCodes(_orgID, geniusDevices.devices);
-		if (codes.length === 0) return 'A.0 (not known from the smoke detectors)';
-		if (codes.length > 1)
-			return `${lineCodeText(codes[0])} (smoke detectors set differently: ${codes.map(lineCodeText).join(', ')})`;
-		return `${lineCodeText(codes[0])} (from the smoke detectors)`;
+		if (codes.length === 0) return 'A.0, not known from the smoke detectors';
+		if (codes.length > 1) return `${lineCodeText(codes[0])}, smoke detectors set differently`;
+		return `${lineCodeText(codes[0])}, from the smoke detectors`;
 	});
 
 	function applyLineSetting() {
@@ -112,7 +111,7 @@
 		transition:fly={{ y: 50 }}
 	>
 		<div
-			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex max-h-full min-w-fit max-w-md flex-col justify-between overflow-y-auto overscroll-contain p-4 shadow-lg *:shrink-0 md:w-[28rem]"
+			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex max-h-full w-full max-w-md flex-col justify-between overflow-y-auto overscroll-contain p-4 shadow-lg *:shrink-0 md:w-[28rem]"
 		>
 			<h2
 				id={titleId}
@@ -178,7 +177,7 @@
 					<div class="flex-1">
 						<label class="label" for="AlarmLineSetting">Line Setting</label>
 						<select class="select select-bordered w-full" id="AlarmLineSetting" bind:value={lineSetting}>
-							<option value={-1}>Automatic - {automaticText}</option>
+							<option value={-1}>Automatic ({automaticText})</option>
 							{#each LINE_SETTING_CODES as code}
 								<option value={code}
 									>{lineCodeText(code)}{_orgSource === AlarmLineCodeSource.Packet && code === _orgCode

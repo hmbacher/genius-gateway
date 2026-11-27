@@ -37,7 +37,12 @@
 	import Microphone from '~icons/tabler/microphone';
 	import Radar from '~icons/tabler/radar';
 	import SpinnerSmall from '$lib/components/SpinnerSmall.svelte';
-	import { resolveLineSetting, lineSettingClass } from '$lib/genius/line';
+	import {
+		resolveLineSetting,
+		lineSettingClass,
+		detectorLineBadge,
+		lineMismatchWarningHtml
+	} from '$lib/genius/line';
 
 	const BROADCAST_ID = 0xffffffff; // 4294967295
 
@@ -76,8 +81,8 @@
 	// aligned, since each row renders its own independent grid.
 	let gridColsClass = $derived(
 		hasXSeriesHardware
-			? 'grid-cols-[90px_minmax(0,1fr)_minmax(0,1.5fr)_72px_72px_minmax(0,1.25fr)_68px]'
-			: 'grid-cols-[90px_minmax(0,1fr)_72px_72px_minmax(0,1.25fr)_68px]'
+			? 'grid-cols-[90px_minmax(0,1fr)_minmax(0,1.5fr)_72px_56px_minmax(0,1.25fr)_68px]'
+			: 'grid-cols-[90px_minmax(0,1fr)_72px_56px_minmax(0,1.25fr)_68px]'
 	);
 
 	let isActionActive = $derived(
@@ -300,7 +305,8 @@
 				alarmLines.lines[index].name +
 				' (' +
 				alarmLines.lines[index].id +
-				')"?',
+				')"?' +
+				lineMismatchWarningHtml(resolveLineSetting(alarmLines.lines[index], geniusDevices.devices)),
 			labels: {
 				cancel: { label: 'Abort', icon: Cancel },
 				confirm: { label: 'Yes', icon: Check }
@@ -338,7 +344,8 @@
 				alarmLines.lines[index].name +
 				'" with ID ' +
 				alarmLines.lines[index].id +
-				'?<br /><span class="text-error">Note: Genius Gateway will ignore any self triggered fire alarm.</span>',
+				'?<br /><span class="text-error">Note: Genius Gateway will ignore any self triggered fire alarm.</span>' +
+				lineMismatchWarningHtml(resolveLineSetting(alarmLines.lines[index], geniusDevices.devices)),
 			labels: {
 				cancel: { label: 'Abort', icon: Cancel },
 				confirm: { label: 'Yes', icon: Check }
@@ -376,7 +383,8 @@
 				alarmLines.lines[index].name +
 				'</strong> to add or re-enrol detectors?' +
 				'<p class="pt-2">This puts all smoke detectors already on this line into ' +
-				'commissioning mode for ~15 minutes (triple-tone and green blinking every 8 seconds).</p>',
+				'commissioning mode for ~15 minutes (triple-tone and green blinking every 8 seconds).</p>' +
+				lineMismatchWarningHtml(resolveLineSetting(alarmLines.lines[index], geniusDevices.devices)),
 			labels: {
 				cancel: { label: 'Abort', icon: Cancel },
 				confirm: { label: 'Yes', icon: Check }
@@ -594,14 +602,10 @@
 												{#if !geniusDevices.isLoaded}
 													<SpinnerSmall />
 												{:else}
-													{@const locations = geniusDevices.devices
-														.filter(
-															(d) => d.radioModule.lineId === line.id
-														)
-														.map((d) => d.location)
-														.join(', ')}
-													{#if locations}
-														{locations}
+													{@const lineDevices = geniusDevices.devices.filter((d) => d.radioModule.lineId === line.id)}
+													{@const ls = resolveLineSetting(line, geniusDevices.devices)}
+													{#if lineDevices.length > 0}
+														{#each lineDevices as d, i}{d.location}{#if detectorLineBadge(ls, d)}{@const b = detectorLineBadge(ls, d)}<span class="{b?.cls} ml-1 align-middle" data-testid="detector-line-badge">{b?.text}</span>{/if}{#if i < lineDevices.length - 1}{', '}{/if}{/each}
 													{:else}
 														<span class="inline-flex items-center gap-1">
 															<span class="italic text-base-content/40">No devices</span>
@@ -770,18 +774,22 @@
 										<InfoPopover class="align-middle" label="About the line setting">
 											<p>
 												The line the radio modules of this alarm line are set to with their rotary switches, for
-												example <em>A.3</em> (Hekatron: <em>Linie</em>). Line test, fire alarm and commissioning are
-												sent for it: radio modules set to another line ignore them. <em>FM Basis X</em> modules are
-												fixed to A.0.
+												example <em>A.3</em> (Hekatron: <em>Linie</em>). <em>FM Basis X</em> modules are fixed to A.0.
 											</p>
 											<p class="mt-2">
-												It comes from the smoke detectors of the line unless it is set by hand or taken from the radio
-												packet that added the line - see <em>Edit</em>.
+												Line test, fire alarm and commissioning are sent for this line. Radio modules set to another
+												line ignore them.
+											</p>
+											<p class="mt-2">
+												It comes from the smoke detectors of the line unless it is set by hand or taken from a radio
+												packet - see <em>Edit</em>. <span class="text-base-content/50">Grey</span>: it does not matter
+												here, or it is not known and A.0 is used. <span class="badge badge-warning badge-xs">Yellow</span>:
+												smoke detectors of the line are set to another line - they carry a badge with their line.
 											</p>
 										</InfoPopover>
 									</span>
 								</div>
-								<div class="text-center">Acquisition</div>
+								<div class="text-center">Source</div>
 								<div class="text-center">Line Actions</div>
 								<div class="text-center">Manage</div>
 							</div>
@@ -805,15 +813,13 @@
 													{#if !geniusDevices.isLoaded}
 														<div class="flex justify-center"><SpinnerSmall /></div>
 													{:else}
-														{@const locations = geniusDevices.devices
-															.filter(
-																(d) => d.radioModule.lineId === line.id
-															)
-															.map((d) => d.location)
-															.join(', ')}
-														<span class={locations ? '' : 'flex justify-center'}
-															>{locations || '-'}</span
-														>
+														{@const lineDevices = geniusDevices.devices.filter((d) => d.radioModule.lineId === line.id)}
+														{@const ls = resolveLineSetting(line, geniusDevices.devices)}
+														{#if lineDevices.length > 0}
+															<span>{#each lineDevices as d, i}{d.location}{#if detectorLineBadge(ls, d)}{@const b = detectorLineBadge(ls, d)}<span class="{b?.cls} ml-1 align-middle" data-testid="detector-line-badge">{b?.text}</span>{/if}{#if i < lineDevices.length - 1}{', '}{/if}{/each}</span>
+														{:else}
+															<span class="flex justify-center">-</span>
+														{/if}
 													{/if}
 												</div>
 											{/if}
