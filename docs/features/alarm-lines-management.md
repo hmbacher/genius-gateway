@@ -179,6 +179,9 @@ To restore alarm lines from a previously exported file:
 
 Each alarm line supports several commissioning, test and diagnostic actions. These actions transmit RF commands to all smoke detectors configured for that alarm line.
 
+!!! warning "Lines that are not set to A.0"
+    The gateway transmits its line test, fire alarm and commissioning packets for the rotary position **A.0** - the fixed setting of every FM Basis X. Radio modules with rotary switches (FM Pro X, old FM Basis / FM Pro) that are set to another position are expected not to react to them, see [Line Addressing](../reverse-engineering/protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis). This was not verified on air; on an installation set to A.1 a commissioning started by the gateway was reported to have no effect ([#33](https://github.com/hmbacher/genius-gateway/issues/33)). On such a line start the action on a detector, as the manual of the radio module describes it. Receiving - alarms, status changes, the range test - is not affected.
+
 !!! info "Action Behavior"
     - Only one action can be triggered at a time across all alarm lines
     - While the Genius Gateway is actively transmitting RF packets for the triggered action, a spinner icon is shown 
@@ -195,9 +198,6 @@ Every smoke detector **already assigned to this alarm line** then enters commiss
 4. The gateway transmits the commissioning packet [repetitively](../reverse-engineering/protocol-analysis.md#repetition) via RF
 5. The button displays a spinner while RF transmission is in progress
 6. Press the test button on every smoke detector that is signalling - both existing line members and any newly mounted ones - to confirm it and complete the commissioning sequence
-
-!!! note "Old FM Basis / FM Pro modules"
-    On an installation with old-generation modules a commissioning started by the gateway was reported to have no effect: none of the detectors signalled. For these modules start the commissioning on a detector that already belongs to the line, as the manual of the module describes it.
 
 ### :tabler-location: Start Line Test
 
