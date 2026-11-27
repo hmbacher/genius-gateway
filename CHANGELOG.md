@@ -82,7 +82,7 @@ Observations on an installation with radio modules that have rotary switches, re
 - **Range test explains old modules**: old modules do not answer the range test. Their signal icon no longer shows *Out of direct range*; the icon's tooltip, the survey dialog and the PDF report say that these modules give no answer
 - **Protocol documentation corrected**: the bytes 3, 8 and 13 of every packet are the line code - the rotary position - of the addressed line, the originator and the forwarder. The section on line addressing describes the receive and forward rules and the collective alarm lines (H), and no longer claims that the rotary position is never compared or that the line ID of an old module follows from its rotary switches
 - **Packet visualizer shows the line code**: the header of every packet names the rotary position of the addressed line, the originator and the forwarder (for example `A.3`, or `Any`)
-- **Known limitation, now documented**: the gateway transmits its line test, fire alarm and commissioning packets for the rotary position A.0. Modules set to another position are expected not to react to them (not verified on air)
+- **Known limitation, now documented**: the gateway transmits its line test, fire alarm and commissioning packets for the rotary position A.0. Modules set to another position do not react to them: a line test sent for another position was observed to be ignored and not forwarded
 
 ## Home Assistant: Last Reset Reason
 The gateway device in Home Assistant gets a diagnostic sensor **Last Reset Reason**: why the gateway last restarted - power-on, software restart, exception, watchdog, brownout and so on. Contributed by aoswald82 (#37).

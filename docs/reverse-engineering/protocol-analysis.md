@@ -918,6 +918,11 @@ A module accepts a packet when all three conditions hold:
 
 A packet that fails one of them is only accepted as a [collective alarm](#collective-alarm-lines).
 
+Observed on a line of eleven FM Basis X modules (line code `0x00`): a line test start addressed to its `Line-ID`
+made all detectors signal and was forwarded by the modules. The same packet with the line code `0x01` (A.1) at the
+offsets 3, 8 and 13 - flags and everything else unchanged - left every detector silent, and no module forwarded it.
+The following stop with the line code `0x00` was forwarded by all of them.
+
 ### Forwarding
 
 A module forwards a packet of its own line: `Org-Line` (offset 8) equals its own line code and condition 3 above
@@ -986,8 +991,9 @@ Collective packets were not captured so far; nothing of this was verified on air
   position is entered by hand.
 - **Transmitting.** Line test, fire alarm and commissioning packets of the gateway carry the line code `0x00` (A.0)
   at the offsets 3, 8 and 13. By the receive rule above, modules set to another rotary position do not accept them.
-  This was not verified on air; it fits the report in #33 that a commissioning started by the gateway had no effect
-  on a line set to A.1. The range test is not affected: its [ConfigCheckProbe](#configcheckprobe) addresses every line.
+  Observed with the line code the other way round: a line test start with the line code `0x01` was ignored by a
+  line set to A.0 (see [Receiving](#receiving)). It fits the report in #33 that a commissioning started by the
+  gateway had no effect on a line set to A.1. The range test is not affected: its [ConfigCheckProbe](#configcheckprobe) addresses every line.
 - Old modules were observed **not** to answer the [ConfigCheckProbe](#configcheckprobe) of the range test.
 
 [^1]: See [Packet Fragmentation](#packet-fragmentation) section for details on the 64-byte total packet size limit that constrains the maximum payload to 59 bytes in practice.
