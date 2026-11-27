@@ -241,7 +241,7 @@ The gateway can actively **survey which radio modules are within direct radio ra
     ![Signal Probe Dialog (New Nearby Devices)](../assets/images/software/gg-gateway-devices-signal-probe-adds.png)
 
     - :tabler-circle-plus: **Add** a *new nearby* module as a device - opens the [Adding a New Detector](#adding-a-new-detector) dialog pre-filled with the radio-module serial number
-    - :tabler-circle-plus: **Add alarm line** for a line ID that showed up but is not configured yet - opens the [Adding a New Alarm Line](./alarm-lines-management.md#adding-a-new-alarm-line) dialog with the ID locked and its acquisition source set to :tabler-radar: *SignalProbe*
+    - :tabler-circle-plus: **Add alarm line** for a line ID that showed up but is not configured yet - opens the [Adding a New Alarm Line](./alarm-lines-management.md#adding-a-new-alarm-line) dialog with the ID locked and its source set to :tabler-radar: *SignalProbe*
 
 6. On completion a summary notification reports how many modules responded, how many known devices were updated, and how many new nearby modules were found; the device list refreshes so the new readings appear
 

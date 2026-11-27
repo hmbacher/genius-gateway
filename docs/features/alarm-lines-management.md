@@ -48,16 +48,18 @@ A descriptive label for the alarm line (e.g., "First Floor", "Building A"). This
 #### Smoke Detectors
 The locations of the smoke detectors whose alarm line is known to be this one - from an acoustic readout, a range test or the radio packets of their modules. Shown as soon as a detector with a radio module is registered.
 
+While a smoke detector of the line is set to another line than the one the gateway sends for, every detector of the line shows its line as a small badge: yellow for the ones that differ - they would have to be set again - and grey for the others.
+
 #### Line Setting {#line-setting-column}
-The line setting the gateway sends line test, fire alarm and commissioning for, see [Line Setting](#line-setting). Hover over it for where it comes from:
+The one line the gateway sends line test, fire alarm and commissioning for, see [Line Setting](#line-setting). The :tabler-info-circle: next to the column title explains it; hover over a value for where it comes from:
 
 | Display | Meaning |
 |---|---|
 | `A.0` in light grey | Only *FM Basis X* modules on the line (fixed to A.0), or the line setting is not known and the gateway falls back to A.0 |
 | dark badge, e.g. **`A.3`** | The line setting matters: the line has radio modules with rotary switches, or it is set to something other than A.0 |
-| yellow badge | Something does not fit: the smoke detectors of the line are set differently (e.g. `A.1 / A.3`), or a line setting set by hand or taken from a packet differs from the detectors |
+| yellow badge | Smoke detectors of the line are set to another line - they carry a yellow badge with their line in the *Smoke Detectors* column and will not react to the gateway's packets. That happens when the detectors are set differently, or when a line setting set by hand or taken from a packet differs from theirs |
 
-#### Acquisition
+#### Source
 Indicates how the alarm line was added to the system:
 
 - :tabler-forms: **Manual**: Alarm line was manually configured by an administrator
@@ -131,7 +133,7 @@ When [automatic alarm line registration](gateway-settings.md#alarm-lines) is ena
 3. If the ID is not registered, the gateway automatically creates a new entry with:
     - **ID**: Extracted from the packet
     - **Name**: The ID followed by "(automatically added)", e.g. `2119672224 (automatically added)` - rename it as you like
-    - **Acquisition**: Marked as "Automatic" (:tabler-access-point:)
+    - **Source**: Marked as "Automatic" (:tabler-access-point:)
     - **Line setting**: Taken from the packet - the rotary position of the radio module that sent it. Packets of another gateway tell none; such a line starts on Automatic
 4. A success notification appears: "New alarm line detected."
 
@@ -160,14 +162,14 @@ To modify an existing alarm line:
 
 A radio module accepts a packet only if it carries both its alarm line ID and its line setting, and it forwards only packets of its own line setting. A packet sent for the wrong line setting is ignored by every module of the line - it does not even reach the ones in direct range (see [Line Addressing](../reverse-engineering/protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis)). That is why the gateway sends its [line actions](#alarm-line-actions) for the line setting of the alarm line. Where it comes from:
 
-| Source | Where the line setting comes from | Shown as |
+| Line setting | Where it comes from | Tooltip |
 |---|---|---|
-| **Automatic** (default) | The smoke detectors of the line: an *FM Basis X* is A.0, an *FM Pro X* tells it in an acoustic readout or in its radio packets, an old module by the rotary position entered by hand. Detectors set differently: the most frequent line setting is used | as described in the [Line Setting column](#line-setting-column) |
-| **Automatic, not known** | No smoke detector of the line tells it, e.g. a line without registered detectors. The gateway sends for A.0 - and takes the line setting from the next radio packet of the line, which then counts as *taken from a radio packet* | light grey `A.0` |
-| **Set by hand** | Selected in the [edit dialog](#editing-an-alarm-line) | badge, tooltip "Set by hand" |
-| **Taken from a radio packet** | The packet that added the line [automatically](#automatic-alarm-line-discovery), or the first packet of a line whose detectors did not tell it | badge, tooltip "Taken from a radio packet" |
+| **Automatic** (default) | The smoke detectors of the line: an *FM Basis X* is A.0, an *FM Pro X* tells it in an acoustic readout or in its radio packets, an old module by the rotary position entered by hand. Detectors set differently: the most frequent line setting is used | "From the smoke detectors of this line", or "FM Basis X - fixed to A.0" |
+| **Automatic, not known** | No smoke detector of the line tells it, e.g. a line without registered detectors. The gateway sends for A.0 - and takes the line setting from the next radio packet of the line, which then counts as *taken from a radio packet* | "Not known from the smoke detectors of this line - A.0 is used" |
+| **Set by hand** | Selected in the [edit dialog](#editing-an-alarm-line) | "Set by hand" |
+| **Taken from a radio packet** | The packet that added the line [automatically](#automatic-alarm-line-discovery), or the first packet of a line whose detectors did not tell it | "Taken from a radio packet of this line" |
 
-A line setting set by hand or taken from a packet stays until it is changed in the edit dialog - also when the detectors tell another one; the page then marks the line yellow. Select **Automatic** to follow the detectors again.
+A line setting set by hand or taken from a packet stays until it is changed in the edit dialog - also when the detectors tell another one. Whenever smoke detectors of the line are set to another line than the one used, the value turns yellow, its tooltip says how many detectors differ, and the detectors carry a yellow badge with their line. Select **Automatic** to follow the detectors again.
 
 !!! info "Packets of a gateway"
     Packets sent by a gateway (originator `FF FF FF FE`) are never used for the line setting: up to v1.6.0 a gateway sent every packet for A.0, whatever the line was set to.
@@ -211,7 +213,7 @@ To restore alarm lines from a previously exported file:
 Each alarm line supports several commissioning, test and diagnostic actions. These actions transmit RF commands to all smoke detectors configured for that alarm line.
 
 !!! info "Sent for the line setting"
-    Every action is sent for the [line setting](#line-setting) of the alarm line, e.g. `A.3`. Radio modules set to another line ignore it - check the *Line Setting* column if an action has no effect.
+    Every action is sent for the [line setting](#line-setting) of the alarm line, e.g. `A.3`. Radio modules set to another line ignore it. When smoke detectors of the line are set to another line, the confirmation of line test, fire alarm and commissioning names them and warns that they will not react.
 
 !!! info "Action Behavior"
     - Only one action can be triggered at a time across all alarm lines
