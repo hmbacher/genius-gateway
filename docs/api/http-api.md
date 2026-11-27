@@ -43,6 +43,7 @@ Authorization: Bearer <token>
 | `/rest/cc1101/state` | GET | 🔒 | Get radio transceiver status |
 | `/rest/cc1101/rx` | POST | 🛡️ | Force radio into RX state |
 | `/rest/wslogger` | GET, POST | 🛡️ | Configure WebSocket logger |
+| `/rest/wslogger/clients` | GET | 🛡️ | Clients connected to the WebSocket logger |
 | `/rest/packet-visualizer` | GET, POST | 🛡️ | Configure packet visualizer |
 | `/rest/migrations` | GET | 🔒 | List config migrations with state |
 | `/rest/migrations/retry` | POST | 🛡️ | Clear migration failure records |
@@ -406,11 +407,45 @@ A POST may carry any subset of these fields; fields that are left out keep their
 **GET Response / POST Request:**
 ```json
 {
-  "enabled": true
+  "wsLoggerEnabled": true
 }
 ```
 
-**POST Response:** 200 OK with updated settings
+**POST Response:** 200 OK with updated settings. Switching the logger off disconnects the clients that are still connected.
+
+#### `/rest/wslogger/clients`
+- **Methods:** GET
+- **Auth:** 🛡️ Admin
+- **Description:** Clients connected to the WebSocket logger right now, with the age of their connection and what was sent to them
+
+**GET Response:**
+```json
+{
+  "enabled": true,
+  "clients": [
+    {
+      "id": 58,
+      "address": "192.168.178.50",
+      "port": 52144,
+      "name": "packet-visualizer",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...",
+      "connectedMs": 754210,
+      "packets": 1460,
+      "bytes": 116800
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `id` | Socket of the connection, unique while it is open |
+| `address`, `port` | Remote IP address and port |
+| `name` | Name the client gave itself with `?client=...` (missing if none) |
+| `userAgent` | User-Agent of the connection request, shortened to 160 characters (missing if none) |
+| `connectedMs` | Age of the connection in milliseconds - needs no clock on the gateway |
+| `packets` | Radio packets sent to the client, every repetition counted |
+| `bytes` | Data of these packets in bytes (80 per packet) |
 
 ---
 

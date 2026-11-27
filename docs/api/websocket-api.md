@@ -759,7 +759,8 @@ client.connect();
 #### Client ID (Server → Client, on connect)
 ```json
 {
-  "clientId": "wslogger:12345"
+  "type": "id",
+  "id": "wslogger:12345"
 }
 ```
 
@@ -797,6 +798,7 @@ For further details, also see [WebSocket Logging Interface](../features/websocke
 - Connection filter checks admin authentication
 - Multiple clients can connect simultaneously
 - Each client receives all packets (broadcast)
+- A client can name itself with the query parameter `client` (`/ws/logger?client=my-recorder`); the name is shown in the list of connected clients on the WebSocket Logger page and in [`/rest/wslogger/clients`](http-api.md#restwsloggerclients)
 - Binary format requires client-side parsing
 - Timestamp is in microseconds since device boot
 
