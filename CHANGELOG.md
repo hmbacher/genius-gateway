@@ -81,6 +81,15 @@ The gateway device in Home Assistant gets a diagnostic sensor **Last Reset Reaso
 - **An enum sensor**: Home Assistant knows every possible value and offers them in automations, for example to get notified after a watchdog or brownout reset
 - **No new topic**: the value is part of the existing diagnostics state (`reset_reason`)
 
+## Home Assistant: Entities Become Unavailable While the Gateway Is Offline
+Up to now Home Assistant kept showing the last state of every entity when the gateway had lost its connection or had died - a smoke detector stayed *clear* although nobody was listening. Suggested by aoswald82 (#31).
+
+- **Every entity follows the MQTT status topic**: the entities of the gateway, the smoke detectors and the alarm lines turn *unavailable* while `genius-gateway/<mac>/status` says `offline`
+- **The Status sensor shows the connection**: `online` or `offline`, instead of an `online` that could never change
+- **Existing conditions stay**: a value that is unknown until a detector reported it is still unavailable for that reason; both conditions have to hold
+- **How fast**: at once for a restart. If the gateway just disappears, after one and a half times the MQTT keep alive - about three minutes with the default of 120 seconds
+- **Visible change**: after every restart of the gateway its entities are unavailable for a few seconds
+
 ## Line Test and Network Test Told Apart
 The packet that starts a line test also starts a network test. The byte that was taken for a start/stop flag is a test mode: `0x04` starts a line test (about 15 minutes), `0x06` a network test (about 30 minutes), `0x00` stops either. The assignment follows from the durations of the two tests, 15 and 30 minutes, which are the ones the manufacturer states; it is not yet confirmed on air which of the two values is the line test.
 

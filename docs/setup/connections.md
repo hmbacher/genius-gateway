@@ -202,6 +202,9 @@ The **Simple Alarm Publishing** collapsible card configures a simple, platform-a
 
 ![Simple Alarm Publishing settings](../assets/images/software/gg-connections-mqtt-alarm-publishing.png)
 
+!!! tip "Is the gateway still there?"
+    The topics keep their last value when the gateway goes offline. Watch the [device status topic](../api/mqtt-topics.md#device-status-topic-lwt) (`online` / `offline`) to notice an outage.
+
 !!! info "Administrator Access Required"
     Smart home integration settings can only be modified by users with administrator privileges.
 
