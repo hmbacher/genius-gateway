@@ -557,10 +557,10 @@
 										<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
 											<span class="text-lg font-bold truncate min-w-0">{line.name}</span>
 											<div class="flex items-center gap-2 shrink-0">
-												<span class="text-base text-base-content/40 shrink-0">#{line.id}</span>
+												<span class="text-base leading-none text-base-content/40 shrink-0">#{line.id}</span>
 												{#if line.id !== BROADCAST_ID && geniusDevices.isLoaded}
 													{@const ls = resolveLineSetting(line, geniusDevices.devices)}
-													<div class="tooltip tooltip-top" data-tip={ls.tooltip}>
+													<div class="tooltip tooltip-top flex items-center" data-tip={ls.tooltip}>
 														{#if ls.mismatched.length > 0}<span class="indicator"
 															><span
 																class="indicator-item badge badge-neutral badge-xs h-4 min-w-4 rounded-full px-1 text-[10px]"
@@ -571,29 +571,29 @@
 												{/if}
 												{#if line.id !== BROADCAST_ID}
 													{#if line.acquisition === AlarmLineAcquisition.Manual}
-														<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
-															<Manual class="flex-shrink-0 h-6 w-6 text-base-content/50" />
+														<div class="tooltip tooltip-top flex items-center" data-tip="Manually added alarm line">
+															<Manual class="block flex-shrink-0 h-6 w-6 text-base-content/50" />
 														</div>
 													{:else if line.acquisition === AlarmLineAcquisition.GeniusPacket}
 														<div
-															class="tooltip tooltip-top"
+															class="tooltip tooltip-top flex items-center"
 															data-tip="Alarm line extracted from Genius radio packet"
 														>
-															<Automatic class="flex-shrink-0 h-6 w-6 text-base-content/50" />
+															<Automatic class="block flex-shrink-0 h-6 w-6 text-base-content/50" />
 														</div>
 													{:else if line.acquisition === AlarmLineAcquisition.Acoustic}
 														<div
-															class="tooltip tooltip-top"
+															class="tooltip tooltip-top flex items-center"
 															data-tip="Alarm line discovered via acoustic device readout"
 														>
-															<Microphone class="flex-shrink-0 h-6 w-6 text-base-content/50" />
+															<Microphone class="block flex-shrink-0 h-6 w-6 text-base-content/50" />
 														</div>
 													{:else if line.acquisition === AlarmLineAcquisition.SignalProbe}
 														<div
-															class="tooltip tooltip-top"
+															class="tooltip tooltip-top flex items-center"
 															data-tip="Alarm line discovered via signal probe"
 														>
-															<Radar class="flex-shrink-0 h-6 w-6 text-base-content/50" />
+															<Radar class="block flex-shrink-0 h-6 w-6 text-base-content/50" />
 														</div>
 													{/if}
 												{/if}
