@@ -75,6 +75,8 @@ public:
         }
     }
 
+    String stateTopic() const override { return _stateTopicAbs(); }
+
     void publishAll() override
     {
         if (_haService == nullptr || !_haService->isReady())

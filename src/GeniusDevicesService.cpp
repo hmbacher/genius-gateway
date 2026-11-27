@@ -2620,7 +2620,7 @@ void GeniusDevicesService::_runEntityIdRename(bool background)
         auto it = _haDevices.find(deviceId);
         if (it != _haDevices.end() && it->second.device != nullptr)
         {
-            it->second.device->unpublishAll(1);
+            it->second.device->unpublishAll(1, true); // republished right after: keep the states
             if (it->second.diagnostics)
                 it->second.diagnostics->unpublishAll(1, true);
             if (it->second.link)

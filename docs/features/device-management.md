@@ -362,6 +362,9 @@ To remove a detector from the system:
 !!! warning "Deletion is Permanent"
     Deleting a device removes all associated data including alarm history. This action cannot be undone. Consider exporting your configuration before deleting devices.
 
+!!! info "Home Assistant"
+    With the [Home Assistant integration](../setup/connections.md#home-assistant-integration) enabled, deleting a detector here also removes it from Home Assistant: the gateway clears its discovery configs and its retained states on the broker. Deleting the device in Home Assistant alone does not last - the gateway announces every detector it knows again on its next MQTT connect. The *area* Home Assistant created from the detector's location stays, see [Areas](../setup/connections.md#areas-in-home-assistant).
+
 ## Deleting All Detectors
 
 To remove every smoke detector from the system in one operation:

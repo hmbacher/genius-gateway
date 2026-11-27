@@ -65,7 +65,7 @@ void HADevice::publishAll()
     }
 }
 
-void HADevice::unpublishAll(int qos)
+void HADevice::unpublishAll(int qos, bool keepState)
 {
     if (_haService == nullptr || !_haService->isReady())
         return;
@@ -85,6 +85,11 @@ void HADevice::unpublishAll(int qos)
         String configTopic = _haService->getDiscoveryPrefix() + entity->component() +
                              "/" + _identity.id + "/" + entity->objectId() + "/config";
         _haService->publish(configTopic, String(), qos, true, false);
+
+        // Its retained state would otherwise stay on the broker after the device is gone
+        const String stateTopic = keepState ? String() : entity->stateTopic();
+        if (!stateTopic.isEmpty())
+            _haService->publish(stateTopic, String(), qos, true, false);
     }
 }
 

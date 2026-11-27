@@ -84,6 +84,12 @@ public:
      */
     virtual void publishAll() = 0;
 
+    /**
+     * Absolute state topic of this entity, empty for an entity without one (a button). HADevice
+     * clears it when the entity is removed, so no retained state outlives its entity.
+     */
+    virtual String stateTopic() const { return String(); }
+
     // ========================================================================
     // Typed common-field setters (chainable)
     //

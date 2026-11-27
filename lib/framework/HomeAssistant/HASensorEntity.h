@@ -55,6 +55,8 @@ public:
 
     void publishAll() override;
 
+    String stateTopic() const override { return _stateTopicAbs(); }
+
     /** Re-publish current state without re-sending the discovery config. */
     void publishState();
 
