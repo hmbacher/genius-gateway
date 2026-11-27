@@ -4,7 +4,9 @@
 	import type { Action } from 'svelte/action';
 	import { fly } from 'svelte/transition';
 	import type { AlarmLine } from '$lib/types/models';
-	import { AlarmLineAcquisition } from '$lib/types/enums';
+	import { AlarmLineAcquisition, AlarmLineCodeSource } from '$lib/types/enums';
+	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
+	import { LINE_SETTING_CODES, detectorLineCodes, isValidLineCode, lineCodeText } from '$lib/genius/line';
 	import FieldError from '$lib/components/FieldError.svelte';
 	import { inRange, hasLength } from '$lib/utils/validators';
 	import Cancel from '~icons/tabler/x';
@@ -39,6 +41,35 @@
 	let alarmLine = $state(_alarmLine);
 
 	const _orgID = $state.snapshot(alarmLine.id);
+
+	// Line setting: -1 = automatic (from the smoke detectors), otherwise a line code. A setting taken
+	// from a radio packet stays one as long as it is not changed here.
+	const _orgSource = alarmLine.lineCodeSource ?? AlarmLineCodeSource.Automatic;
+	const _orgCode = alarmLine.lineCode;
+	const _orgFixed =
+		_orgSource !== AlarmLineCodeSource.Automatic && _orgCode !== undefined && isValidLineCode(_orgCode);
+	let lineSetting = $state<number>(_orgFixed ? (_orgCode as number) : -1);
+
+	const automaticText = $derived.by(() => {
+		const codes = detectorLineCodes(_orgID, geniusDevices.devices);
+		if (codes.length === 0) return 'A.0 (not known from the smoke detectors)';
+		if (codes.length > 1)
+			return `${lineCodeText(codes[0])} (smoke detectors set differently: ${codes.map(lineCodeText).join(', ')})`;
+		return `${lineCodeText(codes[0])} (from the smoke detectors)`;
+	});
+
+	function applyLineSetting() {
+		if (lineSetting < 0) {
+			alarmLine.lineCodeSource = AlarmLineCodeSource.Automatic;
+			alarmLine.lineCode = undefined;
+		} else if (_orgSource === AlarmLineCodeSource.Packet && lineSetting === _orgCode) {
+			alarmLine.lineCodeSource = AlarmLineCodeSource.Packet; // unchanged
+			alarmLine.lineCode = lineSetting;
+		} else {
+			alarmLine.lineCodeSource = AlarmLineCodeSource.Manual;
+			alarmLine.lineCode = lineSetting;
+		}
+	}
 
 	const minID = 0x00000001;
 	const maxID = 0xfffffffe;
@@ -94,6 +125,7 @@
 				class="fieldset"
 				onsubmit={(e) => {
 					e.preventDefault();
+					applyLineSetting();
 					onSaveAlarmLine(alarmLine);
 				}}
 				novalidate
@@ -142,6 +174,26 @@
 							id="AlarmLineName"
 						/>
 						<FieldError show={nameError} message="Please set a name of length between {minNameLength} and {maxNameLength} characters." />
+					</div>
+					<div class="flex-1">
+						<label class="label" for="AlarmLineSetting">Line Setting</label>
+						<select class="select select-bordered w-full" id="AlarmLineSetting" bind:value={lineSetting}>
+							<option value={-1}>Automatic - {automaticText}</option>
+							{#each LINE_SETTING_CODES as code}
+								<option value={code}
+									>{lineCodeText(code)}{_orgSource === AlarmLineCodeSource.Packet && code === _orgCode
+										? ' (from a radio packet)'
+										: ''}</option
+								>
+							{/each}
+						</select>
+						<label for="AlarmLineSetting" class="label">
+							<span class="text-wrap pl-1">
+								The line the radio modules are set to with their rotary switches. Line test, fire alarm and
+								commissioning are sent for it - modules set to another line ignore them. FM Basis X is
+								fixed to A.0.
+							</span>
+						</label>
 					</div>
 				</div>
 

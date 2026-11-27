@@ -8,7 +8,7 @@
 	import { page } from '$app/state';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import type { AlarmLines, AlarmLine } from '$lib/types/models';
-	import { AlarmLineAcquisition, GeniusDeviceRegistration } from '$lib/types/enums';
+	import { AlarmLineAcquisition } from '$lib/types/enums';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { onMount, onDestroy } from 'svelte';
@@ -37,6 +37,7 @@
 	import Microphone from '~icons/tabler/microphone';
 	import Radar from '~icons/tabler/radar';
 	import SpinnerSmall from '$lib/components/SpinnerSmall.svelte';
+	import { resolveLineSetting, lineSettingClass } from '$lib/genius/line';
 
 	const BROADCAST_ID = 0xffffffff; // 4294967295
 
@@ -75,8 +76,8 @@
 	// aligned, since each row renders its own independent grid.
 	let gridColsClass = $derived(
 		hasXSeriesHardware
-			? 'grid-cols-[90px_minmax(0,1fr)_minmax(0,1.5fr)_72px_minmax(0,1.25fr)_68px]'
-			: 'grid-cols-[90px_minmax(0,1fr)_72px_minmax(0,1.25fr)_68px]'
+			? 'grid-cols-[90px_minmax(0,1fr)_minmax(0,1.5fr)_72px_72px_minmax(0,1.25fr)_68px]'
+			: 'grid-cols-[90px_minmax(0,1fr)_72px_72px_minmax(0,1.25fr)_68px]'
 	);
 
 	let isActionActive = $derived(
@@ -549,6 +550,14 @@
 											<span class="text-lg font-bold truncate min-w-0">{line.name}</span>
 											<div class="flex items-center gap-2 shrink-0">
 												<span class="text-base text-base-content/40 shrink-0">#{line.id}</span>
+												{#if line.id !== BROADCAST_ID && geniusDevices.isLoaded}
+													{@const ls = resolveLineSetting(line, geniusDevices.devices)}
+													<div class="tooltip tooltip-top" data-tip={ls.tooltip}>
+														<span class="{lineSettingClass(ls)} whitespace-nowrap" data-testid="line-setting-mobile"
+															>{ls.label}</span
+														>
+													</div>
+												{/if}
 												{#if line.id !== BROADCAST_ID}
 													{#if line.acquisition === AlarmLineAcquisition.Manual}
 														<div class="tooltip tooltip-top" data-tip="Manually added alarm line">
@@ -587,9 +596,7 @@
 												{:else}
 													{@const locations = geniusDevices.devices
 														.filter(
-															(d) =>
-																d.registration === GeniusDeviceRegistration.Acoustic &&
-																d.radioModule.lineId === line.id
+															(d) => d.radioModule.lineId === line.id
 														)
 														.map((d) => d.location)
 														.join(', ')}
@@ -756,6 +763,24 @@
 										</span>
 									</div>
 								{/if}
+								<div class="text-center">
+									Line
+									<span class="whitespace-nowrap">
+										Setting
+										<InfoPopover class="align-middle" label="About the line setting">
+											<p>
+												The line the radio modules of this alarm line are set to with their rotary switches, for
+												example <em>A.3</em> (Hekatron: <em>Linie</em>). Line test, fire alarm and commissioning are
+												sent for it: radio modules set to another line ignore them. <em>FM Basis X</em> modules are
+												fixed to A.0.
+											</p>
+											<p class="mt-2">
+												It comes from the smoke detectors of the line unless it is set by hand or taken from the radio
+												packet that added the line - see <em>Edit</em>.
+											</p>
+										</InfoPopover>
+									</span>
+								</div>
 								<div class="text-center">Acquisition</div>
 								<div class="text-center">Line Actions</div>
 								<div class="text-center">Manage</div>
@@ -782,9 +807,7 @@
 													{:else}
 														{@const locations = geniusDevices.devices
 															.filter(
-																(d) =>
-																	d.registration === GeniusDeviceRegistration.Acoustic &&
-																	d.radioModule.lineId === line.id
+																(d) => d.radioModule.lineId === line.id
 															)
 															.map((d) => d.location)
 															.join(', ')}
@@ -794,6 +817,18 @@
 													{/if}
 												</div>
 											{/if}
+											<div class="flex justify-center">
+												{#if line.id !== BROADCAST_ID}
+													{#if !geniusDevices.isLoaded}
+														<SpinnerSmall />
+													{:else}
+														{@const ls = resolveLineSetting(line, geniusDevices.devices)}
+														<div class="tooltip tooltip-top" data-tip={ls.tooltip}>
+															<span class="{lineSettingClass(ls)} whitespace-nowrap" data-testid="line-setting">{ls.label}</span>
+														</div>
+													{/if}
+												{/if}
+											</div>
 											<div class="flex justify-center">
 												{#if line.id != BROADCAST_ID}
 													{#if line.acquisition === AlarmLineAcquisition.Manual}

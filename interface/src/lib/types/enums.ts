@@ -16,6 +16,16 @@ export enum AlarmLineAcquisition {
   SignalProbe,
 }
 
+// From AlarmLinesService.h
+export enum AlarmLineCodeSource {
+  /** /< From the smoke detectors of the line; A.0 when they do not tell it */
+  Automatic = 0,
+  /** /< Set by hand */
+  Manual = 1,
+  /** /< Taken from a radio packet of the line (the one that added it, or the first one) */
+  Packet = 2,
+}
+
 // From cc1101.h
 export enum Cc1101Mode {
   Idle = 0,
