@@ -226,18 +226,18 @@ export function resolveLineSetting(line: AlarmLine, devices: GeniusDevice[]): Re
 		const codes = [...new Set(mismatched.map((m) => m.code))].map(lineCodeText).join(', ');
 		tooltip =
 			n === 1
-				? `Differs from the line of 1 smoke detector of this alarm line (${codes}) - it does not react.`
-				: `Differs from the line of ${n} smoke detectors of this alarm line (${codes}) - they do not react.`;
+				? `Differs from the line of 1 smoke detector of this alarm line (${codes}) - it does not react`
+				: `Differs from the line of ${n} smoke detectors of this alarm line (${codes}) - they do not react`;
 	} else if (source === 'manual') {
-		tooltip = 'Set by hand.';
+		tooltip = 'Set by hand';
 	} else if (source === 'packet') {
-		tooltip = 'Taken from a radio packet of this line.';
+		tooltip = 'Taken from a radio packet of this line';
 	} else if (source === 'detectors' && !rotary && code === LINE_CODE_A0) {
-		tooltip = 'FM Basis X - fixed to A.0.';
+		tooltip = 'FM Basis X - fixed to A.0';
 	} else if (source === 'detectors') {
-		tooltip = 'From the smoke detectors of this line.';
+		tooltip = 'From the smoke detectors of this line';
 	} else {
-		tooltip = 'Not known from the smoke detectors of this line - A.0 is used.';
+		tooltip = 'Not known from the smoke detectors of this line - A.0 is used';
 	}
 	return { code, source, detectorCodes, rotary, mismatched, emphasized, label: lineCodeText(code), tooltip };
 }
@@ -245,8 +245,11 @@ export function resolveLineSetting(line: AlarmLine, devices: GeniusDevice[]): Re
 /** CSS classes of the line setting on the Alarm Lines page. */
 export function lineSettingClass(ls: ResolvedLineSetting): string {
 	if (ls.mismatched.length > 0) return 'badge badge-warning badge-sm font-semibold';
-	if (ls.emphasized) return 'badge badge-neutral badge-sm font-semibold';
-	return 'text-base-content/40';
+	if (!ls.emphasized) return 'text-base-content/40';
+	// The colour tells where it comes from: detectors black, by hand primary, packet secondary
+	if (ls.source === 'manual') return 'badge badge-primary badge-sm font-semibold';
+	if (ls.source === 'packet') return 'badge badge-secondary badge-sm font-semibold';
+	return 'badge badge-neutral badge-sm font-semibold';
 }
 
 /**

@@ -81,8 +81,8 @@
 	// aligned, since each row renders its own independent grid.
 	let gridColsClass = $derived(
 		hasXSeriesHardware
-			? 'grid-cols-[90px_minmax(0,1fr)_minmax(0,1.5fr)_72px_56px_minmax(0,1.25fr)_68px]'
-			: 'grid-cols-[90px_minmax(0,1fr)_72px_56px_minmax(0,1.25fr)_68px]'
+			? 'grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_104px_52px_172px_68px]'
+			: 'grid-cols-[minmax(0,1fr)_104px_52px_172px_68px]'
 	);
 
 	let isActionActive = $derived(
@@ -561,9 +561,12 @@
 												{#if line.id !== BROADCAST_ID && geniusDevices.isLoaded}
 													{@const ls = resolveLineSetting(line, geniusDevices.devices)}
 													<div class="tooltip tooltip-top" data-tip={ls.tooltip}>
-														<span class="{lineSettingClass(ls)} whitespace-nowrap" data-testid="line-setting-mobile"
-															>{ls.label}</span
-														>
+														{#if ls.mismatched.length > 0}<span class="indicator"
+															><span
+																class="indicator-item badge badge-neutral badge-xs h-4 min-w-4 rounded-full px-1 text-[10px]"
+																data-testid="line-setting-count">{ls.mismatched.length}</span
+															><span class="{lineSettingClass(ls)} whitespace-nowrap" data-testid="line-setting-mobile">{ls.label}</span></span
+														>{:else}<span class="{lineSettingClass(ls)} whitespace-nowrap" data-testid="line-setting-mobile">{ls.label}</span>{/if}
 													</div>
 												{/if}
 												{#if line.id !== BROADCAST_ID}
@@ -605,7 +608,7 @@
 													{@const lineDevices = geniusDevices.devices.filter((d) => d.radioModule.lineId === line.id)}
 													{@const ls = resolveLineSetting(line, geniusDevices.devices)}
 													{#if lineDevices.length > 0}
-														{#each lineDevices as d, i}{d.location}{#if detectorLineBadge(ls, d)}{@const b = detectorLineBadge(ls, d)}<span class="{b?.cls} ml-1 align-middle" data-testid="detector-line-badge">{b?.text}</span>{/if}{#if i < lineDevices.length - 1}{', '}{/if}{/each}
+														{#each lineDevices as d, i}{d.location}{#if detectorLineBadge(ls, d)}{@const b = detectorLineBadge(ls, d)}<span class="{b?.cls} relative -top-px ml-1 align-middle" data-testid="detector-line-badge">{b?.text}</span>{/if}{#if i < lineDevices.length - 1}{', '}{/if}{/each}
 													{:else}
 														<span class="inline-flex items-center gap-1">
 															<span class="italic text-base-content/40">No devices</span>
@@ -750,7 +753,6 @@
 							<div
 								class="grid {gridColsClass} gap-x-3 items-center border-b border-base-content/5 px-3 py-3 text-sm font-semibold text-base-content/60"
 							>
-								<div class="text-left">ID</div>
 								<div class="text-left">Name</div>
 								{#if hasXSeriesHardware}
 									<div class="text-left" transition:fade={{ duration: 150 }}>
@@ -767,10 +769,9 @@
 										</span>
 									</div>
 								{/if}
-								<div class="text-center">
-									Line
-									<span class="whitespace-nowrap">
-										Setting
+								<div class="text-center whitespace-nowrap">
+									<span>
+										Line Setting
 										<InfoPopover class="align-middle" label="About the line setting">
 											<p>
 												The line the radio modules of this alarm line are set to with their rotary switches, for
@@ -779,12 +780,6 @@
 											<p class="mt-2">
 												Line test, fire alarm and commissioning are sent for this line. Radio modules set to another
 												line ignore them.
-											</p>
-											<p class="mt-2">
-												It comes from the smoke detectors of the line unless it is set by hand or taken from a radio
-												packet - see <em>Edit</em>. <span class="text-base-content/50">Grey</span>: it does not matter
-												here, or it is not known and A.0 is used. <span class="badge badge-warning badge-xs">Yellow</span>:
-												smoke detectors of the line are set to another line - they carry a badge with their line.
 											</p>
 										</InfoPopover>
 									</span>
@@ -798,15 +793,13 @@
 								{#each alarmLines.lines as line, index}
 									{#if line.id !== BROADCAST_ID || (line.id === BROADCAST_ID && page.data.features.allow_broadcast)}
 										<div class="grid {gridColsClass} gap-x-3 items-center px-3 py-3 text-sm">
-											<div class="text-left {line.id === BROADCAST_ID ? 'text-base-content/50' : ''}">
-												{line.id}
-											</div>
 											<div
 												class="min-w-0 break-words text-left {line.id === BROADCAST_ID
 													? 'text-base-content/50'
 													: ''}"
 											>
-												{line.name}
+												<div>{line.name}</div>
+												<div class="text-xs text-base-content/50">#{line.id}</div>
 											</div>
 											{#if hasXSeriesHardware}
 												<div class="min-w-0 break-words text-left" transition:fade={{ duration: 150 }}>
@@ -816,7 +809,7 @@
 														{@const lineDevices = geniusDevices.devices.filter((d) => d.radioModule.lineId === line.id)}
 														{@const ls = resolveLineSetting(line, geniusDevices.devices)}
 														{#if lineDevices.length > 0}
-															<span>{#each lineDevices as d, i}{d.location}{#if detectorLineBadge(ls, d)}{@const b = detectorLineBadge(ls, d)}<span class="{b?.cls} ml-1 align-middle" data-testid="detector-line-badge">{b?.text}</span>{/if}{#if i < lineDevices.length - 1}{', '}{/if}{/each}</span>
+															<span>{#each lineDevices as d, i}{d.location}{#if detectorLineBadge(ls, d)}{@const b = detectorLineBadge(ls, d)}<span class="{b?.cls} relative -top-px ml-1 align-middle" data-testid="detector-line-badge">{b?.text}</span>{/if}{#if i < lineDevices.length - 1}{', '}{/if}{/each}</span>
 														{:else}
 															<span class="flex justify-center">-</span>
 														{/if}
@@ -830,7 +823,12 @@
 													{:else}
 														{@const ls = resolveLineSetting(line, geniusDevices.devices)}
 														<div class="tooltip tooltip-top" data-tip={ls.tooltip}>
-															<span class="{lineSettingClass(ls)} whitespace-nowrap" data-testid="line-setting">{ls.label}</span>
+															{#if ls.mismatched.length > 0}<span class="indicator"
+																><span
+																	class="indicator-item badge badge-neutral badge-xs h-4 min-w-4 rounded-full px-1 text-[10px]"
+																	data-testid="line-setting-count">{ls.mismatched.length}</span
+																><span class="{lineSettingClass(ls)} whitespace-nowrap" data-testid="line-setting">{ls.label}</span></span
+															>{:else}<span class="{lineSettingClass(ls)} whitespace-nowrap" data-testid="line-setting">{ls.label}</span>{/if}
 														</div>
 													{/if}
 												{/if}
@@ -865,7 +863,7 @@
 													{/if}
 												{/if}
 											</div>
-											<div class="flex flex-wrap items-center justify-end gap-y-1">
+											<div class="flex flex-nowrap items-center justify-center">
 												<!-- Group: Commissioning -->
 												{#if !activeActions.commissioningStart[index]}
 													<div class="tooltip tooltip-left" data-tip="Start commissioning">
