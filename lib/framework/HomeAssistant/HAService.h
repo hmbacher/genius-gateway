@@ -191,6 +191,20 @@ public:
     /** @brief Get the MQTT client */
     PsychicMqttClient *getMqttClient() const { return _mqttClient; }
 
+    /**
+     * @brief Tell the service which topic says whether this device is connected.
+     *
+     * The MQTT status topic: retained "online" while connected, "offline" when the device
+     * disconnects - set by the broker as the last will if the device just disappears. Every
+     * discovery config gets it as availability, see addDeviceAvailability().
+     *
+     * @param provider Returns the topic; asked at every config publish, so a changed topic is picked up
+     */
+    void setStatusTopicProvider(std::function<String()> provider) { _statusTopicProvider = std::move(provider); }
+
+    /** @brief The MQTT status topic of this device, empty if none was set (see setStatusTopicProvider) */
+    String getStatusTopic() const { return _statusTopicProvider ? _statusTopicProvider() : String(); }
+
     // ========================================================================
     // MQTT Discovery helpers
     // ========================================================================
@@ -218,6 +232,22 @@ public:
      * @return true if publish succeeded
      */
     bool publishConfig(const String &component, const String &objectId, JsonDocument &config);
+
+    /**
+     * @brief Make an entity unavailable in Home Assistant while this device is offline.
+     *
+     * Adds the MQTT status topic to the availability of a discovery config. Without it Home
+     * Assistant keeps showing the last state of an entity when the device has lost its
+     * connection or has died. An availability the entity brings along is kept: the entity is
+     * available only if the device is online and its own condition holds
+     * (availability_mode "all"). A single availability_topic is moved into the availability
+     * list for that, as Home Assistant accepts only one of the two forms.
+     *
+     * Left alone: an entity whose state topic is the status topic itself - it is the one that
+     * shows "offline". No-op while no status topic is known. Called by publishConfig() of the
+     * service and of HADevice, so every entity is covered.
+     */
+    void addDeviceAvailability(JsonDocument &config) const;
 
     /**
      * @brief Clear the pre-v1.6.0 discovery config topic for an entity.
@@ -444,6 +474,7 @@ public:
 
 private:
     PsychicMqttClient *_mqttClient;
+    std::function<String()> _statusTopicProvider; ///< MQTT status topic (last will), see setStatusTopicProvider()
 
     // Device identity
     String _deviceId;
