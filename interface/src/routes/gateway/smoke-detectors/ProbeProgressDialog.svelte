@@ -5,6 +5,7 @@
 	import type { ConfigCheckResponder, ConfigCheckProbeEvent } from '$lib/types/models';
 	import { socket } from '$lib/stores/socket';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
+	import { isOldFmModule } from '$lib/genius/line';
 	import SignalIndicator from './SignalIndicator.svelte';
 	import Radar from '~icons/tabler/radar';
 	import RadarSweep from '~icons/tabler/radar-2';
@@ -118,6 +119,11 @@
 	}
 
 	const titleId = `probe-progress-title-${Math.random().toString(36).slice(2)}`;
+
+	// Old FM Basis / FM Pro modules never answer the probe: their silence is no finding.
+	const oldModuleCount = $derived(
+		geniusDevices.devices.filter((d) => isOldFmModule(d.radioModule?.model)).length
+	);
 
 	type Heard = { known: boolean; r: ConfigCheckResponder; at: Date };
 	// Keyed by serial so repeated sightings of the same module update in place.
@@ -249,6 +255,19 @@
 					>
 						<Stop class="h-5 w-5" /> {stopping ? 'Stopping…' : 'Stop'}
 					</button>
+				</div>
+			{/if}
+
+			{#if oldModuleCount > 0}
+				<div
+					class="alert alert-info alert-soft mt-2 gap-2 p-3 text-start text-sm"
+					data-testid="probe-old-modules"
+				>
+					<span>
+						{oldModuleCount} registered smoke detector{oldModuleCount === 1 ? ' has' : 's have'} an
+						FM Basis / FM Pro radio module. These modules do not answer the range test - no answer
+						from them says nothing about their radio link.
+					</span>
 				</div>
 			{/if}
 

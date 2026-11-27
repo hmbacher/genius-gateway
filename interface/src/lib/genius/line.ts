@@ -1,10 +1,12 @@
 /**
  * Alarm-line semantics for FM radio modules.
  *
- * Old-generation modules (FM.Basis / FM.Pro) cannot expose a trustworthy alarm
- * line via the acoustic readout or radio packets, so the line must be entered by
- * hand - mirroring the official Hekatron app (SmartSonicValidationService.isOldFm /
+ * Old-generation modules (FM.Basis / FM.Pro) give no alarm line in an acoustic
+ * readout, so the position of their rotary switches (the line label, e.g. A.1) is
+ * entered by hand - mirroring the official Hekatron app (SmartSonicValidationService.isOldFm /
  * isManualLineEntryRequired, AddDeviceManualLineEntryFragment.setHLineEnabled).
+ * The 32-bit alarm line ID is a different thing: old modules have one as well, and
+ * the gateway takes it over from the radio packets of the module.
  *
  * Line-validity rules come from the FM Basis X / Pro X manual (§"Linienübersicht").
  * Keep this in sync with src/GeniusDevicesService.h (isOldFmModule / line clamps).
@@ -22,7 +24,7 @@ export function isManualLineEntryRequired(model: number | undefined): boolean {
 	return isOldFmModule(model);
 }
 
-/** True iff the module exposes its alarm line automatically (FM.MCP, FM.Basis X, FM.Pro X). */
+/** True iff an acoustic readout or a range test gives the alarm line of the module (FM.MCP, FM.Basis X, FM.Pro X). */
 export function hasAutomaticLineDetection(model: number | undefined): boolean {
 	return (
 		model !== undefined &&

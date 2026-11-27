@@ -812,10 +812,13 @@ void GeniusDevicesService::_syncRuntimeTable()
     // Which detectors have a radio module that takes part in the radio link supervision.
     // The criterion is the stored module model - from a readout or entered by hand.
     std::vector<ModuleRuntime> wanted;
+    std::vector<ModuleLine> lines; // every module with its alarm line, for learnAlarmLine()
 
     beginTransaction();
     for (const GeniusDevice &device : _state.devices)
     {
+        if (device.radioModule.sn != 0)
+            lines.push_back({device.radioModule.sn, device.radioModule.lineId});
         if (device.radioModule.model != GRM_FM_PRO_X || device.radioModule.sn == 0)
             continue;
         ModuleRuntime entry;
@@ -841,6 +844,7 @@ void GeniusDevicesService::_syncRuntimeTable()
     }
     _runtime = std::move(wanted);
     _runtimeAny = !_runtime.empty();
+    _moduleLines = std::move(lines);
     xSemaphoreGive(_runtimeMutex);
 }
 
@@ -1044,6 +1048,66 @@ bool GeniusDevicesService::isRadioModuleKnown(uint32_t radioModuleSN)
     return found;
 }
 
+bool GeniusDevicesService::learnAlarmLine(uint32_t originModuleSN, uint32_t senderModuleSN, uint32_t lineId)
+{
+    if (originModuleSN == 0 || lineId == 0 || lineId == 0xFFFFFFFFu)
+        return false;
+
+    // Reception task: most packets come from a module whose alarm line is known and unchanged.
+    // That is settled on the RAM table, without the state mutex.
+    bool candidate = false;
+    xSemaphoreTake(_runtimeMutex, portMAX_DELAY);
+    for (const ModuleLine &entry : _moduleLines)
+    {
+        if (entry.moduleSn != originModuleSN)
+            continue;
+        // An alarm line that is known gives way only to a packet the module sent itself
+        candidate = entry.lineId != lineId && (entry.lineId == 0 || senderModuleSN == originModuleSN);
+        break;
+    }
+    xSemaphoreGive(_runtimeMutex);
+    if (!candidate)
+        return false;
+
+    uint32_t deviceId = 0;
+    uint32_t previous = 0;
+    String location;
+    beginTransaction();
+    for (GeniusDevice &device : _state.devices)
+    {
+        if (device.radioModule.sn != originModuleSN)
+            continue;
+        // Checked again under the lock: the device may have changed since the table was built
+        if (device.radioModule.lineId != lineId && (device.radioModule.lineId == 0 || senderModuleSN == originModuleSN))
+        {
+            previous = device.radioModule.lineId;
+            device.radioModule.lineId = lineId;
+            deviceId = device.id;
+            location = device.location;
+        }
+        break;
+    }
+    endTransaction();
+
+    if (deviceId == 0)
+        return false;
+
+    if (previous == 0)
+        ESP_LOGI(GeniusDevices::TAG, "Alarm line of smoke detector '%s' learned from a packet of its radio module %lu: %lu.",
+                 location.c_str(), (unsigned long)originModuleSN, (unsigned long)lineId);
+    else
+        ESP_LOGI(GeniusDevices::TAG, "Alarm line of smoke detector '%s' changed from %lu to %lu (packet of its radio module %lu).",
+                 location.c_str(), (unsigned long)previous, (unsigned long)lineId, (unsigned long)originModuleSN);
+
+    callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, rebuild the RAM table, notify front end
+
+    // HA: the alarm line ID is an attribute of the detector
+    beginTransaction();
+    _publishSmokeDetectorAttributes(deviceId);
+    endTransaction();
+    return true;
+}
+
 bool GeniusDevicesService::updateRadioModuleRssi(uint32_t radioModuleSN, int8_t rssi, time_t when)
 {
     bool updated = false;
@@ -1070,6 +1134,8 @@ uint32_t GeniusDevicesService::markRadioModulesUnreached(const std::vector<uint3
     {
         if (device.radioModule.sn == 0)
             continue; // no radio module to range-test
+        if (isOldFmModule(device.radioModule.model))
+            continue; // these modules never answer the probe: their silence is no finding
 
         bool wasReached = false;
         for (uint32_t sn : reached)

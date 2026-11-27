@@ -163,6 +163,7 @@
 					<SignalIndicator
 						rssi={device.radioModule.rssi}
 						lastRangeTest={device.radioModule.lastRangeTest}
+						unsupported={isOldFmModule(device.radioModule.model)}
 					/>
 				</div>
 			{/if}
@@ -373,6 +374,7 @@
 				<SignalIndicator
 					rssi={device.radioModule.rssi}
 					lastRangeTest={device.radioModule.lastRangeTest}
+					unsupported={isOldFmModule(device.radioModule.model)}
 				/>
 			{/if}
 		</div>

@@ -562,6 +562,26 @@ public:
     bool updateRadioModuleRssi(uint32_t radioModuleSN, int8_t rssi, time_t when);
 
     /**
+     * @brief Learn the alarm line of a registered smoke detector from a packet of its radio module.
+     *
+     * Every packet names the alarm line of the module it comes from. Old radio modules
+     * (FM Basis / FM Pro) give no alarm line in an acoustic readout and do not answer the
+     * range test, so their packets are the only source; for the other modules the packets
+     * keep the alarm line current after a new commissioning.
+     *
+     * A detector without an alarm line takes it from any packet of its module. An alarm line
+     * that is already known is only replaced by a packet the module transmitted itself
+     * (@p senderModuleSN equals @p originModuleSN), not by a copy another module forwarded.
+     * The line IDs 0 (unassigned) and 0xFFFFFFFF (broadcast) are ignored.
+     *
+     * Cheap for the reception task: the comparison runs on a RAM table, the devices are only
+     * touched when the alarm line really changes.
+     *
+     * @return true if the alarm line of a detector was set or changed
+     */
+    bool learnAlarmLine(uint32_t originModuleSN, uint32_t senderModuleSN, uint32_t lineId);
+
+    /**
      * @brief Stamp every known radio module NOT in @p reached as "range-tested, no response":
      *        rssi = 0 (sentinel), lastRangeTest = @p when. RAM only - call persistRssiSurvey()
      *        afterwards. Devices without a radio module (sn == 0) are skipped.
@@ -715,6 +735,14 @@ private:
 
     /// Bring _runtime in line with the device list: one entry per detector with an FM Pro X module
     void _syncRuntimeTable();
+
+    /// Radio module -> alarm line of the registered detectors, a RAM copy for learnAlarmLine()
+    struct ModuleLine
+    {
+        uint32_t moduleSn;
+        uint32_t lineId;
+    };
+    std::vector<ModuleLine> _moduleLines; ///< Rebuilt with the runtime table; guarded by _runtimeMutex
 
     /// Copy the runtime entry of a detector; false if it has none
     bool _runtimeOf(uint32_t deviceId, ModuleRuntime &out);

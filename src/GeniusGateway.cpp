@@ -806,6 +806,28 @@ void GeniusGateway::_rx_packets()
                             xTaskNotify(_alarmEventTaskHandle, EVENT_TASK_DEVICE_RUNTIME, eSetBits);
                         }
 
+                        // A packet names the alarm line of the module it comes from; a registered
+                        // detector takes it over. Left out: the frames whose line field is not the
+                        // originator's own line - commissioning (the line is being assigned) and
+                        // the probe requests and commissioning probes (addressed to every line).
+                        switch (packet_details.type)
+                        {
+                        case HPT_STATUS_CHANGE:
+                        case HPT_LINE_TEST_START:
+                        case HPT_LINE_TEST_STOP:
+                        case HPT_NETWORK_TEST_START:
+                        case HPT_CONFIG_CHECK_PROBE_RESPONSE:
+                        case HPT_SUPERVISION_SERIES:
+                        case HPT_MODULE_MISSING:
+                        case HPT_SUPERVISION_ROLL_CALL:
+                        case HPT_MODULE_PRESENT:
+                        case HPT_LINE_CLOCK:
+                            _geniusDevices.learnAlarmLine(packet_details.origin_id, packet_details.sender_id, packet_details.line_id);
+                            break;
+                        default:
+                            break;
+                        }
+
                         if (packet_details.type == HPT_COMMISSIONING)
                         {
                             /* Store new alarm line id */

@@ -13,15 +13,20 @@
 		rssi?: number;
 		/** Timestamp of the last range test this module was included in. Undefined = never tested. */
 		lastRangeTest?: Date;
+		/** The module does not answer the range test at all (old FM Basis / FM Pro). */
+		unsupported?: boolean;
 	}
 
-	let { rssi, lastRangeTest }: Props = $props();
+	let { rssi, lastRangeTest, unsupported = false }: Props = $props();
 
-	// Three states surfaced to the list:
+	// A module that cannot answer says nothing about its range, whatever was stored for it:
+	//  'unsupported'                                                               → radar-off
+	// Otherwise three states surfaced to the list:
 	//  'untested'  - never included in a range test        (lastRangeTest unset)   → radar-off
 	//  'unreached' - tested but no response (out of range) (tested, rssi 0)        → wifi-off
 	//  'reached'   - direct link measured                  (tested, rssi < 0)      → wifi-N (success)
 	const state = $derived.by(() => {
+		if (unsupported) return 'unsupported';
 		if (lastRangeTest === undefined) return 'untested';
 		return rssi !== undefined && rssi < 0 ? 'reached' : 'unreached';
 	});
@@ -45,6 +50,8 @@
 				return `${rssi} dBm (${qualityLabel}) · ${formatDate(lastRangeTest!)}`;
 			case 'unreached':
 				return `Out of direct range`;
+			case 'unsupported':
+				return 'FM Basis / FM Pro modules do not answer the range test';
 			default:
 				return 'Not range-tested yet, run a device discovery';
 		}
