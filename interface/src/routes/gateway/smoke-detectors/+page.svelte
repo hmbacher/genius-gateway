@@ -582,8 +582,9 @@
 			dirtForecastNegative: data.dirtForecastNegative
 		};
 		// Old FM modules (FM.Basis / FM.Pro) transmit lineId == 0 and an unreliable
-		// line byte over SmartSonic - the line must be entered by hand, so we do not
-		// trust the readout's line fields for them (see lib/genius/line.ts).
+		// line byte over SmartSonic, so the readout's line fields are not used for them
+		// (see lib/genius/line.ts). The alarm line ID comes from their radio packets, the
+		// rotary position is entered by hand.
 		const oldModule = isOldFmModule(data.radioProductType);
 		const rm: GeniusRadioModuleInfo = {
 			model: data.radioProductType,
@@ -645,8 +646,9 @@
 	}
 
 	/**
-	 * Carry a previously manually-entered alarm line from `source` onto `target`'s old
-	 * FM module, but only when `source`'s radio module serial confirms it's the SAME
+	 * Carry the alarm line from `source` onto `target`'s old FM module - the ID the gateway
+	 * learned from the module's radio packets (a readout does not know it) and a manually
+	 * entered rotary position - but only when `source`'s radio module serial confirms it's the SAME
 	 * physical hardware. The rotary switch position is a property of the radio module,
 	 * not the smoke detector - it should follow the module (e.g. when it's matched on a
 	 * different / new device base), but must never leak onto an unrelated module just
@@ -654,12 +656,16 @@
 	 */
 	function preserveManualLineIfSameModule(target: GeniusDevice, source: GeniusDevice) {
 		if (
-			isOldFmModule(target.radioModule.model) &&
-			source.radioModule.lineManual &&
-			(source.radioModule.sn ?? 0) > 0 &&
-			source.radioModule.sn === target.radioModule.sn
+			!isOldFmModule(target.radioModule.model) ||
+			(source.radioModule.sn ?? 0) <= 0 ||
+			source.radioModule.sn !== target.radioModule.sn
 		) {
+			return;
+		}
+		if (!target.radioModule.lineId && source.radioModule.lineId) {
 			target.radioModule.lineId = source.radioModule.lineId;
+		}
+		if (source.radioModule.lineManual) {
 			target.radioModule.lineCharacter = source.radioModule.lineCharacter;
 			target.radioModule.lineNumber = source.radioModule.lineNumber;
 			target.radioModule.lineManual = source.radioModule.lineManual;

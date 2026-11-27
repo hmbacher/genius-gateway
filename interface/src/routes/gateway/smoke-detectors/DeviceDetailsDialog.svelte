@@ -594,7 +594,8 @@
 
 							{#if isOldModule}
 								<!-- Old FM modules expose only type + serial. Radio status, DIP and
-								     interference are unavailable, and the line is user-entered. -->
+								     interference are unavailable; the rotary position is user-entered, the
+								     alarm line ID is learned from the radio packets of the module. -->
 								<div class="divider my-1 mt-3 text-sm text-base-content/40">Alarm Line</div>
 								{@render alarmLineRows()}
 								<div class="alert alert-info alert-soft mt-3 gap-2 p-3">
@@ -602,6 +603,12 @@
 									<span class="text-sm">
 										FM.Basis / FM.Pro transmit only type and serial number - radio status, DIP
 										switches and interference are not available via acoustic readout.
+										{#if device.radioModule.lineId}
+											The alarm line ID was taken from a radio packet of the module.
+										{:else}
+											The alarm line ID is taken over from the next radio packet the gateway
+											receives from this module - an alarm, a status change or a line test.
+										{/if}
 									</span>
 								</div>
 							{:else if device.readoutTime}

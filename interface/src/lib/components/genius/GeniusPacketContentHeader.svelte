@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { Packet } from '$lib/types/models';
 	import { entityStyleSuffix } from '$lib/genius/entity';
+	import { lineCodeText } from '$lib/genius/line';
 	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
-	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
 	import IconWifi from '~icons/tabler/wifi';
 	import IconRing from '~icons/tabler/topology-ring-2';
 	import IconHops from '~icons/tabler/arrow-forward-up';
@@ -14,6 +14,9 @@
 	}
 
 	let { packet, showDetails = true }: Props = $props();
+
+	// Addressed radio module (offset 4-7): FF FF FF FF = all modules.
+	let toAllModules = $derived(packet.data.subarray(4, 8).every((b) => b === 0xff));
 </script>
 
 <GeniusPacketDataBlock {showDetails} data={packet.data.subarray(0, 1)} />
@@ -26,7 +29,25 @@
 		type: 'remaining-tx-time'
 	}}
 />
-<GeniusPacketRawBytes {showDetails} data={packet.data.subarray(3, 9)} />
+<!-- 3: line code (rotary position) of the addressed line -->
+<GeniusPacketDataBlock
+	{showDetails}
+	data={packet.data.subarray(3, 4)}
+	details={{ text: lineCodeText(packet.data[3]), type: 'line-code' }}
+/>
+<!-- 4..7: addressed radio module -->
+<GeniusPacketDataBlock
+	{showDetails}
+	data={packet.data.subarray(4, 8)}
+	endianess="big"
+	details={{ text: toAllModules ? 'All modules' : undefined }}
+/>
+<!-- 8: line code of the originator -->
+<GeniusPacketDataBlock
+	{showDetails}
+	data={packet.data.subarray(8, 9)}
+	details={{ text: lineCodeText(packet.data[8]), type: 'line-code' }}
+/>
 <GeniusPacketDataBlock
 	{showDetails}
 	data={packet.data.subarray(9, 13)}
@@ -37,7 +58,12 @@
 		type: 'serialnumber-radiomodule'.concat(entityStyleSuffix(packet.generalInfo?.firstLocation))
 	}}
 />
-<GeniusPacketDataBlock {showDetails} data={packet.data.subarray(13, 14)} />
+<!-- 13: line code of the forwarder -->
+<GeniusPacketDataBlock
+	{showDetails}
+	data={packet.data.subarray(13, 14)}
+	details={{ text: lineCodeText(packet.data[13]), type: 'line-code' }}
+/>
 <GeniusPacketDataBlock
 	{showDetails}
 	data={packet.data.subarray(14, 18)}

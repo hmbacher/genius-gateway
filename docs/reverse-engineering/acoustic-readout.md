@@ -126,7 +126,7 @@ Field| rs | RM-Serial   | Line-ID     | line| sw  | int |
 | 20 | 1 | `radioStateMask` | `u8` | Radio module link & fault flags. See [Radio State Mask](#radio-state-mask-byte-20). Only present if the radio module is fitted. |
 | 21–24 | 4 | `radioSerialNumber` | `u32` BE | Radio module serial number, big-endian. `0` = no radio module. |
 | 25–28 | 4 | `lineId` | `u32` BE | Alarm line identifier the detector is commissioned to. `0` = unassigned, `0xFFFFFFFF` = broadcast/global. |
-| 29 [7:4] | ½ | `lineCharacter` | `u4` → char | Maps `0..9` to `'A'..'J'`. Identifies the alarm-line letter. On an FM Pro X the first rotary switch; an FM Basis X reports `0` (A). |
+| 29 [7:4] | ½ | `lineCharacter` | `u4` → char | Maps `0..9` to `'A'..'J'`. Identifies the alarm-line letter. On an FM Pro X the first rotary switch; an FM Basis X reports `0` (A). Byte 29 as a whole is the [line code](protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis) the module transmits in every radio packet. |
 | 29 [3:0] | ½ | `lineNumber` | `u4` | Alarm-line numeric suffix (`0..15`). On an FM Pro X the second rotary switch; an FM Basis X reports `0`. |
 | 30 | 1 | `radioSwitchMask` | `u8` | DIP-switch / configuration bits. See [Radio Switch Mask](#radio-switch-mask-byte-30). |
 | 31 | 1 | `radioInterference` | `u8` | Interference level. The UI scales values `> 0` by 1/10 and renders the result as a percentage (so byte `25` → `2.5%`). |
@@ -187,8 +187,8 @@ These bits are the DIP switch of an FM Pro X module, passed on unchanged; an FM 
 |:---:|:----:|:---------|:---------|
 | 0 | `0x01` | `SuppressWarnings` | Local warning chirps are suppressed. |
 | 1 | `0x02` | `SuppressAlarms` | Local alarm output is suppressed. |
-| 2 | `0x04` | `SendCollectiveAlarm` | Module emits collective alarms to peers. |
-| 3 | `0x08` | `ReceiveCollectiveAlarm` | Module forwards collective alarms received from peers. |
+| 2 | `0x04` | `SendCollectiveAlarm` | Module emits collective alarms to peers, see [collective alarm lines](protocol-analysis.md#collective-alarm-lines). |
+| 3 | `0x08` | `ReceiveCollectiveAlarm` | Module accepts and forwards collective alarms of the lines paired with its own, see [collective alarm lines](protocol-analysis.md#collective-alarm-lines). |
 | 4 | `0x10` | `RadioLinkSupervision` | Periodic link-supervision heartbeats are enabled - see [Radio Link Supervision](protocol-analysis.md#radio-link-supervision). |
 | 5 | `0x20` | `ReducedTransmittingPower` | TX output is reduced (battery saving / regulatory). |
 

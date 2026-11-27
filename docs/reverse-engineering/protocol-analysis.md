@@ -67,9 +67,13 @@ The following table shows the 27 bytes large part of a packet that was recogniza
 
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 |
-Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | XX |
-Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   |
+Value (hex) | 02 | XX XX | XX | FF | FF | FF | FF | XX | XX XX XX XX | XX | XX XX XX XX | XX XX XX XX |  XX  | XX | XX | 00 | XX |
+Field            | Rem-TX | DL |      Dst-SN       | OL |   Org-SN    | FL |   Fwd-SN    |   Line-ID   | Hops |                   |
 ```
+
+`DL`, `OL` and `FL` are the [line codes](#line-addressing-fm-basis-x-vs-old-fm-basis) of the addressed line, the originator and the forwarder. The
+compact views of the single packets further down show `00` there - the line code A.0 of the FM Basis X modules they
+were captured from.
 
 #### Detailed explanation
 
@@ -79,19 +83,16 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 |:------:|:-----------------:|:-----:|:------|:--------------------|
 | 0 | 1 | `0x02` | | Unknown, seems to be constant |
 | 1-2 | 2 | `CC18 - 0000`<br>(`6.348 - 0`)<br>*little endian* | Rem-TX | **Remaining transmission time.** The radio module repeats every packet for a fixed time window; this field holds the remaining window time in module clock ticks (little-endian), reloaded on each repetition as `remaining = window - elapsed` and counted down toward ~0, at which point the module stops repeating. It is *not* a packet sequence number or counter - see [Repetition](#repetition). |
-| 3 | 1 | `0x00` / `0xFF` | | Address mode: `0x00` in normal (line-addressed) packets; `0xFF` marks a wildcard/broadcast packet such as the [ConfigCheckProbe request](#configcheckprobe). |
-| 4 | 1 | `0xFF` | | Unknown, seems to be constant |
-| 5 | 1 | `0xFF` | | Unknown, seems to be constant |
-| 6 | 1 | `0xFF` | | Unknown, seems to be constant |
-| 7 | 1 | `0xFF` | | Unknown, seems to be constant |
-| 8 | 1 | `0x00` | | Unknown, seems to be constant |
+| 3 | 1 | `XX` / `0xFF` | Dst-Line | **[Line code](#line-addressing-fm-basis-x-vs-old-fm-basis) of the addressed line** - the position of the rotary switches. A module puts its own line code here; `0xFF` addresses every line, as in the [ConfigCheckProbe request](#configcheckprobe). Always `0x00` (A.0) in the packets of an FM Basis X. |
+| 4-7 | 4 | `FF FF FF FF`<br>*big endian* | Dst-SN | Serial number of the addressed radio module; `FF FF FF FF` addresses all modules. No other value was observed so far. |
+| 8 | 1 | `XX` | Org-Line | [Line code](#line-addressing-fm-basis-x-vs-old-fm-basis) of the radio module that originally sent this packet. |
 | 9-12 | 4 | `XX XX XX XX` | Org-SN| Serial number[^2] of the FM Basis X radio module that originally sent this packet<br><br>It is assumed that this field does not change when the packet is forwarded, but this could not be confirmed as no multi-hop routing scenarios were observed. |
-| 13 | 1 | `0x00` | | Unknown, seems to be constant |
+| 13 | 1 | `XX` | Fwd-Line | [Line code](#line-addressing-fm-basis-x-vs-old-fm-basis) of the radio module *forwarding* this packet. |
 | 14-17 | 4 | `XX XX XX XX`<br>*big endian* | Fwd-SN | Serial number[^2] of the FM Basis X radio module *forwarding* this packet.<br>The *first* packet has identical Org-SN and Fwd-SN fields. If other FM Basis X radio modules forward the packet (acting as routers), they insert their own serial number.
 | 18-21 | 4 | `XX XX XX XX`<br>*big endian* | Line-ID | The alarm line ID that this packet should affect.<br>Special IDs:<br>- `00 00 00 00 (0)`: The radio module is not (yet) assigned to any alarm line.<br>- `FF FF FF FF` (4294967295): Broadcast (all alarm lines) |
 | 22 | 1 | `0x0F - 0x00`<br>(`15 - 0`) | Hops | This appears to be a hop counter for forwarded packets, tracking the number of times the packet has been retransmitted. The original packet always contains `0x0F`, which is reduced to `0x0E` after the first forwarding. This suggests that the field is decremented by one with each subsequent forwarding. |
 | 23 | 1 | `XX` | | Sequence number - changes from one originated packet to the next. |
-| 24 | 1 | `XX` | Flags | Bit-fields: `(type & 3) << 5 \| (relay & 1) << 4 \| (fwd_class & 3) << 2 \| (flag01 & 3)`.<br>Only the **forward-class** (bits 2-3) and **flag01** (bits 0-1, `1` for commissioning and `0` for every other frame) vary; the **type** (bits 5-6) and **relay** (bit 4) fields carry a constant `0x40` (type = 2, relay = 0) in these frames. Observed values: **Alarm Line Commissioning `0x45`**, Line Test / Alarming `0x48`, ConfigCheckProbe `0x40`.<br>The frames of the [radio link supervision](#radio-link-supervision) show that the type bits do vary: Supervision Series `0x20` (forward class 0), Module Missing `0x24` (forward class 1). |
+| 24 | 1 | `XX` | Flags | Bit-fields: `(type & 3) << 5 \| (collective & 1) << 4 \| (fwd_class & 3) << 2 \| (flag01 & 3)`.<br>**Forward class** (bits 2-3): see [Forwarding](#forwarding-repeater-function). **Collective** (bit 4): the packet may cross to other lines as a [collective alarm](#collective-alarm-lines); the originator can set it in status changes and line tests. **flag01** (bits 0-1): `1` for commissioning, `0` for every other frame observed. **Type** (bits 5-6): `2` in most frames, `1` in the radio link supervision.<br>Observed values: **Alarm Line Commissioning `0x45`**, Line Test / Alarming `0x48`, ConfigCheckProbe `0x40`, Supervision Series `0x20` (forward class 0), Module Missing `0x24` (forward class 1). A status change sent as collective alarm would read `0x58`; it was not observed in a capture so far. |
 | 25 | 1 | `0x00` | | Unknown, seems to be constant |
 | 26 | 1 | `XX` | | First byte of the message body - a **family marker**: `0x55` = ConfigCheckProbe, `0x66` = CommissioningProbe / Line test, `0x00` = status change (alarm, faults), `0x33` = radio link supervision. The [message‑type](#message-type-byte) subtype follows at offset 27. |
 
@@ -152,15 +153,16 @@ on the air through two fields of the [common part](#base-packet-structure):
   while **`Org-SN` (offset 9–12)** keeps the original sender. A forwarded copy can therefore
   be told apart from the original: `Fwd-SN != Org-SN` and `Hops < 0x0F`.
 
-A packet is only forwarded when it targets the module's own line or the broadcast line
-(`Line-ID` matches, or is `FF FF FF FF`) and the hop limit is not yet exhausted. Not every
+A packet is only forwarded when it comes from the module's own line - the line code of the
+originator (`Org-Line`, offset 8) equals the module's own line code, and the `Line-ID` matches
+or is `FF FF FF FF` - and the hop limit is not yet exhausted (see [Line Addressing](#line-addressing-fm-basis-x-vs-old-fm-basis)). Not every
 packet type is relayed: the [ConfigCheckProbe](#configcheckprobe)
 and [CommissioningProbe](#commissioningprobe-request) exchanges are **direct-range only** (never forwarded,
 always `Hops = 0`), whereas status changes (alarms, battery warnings, faults), line tests and commissioning propagate across the line.
 
 Whether a packet may be forwarded at all is decided by its originator: the **forward class** in bits 2-3 of the
-`Flags` byte (offset 24). Class 0 is never forwarded, class 1 only within the own line, class 2 within the own line and -
-under further conditions - beyond it. This matches every
+`Flags` byte (offset 24). Class 0 is never forwarded, class 1 only within the own line, class 2 within the own line and - as a
+[collective alarm](#collective-alarm-lines) - beyond it. This matches every
 capture so far: the [Supervision Series](#supervision-series) carries class 0 and was never seen relayed, a status change
 carries class 2.
 
@@ -201,20 +203,17 @@ When commissioning is initiated via a new radio module (i.e., not yet assigned t
 
 The principle by which new alarm line IDs are generated is not fully understood.
 
-!!! note "Commissioning eligibility is line-ID-state based, not group/line"
-    The decision to join a line
-    during commissioning is made **solely from stored line-ID state**:
+!!! note "Who takes part: line code and Line-ID state"
+    A commissioning packet passes the same receive filter as every other packet (see
+    [Line Addressing](#line-addressing-fm-basis-x-vs-old-fm-basis)):
 
-    - an **unassigned** module (`Line-ID == 0`) adopts the broadcast `New Line-ID` regardless of
-      its own group/line - the scope test is `our_line == 0 || rx_line == our_line || rx_line == 0xFFFFFFFF`;
-    - an **assigned** module reacts only to frames on its own line-ID.
+    - its **line code** (offset 3) is the one of the module the commissioning was started on. Only modules
+      whose rotary switches are set to the same position accept it - an FM Basis X is always A.0;
+    - of these, an **unassigned** module (`Line-ID == 0`) adopts the `New Line-ID`, and an **assigned**
+      module reacts only to packets on its own `Line-ID`.
 
-    The device's **group/line is metadata only**: it is collected by the radio module, carried in
-    the `0x03` payload, and written into the peer node
-    record - but it is **never compared to gate membership**. Consequence: several uncommissioned
-    modules with *different* group/line labels (e.g. `C.3` and `D.2`) commissioned together all
-    land on the **same** line-ID. Group/line therefore must **not** be used as a line key - always
-    key on `Line-ID`.
+    So the rotary position has to be set before the modules are commissioned together. Earlier versions of this page
+    said the opposite (the rotary position being metadata that is never compared); that was wrong.
 
 ##### Basic properties
 
@@ -494,14 +493,14 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 
 A silent, direct-range reachability exchange, observed over the air during a
 *Linienabschlusstest*. Unlike the [CommissioningProbe Request/Response](#commissioningprobe-request) the
-request is **wildcard-addressed** (byte 3 = `0xFF` instead of the usual `0x00`, `Line-ID` =
+request is **wildcard-addressed** (line code at offset 3 = `0xFF` = every line, `Line-ID` =
 `FF FF FF FF`) and the exchange is **not forwarded** - every frame stays at `Hops = 0`.
 
 ##### Observations
 
 - The request is broadcast repeatedly; each directly reachable detector answers once per
   sweep with a 36-byte response carrying its **own** `Org-SN`/`Line-ID` and a small
-  status + group/line payload - it is *not* back-addressed to the requester like the
+  status + line code payload - it is *not* back-addressed to the requester like the
   [CommissioningProbe Response](#commissioningprobe-response).
 - In one capture a single request sweep drew responses from ~15 distinct radio modules,
   including modules on other `Line-ID`s (neighbouring installations in direct range).
@@ -523,7 +522,7 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 
 | Offset | Length<br>(bytes) | Value | Field | Purpose/Description |
 |:------:|:-----------------:|:-----:|:------|:--------------------|
-| *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure). Note byte 3 is `0xFF` (wildcard, not the usual `0x00`), `Line-ID` is broadcast, and byte 26 is the `0x55` family marker.* |
+| *0-26* | *27* | | | *See [Base Packet Structure](#base-packet-structure). Note the `Dst-Line` byte 3 is `0xFF` (every line), `Line-ID` is broadcast, and byte 26 is the `0x55` family marker.* |
 | 27 | 1 | `0x06` | Type | [Message type](#message-type-byte) - ConfigCheckProbe request |
 
 </div>
@@ -536,7 +535,7 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 ```
 Byte offset |  0 |  1-2  |  3 |  4 |  5 |  6 |  7 |  8 |    9-12     | 13 |    14-17    |    18-21    |  22  | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 |
 Value (hex) | 02 | XX XX | 00 | FF | FF | FF | FF | 00 | XX XX XX XX | 00 | XX XX XX XX | XX XX XX XX |  0F  | XX | XX | 00 | 55 | 08 | 00 | XX | XX | 00 | 60 | 00 | 00 | XX |
-Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   | Ty |    | St | GL |    |    |    |    | Ck |
+Field            | Rem-TX |                             |   Org-SN    |    |   Fwd-SN    |   Line-ID   | Hops |                   | Ty |    | St | LC |    |    |    |    | Ck |
 ```
 
 <div class="pckt-table" markdown>
@@ -547,7 +546,7 @@ Field            | Rem-TX |                             |   Org-SN    |    |   F
 | 27 | 1 | `0x08` | Type | [Message type](#message-type-byte) - ConfigCheckProbe response |
 | 28 | 1 | `0x00` | | Constant |
 | 29 | 1 | `XX` | Status | Per-device status/capability flag (`0x00` or `0x40` observed) |
-| 30 | 1 | `XX` | Group/Line | Responder group/line label: high nibble = group `A–H`, low nibble = line `0–9`. **Display metadata only - not the line identity.** The authoritative line is the 32-bit `Line-ID` (offset 18–21); group/line is not commissioning-gating (see [line addressing](#line-addressing-fm-basis-x-vs-old-fm-basis)) and can differ between modules on the same line. |
+| 30 | 1 | `XX` | Line code | [Line code](#line-addressing-fm-basis-x-vs-old-fm-basis) of the responder, i.e. the position of its rotary switches: high nibble = letter `A–H`, low nibble = number `0–9`. The same value as `Org-Line` at offset 8. |
 | 31 | 1 | `0x00` | | Constant |
 | 32 | 1 | `0x60` | | Constant |
 | 33-34 | 2 | `00 00` | | Constant |
@@ -871,47 +870,125 @@ The family `0x11` is not specific to the FM Pro X: FM Basis X modules can send b
 (`0x11/0x00` with a 16-bit value, `0x11/0x01` without payload). What family `0x11` means beyond the supervision round
 is open.
 
-## Line Addressing: FM Basis X vs. old FM Basis
+## Line Addressing: Line Code and Line-ID {#line-addressing-fm-basis-x-vs-old-fm-basis}
 
-The `Line-ID` field (offset 18–21) means different things depending on the **generation** of the radio module that produced it. This matters because the Genius Gateway was reverse-engineered around the **new** generation (FM Basis X), but old **FM Basis** modules behave fundamentally differently - and this is a common source of interop confusion.
+A radio module belongs to its line by **two** values, and a packet has to match both of them:
 
-!!! warning "Two incompatible line-identity schemes"
-    A 32-bit `Line-ID` from an FM Basis **X** is a *commissioning-assigned random code*. A `Line-ID` seen from an *old* FM Basis is (almost certainly) a *deterministic function of the rotary switch position*. They are not interchangeable and are generated by completely different mechanisms.
+| | Line code | Line-ID |
+|---|---|---|
+| Size | 1 byte | 32 bit |
+| Comes from | the two rotary switches of the module (FM Pro X, old FM Basis / FM Pro); fixed to A.0 on an FM Basis X | the radio commissioning - generated there, effectively random, stored by every module of the line |
+| In a packet | offset 3 (addressed line), 8 (originator), 13 (forwarder) | offset 18–21 |
+| Purpose | separates the lines within one installation and is the basis of the collective alarm | separates installations: neighbouring systems use the same rotary positions, but not the same ID |
 
-### New generation - FM Basis X (and Pro X)
+This is what the manufacturer describes: after commissioning, a module only reacts to packets carrying *both* the same
+line and the same identification code; neighbouring systems are ignored.[^3]
 
-- The line is identified by a **32-bit Identifikationscode** that is assigned **automatically and uniquely during Funk-Inbetriebnahme (commissioning)** and stored by every module of that line. After commissioning, a module only reacts to packets carrying *both* the same line and the same ID; neighbouring systems are ignored.[^3]
-- The code is effectively **random** (see [New Line-ID generation](#alarm-line-commissioning) - "the principle by which new alarm line IDs are generated is not fully understood").
-- FM Basis X has **no rotary switch** - it is permanently fixed to the label "A.0" ex factory. The displayed "A.0" is therefore *not* the network identity; the 32-bit ID is.
-- The **group/line label** (e.g. `C.3`) is **device metadata, not a line key**: the modules never use it to gate commissioning (see the note under [Alarm-line commissioning](#observations)), neighbouring installations reuse the same labels, and modules on one line can carry different labels. Use it for display only; key lines on `Line-ID`.
-- Over smartsonic [acoustic readout](acoustic-readout.md), bytes 25–28 carry this commissioned 32-bit `lineId` (non-zero once commissioned; `0` = unassigned).
+!!! info "Corrected in v1.6.0"
+    Up to v1.5.0 this page called the rotary position ("group/line") display metadata that the modules never compare,
+    listed the bytes 3, 8 and 13 as an address mode and two unknown constants, and assumed that old FM Basis / FM Pro
+    modules have no commissioned ID. All of that was wrong: the rotary position is transmitted in every packet and is
+    part of the receive and forward filter, and old modules are commissioned by radio as well.
 
-### Old generation - FM Basis
+### Line code
 
-- The line is set **physically via two rotary switches** (major `A–G`/`H`, minor `0–9`; up to ~70 lines). Factory default is A.0 but it **is changeable** (unlike Basis X).
-- There is **no Identifikationscode** and **no commissioning-assigned ID** - the rotary position *is* the entire line identity.
-- Over smartsonic, an old FM Basis transmits **only its type and serial number** - *not* the radio dataset. Consequently the acoustic `lineId` (bytes 25–28) reads **`0`**.
-- Because the rotary is the module's *only* source of line identity, the 32-bit `Line-ID` it emits on the 868 MHz radio **must be a deterministic function of the rotary setting** (there is no other entropy source). I.e. a fixed rotary→Line-ID mapping, hardcoded in the module.
+`line code = letter << 4 | number`: the high nibble is the first rotary switch (`0` = A … `7` = H), the low nibble
+the second one (`0`–`9`).
 
-### Working hypothesis & test
+| Rotary position | Line code |
+|:--:|:--:|
+| A.0 | `0x00` |
+| A.3 | `0x03` |
+| C.3 | `0x23` |
+| H.7 | `0x77` |
+| every line (`Dst-Line` only) | `0xFF` |
 
-Observation: an old FM Basis set to **A.0** was seen emitting `Line-ID = 0xD7F75240` (3623309888). A commissioned FM Basis **X** also labelled "A.0" emitted a *different*, random `0xA9B22DF3` - confirming the two schemes are unrelated.
+Seen in captures: `0x00` in all packets of FM Basis X modules, `0x03` at the offsets 3, 8 and 13 in the packets of
+two FM Pro X modules (see the examples under [Radio Link Supervision](#radio-link-supervision)). The same byte appears
+in the [acoustic readout](acoustic-readout.md) (byte 29) and in the [ConfigCheckProbe response](#configcheckprobe)
+(offset 30).
 
-**Hypothesis:** for old FM Basis, `Line-ID = f(major, minor)` is deterministic, so *every* old FM Basis at A.0 emits `0xD7F75240`.
+### Receiving
 
-Falsifiable experiment:
+A module accepts a packet when all three conditions hold:
 
-| Step | Action | Expected result if hypothesis holds |
-|------|--------|--------------------------------------|
-| 1 | Sniff a second old FM Basis set to A.0 | Same `Line-ID` = `0xD7F75240` |
-| 2 | Sweep one module through rotary A.0 → A.1 → B.0 → … and log the `Line-ID` each time | Reveals whether `f` is a flat lookup table or an algorithm over `major`/`minor` (e.g. CRC/scramble of `major*10+minor`) |
+1. `Dst-SN` (offset 4–7) is its own serial number or `FF FF FF FF`,
+2. `Dst-Line` (offset 3) is its own line code or `0xFF`,
+3. `Line-ID` (offset 18–21) is its own Line-ID or `FF FF FF FF` - or the module has no Line-ID yet (`0`).
 
-| Rotary (major.minor) | Observed `Line-ID` (hex) | Observed (dec) |
-|:--------------------:|:------------------------:|:--------------:|
-| A.0 | `0xD7F75240` | 3623309888 |
-| *…* | *(to be filled)* | |
+A packet that fails one of them is only accepted as a [collective alarm](#collective-alarm-lines).
 
-If confirmed, the gateway can map old-module rotary lines to their fixed `Line-ID`s (lookup or formula) and address them the same way it addresses commissioned FM Basis X lines.
+### Forwarding
+
+A module forwards a packet of its own line: `Org-Line` (offset 8) equals its own line code and condition 3 above
+holds. On forwarding it writes its own line code and serial number into `Fwd-Line` and `Fwd-SN`. Forward class and
+hop limit apply as described under [Forwarding](#forwarding-repeater-function); a packet of another line is only
+forwarded as a [collective alarm](#collective-alarm-lines).
+
+### Collective alarm lines
+
+The letter **H** stands for the collective alarm lines (*Sammelalarm*; FM Pro and FM Pro X only). A module with DIP
+switch 4 (*Receive Collective Alarm*) switched on also accepts and forwards packets of **other** lines, if the packet
+carries the collective bit (bit 4 of `Flags`, offset 24) and the two line codes are paired:
+
+| Collective line | Paired with |
+|:--:|:--|
+| H.0 | A, B |
+| H.1 | C, D |
+| H.2 | E, F |
+| H.4 | A, B, C |
+| H.5 | D, E, F |
+| H.7 | A – G and H.0, H.1, H.2, H.4, H.5 |
+
+- The pairing works in both directions: a module on a line A.x accepts collective packets from H.0, H.4 and H.7.
+- For the lines A – G only the letter counts here, not the number.
+- H.3, H.6, H.8 and H.9 are paired with nothing.
+- The `Line-ID` is not compared for a collective packet.
+
+Collective packets were not captured so far; nothing of this was verified on air.
+
+### FM Basis X
+
+- No rotary switches: the line code is permanently `0x00` (A.0). No DIP switches either, so no collective alarm.
+- It follows that FM Basis X modules only work together with modules whose rotary switches are set to A.0 - the
+  manufacturer's rule for mixed operation with old modules.[^3]
+- Over smartsonic [acoustic readout](acoustic-readout.md), bytes 25–28 carry the commissioned 32-bit `lineId`
+  (non-zero once commissioned; `0` = unassigned) and byte 29 the line code.
+
+### Old generation - FM Basis and FM Pro
+
+- Two rotary switches (letter `A–G`/`H`, number `0–9`; the manufacturer speaks of up to 70 lines). Factory default
+  is A.0.
+- The modules are **commissioned by radio as well**, and the commissioning gives them a 32-bit `Line-ID`. Reported for
+  an installation with FM Pro modules and a used FM Basis from 2014 ([#33](https://github.com/hmbacher/genius-gateway/issues/33)):
+    - A module that is inserted with its rotary switches set like those of the others (A.1) does **not** join their line. Its `Line-ID` is `0` ("not set"), and it starts a commissioning of its own.
+    - A commissioning started on a detector that already belongs to the line takes new modules into that line: they adopt its `Line-ID`. A commissioning started on a new detector opens a **new line with a new `Line-ID`** - with the rotary switches unchanged.
+    - So the rotary position alone does not make a line. As on the X generation, both values count.
+- Over smartsonic, an old module transmits **only its type and serial number** - *not* the radio dataset. The acoustic `lineId` (bytes 25–28) reads **`0`**. The `Line-ID` of an old module is therefore only visible **on air**, in the packets it sends.
+- Open: whether old modules carry their line code at the offsets 3, 8 and 13 like the X generation was not checked against a capture yet.
+
+### Observed Line-IDs
+
+| Radio module | Rotary position | `Line-ID` (hex) | `Line-ID` (dec) |
+|---|:---:|:---:|:---:|
+| old FM Basis | A.0 | `0xD7F75240` | 3623309888 |
+| FM Pro (see #33) | A.1 | `0x5608E5E6` | 1443423718 |
+| FM Basis X | A.0 (fixed) | `0xA9B22DF3` | 2847026675 |
+
+### What the gateway makes of it
+
+- **Receiving.** The gateway listens to every packet, whatever its line code and `Line-ID`. It keys alarm lines on
+  the `Line-ID` and does not evaluate the line code yet; the [packet visualizer](../features/packet-visualizer.md)
+  shows it.
+- **Alarm line of a detector.** It is **taken over from the radio packets of its module**: an alarm, a status change,
+  a line test or a telegram of the radio link supervision names the `Line-ID`. For old modules that is the only
+  source, see [Device Management](../features/device-management.md#detectors-with-an-old-radio-module). Their rotary
+  position is entered by hand.
+- **Transmitting.** Line test, fire alarm and commissioning packets of the gateway carry the line code `0x00` (A.0)
+  at the offsets 3, 8 and 13. By the receive rule above, modules set to another rotary position do not accept them.
+  This was not verified on air; it fits the report in #33 that a commissioning started by the gateway had no effect
+  on a line set to A.1. The range test is not affected: its [ConfigCheckProbe](#configcheckprobe) addresses every line.
+- Old modules were observed **not** to answer the [ConfigCheckProbe](#configcheckprobe) of the range test.
 
 [^1]: See [Packet Fragmentation](#packet-fragmentation) section for details on the 64-byte total packet size limit that constrains the maximum payload to 59 bytes in practice.
 [^2]: Genius Gateway uses FF FF FF FE (4294967294) as serial number when it sends packets. See [Alarm Lines Management](../features/alarm-lines-management.md) for more information.

@@ -10,7 +10,6 @@
 	import type { AlarmLines, AlarmLine } from '$lib/types/models';
 	import { AlarmLineAcquisition, GeniusDeviceRegistration } from '$lib/types/enums';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
-	import { hasAutomaticLineDetection } from '$lib/genius/line';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
 	import { onMount, onDestroy } from 'svelte';
 	import { socket } from '$lib/stores/socket';
@@ -62,10 +61,11 @@
 		commissioningStart: [] as boolean[]
 	});
 
-	// Avoid hiding the column before devices have loaded; default to showing it.
+	// The column needs detectors with a radio module: their alarm line is known from a
+	// readout, a range test or - for every module, old ones included - from their radio
+	// packets. Avoid hiding it before devices have loaded; default to showing it.
 	let hasXSeriesHardware = $derived(
-		!geniusDevices.isLoaded ||
-			geniusDevices.devices.some((d) => hasAutomaticLineDetection(d.radioModule.model))
+		!geniusDevices.isLoaded || geniusDevices.devices.some((d) => (d.radioModule?.sn ?? 0) > 0)
 	);
 
 	// Desktop row grid template (≥ md). Icon/button columns get a fixed pixel
@@ -600,8 +600,10 @@
 															<span class="italic text-base-content/40">No devices</span>
 															<InfoPopover label="About smoke detector assignment">
 																<p>
-																	Only smoke detectors with <em>FM Basis X</em> /
-																	<em>FM Pro X</em> radio module can be referenced here.
+																	A smoke detector appears here once its alarm line is known: from
+																	an acoustic readout or a range test (<em>FM Basis X</em> /
+																	<em>FM Pro X</em>), or from the first radio packet the gateway
+																	receives from it (every radio module).
 																</p>
 															</InfoPopover>
 														</span>
@@ -745,8 +747,10 @@
 										<span class="whitespace-nowrap">
 											Detectors <InfoPopover class="align-middle" label="About smoke detector assignment">
 												<p>
-													Only smoke detectors with <em>FM Basis X</em> / <em>FM Pro X</em>
-													radio module can be referenced here.
+													A smoke detector appears here once its alarm line is known: from an
+													acoustic readout or a range test (<em>FM Basis X</em> / <em>FM Pro X</em>),
+													or from the first radio packet the gateway receives from it (every radio
+													module).
 												</p>
 											</InfoPopover>
 										</span>

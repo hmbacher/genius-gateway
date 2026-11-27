@@ -50,10 +50,26 @@
 #define LEN_CONFIG_CHECK_PROBE_REQUEST_PACKET 28   ///< ConfigCheckProbe request length (same wire length as CommissioningProbe Request; distinguished by the message-type byte)
 #define LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET 36  ///< ConfigCheckProbe response length (same wire length as a status change; distinguished by the message-type byte)
 
+/* Line code: the position of a radio module's rotary switches, letter << 4 | number (A.0 = 0x00,
+ * A.3 = 0x03, H.7 = 0x77; an FM Basis X has no switches and is fixed to A.0). Every frame carries it
+ * three times. A radio module accepts a frame only if the addressed line code is its own (or
+ * GENIUS_LINE_CODE_ANY) and the Line-ID matches as well, and it forwards a frame only if the line
+ * code of the originator is its own - see docs/reverse-engineering/protocol-analysis.md,
+ * "Line Addressing". The gateway itself receives every frame, whatever its line code. */
+#define GENIUS_LINE_CODE_A0 0x00  ///< Line code of the rotary position A.0 (the only one an FM Basis X has)
+#define GENIUS_LINE_CODE_ANY 0xFF ///< Addressed line code that every radio module accepts
+
+#define GENIUS_FLAG_COLLECTIVE 0x10 ///< Flags byte: collective alarm - the frame may cross to the lines paired with the sender's
+
+#define DATAPOS_GENERAL_DEST_LINE_CODE 3          ///< Line code of the addressed line (GENIUS_LINE_CODE_ANY = every line)
+#define DATAPOS_GENERAL_DEST_RADIO_MODULE_ID 4    ///< Addressed radio module ID (0xFFFFFFFF = all modules)
+#define DATAPOS_GENERAL_ORIGIN_LINE_CODE 8        ///< Line code of the origin radio module
 #define DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID 9  ///< Origin radio module ID position
+#define DATAPOS_GENERAL_SENDER_LINE_CODE 13       ///< Line code of the sender (forwarding) radio module
 #define DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID 14 ///< Sender radio module ID position
 #define DATAPOS_GENERAL_LINE_ID 18                ///< Line ID position
 #define DATAPOS_GENERAL_HOPS 22                   ///< Hops counter position
+#define DATAPOS_GENERAL_FLAGS 24                  ///< Flags byte: type, GENIUS_FLAG_COLLECTIVE, forward class
 #define DATAPOS_COMISSIONING_NEW_LINE_ID 28       ///< New line ID position in commissioning packets
 #define DATAPOS_COMOSSIONING_TIME_HOUR 32         ///< Hour position in commissioning packets
 #define DATAPOS_COMOSSIONING_TIME_MINUTE 33       ///< Minute position in commissioning packets
@@ -67,7 +83,7 @@
 #define DATAPOS_MSG_FAMILY 26                     ///< Message-family byte: first byte of the message body, groups the message types
 #define DATAPOS_MSG_TYPE 27                       ///< Message-type byte within the family (constant per packet type - how the radio module routes a received frame)
 #define DATAPOS_CONFIG_CHECK_PROBE_STATUS 29      ///< ConfigCheckProbe response: per-device status/capability flag
-#define DATAPOS_CONFIG_CHECK_PROBE_GROUPLINE 30   ///< ConfigCheckProbe response: detector group/line (hi nibble = group A-H, lo nibble = line 0-9)
+#define DATAPOS_CONFIG_CHECK_PROBE_GROUPLINE 30   ///< ConfigCheckProbe response: line code of the responder (hi nibble = letter A-H, lo nibble = number 0-9)
 
 /* Message-family byte values (data[DATAPOS_MSG_FAMILY]). A message is identified by family
  * AND type: the type values repeat across the families (type 0x00 exists in five of them),
@@ -114,7 +130,7 @@ typedef enum genius_packet_type
   HPT_LINE_TEST_START,              ///< Line test start packet (test mode 0x04)
   HPT_LINE_TEST_STOP,               ///< Line / network test stop packet (test mode 0x00, ends either test)
   HPT_CONFIG_CHECK_PROBE_REQUEST,   ///< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe)
-  HPT_CONFIG_CHECK_PROBE_RESPONSE,  ///< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
+  HPT_CONFIG_CHECK_PROBE_RESPONSE,  ///< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries the responder's line code + status)
   HPT_NETWORK_TEST_START,           ///< Network test start packet (test mode 0x06)
   HPT_SUPERVISION_SERIES,           ///< Daily series of the radio link supervision (family 0x33, type 0x00) - a sign of life of the sender
   HPT_MODULE_MISSING,               ///< A radio module reports another one as missing (family 0x33, type 0x02)

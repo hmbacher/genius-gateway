@@ -12,6 +12,7 @@ import {
 	formatAge
 } from '$lib/utils/formatDate';
 import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
+import { isOldFmModule } from '$lib/genius/line';
 import { alarmCount, describeEvent, radioModuleName } from '$lib/genius/activity';
 import {
 	EVENT_ALARM,
@@ -551,7 +552,9 @@ function buildDevicePage(
 			margin: [8, 6, 0, 2],
 			italics: true
 		});
-		if (!rm.lastRangeTest) {
+		if (isOldFmModule(rm.model)) {
+			rightCol.push(detailRow('Signal', 'Module does not answer the range test', C_MUTED, LW));
+		} else if (!rm.lastRangeTest) {
 			rightCol.push(detailRow('Signal', 'Not range-tested yet', C_MUTED, LW));
 		} else if ((rm.rssi ?? 0) < 0) {
 			const dbm = rm.rssi as number;
@@ -810,11 +813,13 @@ function buildOverviewPage(
 		// Direct-link range-test signal (see buildDevicePage), condensed for the table.
 		const signalCell = !hasRm
 			? { text: '—', fontSize: 8, alignment: 'center', color: C_MUTED }
-			: !rm.lastRangeTest
-				? { text: 'Not tested', fontSize: 8, alignment: 'center', color: C_MUTED }
-				: (rm.rssi ?? 0) < 0
-					? { text: `${rm.rssi} dBm`, fontSize: 8, alignment: 'center', color: C_OK }
-					: { text: 'Out of range', fontSize: 8, alignment: 'center', color: C_MUTED };
+			: isOldFmModule(rm.model)
+				? { text: 'No answer', fontSize: 8, alignment: 'center', color: C_MUTED }
+				: !rm.lastRangeTest
+					? { text: 'Not tested', fontSize: 8, alignment: 'center', color: C_MUTED }
+					: (rm.rssi ?? 0) < 0
+						? { text: `${rm.rssi} dBm`, fontSize: 8, alignment: 'center', color: C_OK }
+						: { text: 'Out of range', fontSize: 8, alignment: 'center', color: C_MUTED };
 
 		return [
 			{ text: String(i + 1), fontSize: 8, alignment: 'center' },

@@ -309,6 +309,14 @@
 		@apply bg-gray-300 dark:bg-gray-800;
 	}
 
+	:global(div.genius-packet div.packet-data-container>div[data-type='line-code']>div.packet-data-1) {
+		@apply bg-yellow-300 dark:bg-yellow-700;
+	}
+
+	:global(div.genius-packet div.packet-data-container>div[data-type='line-code']>div) {
+		@apply bg-yellow-100 dark:bg-yellow-900;
+	}
+
 	:global(div.genius-packet div.packet-data-container>div[data-type='hops']>div.packet-data-1) {
 		@apply bg-purple-400 dark:bg-purple-600;
 	}

@@ -9,7 +9,6 @@
 		validMinorsFor,
 		validateLine,
 		isHMajorAllowed,
-		isOldFmModule,
 		DEFAULT_LINE_MAJOR,
 		DEFAULT_LINE_MINOR
 	} from '$lib/genius/line';
@@ -57,8 +56,8 @@
 		geniusDevice.radioModule.lineCharacter = major;
 		geniusDevice.radioModule.lineNumber = minor;
 		geniusDevice.radioModule.lineManual = true;
-		// Old modules expose no 32-bit Line-ID; keep it cleared for manual entry.
-		if (isOldFmModule(model)) geniusDevice.radioModule.lineId = 0;
+		// The 32-bit alarm line ID stays as it is: the gateway learns it from the radio packets
+		// of the module. The rotary position entered here is the second half of its addressing.
 		onSave(geniusDevice);
 	}
 </script>

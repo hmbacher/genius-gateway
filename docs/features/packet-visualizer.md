@@ -28,6 +28,7 @@ When enabled, the visualizer interprets packet data and highlights important fie
 - **Packet type identification:** Automatic detection of packet types (alarm, commissioning, discovery, etc.)
 - **Field highlighting:** Important bytes are color-coded and labeled
 - **Data interpretation:** Serial numbers, line IDs, timestamps, and other fields are decoded
+- **Line code:** The rotary position of the addressed line, of the originator and of the forwarder is shown as text (for example `A.3`; `Any` for a packet addressed to every line), see [Line Addressing](../reverse-engineering/protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis)
 - **Location mapping:** Serial numbers are matched to configured device locations
 
 When disabled, packets are shown in raw hexadecimal format without interpretation.

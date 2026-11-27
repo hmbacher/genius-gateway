@@ -83,7 +83,7 @@ typedef struct config_check_responder_t
   uint32_t lineId;        ///< Responder's own Line-ID
   int8_t rssi;            ///< Best measured RSSI this sweep, in dBm
   uint8_t status;         ///< Response status/capability byte (offset 29)
-  uint8_t groupLine;      ///< Group/line nibble byte (offset 30)
+  uint8_t groupLine;      ///< Line code of the responder: position of its rotary switches, letter << 4 | number (offset 30)
 } config_check_responder_t;
 
 /// Main gateway service for managing genius protocol communication
