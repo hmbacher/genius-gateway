@@ -206,6 +206,15 @@ Fields that were read from the acoustic signal (model, serial number, production
 !!! info "Acoustic readout signal details"
     See [Acoustic Readout](../reverse-engineering/acoustic-readout.md) in the Reverse Engineering section for a description of the signal modulation, framing, and payload format.
 
+### Detectors with an Old Radio Module {#detectors-with-an-old-radio-module}
+
+Old-generation radio modules (**FM Basis** / **FM Pro**, the ones with rotary switches) report only their type and serial number in an acoustic readout - no alarm line, no radio status, no DIP switches. The gateway fills the gap in two ways:
+
+- **Alarm line** - the gateway takes it over from the **radio packets** of the module: the first alarm, status change, line test or radio link supervision telegram it receives from the detector names the alarm line. Until then the detector has no alarm line; afterwards it appears in its [group](#grouping-by-alarm-line) and on the [Alarm Lines](alarm-lines-management.md) page like every other detector.
+- **Rotary switches** - the position (for example `A.1`) is the label of the line and cannot be read from the device. A detector without it is marked **Line required**; enter the position as it is set on the module.
+
+For every other radio module the packets do the same job in the background: after a new commissioning the detector follows to its new alarm line by itself. A known alarm line is only replaced by a packet the module transmitted itself, not by a copy another module forwarded.
+
 ## Signal Probe Discovery
 
 The gateway can actively **survey which radio modules are within direct radio range** and how strong their link is - and register any new ones it finds. It broadcasts a [ConfigCheckProbe](../reverse-engineering/protocol-analysis.md#configcheckprobe) direct-range reachability probe that every directly reachable module answers once, reporting its radio-module serial number, alarm line ID, and signal strength (RSSI). The probe is **not relayed** through the mesh, so only modules the gateway hears *directly* respond.
@@ -245,6 +254,9 @@ Each device with a radio module shows a signal icon in the **Service** column re
 | :tabler-radar-off: | **Not tested** | Never included in a range test yet |
 
 The measured signal and last range-test date also appear in the [Device Details](#viewing-device-details) dialog and in the [PDF report](#generating-a-pdf-report) (Direct Link / Range Test section).
+
+!!! note "Old FM Basis / FM Pro modules"
+    These modules do not answer the range test. Their icon stays :tabler-radar-off: with a tooltip that says so, the survey dialog points it out, and the PDF report notes it - no answer from them says nothing about their radio link.
 
 !!! info "Probe protocol details"
     See [ConfigCheckProbe](../reverse-engineering/protocol-analysis.md#configcheckprobe) in the Reverse Engineering section for the on-air request/response framing and repetition behaviour.

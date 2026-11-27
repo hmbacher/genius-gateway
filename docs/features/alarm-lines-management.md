@@ -196,6 +196,9 @@ Every smoke detector **already assigned to this alarm line** then enters commiss
 5. The button displays a spinner while RF transmission is in progress
 6. Press the test button on every smoke detector that is signalling - both existing line members and any newly mounted ones - to confirm it and complete the commissioning sequence
 
+!!! note "Old FM Basis / FM Pro modules"
+    On an installation with old-generation modules a commissioning started by the gateway was reported to have no effect: none of the detectors signalled. For these modules start the commissioning on a detector that already belongs to the line, as the manual of the module describes it.
+
 ### :tabler-location: Start Line Test
 
 Initiates a line test on the selected alarm line. This command triggers all smoke detectors on the line to perform a coordinated test sequence, which the manufacturer states to last about 15 minutes unless it is stopped.
