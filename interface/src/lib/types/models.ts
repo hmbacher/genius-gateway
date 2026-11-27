@@ -208,7 +208,7 @@ export type ConfigCheckResponder = {
 	lineId: number;
 	/** Response status/capability byte. */
 	status: number;
-	/** Group/line nibble byte (high nibble = group A–H, low nibble = line 0–9). */
+	/** Line code of the responder: position of its rotary switches (high nibble = letter A–H, low nibble = number 0–9). */
 	groupLine: number;
 };
 
@@ -560,7 +560,7 @@ export const PacketTypes: PacketType[] = [
 		typeByte: 0x08,
 		packetLength: 36,
 		description:
-			'ConfigCheckProbe response - a directly reachable detector reports its presence, group/line and status (not forwarded).',
+			'ConfigCheckProbe response - a directly reachable detector reports its presence, line code (rotary position) and status (not forwarded).',
 		identifiers: []
 	}
 ];

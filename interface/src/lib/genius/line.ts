@@ -2,11 +2,12 @@
  * Alarm-line semantics for FM radio modules.
  *
  * Old-generation modules (FM.Basis / FM.Pro) give no alarm line in an acoustic
- * readout, so the position of their rotary switches (the line label, e.g. A.1) is
+ * readout, so the position of their rotary switches (the line they are set to, e.g. A.1) is
  * entered by hand - mirroring the official Hekatron app (SmartSonicValidationService.isOldFm /
  * isManualLineEntryRequired, AddDeviceManualLineEntryFragment.setHLineEnabled).
  * The 32-bit alarm line ID is a different thing: old modules have one as well, and
- * the gateway takes it over from the radio packets of the module.
+ * the gateway takes it over from the radio packets of the module. A module works with
+ * another one only if both match - rotary position and alarm line ID.
  *
  * Line-validity rules come from the FM Basis X / Pro X manual (§"Linienübersicht").
  * Keep this in sync with src/GeniusDevicesService.h (isOldFmModule / line clamps).
@@ -86,6 +87,18 @@ export function validateLine(
 		return `Line ${major}.${minor} has no function.`;
 	}
 	return null;
+}
+
+/** Line code in the addressed-line byte of a packet that every radio module accepts. */
+export const LINE_CODE_ANY = 0xff;
+
+/**
+ * Text of a line code - the rotary position a radio module transmits in every packet:
+ * high nibble = letter (0 = A), low nibble = number. `0x03` -> `A.3`, `0xff` -> `Any`.
+ */
+export function lineCodeText(code: number): string {
+	if (code === LINE_CODE_ANY) return 'Any';
+	return `${String.fromCharCode(65 + ((code >> 4) & 0x0f))}.${code & 0x0f}`;
 }
 
 /** Factory-default line for FM.Basis (rotary A.0). */

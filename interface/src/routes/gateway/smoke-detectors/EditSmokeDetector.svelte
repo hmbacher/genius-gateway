@@ -83,6 +83,8 @@
 	// Location the detector is currently saved with; undefined for a detector that does
 	// not exist yet. Looked up before a new device gets its ID assigned below.
 	const savedLocation = geniusDevices.devices.find((d) => d.id === _geniusDevice.id)?.location;
+	// Serial of the radio module when the dialog opened: its alarm line ID is kept while it stays the same.
+	const savedRadioModuleSN = _geniusDevice.radioModule.sn;
 
 	// Generate unique device ID with collision detection
 	function generateUniqueDeviceId(): number {
@@ -139,7 +141,7 @@
 	);
 	const hasRadioModule = $derived(geniusDevice.radioModule.model !== GeniusRadioModule.None);
 
-	// Old FM modules (FM.Basis / FM.Pro) cannot expose a trustworthy alarm line; the
+	// Old FM modules (FM.Basis / FM.Pro) do not report their line in an acoustic readout; the
 	// rotary switch position must be entered by hand here, so it can also be edited later.
 	const isOldModule = $derived(hasRadioModule && isOldFmModule(geniusDevice.radioModule.model));
 
@@ -204,8 +206,11 @@
 				geniusDevice.radioModule.lineCharacter = lineMajor;
 				geniusDevice.radioModule.lineNumber = lineMinor;
 				geniusDevice.radioModule.lineManual = true;
-				// Old modules expose no 32-bit Line-ID; the rotary switch is the only identity.
-				geniusDevice.radioModule.lineId = 0;
+				// The alarm line ID was learned from the radio packets of this module and stays. If
+				// another module was entered, the gateway learns it again from that module's packets.
+				if (geniusDevice.radioModule.sn !== savedRadioModuleSN) {
+					geniusDevice.radioModule.lineId = 0;
+				}
 			}
 			onSaveGeniusDevice(geniusDevice);
 		}

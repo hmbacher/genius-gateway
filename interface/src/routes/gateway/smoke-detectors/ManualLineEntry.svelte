@@ -57,7 +57,7 @@
 		geniusDevice.radioModule.lineNumber = minor;
 		geniusDevice.radioModule.lineManual = true;
 		// The 32-bit alarm line ID stays as it is: the gateway learns it from the radio packets
-		// of the module, the rotary switches entered here are only the label of the line.
+		// of the module. The rotary position entered here is the second half of its addressing.
 		onSave(geniusDevice);
 	}
 </script>

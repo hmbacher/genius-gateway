@@ -109,7 +109,7 @@ export enum GeniusPacketType {
   LineTestStop,
   /** /< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe) */
   ConfigCheckProbeRequest,
-  /** /< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status) */
+  /** /< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries the responder's line code + status) */
   ConfigCheckProbeResponse,
   /** /< Network test start packet (test mode 0x06) */
   NetworkTestStart,

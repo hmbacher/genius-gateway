@@ -35,18 +35,21 @@
 #include <WiFi.h>
 #include <IPUtils.h>
 
+/* Line code of the packets the gateway transmits for an alarm line: line test, fire alarm and
+ * commissioning go out for the rotary position A.0 (GENIUS_LINE_CODE_A0), which is what every
+ * FM Basis X is fixed to. Radio modules with rotary switches set to another position are expected
+ * not to accept these packets - a known limitation, see "Line Addressing" in
+ * docs/reverse-engineering/protocol-analysis.md. The range test addresses every line. */
+
 /// Base packet template for alarm line test operations
 const uint8_t AlarmLinesService::_packet_base_linetest[] = {
     0x02,
     0x00, 0x00, // Remaining-TX-Time (#1-2)
-    0x00,
-    0xFF,
-    0xFF,
-    0xFF,
-    0xFF,
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the addressed line (#3)
+    0xFF, 0xFF, 0xFF, 0xFF, // Addressed radio module (#4-7): all
+    GENIUS_LINE_CODE_A0,    // Line code of the originator (#8)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator of the packet (0xFFFFFFFE = Gateway)
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the forwarder (#13)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
     0x00, 0x00, 0x00, 0x00, // Alarm line ID (#18-#21)
     0x0F,                   // Hops (#22)
@@ -61,14 +64,11 @@ const uint8_t AlarmLinesService::_packet_base_linetest[] = {
 const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0x02,
     0x00, 0x00, // Remaining-TX-Time (#1-2)
-    0x00,
-    0xFF,
-    0xFF,
-    0xFF,
-    0xFF,
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the addressed line (#3)
+    0xFF, 0xFF, 0xFF, 0xFF, // Addressed radio module (#4-7): all
+    GENIUS_LINE_CODE_A0,    // Line code of the originator (#8)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator of the packet (0xFFFFFFFE = Gateway)
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the forwarder (#13)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
     0x00, 0x00, 0x00, 0x00, // Alarm line ID (#18-#21)
     0x0F,                   // Hops (#22)
@@ -87,16 +87,16 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
 
 /// Base packet template for the ConfigCheckProbe request (silent direct-range reachability probe).
 /// Wire layout per the captured Linienabschlusstest request (see docs/reverse-engineering/
-/// protocol-analysis.md#configcheckprobe): wildcard-addressed (#3 = 0xFF), broadcast Line-ID,
+/// protocol-analysis.md#configcheckprobe): addressed to every line code (#3 = 0xFF), broadcast Line-ID,
 /// family marker 0x55 (#26) + type 0x06 (#27). 28 bytes total.
 const uint8_t AlarmLinesService::_packet_base_configcheckprobe[] = {
     0x02,
     0x00, 0x00, // Remaining-TX-Time (#1-2), set per-iteration by the TX loop
-    0xFF,       // Addr-mode (#3): 0xFF = wildcard (probe is not addressed to one line)
+    GENIUS_LINE_CODE_ANY,   // Line code of the addressed line (#3): every line - the probe is not addressed to one
     0xFF, 0xFF, 0xFF, 0xFF, // Dest SN (#4-7): broadcast
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the originator (#8)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator (#9-12) = Gateway (0xFFFFFFFE)
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the forwarder (#13)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, forwarder (#14-17) = Gateway (0xFFFFFFFE)
     0xFF, 0xFF, 0xFF, 0xFF, // Line-ID (#18-21): broadcast (wildcard probe)
     0x0F,                   // Hops (#22): fresh (0 hops traversed)
@@ -118,18 +118,18 @@ const uint8_t AlarmLinesService::_packet_base_configcheckprobe[] = {
 const uint8_t AlarmLinesService::_packet_base_commissioning[] = {
     0x02,
     0x00, 0x00, // Remaining-TX-Time (#1-2), set per-iteration by the TX loop
-    0x00,       // Addr-mode (#3)
+    GENIUS_LINE_CODE_A0,    // Line code of the addressed line (#3)
     0xFF, 0xFF, 0xFF, 0xFF, // Dest SN (#4-7): broadcast
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the originator (#8)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator (#9-12) = Gateway (0xFFFFFFFE)
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the forwarder (#13)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, forwarder (#14-17) = Gateway (0xFFFFFFFE)
     0x00, 0x00, 0x00, 0x00, // Line-ID (#18-21): set to the selected line
     0x0F,                   // Hops (#22): fresh (0 hops traversed)
     0x00,                   // Packet sequence number (#23), set at TX
-    0x45,                   // Flags (#24). Bit-fields: (type&3)<<5 | (relay&1)<<4 | (fwd_class&3)<<2 |
+    0x45,                   // Flags (#24). Bit-fields: (type&3)<<5 | (collective&1)<<4 | (fwd_class&3)<<2 |
                             // (low2&3). Commissioning uses fwd_class=1 (STRICT, forwarded in-scope) and
-                            // low2=1 -> low nibble 0x05; type=2/relay=0 give the high nibble 0x40.
+                            // low2=1 -> low nibble 0x05; type=2/collective=0 give the high nibble 0x40.
                             // 0x40 | 0x04 | 0x01 = 0x45. Matches a real on-air capture.
     0x00,                   // Constant (#25)
     0x66,                   // Family marker (#26): 0x66 (commissioning / line-test family)
