@@ -168,7 +168,7 @@ A radio module accepts a packet only if it carries both its alarm line ID and it
 
 A line setting set by hand or taken from a packet stays until it is changed in the edit dialog - also when the detectors tell another one. Whenever smoke detectors of the line are set to another line than the one used, the value turns yellow, its tooltip says how many detectors differ, and the detectors carry a yellow badge with their line. Select **Automatic** to follow the detectors again.
 
-![Line setting of a line whose detectors are set differently, with its tooltip](../assets/images/software/gg-gateway-alarm-lines-line-setting.png)
+![Line setting of a line whose detectors are set differently: yellow value with the number of differing detectors, badges at the detectors](../assets/images/software/gg-gateway-alarm-lines-line-setting.png)
 
 Before a line action is sent to such a line, its confirmation dialog names the detectors that will not react:
 
