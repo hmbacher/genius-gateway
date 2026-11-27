@@ -25,7 +25,9 @@ HAService::HAService(PsychicMqttClient *mqttClient)
       _enabled(false),
       _renameEntityIds(false),
       _publishTaskHandle(nullptr),
-      _registryMutex(xSemaphoreCreateRecursiveMutex())
+      _registryMutex(xSemaphoreCreateRecursiveMutex()),
+      _topicMutex(xSemaphoreCreateMutex()),
+      _nextSubscriptionId(1)
 {
     // Topic identity is derived from the compile-time firmware name, never from
     // the user-editable display name. Renaming the device in the UI therefore
@@ -344,14 +346,49 @@ void HAService::_purgeLegacyState(const String &topic)
     ESP_LOGD(TAG, "Cleared legacy state topic %s", legacyTopic.c_str());
 }
 
-void HAService::subscribe(const String &topic,
-                          std::function<void(char *, char *, int, int, bool)> callback,
-                          int qos)
+uint32_t HAService::subscribe(const String &topic, MessageHandler callback, int qos)
 {
-    if (_mqttClient == nullptr)
-        return;
+    if (_mqttClient == nullptr || topic.isEmpty())
+        return 0;
 
-    _mqttClient->onTopic(topic.c_str(), qos, callback);
+    const std::string key(topic.c_str());
+    bool registerWithClient = false;
+    xSemaphoreTake(_topicMutex, portMAX_DELAY);
+    const uint32_t id = _nextSubscriptionId++;
+    _topicHandlers[key] = TopicHandler{id, std::move(callback)};
+    if (_clientTopics.insert(key).second)
+        registerWithClient = true;
+    xSemaphoreGive(_topicMutex);
+
+    // Once per topic: the client keeps the registration and subscribes again on every connect
+    if (registerWithClient)
+        _mqttClient->onTopic(topic.c_str(), qos, [this, key](char *t, char *p, int r, int q, bool d)
+                             { _dispatch(key, t, p, r, q, d); });
+    return id;
+}
+
+void HAService::unsubscribe(const String &topic, uint32_t id)
+{
+    if (id == 0)
+        return;
+    xSemaphoreTake(_topicMutex, portMAX_DELAY);
+    auto it = _topicHandlers.find(std::string(topic.c_str()));
+    if (it != _topicHandlers.end() && it->second.id == id)
+        _topicHandlers.erase(it);
+    xSemaphoreGive(_topicMutex);
+}
+
+void HAService::_dispatch(const std::string &topic, char *msgTopic, char *payload, int retain, int qos, bool dup)
+{
+    // Copied under the lock, called outside it: the handler may subscribe or unsubscribe itself
+    MessageHandler handler;
+    xSemaphoreTake(_topicMutex, portMAX_DELAY);
+    auto it = _topicHandlers.find(topic);
+    if (it != _topicHandlers.end())
+        handler = it->second.handler;
+    xSemaphoreGive(_topicMutex);
+    if (handler)
+        handler(msgTopic, payload, retain, qos, dup);
 }
 
 // ============================================================================
