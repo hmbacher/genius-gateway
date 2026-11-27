@@ -125,18 +125,23 @@ The gateway device registers with:
 
 - **Device Information** - Manufacturer, model, firmware version, and web interface link
 - **1 Status Sensor** - Online/Offline state
-- **2 Diagnostic Sensors** - Real-time system health monitoring (free heap memory, core temperature)
+- **3 Diagnostic Sensors** - System health (free heap memory, core temperature) and the reason of the last reset
 - **1 Restart Button** - Remote restart capability
 - **4 Configuration Switches** - Remote settings control
 - **1 Update Entity** - Firmware update management with automatic version checking
 
 This integration enables proactive monitoring, remote maintenance, and dynamic configuration without requiring physical access to the gateway.
 
+!!! info "Entities are unavailable while the gateway is offline"
+    When the gateway loses its connection to the MQTT broker - no WiFi, no power, a restart - every entity of the gateway, the smoke detectors and the alarm lines turns *unavailable* in Home Assistant, and the **Status** sensor shows `offline`. Home Assistant therefore never shows a smoke detector as fine while nobody is listening.
+
+    A restart is noticed at once. If the gateway just disappears, the broker notices it after one and a half times the MQTT keep alive - about three minutes with the default of 120 seconds. An automation on the **Status** sensor is an easy way to get notified.
+
 ### Entities Overview
 
 | Entity Type | Name | Purpose | Update Interval | Category |
 |-------------|------|---------|-----------------|----------|
-| **Sensor** | Status | Device registration in Home Assistant | On connect | diagnostic |
+| **Sensor** | Status | Connection state of the gateway: `online` / `offline` | On connect and disconnect | diagnostic |
 | **Sensor** | Free Heap | Memory usage monitoring (percentage) | Every 60 seconds | diagnostic |
 | **Sensor** | Core Temperature | Internal temperature monitoring (°C) | Every 60 seconds | diagnostic |
 | **Sensor** | Last Reset Reason | Why the gateway last restarted (power-on, software restart, watchdog, brownout, ...) | Every 60 seconds | diagnostic |

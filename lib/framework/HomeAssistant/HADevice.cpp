@@ -105,6 +105,9 @@ bool HADevice::publishConfig(const String &component,
     // "~" resolves to this device's base topic inside discovery payloads.
     config["~"] = getBaseTopic();
 
+    // Unavailable in Home Assistant while the device that publishes this is offline
+    _haService->addDeviceAvailability(config);
+
     // Explicit entity ID "<component>.<prefix>_<slug(entity name)>" (see setEntityIdPrefix).
     if (!_entityIdPrefix.isEmpty() && !config["default_entity_id"].is<const char *>())
     {

@@ -210,6 +210,55 @@ void HAService::addDeviceInfo(JsonDocument &doc) const
     }
 }
 
+void HAService::addDeviceAvailability(JsonDocument &config) const
+{
+    const String statusTopic = getStatusTopic();
+    if (statusTopic.isEmpty())
+        return;
+
+    // The entity that shows the status topic stays available: it is the one that says "offline"
+    if (statusTopic == (config["state_topic"] | ""))
+        return;
+
+    if (!config["availability"].is<JsonArray>())
+    {
+        // A single availability topic of the entity becomes the first entry of the list
+        const String ownTopic = config["availability_topic"] | "";
+        const String ownTemplate = config["availability_template"] | "";
+        const String ownAvailable = config["payload_available"] | "";
+        const String ownNotAvailable = config["payload_not_available"] | "";
+        config.remove("availability_topic");
+        config.remove("availability_template");
+
+        JsonArray list = config["availability"].to<JsonArray>();
+        if (!ownTopic.isEmpty())
+        {
+            JsonObject own = list.add<JsonObject>();
+            own["topic"] = ownTopic;
+            if (!ownTemplate.isEmpty())
+                own["value_template"] = ownTemplate;
+            if (!ownAvailable.isEmpty())
+                own["payload_available"] = ownAvailable;
+            if (!ownNotAvailable.isEmpty())
+                own["payload_not_available"] = ownNotAvailable;
+            config.remove("payload_available");
+            config.remove("payload_not_available");
+        }
+    }
+
+    JsonArray list = config["availability"].as<JsonArray>();
+    for (JsonObject entry : list)
+    {
+        if (statusTopic == (entry["topic"] | ""))
+            return; // the same document is published again
+    }
+
+    // "online" / "offline" are the payloads Home Assistant expects by default
+    JsonObject device = list.add<JsonObject>();
+    device["topic"] = statusTopic;
+    config["availability_mode"] = "all";
+}
+
 bool HAService::publishConfig(const String &component, const String &objectId, JsonDocument &config)
 {
     if (!isReady())
@@ -217,6 +266,9 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
 
     // Set "~" abbreviation base
     config["~"] = getBaseTopic();
+
+    // Unavailable in Home Assistant while this device is offline
+    addDeviceAvailability(config);
 
     // Add device info if not already present
     if (!config["device"].is<JsonObject>())

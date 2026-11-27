@@ -24,10 +24,23 @@ HADiagnosticService::HADiagnosticService(HAService *haService)
       _diagnosticSensorTimer(nullptr)
 {
     _diagnosticSensors
+        // The connection state itself: "online", or "offline" - which the broker sets as the last
+        // will if the device just disappears. Without a status topic it falls back to the
+        // diagnostics state, which can only ever say "online".
         .addSensor("sensor", "status", "Status", "mdi:heart-pulse", HACategory::Diagnostic,
-                   [](JsonObject &c)
+                   [this](JsonObject &c)
                    {
-                       c["value_template"] = "{{value_json.state}}";
+                       const String statusTopic = _haService != nullptr ? _haService->getStatusTopic() : String();
+                       if (statusTopic.isEmpty())
+                       {
+                           c["value_template"] = "{{value_json.state}}";
+                           return;
+                       }
+                       c["state_topic"] = statusTopic;
+                       // The payload is plain text. The template is stated all the same: Home Assistant
+                       // keeps applying the template of an earlier config of this entity (the JSON one
+                       // above, up to v1.5) when an updated config has none, and then drops "offline".
+                       c["value_template"] = "{{ value }}";
                    })
         .addSensor("sensor", "free_heap", "Free Heap", "mdi:memory", HACategory::Diagnostic,
                    [](JsonObject &c)

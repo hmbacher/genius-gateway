@@ -38,15 +38,39 @@ Published when device connects to MQTT broker:
 "online"
 ```
 
-Published automatically by broker when device disconnects (LWT message):
+Published by the gateway before it disconnects on purpose (a restart), and automatically by the broker when the gateway just disappears (LWT message):
 ```json
 "offline"
 ```
+
+The broker notices a gateway that disappeared - no power, no WiFi - after one and a half times the MQTT keep alive: about three minutes with the default of 120 seconds.
+
+**:material-eye-outline: Who should watch it**
+
+- Home Assistant does: every entity is unavailable while this topic says `offline`, see [Availability](#availability)
+- Any other system that reads the [global alarm topic](#global-alarm-state-topic), the [global fault topic](#global-fault-state-topic) or the [MQTT value tree](#mqtt-value-tree): their retained values stay as they are when the gateway goes offline
 ---
 
 ## Home Assistant Auto-Discovery
 
 The gateway supports [Home Assistant's MQTT Discovery protocol :material-open-in-new:](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery){ target=_blank } for automatic device integration.
+
+### Availability {#availability}
+
+Every discovery config - of the gateway, the smoke detectors and the alarm lines - refers to the [device status topic](#device-status-topic-lwt). While it says `offline`, Home Assistant shows the entity as *unavailable* instead of its last state. The config examples below do not repeat this block:
+
+```json
+{
+  "availability": [
+    { "topic": "genius-gateway/1a2b3c4d5e6f/status" }
+  ],
+  "availability_mode": "all"
+}
+```
+
+- `online` and `offline` are the payloads Home Assistant expects by default, so they are not listed
+- An entity with a condition of its own - a status value that is unknown until the detector reported it, a button that is blocked while a transmission runs - keeps it as a second entry of the list. With `availability_mode` `all` the entity is available only if the gateway is online **and** its own condition holds
+- The one exception is the [Status sensor](#device-status-sensor) of the gateway: it shows the status topic itself and therefore says `offline`
 
 ### Gateway Device
 
@@ -61,7 +85,7 @@ The Genius Gateway itself is published as a Home Assistant device with diagnosti
 
 The gateway device publishes:
 
-- **1 Status Sensor** - Registers the gateway device in Home Assistant
+- **1 Status Sensor** - Connection state of the gateway (`online` / `offline`)
 - **3 Diagnostic Sensors** - Free heap memory (%), core temperature (°C) and the reason of the last reset
 - **1 Restart Button** - Remote gateway restart capability
 - **4 Configuration Switches** - Remote control of gateway settings
@@ -91,7 +115,7 @@ The gateway device publishes:
 
 **Example:** `homeassistant/sensor/genius-gateway-1a2b3c4d5e6f/status/config`
 
-**:material-information-outline: Description:** Device registration sensor that makes the gateway visible in Home Assistant
+**:material-information-outline: Description:** Connection state of the gateway: `online`, or `offline` when it has disconnected or disappeared. It reads the [device status topic](#device-status-topic-lwt) directly and is the one entity that stays available while the gateway is offline
 
 **:material-speedometer: QoS:** 0
 
@@ -103,8 +127,8 @@ The gateway device publishes:
   "~": "homeassistant/genius-gateway-1a2b3c4d5e6f",
   "name": "Status",
   "unique_id": "genius-gateway-1a2b3c4d5e6f_status",
-  "state_topic": "~/status/state",
-  "value_template": "{{value_json.state}}",
+  "state_topic": "genius-gateway/1a2b3c4d5e6f/status",
+  "value_template": "{{ value }}",
   "icon": "mdi:heart-pulse",
   "entity_category": "diagnostic",
   "device": {
@@ -123,8 +147,8 @@ The gateway device publishes:
 - `~` - Topic prefix (base path for relative references)
 - `name` - Entity name shown in Home Assistant
 - `unique_id` - Unique identifier for this sensor
-- `state_topic` - Relative path to state topic
-- `value_template` - Jinja2 template to extract state from JSON
+- `state_topic` - The [device status topic](#device-status-topic-lwt)
+- `value_template` - Takes the plain text payload as it is. It is stated so that Home Assistant replaces the template this entity had up to v1.5
 - `icon` - Material Design icon identifier
 - `entity_category` - Category (`diagnostic` for system status)
 - `device` - Device information object
@@ -135,14 +159,7 @@ The gateway device publishes:
   - `sw_version` - Current firmware version
   - `configuration_url` - Web interface URL (only included if gateway has valid IP)
 
-**State Topic:** `{discovery_prefix}{gateway_device_id}/status/state`
-
-**:material-code-json: State Payload**
-```json
-{
-  "state": "online"
-}
-```
+**State Topic:** the [device status topic](#device-status-topic-lwt), with the plain text payload `online` or `offline`
 
 **:material-publish: Publishing Behavior**
 
@@ -1190,6 +1207,7 @@ The four status topics follow the [current status](../features/device-management
 - **Leftovers are removed.** With every full publish - after a (re)connect, and when the tree is switched on - the gateway looks under its root for retained topics of smoke detectors and alarm lines that are not part of the installation any more, and clears them. Such topics are left behind when the gateway restarts before it could clear them, for example when a detector is deleted right after a restart. Only topics of the tree's own layout are touched (`devices/<id>/...` and `lines/<line id>/...` with the names listed above); anything else under the root is left alone. Do not let another system keep retained topics of this layout under the same root.
 - Topics under a root that is no longer configured are not found by this. After changing the root or switching the tree off, give the gateway about ten seconds to clear the old topics before restarting it.
 - The values are separate topics, so two of them cannot be read atomically.
+- The values stay as they are when the gateway goes offline. Watch the [device status topic](#device-status-topic-lwt) to notice an outage; with the default root it sits right next to the tree (`genius-gateway/<mac>/status`).
 - The tree only publishes. Commands (line test, fire alarm) are available as [Home Assistant buttons](#button-entities-configuration) and over the [REST API](http-api.md).
 
 !!! note "Independent of the other MQTT features"
