@@ -128,6 +128,7 @@ The gateway device publishes:
   "name": "Status",
   "unique_id": "genius-gateway-1a2b3c4d5e6f_status",
   "state_topic": "genius-gateway/1a2b3c4d5e6f/status",
+  "value_template": "{{ value }}",
   "icon": "mdi:heart-pulse",
   "entity_category": "diagnostic",
   "device": {
@@ -147,6 +148,7 @@ The gateway device publishes:
 - `name` - Entity name shown in Home Assistant
 - `unique_id` - Unique identifier for this sensor
 - `state_topic` - The [device status topic](#device-status-topic-lwt)
+- `value_template` - Takes the plain text payload as it is. It is stated so that Home Assistant replaces the template this entity had up to v1.5
 - `icon` - Material Design icon identifier
 - `entity_category` - Category (`diagnostic` for system status)
 - `device` - Device information object
