@@ -248,6 +248,8 @@ MQTT topic where the status summary of all smoke detectors is published whenever
 
 The **MQTT Value Tree** collapsible card switches on a third way of publishing, meant for smart home systems other than Home Assistant: every value of every smoke detector and alarm line gets a topic of its own, with a plain text payload.
 
+![MQTT Value Tree settings](../assets/images/software/gg-connections-mqtt-value-tree.png)
+
 **Enable MQTT value tree**
 
 Toggle to enable/disable the value tree. Switching it off clears the topics it published.

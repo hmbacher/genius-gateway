@@ -324,8 +324,8 @@ All other diagnostic entities show as **unavailable** until the first acoustic r
 
 **Device Information**
 
-![Device information panel displaying all smoke detector attributes including location, firmware, and configuration](../assets/images/doc/ha/ha-details2-detecting.png)
-*Complete device information with manufacturer details, model identification, and assigned area for automation purposes*
+![Smoke detector device page with its sensors, status and diagnostic entities](../assets/images/doc/ha/ha-detector-device.png)
+*Complete device information with manufacturer details, model identification, assigned area, status and diagnostic entities*
 
 ### Automation Example
 
@@ -372,7 +372,7 @@ The Button Entities provides comparable functionality to the Web Interface for s
 **Alarm Line Device with Entities**
 
 ![Alarm line device showing button controls and transmission state sensor](../assets/images/doc/ha/ha-alarmlines-device.png)
-*Alarm line device with button controls for line test and fire alarm operations, plus transmission state sensor*
+*Alarm line device with button controls for commissioning, line test and fire alarm operations, plus transmission state sensor*
 
 **Transmission State Sensor**
 
