@@ -706,6 +706,29 @@ export type WSLoggerSettings = {
 	wsLoggerEnabled: boolean;
 };
 
+/** One client connected to the WebSocket logger (GET /rest/wslogger/clients). */
+export type WSLoggerClient = {
+	/** Socket of the connection - unique while it is open. */
+	id: number;
+	address: string;
+	port: number;
+	/** Name the client gave itself with ?client=... in the URL. */
+	name?: string;
+	/** User-Agent of the connection request. */
+	userAgent?: string;
+	/** Age of the connection when the list was made. */
+	connectedMs: number;
+	/** Radio packets sent to the client, every repetition counted. */
+	packets: number;
+	/** Payload bytes of these packets. */
+	bytes: number;
+};
+
+export type WSLoggerClients = {
+	enabled: boolean;
+	clients: WSLoggerClient[];
+};
+
 export type HASettings = {
 	enabled: boolean;
 	discovery_prefix: string;

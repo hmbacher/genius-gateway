@@ -202,7 +202,8 @@
 		}
 
 		const ws_protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-		ws = new WebSocket(`${ws_protocol}://${window.location.host}/ws/logger`);
+		// Named, so the WebSocket Logger page lists it as the Packet Visualizer
+		ws = new WebSocket(`${ws_protocol}://${window.location.host}/ws/logger?client=packet-visualizer`);
 		ws.binaryType = 'arraybuffer';
 
 		ws.onopen = (ev) => {
