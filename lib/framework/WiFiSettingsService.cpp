@@ -79,6 +79,7 @@ void WiFiSettingsService::reconfigureWiFiConnection()
 {
     // reset last connection attempt to force loop to reconnect immediately
     _lastConnectionAttempt = 0;
+    _connectPending = false;
 
     String connectionMode;
 
@@ -148,22 +149,62 @@ String WiFiSettingsService::getIP()
 
 void WiFiSettingsService::manageSTA()
 {
-    // Abort if already connected, if we have no SSID, or are in offline mode
-    if (WiFi.isConnected() || _state.wifiSettings.empty() || _state.staConnectionMode == (u_int8_t)STAConnectionMode::OFFLINE)
+    // Nothing to manage without a network, or in offline mode
+    if (_state.wifiSettings.empty() || _state.staConnectionMode == (u_int8_t)STAConnectionMode::OFFLINE)
     {
+        _connectPending = false;
+        _offline = false;
         return;
     }
 
-    // Abort if a connection attempt is already in progress (WiFi.begin() was called but hasn't resolved yet)
-    if (WiFi.status() == WL_IDLE_STATUS)
+    const unsigned long now = millis();
+
+    if (WiFi.isConnected())
     {
+        if (_offline)
+            ESP_LOGI(SVK_TAG, "WiFi connected after %lu s.", (unsigned long)(now - _offlineSince) / 1000UL);
+        _connectPending = false;
+        _offline = false;
+        return;
+    }
+
+    if (!_offline)
+    {
+        _offline = true;
+        _offlineSince = now;
+        _lastInterfaceRestart = now;
+        ESP_LOGI(SVK_TAG, "WiFi is not connected, looking for a network.");
+    }
+
+    // A connection attempt is under way: WiFi.begin() was called and has neither led to an IP
+    // address nor run out of time. WiFi.status() is not asked for this. Its WL_IDLE_STATUS means
+    // "connected to the access point, no IP address" - and it also follows the "IP lost" event,
+    // which the network stack raises up to two minutes after a disconnect, when nothing is being
+    // attempted at all. Taking that for an attempt in progress means waiting forever.
+    if (_connectPending)
+    {
+        if ((unsigned long)(now - _connectStartedAt) < WIFI_CONNECT_TIMEOUT)
+            return;
+
+        ESP_LOGW(SVK_TAG, "WiFi connection attempt gave no IP address within %d s, starting over.", WIFI_CONNECT_TIMEOUT / 1000);
+        _connectPending = false;
+        WiFi.disconnect(); // ends a connection to the access point that never got an IP address
+    }
+
+    // Offline for long, although attempts keep being made: restart the WiFi interface. Only the
+    // interface - the device keeps running, so this can never turn into a restart loop.
+    if ((unsigned long)(now - _lastInterfaceRestart) >= WIFI_INTERFACE_RESTART_DELAY)
+    {
+        _lastInterfaceRestart = now;
+        ESP_LOGW(SVK_TAG, "WiFi offline for %lu min, restarting the WiFi interface.", (unsigned long)(now - _offlineSince) / 60000UL);
+        reconfigureWiFiConnection(); // switches the station off; the next scan switches it on again
         return;
     }
 
 #ifdef SERIAL_INFO
-        Serial.println("Connecting to WiFi...");
+    Serial.println("Connecting to WiFi...");
 #endif
-        connectToWiFi();
+    connectToWiFi();
 }
 
 void WiFiSettingsService::connectToWiFi()
@@ -285,6 +326,8 @@ void WiFiSettingsService::configureNetwork(wifi_settings_t &network)
 
     // attempt to connect to the network
     WiFi.begin(network.ssid.c_str(), network.password.c_str(), network.channel, network.bssid);
+    _connectPending = true; // manageSTA() waits for the outcome, but not forever
+    _connectStartedAt = millis();
     // WiFi.begin(network.ssid.c_str(), network.password.c_str());
 
 #if CONFIG_IDF_TARGET_ESP32C3
