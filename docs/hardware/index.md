@@ -103,7 +103,7 @@ Visit the project in [OSHWLab :material-open-in-new:](https://oshwlab.com/hmbach
 
 | File | Format | Comment |
 |------|--------|---------|
-| [:material-download: gg-easyeda-pro-v1.1.epro](../assets/downloads/cae/gg-easyeda-pro-v1.1.epro) | EasyEDA Pro | |
+| [:material-download: gg-easyeda-pro-v1.1.epro2](../assets/downloads/cae/gg-easyeda-pro-v1.1.epro2) | EasyEDA Pro | |
 | [:material-download: gg-altium-designer-v1.1.zip](../assets/downloads/cae/gg-altium-designer-v1.1.zip) | Altium Designer | **:material-alert-circle-outline: Untested** |
 | [:material-download: gg-mentor-pads-v1.1.zip](../assets/downloads/cae/gg-mentor-pads-v1.1.zip) | Mentor Graphics PADS | **:material-alert-circle-outline: Untested** |
 
