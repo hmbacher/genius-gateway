@@ -74,6 +74,21 @@ A third way of publishing over MQTT, for smart home systems other than Home Assi
 - **Cleans up after itself**: with every full publish, retained topics of smoke detectors and alarm lines that no longer exist are cleared - only topics of the tree's own layout, nothing else under the root
 - **Does not get in the way of alarms**: the tree publishes in the background, in batches, never from the packet receiver. When everything is published again, the alarm topics go out first and a value that changes meanwhile is sent ahead of the rest
 
+## Line Setting of Alarm Lines (Rotary Switches)
+Radio modules react only to packets of their alarm line ID **and** their line setting - the line they are set to with their rotary switches, e.g. `A.3` (Hekatron: *Linie*). Up to now the gateway sent every action for A.0, the fixed line of the *FM Basis X*: on lines of *FM Pro X* or old modules set to anything else, line test, fire alarm and commissioning from the gateway had no effect. Each alarm line now has a line setting, and the gateway sends its actions for it.
+
+- **Automatic by default**: the line setting comes from the smoke detectors of the line - A.0 for an *FM Basis X*, the rotary position of an *FM Pro X* from its readout or its radio packets, the position entered by hand for an old module. Detectors set differently: the most frequent one. Not known: A.0, as before
+- **Set by hand**: the edit dialog of an alarm line offers *Automatic* or any valid line (A.0 - G.9, H.0, H.1, H.2, H.4, H.5, H.7), also when the line is created by hand - the way for a line without registered detectors
+- **Taken from radio packets**: a line that is added automatically takes the line setting of the module that sent the packet. An automatic line whose detectors do not tell it takes it from the next packet of the line. Packets of a gateway are never used
+- **Detectors learn their rotary position**: the packets of an *FM Pro X* tell it, also without an acoustic readout
+- **New *Line Setting* column** on the Alarm Lines page (a badge on phones) with the one line the gateway sends for: light grey where it does not matter (only *FM Basis X*, or not known), otherwise a badge whose colour tells where it comes from (black: smoke detectors, primary: set by hand, secondary: radio packet), and a yellow one with the number of smoke detectors that are set to another line. Those detectors carry a badge with their line in the *Smoke Detectors* column, so it is clear which ones would have to be set again. The tooltip tells where the line setting comes from, the info icon of the column explains it
+- **Warning before an action**: when smoke detectors of the line are set to another line, the confirmation of line test, fire alarm and commissioning names them and warns that they will not react
+- **The *Acquisition* column is now called *Source***, the ID moved below the name, and the line actions fit in one row
+- **Export and import** carry the line setting (`lineCodeSource`, `lineCode`). Files of earlier versions import as *Automatic*
+- **Smoke Detectors column**: lists every detector of the line, also the ones registered from radio packets only
+
+See **[Alarm Lines Management - Line Setting](https://hmbacher.github.io/genius-gateway/features/alarm-lines-management/#line-setting)**.
+
 ## Old FM Basis / FM Pro Modules
 Observations on an installation with radio modules that have rotary switches, reported by aoswald82 (#33), corrected two assumptions the gateway was built on: old modules get a 32-bit alarm line ID at commissioning as well, and the rotary position is not just a label - it is transmitted in every packet and decides, together with the alarm line ID, which modules work together.
 
@@ -82,7 +97,7 @@ Observations on an installation with radio modules that have rotary switches, re
 - **Range test explains old modules**: old modules do not answer the range test. Their signal icon no longer shows *Out of direct range*; the icon's tooltip, the survey dialog and the PDF report say that these modules give no answer
 - **Protocol documentation corrected**: the bytes 3, 8 and 13 of every packet are the line code - the rotary position - of the addressed line, the originator and the forwarder. The section on line addressing describes the receive and forward rules and the collective alarm lines (H), and no longer claims that the rotary position is never compared or that the line ID of an old module follows from its rotary switches
 - **Packet visualizer shows the line code**: the header of every packet names the rotary position of the addressed line, the originator and the forwarder (for example `A.3`, or `Any`)
-- **Known limitation, now documented**: the gateway transmits its line test, fire alarm and commissioning packets for the rotary position A.0. Modules set to another position do not react to them: a line test sent for another position was observed to be ignored and not forwarded
+- **Packets for the right rotary position**: modules set to another position than the one in a packet do not react to it - a line test sent for another position was observed to be ignored and not forwarded. The gateway now sends for the line setting of the line, see *Line Setting of Alarm Lines* above
 
 ## Home Assistant: Last Reset Reason
 The gateway device in Home Assistant gets a diagnostic sensor **Last Reset Reason**: why the gateway last restarted - power-on, software restart, exception, watchdog, brownout and so on. Contributed by aoswald82 (#37).

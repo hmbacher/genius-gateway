@@ -33,6 +33,7 @@
  * compiled and unit-tested on the host. */
 #include <stddef.h>
 #include <stdint.h>
+#include "GeniusLineCode.h"
 
 #define HOPS_FIRST 0xF ///< Initial hops value for packet routing
 #define HOPS_LAST 0x0  ///< Final hops value for packet routing
@@ -49,15 +50,6 @@
 #define LEN_LINE_CLOCK_PACKET 33                   ///< Line clock length
 #define LEN_CONFIG_CHECK_PROBE_REQUEST_PACKET 28   ///< ConfigCheckProbe request length (same wire length as CommissioningProbe Request; distinguished by the message-type byte)
 #define LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET 36  ///< ConfigCheckProbe response length (same wire length as a status change; distinguished by the message-type byte)
-
-/* Line code: the position of a radio module's rotary switches, letter << 4 | number (A.0 = 0x00,
- * A.3 = 0x03, H.7 = 0x77; an FM Basis X has no switches and is fixed to A.0). Every frame carries it
- * three times. A radio module accepts a frame only if the addressed line code is its own (or
- * GENIUS_LINE_CODE_ANY) and the Line-ID matches as well, and it forwards a frame only if the line
- * code of the originator is its own - see docs/reverse-engineering/protocol-analysis.md,
- * "Line Addressing". The gateway itself receives every frame, whatever its line code. */
-#define GENIUS_LINE_CODE_A0 0x00  ///< Line code of the rotary position A.0 (the only one an FM Basis X has)
-#define GENIUS_LINE_CODE_ANY 0xFF ///< Addressed line code that every radio module accepts
 
 #define GENIUS_FLAG_COLLECTIVE 0x10 ///< Flags byte: collective alarm - the frame may cross to the lines paired with the sender's
 
@@ -145,6 +137,7 @@ typedef struct genius_packet_t
   uint32_t origin_id;        ///< Original sender radio module ID
   uint32_t sender_id;        ///< Current sender radio module ID
   uint32_t line_id;          ///< Associated alarm line ID
+  uint8_t origin_line_code;  ///< Line code of the origin radio module (its rotary position, see GeniusLineCode.h)
   uint8_t hops;              ///< Hop count for packet routing
   uint16_t status_set;       ///< HPT_STATUS_CHANGE: status flags newly set (GENIUS_STATUS_*)
   uint16_t status_cleared;   ///< HPT_STATUS_CHANGE: status flags newly cleared (GENIUS_STATUS_*)

@@ -176,7 +176,9 @@ Authorization: Bearer <token>
       "id": 123456789,
       "name": "Building A",
       "created": "2025-01-15T10:00:00Z",
-      "acquisition": 1
+      "acquisition": 1,
+      "lineCodeSource": 1,
+      "lineCode": 3
     }
   ]
 }
@@ -188,6 +190,8 @@ Authorization: Bearer <token>
 - `name` - Human-readable alarm line name
 - `created` - Creation timestamp
 - `acquisition` - How line was discovered (0=built-in, 1=packet, 2=manual, 3=acoustic, 4=signal probe)
+- `lineCodeSource` - Where the [line setting](../features/alarm-lines-management.md#line-setting) comes from: 0 = automatic (from the smoke detectors, A.0 when they do not tell it), 1 = set by hand, 2 = taken from a radio packet. Optional in a POST; missing = automatic
+- `lineCode` - The line setting as line code, `letter << 4 | number` (A.0 = 0, A.3 = 3, B.2 = 18, H.7 = 119). Only with `lineCodeSource` 1 or 2. Valid: A.0 - G.9, H.0, H.1, H.2, H.4, H.5, H.7; an invalid one makes the line automatic
 
 **POST Request:** Same format as GET response
 
@@ -198,21 +202,22 @@ Authorization: Bearer <token>
 #### `/rest/alarm-lines/do`
 - **Method:** POST
 - **Auth:** 🛡️ Admin
-- **Description:** Execute alarm line action (line test or fire alarm)
+- **Description:** Execute an alarm line action. The packet is sent for the [line setting](../features/alarm-lines-management.md#line-setting) of the line
 - **Request:**
 ```json
 {
-  "action": "linetest",
-  "alarmLineId": 123456789,
-  "duration": 10
+  "lineId": 123456789,
+  "action": "line-test-start"
 }
 ```
 
 **Actions:**
 
-- `linetest` - Trigger RF line test transmission
-- `firealarm` - Trigger RF fire alarm transmission
-- `duration` - Duration in seconds
+- `line-test-start`, `line-test-stop` - Start / stop a line test
+- `fire-alarm-start`, `fire-alarm-stop` - Start / stop a fire alarm
+- `commissioning-start` - Start the radio commissioning of the line
+
+**Responses:** 200 when the transmission started, 500 when the line is not registered or the action is unknown, 503 while another action is still being sent
 
 **Response:**
 ```json

@@ -128,8 +128,17 @@ void GeniusGateway::begin()
                                         if (originId == DEVICE_STATUS_CHANGE)
                                             _requestDeviceStatusEmit(); },
                                     false);
-    /* Initialize Alarm Lines Service */
+    /* Initialize Alarm Lines Service. The automatic line setting of a line comes from its smoke
+     * detectors; the list of lines that still lack one follows every change of the detectors. */
+    _alarmLines.setLineCodeResolver([this](uint32_t lineId, uint8_t &code)
+                                    {
+                                        bool mixed;
+                                        return _geniusDevices.lineCodeOfLine(lineId, code, mixed); });
     _alarmLines.begin();
+    _alarmLines.refreshLineCodeCache();
+    _geniusDevices.addUpdateHandler([this](const String &originId)
+                                    { _alarmLines.refreshLineCodeCache(); },
+                                    false);
     /* MQTT value tree: its per-line topics carry the names of the alarm lines */
     _geniusDevices.setLineNameProvider([this]()
                                        {
@@ -725,7 +734,7 @@ void GeniusGateway::_handleStatusChange(const genius_packet_t &details)
 
         /* Store alarm line id */
         if (_gatewaySettings.isAddAlarmLineFromAlarmPacketEnabled())
-            _alarmLines.addAlarmLineFromPacket(details.line_id);
+            _alarmLines.addAlarmLineFromPacket(details.line_id, details.origin_id != GATEWAY_ID ? details.origin_line_code : -1);
     }
 
     /* ---- Every other status flag: battery low, faults, ... including flags not known yet ---- */
@@ -822,7 +831,12 @@ void GeniusGateway::_rx_packets()
                         case HPT_SUPERVISION_ROLL_CALL:
                         case HPT_MODULE_PRESENT:
                         case HPT_LINE_CLOCK:
-                            _geniusDevices.learnAlarmLine(packet_details.origin_id, packet_details.sender_id, packet_details.line_id);
+                            _geniusDevices.learnAlarmLine(packet_details.origin_id, packet_details.sender_id, packet_details.line_id,
+                                                          packet_details.origin_line_code);
+                            // A line whose detectors do not tell the line setting takes it from the packet. Not
+                            // from a gateway: it does not know the rotary position (A.0 up to v1.6.0).
+                            if (packet_details.origin_id != GATEWAY_ID)
+                                _alarmLines.learnLineCode(packet_details.line_id, packet_details.origin_line_code);
                             break;
                         default:
                             break;
@@ -834,7 +848,9 @@ void GeniusGateway::_rx_packets()
                             if (_gatewaySettings.isAddAlarmLineFromCommissioningPacketEnabled())
                             {
                                 uint32_t newLineID = EXTRACT32(packet.data, DATAPOS_COMISSIONING_NEW_LINE_ID);
-                                _alarmLines.addAlarmLineFromPacket(newLineID);
+                                _alarmLines.addAlarmLineFromPacket(newLineID, packet_details.origin_id != GATEWAY_ID
+                                                                                  ? packet_details.origin_line_code
+                                                                                  : -1);
                             }
                         }
                         else if (packet_details.type == HPT_STATUS_CHANGE)
@@ -848,7 +864,9 @@ void GeniusGateway::_rx_packets()
                             if (_gatewaySettings.isAddAlarmLineFromLineTestPacketEnabled())
                             {
                                 uint32_t lineID = EXTRACT32(packet.data, DATAPOS_GENERAL_LINE_ID);
-                                _alarmLines.addAlarmLineFromPacket(lineID);
+                                _alarmLines.addAlarmLineFromPacket(lineID, packet_details.origin_id != GATEWAY_ID
+                                                                               ? packet_details.origin_line_code
+                                                                               : -1);
                             }
                         }
                         else if (packet_details.type == HPT_MODULE_MISSING)

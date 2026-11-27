@@ -47,6 +47,7 @@
 #include <PsramAllocator.h>
 #include <AlarmPublishingSettingsService.h>
 #include <GeniusDeviceStatus.h>
+#include <GeniusLineCode.h>
 #include <GeniusMqttTree.h>
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
@@ -574,12 +575,30 @@ public:
      * (@p senderModuleSN equals @p originModuleSN), not by a copy another module forwarded.
      * The line IDs 0 (unassigned) and 0xFFFFFFFF (broadcast) are ignored.
      *
-     * Cheap for the reception task: the comparison runs on a RAM table, the devices are only
-     * touched when the alarm line really changes.
+     * The packet also tells the line setting (rotary position) of the module: @p originLineCode,
+     * which forwarding does not change. It is taken over unless the module is an FM Basis X
+     * (fixed to A.0) or an old FM Basis / FM Pro (entered by hand).
      *
-     * @return true if the alarm line of a detector was set or changed
+     * Cheap for the reception task: the comparison runs on a RAM table, the devices are only
+     * touched when the alarm line or the line setting really changes.
+     *
+     * @return true if the alarm line or the line setting of a detector was set or changed
      */
-    bool learnAlarmLine(uint32_t originModuleSN, uint32_t senderModuleSN, uint32_t lineId);
+    bool learnAlarmLine(uint32_t originModuleSN, uint32_t senderModuleSN, uint32_t lineId, uint8_t originLineCode);
+
+    /**
+     * @brief Line code (rotary position) of an alarm line as its smoke detectors tell it
+     *
+     * A detector tells it when it is known: FM Basis X fixed A.0, otherwise from the readout, the
+     * entry by hand or a radio packet of its module. Detectors set differently: the most frequent
+     * line code wins, on a tie the lowest (the web interface resolves it the same way).
+     *
+     * @param lineId Alarm line ID
+     * @param code   Receives the line code
+     * @param mixed  Set when the detectors of the line are set differently
+     * @return false when no detector of the line tells its line code
+     */
+    bool lineCodeOfLine(uint32_t lineId, uint8_t &code, bool &mixed);
 
     /**
      * @brief Stamp every known radio module NOT in @p reached as "range-tested, no response":
@@ -741,6 +760,8 @@ private:
     {
         uint32_t moduleSn;
         uint32_t lineId;
+        uint8_t lineCode;   ///< GENIUS_LINE_CODE_ANY while not known
+        bool codeLearnable; ///< A packet may set the line code (see lineCodeLearnable())
     };
     std::vector<ModuleLine> _moduleLines; ///< Rebuilt with the runtime table; guarded by _runtimeMutex
 

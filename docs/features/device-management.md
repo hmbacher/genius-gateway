@@ -213,7 +213,9 @@ Old-generation radio modules (**FM Basis** / **FM Pro**, the ones with rotary sw
 - **Alarm line** - the gateway takes it over from the **radio packets** of the module: the first alarm, status change, line test or radio link supervision telegram it receives from the detector names the alarm line. Until then the detector has no alarm line; afterwards it appears in its [group](#grouping-by-alarm-line) and on the [Alarm Lines](alarm-lines-management.md) page like every other detector.
 - **Rotary switches** - the position (for example `A.1`) is the line the module is set to. Together with the alarm line ID it decides which modules work together (see [Line Addressing](../reverse-engineering/protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis)), and an acoustic readout does not report it. A detector without it is marked **Line required**; enter the position as it is set on the module.
 
-For every other radio module the packets do the same job in the background: after a new commissioning the detector follows to its new alarm line by itself. A known alarm line is only replaced by a packet the module transmitted itself, not by a copy another module forwarded.
+For every other radio module the packets do the same job in the background: after a new commissioning the detector follows to its new alarm line by itself. A known alarm line is only replaced by a packet the module transmitted itself, not by a copy another module forwarded. The packets of an *FM Pro X* also tell its rotary position; the detector takes it over when it was not read out acoustically or has changed.
+
+The rotary position of the detectors gives the [line setting](alarm-lines-management.md#line-setting) of their alarm line - the line the gateway sends line test, fire alarm and commissioning for.
 
 ## Signal Probe Discovery
 
@@ -239,7 +241,7 @@ The gateway can actively **survey which radio modules are within direct radio ra
     ![Signal Probe Dialog (New Nearby Devices)](../assets/images/software/gg-gateway-devices-signal-probe-adds.png)
 
     - :tabler-circle-plus: **Add** a *new nearby* module as a device - opens the [Adding a New Detector](#adding-a-new-detector) dialog pre-filled with the radio-module serial number
-    - :tabler-circle-plus: **Add alarm line** for a line ID that showed up but is not configured yet - opens the [Adding a New Alarm Line](./alarm-lines-management.md#adding-a-new-alarm-line) dialog with the ID locked and its acquisition source set to :tabler-radar: *SignalProbe*
+    - :tabler-circle-plus: **Add alarm line** for a line ID that showed up but is not configured yet - opens the [Adding a New Alarm Line](./alarm-lines-management.md#adding-a-new-alarm-line) dialog with the ID locked and its source set to :tabler-radar: *SignalProbe*
 
 6. On completion a summary notification reports how many modules responded, how many known devices were updated, and how many new nearby modules were found; the device list refreshes so the new readings appear
 

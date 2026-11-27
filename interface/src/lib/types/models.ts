@@ -634,6 +634,10 @@ export type AlarmLine = {
 	name: string;
 	created: Date;
 	acquisition: number;
+	/** Where the line setting comes from (AlarmLineCodeSource); missing = automatic. */
+	lineCodeSource?: number;
+	/** Line setting (line code, see lib/genius/line.ts) unless the source is automatic. */
+	lineCode?: number;
 };
 
 export type AlarmLines = {

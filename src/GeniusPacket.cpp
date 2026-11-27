@@ -179,6 +179,7 @@ bool genius_analyze_packet(const uint8_t *data, size_t length, genius_packet_t *
         out->origin_id = readU32BE(data, DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID);
         out->sender_id = readU32BE(data, DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID);
         out->line_id = readU32BE(data, DATAPOS_GENERAL_LINE_ID);
+        out->origin_line_code = data[DATAPOS_GENERAL_ORIGIN_LINE_CODE]; // not changed by forwarding
         out->hops = HOPS_FIRST - data[DATAPOS_GENERAL_HOPS];
     }
 

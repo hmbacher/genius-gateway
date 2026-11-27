@@ -807,6 +807,63 @@ bool GeniusDevicesService::_runtimeOf(uint32_t deviceId, ModuleRuntime &out)
     return found;
 }
 
+/// Line code of a radio module as far as it is known: an FM Basis X is fixed to A.0, any other
+/// module tells it by the rotary position read out, entered by hand or learned from a packet.
+static bool moduleLineCode(const GeniusRadioModuleInfo &rm, uint8_t &code)
+{
+    if (rm.model == GRM_FM_BASIS_X)
+    {
+        code = GENIUS_LINE_CODE_A0;
+        return true;
+    }
+    const uint8_t c = genius_line_code_of(rm.lineCharacter, rm.lineNumber);
+    if (c == GENIUS_LINE_CODE_ANY)
+        return false;
+    code = c;
+    return true;
+}
+
+/// A packet may tell the line code of a module - not of an FM Basis X (fixed to A.0), not of the old
+/// FM Basis / FM Pro (their rotary position is entered by hand) and never over an entry by hand.
+static bool lineCodeLearnable(const GeniusRadioModuleInfo &rm)
+{
+    return rm.model != GRM_FM_BASIS_X && !isOldFmModule(rm.model) && !rm.lineManual;
+}
+
+bool GeniusDevicesService::lineCodeOfLine(uint32_t lineId, uint8_t &code, bool &mixed)
+{
+    mixed = false;
+    if (lineId == 0 || lineId == 0xFFFFFFFFu)
+        return false;
+
+    uint8_t counts[0x80] = {0}; // line codes are 0x00 - 0x79
+    beginTransaction();
+    for (const GeniusDevice &device : _state.devices)
+    {
+        uint8_t c;
+        if (device.radioModule.sn != 0 && device.radioModule.lineId == lineId && moduleLineCode(device.radioModule, c) &&
+            c < sizeof(counts) && counts[c] < 0xFF)
+            counts[c]++;
+    }
+    endTransaction();
+
+    int best = -1;
+    int distinct = 0;
+    for (int c = 0; c < (int)sizeof(counts); c++)
+    {
+        if (counts[c] == 0)
+            continue;
+        distinct++;
+        if (best < 0 || counts[c] > counts[best]) // on a tie the lowest line code stays
+            best = c;
+    }
+    if (best < 0)
+        return false;
+    code = (uint8_t)best;
+    mixed = distinct > 1;
+    return true;
+}
+
 void GeniusDevicesService::_syncRuntimeTable()
 {
     // Which detectors have a radio module that takes part in the radio link supervision.
@@ -818,7 +875,11 @@ void GeniusDevicesService::_syncRuntimeTable()
     for (const GeniusDevice &device : _state.devices)
     {
         if (device.radioModule.sn != 0)
-            lines.push_back({device.radioModule.sn, device.radioModule.lineId});
+        {
+            uint8_t code = GENIUS_LINE_CODE_ANY;
+            moduleLineCode(device.radioModule, code);
+            lines.push_back({device.radioModule.sn, device.radioModule.lineId, code, lineCodeLearnable(device.radioModule)});
+        }
         if (device.radioModule.model != GRM_FM_PRO_X || device.radioModule.sn == 0)
             continue;
         ModuleRuntime entry;
@@ -1048,9 +1109,11 @@ bool GeniusDevicesService::isRadioModuleKnown(uint32_t radioModuleSN)
     return found;
 }
 
-bool GeniusDevicesService::learnAlarmLine(uint32_t originModuleSN, uint32_t senderModuleSN, uint32_t lineId)
+bool GeniusDevicesService::learnAlarmLine(uint32_t originModuleSN, uint32_t senderModuleSN, uint32_t lineId, uint8_t originLineCode)
 {
-    if (originModuleSN == 0 || lineId == 0 || lineId == 0xFFFFFFFFu)
+    const bool lineUsable = lineId != 0 && lineId != 0xFFFFFFFFu;
+    const bool codeUsable = genius_line_code_valid(originLineCode);
+    if (originModuleSN == 0 || (!lineUsable && !codeUsable))
         return false;
 
     // Reception task: most packets come from a module whose alarm line is known and unchanged.
@@ -1061,8 +1124,11 @@ bool GeniusDevicesService::learnAlarmLine(uint32_t originModuleSN, uint32_t send
     {
         if (entry.moduleSn != originModuleSN)
             continue;
-        // An alarm line that is known gives way only to a packet the module sent itself
-        candidate = entry.lineId != lineId && (entry.lineId == 0 || senderModuleSN == originModuleSN);
+        // An alarm line that is known gives way only to a packet the module sent itself. The line
+        // code of the originator is not changed by forwarding, so every copy tells it.
+        const bool lineChange = lineUsable && entry.lineId != lineId && (entry.lineId == 0 || senderModuleSN == originModuleSN);
+        const bool codeChange = codeUsable && entry.codeLearnable && entry.lineCode != originLineCode;
+        candidate = lineChange || codeChange;
         break;
     }
     xSemaphoreGive(_runtimeMutex);
@@ -1071,6 +1137,8 @@ bool GeniusDevicesService::learnAlarmLine(uint32_t originModuleSN, uint32_t send
 
     uint32_t deviceId = 0;
     uint32_t previous = 0;
+    bool lineChanged = false;
+    bool codeChanged = false;
     String location;
     beginTransaction();
     for (GeniusDevice &device : _state.devices)
@@ -1078,10 +1146,22 @@ bool GeniusDevicesService::learnAlarmLine(uint32_t originModuleSN, uint32_t send
         if (device.radioModule.sn != originModuleSN)
             continue;
         // Checked again under the lock: the device may have changed since the table was built
-        if (device.radioModule.lineId != lineId && (device.radioModule.lineId == 0 || senderModuleSN == originModuleSN))
+        if (lineUsable && device.radioModule.lineId != lineId && (device.radioModule.lineId == 0 || senderModuleSN == originModuleSN))
         {
             previous = device.radioModule.lineId;
             device.radioModule.lineId = lineId;
+            lineChanged = true;
+        }
+        uint8_t known = GENIUS_LINE_CODE_ANY;
+        moduleLineCode(device.radioModule, known);
+        if (codeUsable && lineCodeLearnable(device.radioModule) && known != originLineCode)
+        {
+            device.radioModule.lineCharacter = genius_line_code_letter(originLineCode);
+            device.radioModule.lineNumber = genius_line_code_number(originLineCode);
+            codeChanged = true;
+        }
+        if (lineChanged || codeChanged)
+        {
             deviceId = device.id;
             location = device.location;
         }
@@ -1092,16 +1172,20 @@ bool GeniusDevicesService::learnAlarmLine(uint32_t originModuleSN, uint32_t send
     if (deviceId == 0)
         return false;
 
-    if (previous == 0)
+    if (codeChanged)
+        ESP_LOGI(GeniusDevices::TAG, "Line setting of smoke detector '%s' learned from a packet of its radio module %lu: %c.%u.",
+                 location.c_str(), (unsigned long)originModuleSN, genius_line_code_letter(originLineCode),
+                 genius_line_code_number(originLineCode));
+    if (lineChanged && previous == 0)
         ESP_LOGI(GeniusDevices::TAG, "Alarm line of smoke detector '%s' learned from a packet of its radio module %lu: %lu.",
                  location.c_str(), (unsigned long)originModuleSN, (unsigned long)lineId);
-    else
+    else if (lineChanged)
         ESP_LOGI(GeniusDevices::TAG, "Alarm line of smoke detector '%s' changed from %lu to %lu (packet of its radio module %lu).",
                  location.c_str(), (unsigned long)previous, (unsigned long)lineId, (unsigned long)originModuleSN);
 
     callUpdateHandlers(DEVICE_STATUS_CHANGE); // persist, rebuild the RAM table, notify front end
 
-    // HA: the alarm line ID is an attribute of the detector
+    // HA: the alarm line ID and the line setting are attributes of the detector
     beginTransaction();
     _publishSmokeDetectorAttributes(deviceId);
     endTransaction();
