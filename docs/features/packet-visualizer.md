@@ -11,6 +11,8 @@ The Packet Visualizer provides real-time monitoring and analysis of RF communica
 !!! info "WebSocket Logger Required"
     The Packet Visualizer requires the WebSocket Logger to be enabled. If disabled, you'll see an informational message with a link to enable it in the [WebSocket Logger Settings](websocket-interface.md).
 
+    If the connection to the logger is refused or lost - the gateway restarts, the logger is switched off - the Packet Visualizer says so below the packet list and connects again by itself. Packets received while it had no connection are not shown. While the page is open it is listed on the WebSocket Logger page as a [connected client](websocket-interface.md#connected-clients).
+
 ## Overview
 
 The Packet Visualizer displays captured RF packets in real-time with intelligent deduplication, detailed interpretation, and visual highlighting. Each packet type is automatically identified and decoded to show meaningful information about detector communication, alarms, commissioning activities, and network topology.

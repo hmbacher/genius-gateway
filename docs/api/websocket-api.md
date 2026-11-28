@@ -798,6 +798,7 @@ For further details, also see [WebSocket Logging Interface](../features/websocke
 - No login: the connection filter only checks that the logger is enabled. Anyone in the network can read the received radio packets while it is - switch the logger off when it is not needed
 - Multiple clients can connect simultaneously
 - Each client receives all packets (broadcast)
+- The gateway holds up to 13 HTTP and WebSocket connections at once; beyond that it closes the least recently used one, which can be an idle logger connection. A tool should connect again when its connection closes - the built-in Packet Visualizer does
 - A client can name itself with the query parameter `client` (`/ws/logger?client=my-recorder`); the name is shown in the list of connected clients on the WebSocket Logger page and in [`/rest/wslogger/clients`](http-api.md#restwsloggerclients)
 - Binary format requires client-side parsing
 - Timestamp is in microseconds since device boot

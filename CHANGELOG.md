@@ -171,6 +171,8 @@ See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/set
     - Only readouts of radio modules that report one of these bits are affected; modules that report `0x00` in both fields (as an FM Basis X without set flags does) were always shown correctly
     - Stored readouts are corrected without a new readout: the gateway stores the two bytes unchanged, only their interpretation was wrong
     - The [acoustic readout documentation](https://hmbacher.github.io/genius-gateway/reverse-engineering/acoustic-readout/) lists the corrected bit tables
+- **New connections were refused after about nine**: the web server may hold 13 connections and closes the least recently used one beyond that, but the network stack had only 16 sockets for everything - web server, MQTT, mDNS, time sync. They ran out first: a new connection was reset and the web server never got to close an idle one. Two browser tabs on the gateway were enough to lock out a WebSocket logger client or the Packet Visualizer. The network stack now has 24 sockets
+- **Packet Visualizer stayed disconnected without saying so**: when its connection to the WebSocket logger was refused or lost - gateway restart, too many connections, logger switched off - it kept showing "Waiting for packets...". It now connects again by itself (after 2 s, then waiting longer up to 15 s) and shows while it has no connection; a disabled logger is checked again every 10 s
 
 # v1.5.0
 
