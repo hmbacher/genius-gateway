@@ -315,17 +315,17 @@ All other diagnostic entities show as **unavailable** until the first acoustic r
 **Overview Dashboard**
 
 ![Multiple smoke detectors displayed in Home Assistant's overview dashboard showing their online status and locations](../assets/images/doc/ha/ha-overview.png)
-*Multiple Genius Plus X smoke detectors automatically discovered and displayed with their configured locations*
+*Genius Plus X smoke detectors on a Home Assistant dashboard, one card per area*
 
 **Detector Detail View**
 
-![Individual smoke detector detail page showing alarm state, device information, and entity controls](../assets/images/doc/ha/ha-details-detecting.png)
-*Detailed view of a single detector showing real-time alarm state, manufacturer information, model, and serial number*
+![Smoke sensor of a single smoke detector with its state history and activity](../assets/images/doc/ha/ha-detector-smoke-sensor.png)
+*Smoke sensor of a single detector: current state (here Clear, no smoke), history and activity; the device page behind it shows manufacturer, model and serial number*
 
 **Device Information**
 
-![Device information panel displaying all smoke detector attributes including location, firmware, and configuration](../assets/images/doc/ha/ha-details2-detecting.png)
-*Complete device information with manufacturer details, model identification, and assigned area for automation purposes*
+![Smoke detector device page with its sensors, status and diagnostic entities](../assets/images/doc/ha/ha-detector-device.png)
+*Complete device information with manufacturer details, model identification, assigned area, status and diagnostic entities*
 
 ### Automation Example
 
@@ -372,7 +372,7 @@ The Button Entities provides comparable functionality to the Web Interface for s
 **Alarm Line Device with Entities**
 
 ![Alarm line device showing button controls and transmission state sensor](../assets/images/doc/ha/ha-alarmlines-device.png)
-*Alarm line device with button controls for line test and fire alarm operations, plus transmission state sensor*
+*Alarm line device with button controls for commissioning, line test and fire alarm operations, plus transmission state sensor*
 
 **Transmission State Sensor**
 

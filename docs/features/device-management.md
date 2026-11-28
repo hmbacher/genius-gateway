@@ -83,6 +83,8 @@ This feature is useful for organizing devices by floor level, room priority, or 
 
 When the smoke detectors are on more than one alarm line, the list shows them in one group per line, each under a heading with the name of the line, the number of its detectors and - if there are any - how many of them are alarming or have a fault. The [Overview](overview.md#device-status-grid) groups its cards the same way.
 
+![Smoke detectors grouped by alarm line, the main line folded away](../assets/images/software/gg-gateway-devices-grouped.png)
+
 - The line of a detector is the one its radio module is commissioned to. The gateway knows it from an [acoustic readout](#adding-via-acoustic-readout); detectors without one are listed last under **Alarm line unknown**.
 - The groups are named after the [alarm lines](alarm-lines-management.md) and sorted by name. A line that is not in the list of alarm lines is shown as *Line* followed by its ID.
 - A click on a heading folds its group away, another click shows it again. The heading keeps showing how many of its detectors are alarming or have a fault.
@@ -104,6 +106,8 @@ For each smoke detector the gateway keeps an activity log - one chronology of wh
     | :tabler-restore: **Status reset** | The reported faults were [discarded](#resetting-the-status) in the gateway |
     | :tabler-antenna-off: **Radio module missing** / **Reported missing** / **Confirmed present** / **Radio module heard again** | [Radio link supervision](#radio-link-supervision): the detector reports another radio module as missing (repeated reports are counted on the entry: *3 times, last ...*), is reported missing itself (with the module that reported it), is confirmed present by another module that hears it, or its radio module was heard again. Radio modules are named with the location of their detector if they are registered |
     | :tabler-bell-ringing: **Alarm** | An alarm, with its start and - once it ended - its end and how it ended: no more smoke detected, stopped by a user in the web interface, or cleared during a device configuration import |
+
+![Activity log of a detector with all entries](../assets/images/software/gg-gateway-devices-activity-log.png)
 
 The log keeps the newest 50 entries per detector. The number of alarms is counted separately, so the alarm count in the device list stays correct when old alarms drop out of the log; the dialog says so when that is the case. An entry made before the gateway's clock was set shows *Time unknown*.
 
@@ -292,6 +296,8 @@ There is one current status, fed by two sources - whichever is newest wins, per 
 
 The Device Details dialog shows for every flag whether it is active, OK or unknown, since when, and from which source. Every change is recorded in the [activity log](#viewing-the-activity-log).
 
+![Current status in the Device Details dialog: battery low reported over the air](../assets/images/software/gg-gateway-devices-details-status.png)
+
 !!! info "Unknown until reported"
     Smoke detectors announce a flag only when it **changes** - never periodically. Until the gateway has received a flag (or performed a readout), its state is shown as **Unknown** rather than OK: a gateway that was put into operation after a battery warning was sent cannot know about it.
 
@@ -307,6 +313,8 @@ FM Pro X radio modules can supervise their line (DIP switch 5 on the module, off
 - **Reported missing** ends when the gateway receives any packet of that radio module again, when another radio module answers the report because it still hears the module (*Confirmed present* - the module is there, only out of range of the one that reported it), or when the status is [reset](#resetting-the-status). The answer needs a line with at least three modules and has not been observed on a real line yet. None of this alone makes the radio module *OK*: its *Radio Link* stays what it was, which is *Unknown* (in Home Assistant: unavailable) unless a readout or a status change of the detector has reported it.
 - The **radio link fault** of the reporting detector does not end by itself, even when the missing module is back: a radio module that announced it has switched its supervision off. Two things clear it. A reset on the radio module (a short press on its button) sends a status change, so the gateway shows the fault as gone. A new commissioning of the line - what the manufacturer prescribes for this fault - clears it **without any telegram**: the gateway keeps showing the fault until the status is [reset](#resetting-the-status) by hand.
 - **Last Seen** and **Signal** - for detectors with an FM Pro X module the device list shows how long ago a packet of the module was received (*Seen 3 h ago*), and the Device Details dialog the time and the signal strength. Home Assistant gets both as entities. Because of the daily series a module that is fine is heard at least once a day, provided it is in range of the gateway. The exception is a module that has announced a radio link fault: it sends no series until that fault is cleared, so its *Last Seen* gets older although the module is there.
+
+![Radio module of an FM Pro X in the Device Details dialog with Last Seen and Signal](../assets/images/software/gg-gateway-devices-details-radio.png)
 
 !!! info "Last seen is not stored"
     These two values live in the gateway's memory only. After a restart the dialog says *Not heard since the gateway started* until the next packet of the module arrives - it never assumes that a module is there.
