@@ -29,7 +29,7 @@ WebSocket connections can be authenticated by including the JWT token in:
 | Endpoint | Auth | Description |
 |----------|------|-------------|
 | `/ws/events` | 🔒 | Real-time event stream for system and application events |
-| `/ws/logger` | 🛡️ | Real-time RF packet stream from CC1101 radio |
+| `/ws/logger` | none | Real-time RF packet stream from CC1101 radio (no login, see below) |
 
 ---
 
@@ -744,12 +744,12 @@ client.connect();
 ### Connection Details
 
 - **URL:** `/ws/logger`
-- **Auth:** 🛡️ Admin
+- **Auth:** none - any client in the network can connect while the logger is enabled
 - **Description:** Real-time binary stream of RF packets received by the CC1101 radio transceiver. Provides raw packet data for debugging, analysis, and visualization.
 
 ### Connection Flow
 
-1. **Connect** - Establish WebSocket connection with admin authentication
+1. **Connect** - Establish the WebSocket connection; no login is needed
 2. **Receive ID** - Server sends unique client ID
 3. **Stream** - Receive binary packet data continuously
 4. **Disconnect** - Close connection when done
@@ -795,7 +795,7 @@ For further details, also see [WebSocket Logging Interface](../features/websocke
 ### Usage Notes
 
 - Only available when WebSocket logger is enabled (via `/rest/wslogger` or web frontend)
-- Connection filter checks admin authentication
+- No login: the connection filter only checks that the logger is enabled. Anyone in the network can read the received radio packets while it is - switch the logger off when it is not needed
 - Multiple clients can connect simultaneously
 - Each client receives all packets (broadcast)
 - A client can name itself with the query parameter `client` (`/ws/logger?client=my-recorder`); the name is shown in the list of connected clients on the WebSocket Logger page and in [`/rest/wslogger/clients`](http-api.md#restwsloggerclients)
@@ -835,7 +835,7 @@ For further details, also see [WebSocket Logging Interface](../features/websocke
 
 #### JavaScript (Browser)
 ```javascript
-const loggerWs = new WebSocket('ws://gateway.local/ws/logger?access_token=' + token);
+const loggerWs = new WebSocket('ws://gateway.local/ws/logger?client=browser-logger');
 loggerWs.binaryType = 'arraybuffer';
 
 loggerWs.onopen = () => {
@@ -891,8 +891,8 @@ import struct
 import json
 
 class PacketLoggerClient:
-    def __init__(self, token):
-        self.token = token
+    def __init__(self, name='python-logger'):
+        self.name = name  # shown on the WebSocket Logger page
         self.ws = None
     
     def on_open(self, ws):
@@ -902,7 +902,7 @@ class PacketLoggerClient:
         if isinstance(message, str):
             # Client ID message
             msg = json.loads(message)
-            print(f"Client ID: {msg['clientId']}")
+            print(f"Client ID: {msg['id']}")
         else:
             # Binary packet data
             # Parse cc1101_packet_t structure
@@ -930,7 +930,7 @@ class PacketLoggerClient:
     
     def connect(self):
         self.ws = websocket.WebSocketApp(
-            f"ws://gateway.local/ws/logger?access_token={self.token}",
+            f"ws://gateway.local/ws/logger?client={self.name}",
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,
@@ -939,7 +939,7 @@ class PacketLoggerClient:
         self.ws.run_forever()
 
 # Usage
-client = PacketLoggerClient(token='your_jwt_token')
+client = PacketLoggerClient(name='python-logger')
 client.connect()
 ```
 
@@ -948,12 +948,12 @@ client.connect()
 const WebSocket = require('ws');
 
 class PacketLoggerClient {
-  constructor(token) {
-    this.token = token;
+  constructor(name) {
+    this.name = name; // shown on the WebSocket Logger page
   }
   
   connect() {
-    this.ws = new WebSocket(`ws://gateway.local/ws/logger?access_token=${this.token}`);
+    this.ws = new WebSocket(`ws://gateway.local/ws/logger?client=${this.name}`);
     this.ws.binaryType = 'arraybuffer';
     
     this.ws.on('open', () => {
@@ -964,7 +964,7 @@ class PacketLoggerClient {
       if (typeof data === 'string') {
         // Client ID message
         const msg = JSON.parse(data);
-        console.log('Client ID:', msg.clientId);
+        console.log('Client ID:', msg.id);
       } else {
         // Binary packet data
         const buffer = Buffer.from(data);
@@ -999,6 +999,6 @@ class PacketLoggerClient {
   }
 }
 
-const client = new PacketLoggerClient('your_jwt_token');
+const client = new PacketLoggerClient('node-logger');
 client.connect();
 ```

@@ -35,7 +35,7 @@ The counters live in the gateway's memory and start at zero with every connectio
 
 ### Enable WebSocket Logger
 
-**Default:** Disabled
+**Default:** Enabled
 
 Controls whether the WebSocket logging service is active and accepting client connections.
 
@@ -55,6 +55,9 @@ Controls whether the WebSocket logging service is active and accepting client co
 - The [Packet Visualizer](packet-visualizer.md) cannot receive live packets (file import still works)
 - Reduces system load when real-time monitoring is not needed
 
+!!! warning "No login"
+    The logger stream needs no login: while the logger is enabled, any device in the network can connect and read the received radio packets. Switch it off when it is not needed.
+
 !!! warning "Performance Impact"
     Packets are sent to connected clients **synchronously** during packet reception. A slow network connection or multiple connected clients can significantly impact packet processing performance and may lead to packet loss. For best results, use a fast local network connection and limit the number of simultaneous clients. See [Performance Considerations](#performance-considerations) for details.
 
@@ -70,7 +73,7 @@ ws://[gateway-ip-address]/ws/logger
 
 - **Protocol:** WebSocket (RFC 6455)
 - **Data Format:** Binary (raw packet data structure)
-- **Authentication:** Follows gateway security settings
+- **Authentication:** none - any device in the network can connect while the logger is enabled
 - **Path:** `/ws/logger`
 
 ### Naming a client {#naming-a-client}
