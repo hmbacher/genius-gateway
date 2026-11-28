@@ -123,6 +123,18 @@ The packet that starts a line test also starts a network test. The byte that was
 - **Automatically added alarm lines are named after their ID**: `<ID> (automatically added)` instead of a sentence about the packet they were learned from - the name shows up wherever the line does, e.g. in the packet visualizer. Lines are also learned from a network test start. Lines that already exist keep their name
 - **Documentation**: the protocol analysis describes the test mode byte, with the evidence and a captured line test start
 
+## WebSocket Logger: Connected Clients
+The WebSocket Logger page lists the clients that are connected to the logger right now.
+
+- **Laid out like the MQTT page**: the status on top - *Active* / *Disabled*, the URL to connect to and, under the heading *Connected Clients*, one entry per connected client - and the settings below
+- **One entry per connection**: what connected - the built-in *Packet Visualizer*, a tool that named itself, or the browser / tool from its User-Agent - with IP address and port, how long the connection has been open, and how many radio packets and how much data were sent to it
+- **No client connected** is shown as such; URL and clients are only listed while the logger is enabled
+- **Clients can name themselves** with `?client=<name>` in the URL; the Packet Visualizer connects as `packet-visualizer`
+- **Switching the logger off disconnects the clients** that are still connected - before, they stayed connected and received nothing
+- **REST API**: `GET /rest/wslogger/clients` (admin)
+
+See **[Connected Clients](https://hmbacher.github.io/genius-gateway/features/websocket-interface/#connected-clients)** for details.
+
 ## Home Assistant MQTT Topic Restructuring
 The Home Assistant topic tree carried a redundant namespace level and derived its identity from the user-editable **Device Name**, which duplicated the gateway's MAC address in every state topic and made renaming the gateway a destructive operation. Both are fixed.
 
@@ -159,6 +171,8 @@ See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/set
     - Only readouts of radio modules that report one of these bits are affected; modules that report `0x00` in both fields (as an FM Basis X without set flags does) were always shown correctly
     - Stored readouts are corrected without a new readout: the gateway stores the two bytes unchanged, only their interpretation was wrong
     - The [acoustic readout documentation](https://hmbacher.github.io/genius-gateway/reverse-engineering/acoustic-readout/) lists the corrected bit tables
+- **New connections were refused after about nine**: the web server may hold 13 connections and closes the least recently used one beyond that, but the network stack had only 16 sockets for everything - web server, MQTT, mDNS, time sync. They ran out first: a new connection was reset and the web server never got to close an idle one. Two browser tabs on the gateway were enough to lock out a WebSocket logger client or the Packet Visualizer. The network stack now has 24 sockets
+- **Packet Visualizer stayed disconnected without saying so**: when its connection to the WebSocket logger was refused or lost - gateway restart, too many connections, logger switched off - it kept showing "Waiting for packets...". It now connects again by itself (after 2 s, then waiting longer up to 15 s) and shows while it has no connection; a disabled logger is checked again every 10 s
 
 # v1.5.0
 
