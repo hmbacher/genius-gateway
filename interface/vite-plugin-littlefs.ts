@@ -16,25 +16,28 @@ export default function viteLittleFS(): Plugin[] {
 				// pins stale bundles in browsers forever.
 				if (process.env.EMBED_WWW) return;
 
-				const { assetFileNames, chunkFileNames, entryFileNames } =
-					config.build?.rollupOptions?.output;
+				const rollupOptions = config.build?.rollupOptions;
+				const output = rollupOptions?.output;
+				if (!rollupOptions || !output || Array.isArray(output)) return;
 
-        // Handle Server-build + Client Assets
-        config.build.rollupOptions.output = {
-          ...config.build?.rollupOptions?.output,
-          assetFileNames: assetFileNames.replace('.[hash]', '')
-        }
+				const { assetFileNames, chunkFileNames, entryFileNames } = output;
+				const next = { ...output };
 
-        // Handle Client-build
-        if (config.build?.rollupOptions?.output.chunkFileNames.includes('hash')) {
+				// Handle Server-build + Client Assets
+				if (typeof assetFileNames === 'string') {
+					next.assetFileNames = assetFileNames.replace('.[hash]', '');
+				}
 
-          config.build.rollupOptions.output = {
-            ...config.build?.rollupOptions?.output,
-            chunkFileNames: chunkFileNames.replace('.[hash]', ''),
-            entryFileNames: entryFileNames.replace('.[hash]', ''),
-          }
-        }
-      }
-    }
-  ]
+				// Handle Client-build
+				if (typeof chunkFileNames === 'string' && chunkFileNames.includes('hash')) {
+					next.chunkFileNames = chunkFileNames.replace('.[hash]', '');
+					if (typeof entryFileNames === 'string') {
+						next.entryFileNames = entryFileNames.replace('.[hash]', '');
+					}
+				}
+
+				rollupOptions.output = next;
+			}
+		}
+	];
 }

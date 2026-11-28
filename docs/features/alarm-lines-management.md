@@ -21,6 +21,8 @@ In Genius smoke detector systems, an **alarm line** is a communication channel i
 
 Each alarm line in your system must be registered in the gateway to enable proper monitoring and control.
 
+Besides its ID, every alarm line has a **line setting**: the line its radio modules are set to with their rotary switches, for example `A.3` (Hekatron calls it the *Linie* of a module). An *FM Basis X* has no rotary switches and is fixed to `A.0`; an *FM Pro X* and the old *FM Basis* / *FM Pro* can be set to `A.0` - `G.9` and the collective alarm lines `H.0`, `H.1`, `H.2`, `H.4`, `H.5`, `H.7`. A radio module only reacts to packets of its alarm line ID **and** its line setting, so the gateway sends line test, fire alarm and commissioning for the line setting of the alarm line - see [Line Setting](#line-setting).
+
 ### MQTT Integration
 
 When [Home Assistant Integration](../setup/connections.md#home-assistant-integration) is enabled, each alarm line is automatically published to MQTT with:
@@ -37,16 +39,24 @@ The Home Assistant integration provides comparable functionality to the Web Inte
 
 The alarm lines table displays all registered alarm lines with the following columns:
 
-#### ID
-The unique numeric identifier for the alarm line (1-4294967294). This ID must match the configuration in your smoke detectors for proper communication.
-
 #### Name
-A descriptive label for the alarm line (e.g., "First Floor", "Building A"). This helps identify the line in the interface and notifications.
+A descriptive label for the alarm line (e.g., "First Floor", "Building A"), which helps identify the line in the interface and notifications. Below it, in grey, the unique numeric identifier of the alarm line (`#1` - `#4294967294`). This ID must match the configuration in your smoke detectors for proper communication.
 
-#### Registered
-The date and time when the alarm line was first added to the gateway, displayed in DD.MM.YYYY HH:MM:SS format.
+#### Smoke Detectors
+The locations of the smoke detectors whose alarm line is known to be this one - from an acoustic readout, a range test or the radio packets of their modules. Shown as soon as a detector with a radio module is registered.
 
-#### Acquisition
+While a smoke detector of the line is set to another line than the one the gateway sends for, every detector of the line shows its line as a small badge: yellow for the ones that differ - they would have to be set again - and outlined for the others.
+
+#### Line Setting {#line-setting-column}
+The one line the gateway sends line test, fire alarm and commissioning for, see [Line Setting](#line-setting). The :tabler-info-circle: next to the column title explains it briefly; hover over a value for where it comes from:
+
+| Display | Meaning |
+|---|---|
+| `A.0` in light grey | Only *FM Basis X* modules on the line (fixed to A.0), or the line setting is not known and the gateway falls back to A.0 |
+| badge, e.g. **`A.3`** | The line setting matters: the line has radio modules with rotary switches, or it is set to something other than A.0. The colour tells where it comes from: black from the smoke detectors, primary colour set by hand, secondary colour taken from a radio packet |
+| yellow badge with a number | Smoke detectors of the line are set to another line - the number says how many. They carry a yellow badge with their line in the *Smoke Detectors* column and will not react to the gateway's packets. That happens when the detectors are set differently, or when a line setting set by hand or taken from a packet differs from theirs |
+
+#### Source
 Indicates how the alarm line was added to the system:
 
 - :tabler-forms: **Manual**: Alarm line was manually configured by an administrator
@@ -102,6 +112,9 @@ To manually register a new alarm line:
     ***Name***  
     Enter a descriptive name (1-100 characters) to identify this alarm line. Use meaningful names like "First Floor", "East Wing", or "Building A - Zone 1" to help distinguish between multiple alarm lines.
 
+    ***Line Setting***  
+    Leave it on **Automatic** to take it from the smoke detectors of the line, or select the line the radio modules are set to with their rotary switches, see [Line Setting](#line-setting). For a line of *FM Basis X* modules Automatic is always right.
+
 4. Click **Save** to register the alarm line
 
 The new alarm line will immediately appear in the table and is ready to receive and process alarm packets.
@@ -116,8 +129,9 @@ When [automatic alarm line registration](gateway-settings.md#alarm-lines) is ena
 2. The gateway extracts the alarm line ID from the received packet
 3. If the ID is not registered, the gateway automatically creates a new entry with:
     - **ID**: Extracted from the packet
-    - **Name**: Auto-generated as "Alarm Line [ID]"
-    - **Acquisition**: Marked as "Automatic" (:tabler-access-point:)
+    - **Name**: The ID followed by "(automatically added)", e.g. `2119672224 (automatically added)` - rename it as you like
+    - **Source**: Marked as "Automatic" (:tabler-access-point:)
+    - **Line setting**: Taken from the packet - the rotary position of the radio module that sent it. Packets of another gateway tell none; such a line starts on Automatic
 4. A success notification appears: "New alarm line detected."
 
 You can later edit automatically discovered alarm lines to assign meaningful names.
@@ -134,12 +148,34 @@ To modify an existing alarm line:
 
     ![Edit Alarm Line](../assets/images/software/gg-gateway-alarm-lines-edit.png)
 
-3. Modify the **ID** and/or **Name** fields as needed
+3. Modify the **ID**, **Name** and/or **Line Setting** fields as needed
 
     !!! danger "Changing the ID"
         If you change an alarm line's ID, ensure your physical smoke detectors are reconfigured to match. Mismatched IDs will prevent proper alarm communication.
     
 4. Click **Save** to apply changes
+
+## Line Setting {#line-setting}
+
+A radio module accepts a packet only if it carries both its alarm line ID and its line setting, and it forwards only packets of its own line setting. A packet sent for the wrong line setting is ignored by every module of the line - it does not even reach the ones in direct range (see [Line Addressing](../reverse-engineering/protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis)). That is why the gateway sends its [line actions](#alarm-line-actions) for the line setting of the alarm line. Where it comes from:
+
+| Line setting | Where it comes from | Tooltip |
+|---|---|---|
+| **Automatic** (default) | The smoke detectors of the line: an *FM Basis X* is A.0, an *FM Pro X* tells it in an acoustic readout or in its radio packets, an old module by the rotary position entered by hand. Detectors set differently: the most frequent line setting is used | "From the smoke detectors of this line", or "FM Basis X - fixed to A.0" |
+| **Automatic, not known** | No smoke detector of the line tells it, e.g. a line without registered detectors. The gateway sends for A.0 - and takes the line setting from the next radio packet of the line, which then counts as *taken from a radio packet* | "Not known from the smoke detectors of this line - A.0 is used" |
+| **Set by hand** | Selected in the [edit dialog](#editing-an-alarm-line) | "Set by hand" |
+| **Taken from a radio packet** | The packet that added the line [automatically](#automatic-alarm-line-discovery), or the first packet of a line whose detectors did not tell it | "Taken from a radio packet of this line" |
+
+A line setting set by hand or taken from a packet stays until it is changed in the edit dialog - also when the detectors tell another one. Whenever smoke detectors of the line are set to another line than the one used, the value turns yellow, its tooltip says how many detectors differ, and the detectors carry a yellow badge with their line. Select **Automatic** to follow the detectors again.
+
+![Line setting of a line whose detectors are set differently: yellow value with the number of differing detectors, badges at the detectors](../assets/images/software/gg-gateway-alarm-lines-line-setting.png)
+
+Before a line action is sent to such a line, its confirmation dialog names the detectors that will not react:
+
+![Confirmation of a line test with the warning about a detector set to another line](../assets/images/software/gg-gateway-alarm-lines-mismatch-warning.png){ .off-glb }
+
+!!! info "Packets of a gateway"
+    Packets sent by a gateway (originator `FF FF FF FE`) are never used for the line setting: up to v1.6.0 a gateway sent every packet for A.0, whatever the line was set to.
 
 ## Deleting an Alarm Line
 
@@ -179,6 +215,9 @@ To restore alarm lines from a previously exported file:
 
 Each alarm line supports several commissioning, test and diagnostic actions. These actions transmit RF commands to all smoke detectors configured for that alarm line.
 
+!!! info "Sent for the line setting"
+    Every action is sent for the [line setting](#line-setting) of the alarm line, e.g. `A.3`. Radio modules set to another line ignore it. When smoke detectors of the line are set to another line, the confirmation of line test, fire alarm and commissioning names them and warns that they will not react.
+
 !!! info "Action Behavior"
     - Only one action can be triggered at a time across all alarm lines
     - While the Genius Gateway is actively transmitting RF packets for the triggered action, a spinner icon is shown 
@@ -198,7 +237,10 @@ Every smoke detector **already assigned to this alarm line** then enters commiss
 
 ### :tabler-location: Start Line Test
 
-Initiates a line test on the selected alarm line. This command triggers all smoke detectors on the line to perform a coordinated test sequence.
+Initiates a line test on the selected alarm line. This command triggers all smoke detectors on the line to perform a coordinated test sequence, which the manufacturer states to last about 15 minutes unless it is stopped.
+
+!!! info "Line test, not network test"
+    The radio protocol knows two tests that share one packet: the **line test** (about 15 minutes) and the **network test** (about 30 minutes). Up to v1.5.0 this action sent the value that - as far as the protocol is understood today - starts a network test. Since v1.6.0 it starts a line test. See [Line Test / Network Test](../reverse-engineering/protocol-analysis.md#line-test-startstop).
 
 1. Click the :tabler-location: **Start line test** button
 2. A confirmation dialog appears
@@ -208,7 +250,7 @@ Initiates a line test on the selected alarm line. This command triggers all smok
 
 ### :tabler-location-off: Stop Line Test
 
-Stops an active line test on the selected alarm line.
+Stops an active line test on the selected alarm line. The same command also ends a network test started by a smoke detector.
 
 1. Click the :tabler-location-off: **Stop line test** button
 2. The gateway immediately transmits the appropriate commands [repetitively](../reverse-engineering/protocol-analysis.md#repetition) via RF

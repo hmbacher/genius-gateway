@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -10,9 +11,9 @@
 	import type {
 		GeniusDevices,
 		GeniusDevice,
+		GeniusAlarm,
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
-		AlarmLines,
 		AlarmLine,
 		ReportSettings,
 		StaticSystemInformation,
@@ -29,29 +30,51 @@
 	} from '$lib/types/enums';
 	import type { TunerData } from '$lib/audio/tuner-pipeline';
 	import { jsonDateReviver, downloadObjectAsJson } from '$lib/utils/misc';
-	import { getSmokeDetectorFaults, getRadioModuleFaults } from '$lib/utils/deviceStatus';
+	import {
+		getDeviceFaults,
+		getSmokeDetectorFaults,
+		getRadioModuleFaults
+	} from '$lib/utils/deviceStatus';
 	import { isOldFmModule } from '$lib/genius/line';
+	import { EVENT_ALARM } from '$lib/genius/status';
+	import { deviceAlarms } from '$lib/genius/activity';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { socket } from '$lib/stores/socket';
+	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
 	import SettingsCard from '$lib/components/SettingsCard.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import DraggableList from '$lib/components/DraggableList.svelte';
+	import AlarmLineHeading from '$lib/components/genius/AlarmLineHeading.svelte';
+	import { groupByAlarmLine, reorderWithinGroup } from '$lib/genius/lineGroups';
+	import { lineGrouping } from '$lib/stores/lineGrouping.svelte';
+	import IconGroupByLine from '~icons/tabler/folders';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import InfoDialog from '$lib/components/InfoDialog.svelte';
-	import EditSmokeDetector from './EditSmokeDetector.svelte';
-	import AlarmLog from './AlarmLog.svelte';
+	import ActivityLog from './ActivityLog.svelte';
 	import AcousticDetectionDialog from './AcousticDetectionDialog.svelte';
 	import DeviceImportDialog from './DeviceImportDialog.svelte';
 	import DeviceDetailsDialog from './DeviceDetailsDialog.svelte';
 	import ProbeProgressDialog from './ProbeProgressDialog.svelte';
 	import EditAlarmLine from '../alarm-lines/EditAlarmLine.svelte';
-	import ManualLineEntry from './ManualLineEntry.svelte';
 	import PdfReportDialog from './PdfReportDialog.svelte';
 	import SmokeDetectorRow from './SmokeDetectorRow.svelte';
+	import {
+		apiPutDevice,
+		afterDeviceSaved,
+		isHaEnabled,
+		loadHaRenameOption,
+		openDeviceEditor
+	} from './deviceSave.svelte';
+	import { escapeHtml } from '$lib/genius/entityRename';
+	import {
+		authHeaders,
+		fetchAlarmLines,
+		fetchRegisteredLineIds,
+		postAlarmLines
+	} from './restApi';
 	import { matchAcousticResult, matchAcousticUpdate } from './acousticMatch';
 	import DeleteAll from '~icons/tabler/trash-x';
 	import Add from '~icons/tabler/circle-plus';
-	import Edit from '~icons/tabler/pencil';
 	import Replace from '~icons/tabler/replace';
 	import SmokeDetector from '~icons/custom-icons/smoke-detector-m';
 	import Cancel from '~icons/tabler/x';
@@ -78,41 +101,37 @@
 	// well within an acceptable interactive latency budget.
 	const IMPORT_CHUNK_BYTE_BUDGET = 6000;
 
+	/** Version of the device file format, written by the export and expected by the import.
+	 *  Must match GATEWAY_DEVICES_CONFIG_VERSION of the firmware. */
+	const DEVICES_FILE_VERSION = 3;
+
 	let { data }: Props = $props();
 
 	$effect(() => {
 		if (!$user.admin) goto('/');
 	});
 
-	function authHeaders(): Record<string, string> {
-		return {
-			Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-			'Content-Type': 'application/json'
-		};
-	}
-
-	/** Upsert a single device. Server returns the canonical device on success; the local store
-	 *  entry is replaced so anything the server normalized propagates back into the UI. */
-	async function apiPutDevice(device: GeniusDevice): Promise<boolean> {
+	/** Clear all status flags of a device (fault fixed / device replaced). The server returns the
+	 *  updated device, which replaces the local store entry. */
+	async function apiResetStatus(id: number): Promise<boolean> {
 		try {
-			const response = await fetch('/rest/gateway-devices/device', {
-				method: 'PUT',
+			const response = await fetch('/rest/gateway-devices/device/reset-status', {
+				method: 'POST',
 				headers: authHeaders(),
-				body: JSON.stringify(device)
+				body: JSON.stringify({ id })
 			});
 			if (response.status === 200) {
 				const saved = JSON.parse(await response.text(), jsonDateReviver) as GeniusDevice;
 				const idx = geniusDevices.devices.findIndex((d) => d.id === saved.id);
 				if (idx >= 0) geniusDevices.devices[idx] = saved;
-				else geniusDevices.devices = [...geniusDevices.devices, saved];
-				notifications.success('Smoke detector saved.', 3000);
+				notifications.success('Smoke detector status reset.', 3000);
 				return true;
 			}
-			notifications.error('Saving smoke detector failed.', 3000);
+			notifications.error('Resetting the smoke detector status failed.', 3000);
 			return false;
 		} catch (error) {
 			console.error('Error:', error);
-			notifications.error('Saving smoke detector failed.', 3000);
+			notifications.error('Resetting the smoke detector status failed.', 3000);
 			return false;
 		}
 	}
@@ -330,31 +349,19 @@
 		});
 	}
 
+	// ── Home Assistant entity-ID rename ────────────────────────────────────────
+	// With the HA option "update entity IDs" on, saving a changed location makes the gateway
+	// rename that detector's entities. The editor warns about it beforehand (see
+	// openDeviceEditor); the gateway reports the rename itself through a WebSocket event
+	// (progress dialog, or an info dialog when it had to be deferred).
+	onMount(() => watchHaEntityRename());
+
 	function handleEdit(index: number) {
-		modals.open(EditSmokeDetector, {
-			title: 'Edit smoke detector',
-			titleIcon: Edit,
-			//geniusDevice: { ...geniusDevices.devices[index] }, // Shallow Copy
-			geniusDevice: $state.snapshot(geniusDevices.devices[index]), // Deep copy
-			onSaveGeniusDevice: async (editedGeniusDevice: GeniusDevice) => {
-				await apiPutDevice(editedGeniusDevice);
-				modals.close();
-				afterDeviceSaved(editedGeniusDevice);
-			}
-		});
+		openDeviceEditor(geniusDevices.devices[index]);
 	}
 
 	function handleNewGeniusDevice() {
-		modals.open(EditSmokeDetector, {
-			title: 'Add smoke detector',
-			titleIcon: Add,
-			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				await apiPutDevice(newGeniusDevice);
-				modals.close();
-				afterDeviceSaved(newGeniusDevice);
-			}
-		});
-		//
+		openDeviceEditor(undefined, { title: 'Add smoke detector', titleIcon: Add });
 	}
 
 	// ── ConfigCheckProbe signal survey ─────────────────────────────────────────
@@ -477,19 +484,12 @@
 			} as GeniusRadioModuleInfo,
 			location: '',
 			registration: GeniusDeviceRegistration.Manual,
-			isAlarming: false,
-			alarms: []
+			isAlarming: false
 		};
-		modals.open(EditSmokeDetector, {
+		openDeviceEditor(device, {
 			title: 'Add discovered device',
 			titleIcon: Add,
-			geniusDevice: device,
-			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				const saved = await apiPutDevice(newGeniusDevice);
-				modals.close();
-				if (saved) onAdded();
-				afterDeviceSaved(newGeniusDevice);
-			}
+			onSaved: onAdded
 		});
 	}
 
@@ -521,10 +521,28 @@
 	});
 
 	function handleAlarmLog(index: number) {
-		modals.open(AlarmLog, {
-			title: 'Alarms log',
-			geniusDevice: geniusDevices.devices[index]
+		const device = geniusDevices.devices[index];
+		modals.open(ActivityLog, {
+			title: 'Activity log',
+			geniusDevice: device,
+			// Filtered to the alarms if the log holds any - otherwise the dialog would open empty
+			alarmsOnly: deviceAlarms(device).length > 0
 		});
+	}
+
+	// Grouping by alarm line. The line is a property of the radio module, so a detector cannot
+	// be dragged into another group; reordering inside a group changes the one global order.
+	let grouped = $derived(lineGrouping.active(geniusDevices.devices));
+	let lineGroups = $derived(groupByAlarmLine(geniusDevices.devices, lineGrouping.names));
+	// Groups the user folded away, by alarm line; not remembered
+	let collapsedLines = $state<Record<number, boolean>>({});
+
+	$effect(() => {
+		if (geniusDevices.isLoaded) lineGrouping.loadNames();
+	});
+
+	function handleGroupReorder(reorderedGroup: GeniusDevice[]) {
+		handleDeviceReorder(reorderWithinGroup(geniusDevices.devices, reorderedGroup));
 	}
 
 	function handleDeviceReorder(reorderedDevices: GeniusDevice[]) {
@@ -564,8 +582,9 @@
 			dirtForecastNegative: data.dirtForecastNegative
 		};
 		// Old FM modules (FM.Basis / FM.Pro) transmit lineId == 0 and an unreliable
-		// line byte over SmartSonic - the line must be entered by hand, so we do not
-		// trust the readout's line fields for them (see lib/genius/line.ts).
+		// line byte over SmartSonic, so the readout's line fields are not used for them
+		// (see lib/genius/line.ts). The alarm line ID comes from their radio packets, the
+		// rotary position is entered by hand.
 		const oldModule = isOldFmModule(data.radioProductType);
 		const rm: GeniusRadioModuleInfo = {
 			model: data.radioProductType,
@@ -585,90 +604,9 @@
 			location: GENIUS_DEVICE_DEFAULT_LOCATION,
 			registration: GeniusDeviceRegistration.Acoustic,
 			isAlarming: false,
-			alarms: [],
 			readoutTime: new Date(),
 			readoutProtocolVersion: data.protocolVersion
 		} as GeniusDevice;
-	}
-
-	/** Fetch the IDs of the alarm lines currently configured on the gateway (empty on failure). */
-	async function fetchRegisteredLineIds(): Promise<number[]> {
-		try {
-			const response = await fetch('/rest/alarm-lines', {
-				method: 'GET',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				}
-			});
-			const alarmLines: AlarmLines = JSON.parse(await response.text(), jsonDateReviver);
-			return alarmLines.lines.map((l) => l.id >>> 0);
-		} catch (error) {
-			console.error('Error fetching alarm lines:', error);
-			return [];
-		}
-	}
-
-	/** Fetch the full alarm-line set (null on failure). */
-	async function fetchAlarmLines(): Promise<AlarmLines | null> {
-		try {
-			const response = await fetch('/rest/alarm-lines', {
-				method: 'GET',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				}
-			});
-			return JSON.parse(await response.text(), jsonDateReviver) as AlarmLines;
-		} catch (error) {
-			console.error('Error fetching alarm lines:', error);
-			return null;
-		}
-	}
-
-	/** Persist the alarm-line set. Returns true on success. */
-	async function postAlarmLines(alarmLines: AlarmLines): Promise<boolean> {
-		try {
-			const response = await fetch('/rest/alarm-lines', {
-				method: 'POST',
-				headers: {
-					Authorization: data.features.security ? 'Bearer ' + $user.bearer_token : 'Basic',
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify(alarmLines)
-			});
-			if (response.status === 200) {
-				notifications.success('Alarm line added.', 3000);
-				return true;
-			}
-			notifications.error('Failed to add alarm line.', 3000);
-			return false;
-		} catch (error) {
-			console.error('Error:', error);
-			notifications.error('Failed to add alarm line.', 3000);
-			return false;
-		}
-	}
-
-	/** Register an alarm line by ID with a default name (no editor). Refetches first so a concurrent
-	 *  edit isn't clobbered and an already-present line is treated as success. Used by the device-add
-	 *  confirm flow; the probe dialog uses {@link openAddAlarmLine} to let the user name the line. */
-	async function registerAlarmLine(lineId: number): Promise<boolean> {
-		// 0x00000000 = unassigned (ALARMLINES_ID_NONE), 0xFFFFFFFF = broadcast - neither is a user line
-		if (!lineId || lineId === 0xffffffff) return false;
-		const alarmLines = await fetchAlarmLines();
-		if (!alarmLines) {
-			notifications.error('Failed to add alarm line.', 3000);
-			return false;
-		}
-		if (alarmLines.lines.some((l) => l.id === lineId)) return true;
-		const newLine: AlarmLine = {
-			id: lineId,
-			name: `Line ${lineId}`,
-			created: new Date(),
-			acquisition: AlarmLineAcquisition.Acoustic
-		};
-		return postAlarmLines({ ...alarmLines, lines: [...alarmLines.lines, newLine] });
 	}
 
 	/** Open the alarm-line editor pre-seeded with a probe-discovered line ID (default name "Line <id>"),
@@ -707,65 +645,10 @@
 		});
 	}
 
-	/** Check if the device's alarm line ID is already configured; if not, offer to add it */
-	async function checkAndOfferAlarmLine(device: GeniusDevice) {
-		const lineId = device.radioModule.lineId;
-		// 0x00000000 = unassigned (ALARMLINES_ID_NONE), 0xFFFFFFFF = broadcast - neither is a user line
-		if (!lineId || lineId === 0xffffffff) return;
-
-		const registeredIds = await fetchRegisteredLineIds();
-		if (registeredIds.includes(lineId >>> 0)) return;
-
-		modals.open(ConfirmDialog, {
-			title: 'Unknown Alarm Line detected',
-			message: `The device contains Alarm Line ID ${lineId} which is not yet configured. Would you like to add it?`,
-			labels: {
-				cancel: { label: 'Skip', icon: Cancel },
-				confirm: { label: 'Add alarm line', icon: Check }
-			},
-			onConfirm: async () => {
-				await registerAlarmLine(lineId);
-				modals.close();
-			}
-		});
-	}
-
-	/** Old FM module that still has no manually-entered alarm line - needs attention. */
-	function needsManualLineEntry(device: GeniusDevice): boolean {
-		return isOldFmModule(device.radioModule.model) && !device.radioModule.lineCharacter;
-	}
-
-	/** Open the manual line-entry dialog for an old FM module and persist the chosen line. */
-	function offerManualLineEntry(device: GeniusDevice) {
-		modals.open(ManualLineEntry, {
-			title: 'Set alarm line',
-			geniusDevice: device,
-			saveButtonLabel: 'Save line',
-			onSave: async (updated: GeniusDevice) => {
-				const ok = await apiPutDevice(updated);
-				modals.close();
-				if (ok) notifications.success('Alarm line set.', 3000);
-			}
-		});
-	}
-
 	/**
-	 * Post-save follow-ups after a readout/add: warn on faults, then either route old
-	 * modules to manual line entry or offer to add a newly-seen alarm line.
-	 */
-	function afterDeviceSaved(device: GeniusDevice) {
-		checkAndWarnDiagnostics(device, () => {
-			if (needsManualLineEntry(device)) {
-				offerManualLineEntry(device);
-			} else {
-				checkAndOfferAlarmLine(device);
-			}
-		});
-	}
-
-	/**
-	 * Carry a previously manually-entered alarm line from `source` onto `target`'s old
-	 * FM module, but only when `source`'s radio module serial confirms it's the SAME
+	 * Carry the alarm line from `source` onto `target`'s old FM module - the ID the gateway
+	 * learned from the module's radio packets (a readout does not know it) and a manually
+	 * entered rotary position - but only when `source`'s radio module serial confirms it's the SAME
 	 * physical hardware. The rotary switch position is a property of the radio module,
 	 * not the smoke detector - it should follow the module (e.g. when it's matched on a
 	 * different / new device base), but must never leak onto an unrelated module just
@@ -773,24 +656,28 @@
 	 */
 	function preserveManualLineIfSameModule(target: GeniusDevice, source: GeniusDevice) {
 		if (
-			isOldFmModule(target.radioModule.model) &&
-			source.radioModule.lineManual &&
-			(source.radioModule.sn ?? 0) > 0 &&
-			source.radioModule.sn === target.radioModule.sn
+			!isOldFmModule(target.radioModule.model) ||
+			(source.radioModule.sn ?? 0) <= 0 ||
+			source.radioModule.sn !== target.radioModule.sn
 		) {
+			return;
+		}
+		if (!target.radioModule.lineId && source.radioModule.lineId) {
 			target.radioModule.lineId = source.radioModule.lineId;
+		}
+		if (source.radioModule.lineManual) {
 			target.radioModule.lineCharacter = source.radioModule.lineCharacter;
 			target.radioModule.lineNumber = source.radioModule.lineNumber;
 			target.radioModule.lineManual = source.radioModule.lineManual;
 		}
 	}
 
-	/** Silently update an existing device at the given index, preserving location, alarms, and position */
+	/** Silently update an existing device at the given index, preserving location and position.
+	 *  Status, activity log and alarms are kept by the gateway and need no care here. */
 	async function silentUpdateDevice(index: number, newDevice: GeniusDevice) {
 		const existing = geniusDevices.devices[index];
 		newDevice.id = existing.id;
 		newDevice.location = existing.location;
-		newDevice.alarms = existing.alarms;
 		newDevice.isAlarming = existing.isAlarming;
 		preserveManualLineIfSameModule(newDevice, existing);
 		const ok = await apiPutDevice(newDevice);
@@ -840,7 +727,8 @@
 						confirm: { label: 'Replace', icon: Check }
 					},
 					onConfirm: () => {
-						// Keep location and position, but reset alarms
+						// Keep location and position. The gateway starts status, activity log and
+						// alarm counter over when the serial of the smoke detector changes.
 						newDevice.id = existing.id;
 						newDevice.location = existing.location;
 						// Same RM serial confirms this is the same physical module, just
@@ -848,16 +736,10 @@
 						// rotary line so the installer doesn't have to recall/re-enter it.
 						preserveManualLineIfSameModule(newDevice, existing);
 						modals.close();
-						modals.open(EditSmokeDetector, {
+						openDeviceEditor(newDevice, {
 							title: 'Replace smoke detector',
 							titleIcon: Replace,
-							geniusDevice: newDevice,
-							saveButtonLabel: 'Replace',
-							onSaveGeniusDevice: async (editedDevice: GeniusDevice) => {
-								await apiPutDevice(editedDevice);
-								modals.close();
-								afterDeviceSaved(editedDevice);
-							}
+							saveButtonLabel: 'Replace'
 						});
 					}
 				});
@@ -893,18 +775,14 @@
 	}
 
 	function acousticAddNew(device: GeniusDevice, saveButtonLabel: string = 'Add', idsToDeleteFirst: number[] = []) {
-		modals.open(EditSmokeDetector, {
+		openDeviceEditor(device, {
 			title: 'Add smoke detector',
 			titleIcon: Add,
-			geniusDevice: device,
 			saveButtonLabel,
-			onSaveGeniusDevice: async (newGeniusDevice: GeniusDevice) => {
-				// Cross-match path: clean up superseded devices first. Not atomic across requests -
-				// if a delete fails mid-flight the user sees the error and can retry.
+			// Cross-match path: clean up superseded devices first. Not atomic across requests -
+			// if a delete fails mid-flight the user sees the error and can retry.
+			beforeSave: async () => {
 				for (const id of idsToDeleteFirst) await apiDeleteDevice(id);
-				await apiPutDevice(newGeniusDevice);
-				modals.close();
-				afterDeviceSaved(newGeniusDevice);
 			}
 		});
 	}
@@ -1003,40 +881,19 @@
 
 	const isSecureContext = $derived(page.url.protocol === 'https:');
 
-	function checkAndWarnDiagnostics(device: GeniusDevice, onDismiss: () => void): void {
-		if (!device.readoutTime) {
-			onDismiss();
-			return;
-		}
-		const faults = [
-			...getSmokeDetectorFaults(device.smokeDetector),
-			...getRadioModuleFaults(device.radioModule)
-		];
-		if (faults.length === 0) {
-			onDismiss();
-			return;
-		}
-		modals.open(InfoDialog, {
-			title: 'Smoke Detector Fault Detected',
-			message:
-				'<ul>' +
-				faults.map((f) => '<li>' + f + '</li>').join('') +
-				'</ul>' +
-				'<br><strong>This smoke detector is malfunctioning and should be replaced as soon as possible.</strong>',
-			variant: 'error',
-			onDismiss: () => {
-				modals.close();
-				onDismiss();
-			}
-		});
-	}
-
 	function checkImportedDeviceFaults(devices: GeniusDevice[]): void {
 		const faulty = devices
 			.filter((d) => d.readoutTime)
 			.map((d) => ({
 				sn: d.smokeDetector.sn,
-				faults: [...getSmokeDetectorFaults(d.smokeDetector), ...getRadioModuleFaults(d.radioModule)]
+				// status flags of the file, plus the readout fields that files from before v1.6.0 carry
+				faults: [
+					...new Set([
+						...getDeviceFaults(d),
+						...getSmokeDetectorFaults(d.smokeDetector),
+						...getRadioModuleFaults(d.radioModule)
+					])
+				]
 			}))
 			.filter((x) => x.faults.length > 0);
 		if (faulty.length === 0) return;
@@ -1061,7 +918,29 @@
 			title: 'Device Details',
 			device: geniusDevices.devices[index],
 			onReadout: () => handleDeviceReadout(index),
-			onSetLine: () => handleEdit(index)
+			onSetLine: () => handleEdit(index),
+			onResetStatus: () => confirmResetStatus(index)
+		});
+	}
+
+	function confirmResetStatus(index: number) {
+		const device = geniusDevices.devices[index];
+		modals.close();
+		modals.open(ConfirmDialog, {
+			title: 'Reset smoke detector status',
+			message:
+				`Reset all reported faults of the smoke detector <strong>${device.smokeDetector.sn} (${device.location})</strong>?` +
+				`<br><br>Do this once the fault has been fixed or the device replaced. ` +
+				`The reported faults then read <strong>Unknown</strong>, not OK - until the smoke detector reports them again or an acoustic readout shows their state.`,
+			labels: {
+				cancel: { label: 'Cancel', icon: Cancel },
+				confirm: { label: 'Reset', icon: Check }
+			},
+			confirmClass: 'btn-warning',
+			onConfirm: async () => {
+				modals.close();
+				await apiResetStatus(device.id);
+			}
 		});
 	}
 
@@ -1141,11 +1020,22 @@
 		for (const device of devices) {
 			if (!device.isAlarming) continue;
 			device.isAlarming = false;
-			if (device.alarms.length > 0) {
-				const lastAlarm = device.alarms[device.alarms.length - 1];
+			// Files written before v1.6.0 carry the alarms as a list of their own
+			const legacyAlarms = (device as { alarms?: GeniusAlarm[] }).alarms ?? [];
+			if (legacyAlarms.length > 0) {
+				const lastAlarm = legacyAlarms[legacyAlarms.length - 1];
 				if (lastAlarm.endingReason === GeniusAlarmEnding.AlarmActive) {
 					lastAlarm.endTime = new Date();
 					lastAlarm.endingReason = GeniusAlarmEnding.ByImport;
+				}
+			}
+			for (const event of device.events ?? []) {
+				if (
+					event.type === EVENT_ALARM &&
+					(event.endingReason ?? GeniusAlarmEnding.AlarmActive) === GeniusAlarmEnding.AlarmActive
+				) {
+					event.end = new Date();
+					event.endingReason = GeniusAlarmEnding.ByImport;
 				}
 			}
 		}
@@ -1159,7 +1049,7 @@
 		let cancelled = false;
 		reader.onload = async () => {
 			if (cancelled) return;
-			const CURRENT_VERSION = 2;
+			const CURRENT_VERSION = DEVICES_FILE_VERSION;
 			const fileContent = reader.result as string;
 			try {
 				const importedGeniusDevices = JSON.parse(fileContent, jsonDateReviver) as GeniusDevices;
@@ -1179,26 +1069,59 @@
 						migrateGeniusDevices(importedGeniusDevices, fileVersion);
 					}
 
+					// One dialog follows the import through all its steps - upload, saving on the
+					// gateway, Home Assistant - and says in the end what was done, including that
+					// an older file was migrated.
 					const finishImport = () => {
 						modals.open(DeviceImportDialog, {
 							totalDevices: importedGeniusDevices.devices.length,
+							haEnabled: isHaEnabled(),
+							migrationNote:
+								fileVersion < CURRENT_VERSION
+									? `The file was an older backup (v${fileVersion}) and was migrated to the current format (v${CURRENT_VERSION}). Export a fresh backup.`
+									: undefined,
 							task: (onProgress, signal) =>
 								replaceAllDevices(importedGeniusDevices.devices, onProgress, signal),
-							onSuccess: () => {
-								if (fileVersion < CURRENT_VERSION) {
-									modals.open(InfoDialog, {
-										title: 'Migration Successful',
-										message: `The file was from an older backup (v${fileVersion}) and has been automatically migrated to the current format (v${CURRENT_VERSION}).<br><br>Please verify your smoke detector configuration and export a fresh backup.`,
-										variant: 'info',
-										onDismiss: () => {
-											modals.close();
-											checkImportedDeviceFaults(importedGeniusDevices.devices);
-										}
-									});
-								} else {
-									notifications.success('Smoke detectors imported.', 3000);
-									checkImportedDeviceFaults(importedGeniusDevices.devices);
-								}
+							onSuccess: () => checkImportedDeviceFaults(importedGeniusDevices.devices)
+						});
+					};
+
+					// Entity IDs in Home Assistant follow the location. An import that changes the
+					// location of a known detector renames its entities - the same consequence the
+					// detector editor warns about, so ask before importing.
+					const confirmLocationsThenImport = async () => {
+						const changed = importedGeniusDevices.devices.flatMap((imported) => {
+							const current = geniusDevices.devices.find((d) => d.id === imported.id);
+							return current && current.location !== imported.location
+								? [{ from: current.location, to: imported.location }]
+								: [];
+						});
+						// Asked for every import: the answer also tells the import dialog whether
+						// Home Assistant is one of its steps.
+						const renamesEntities = await loadHaRenameOption();
+						if (changed.length === 0 || !renamesEntities) {
+							finishImport();
+							return;
+						}
+
+						const MAX_LISTED = 5;
+						const list = changed
+							.slice(0, MAX_LISTED)
+							.map((c) => `&bull; ${escapeHtml(c.from)} &rarr; <strong>${escapeHtml(c.to)}</strong>`)
+							.join('<br>');
+						const more =
+							changed.length > MAX_LISTED ? `<br>&bull; and ${changed.length - MAX_LISTED} more` : '';
+						const one = changed.length === 1;
+						modals.open(ConfirmDialog, {
+							title: 'Import Changes Locations',
+							message: `The import changes the location of <strong>${changed.length}</strong> smoke detector${one ? '' : 's'}:<br><br>${list}${more}<br><br>${one ? 'Its' : 'Their'} entities in Home Assistant are renamed to match. Automations, scripts and dashboards that use the old entity IDs must be updated.`,
+							labels: {
+								cancel: { label: 'Cancel', icon: Cancel },
+								confirm: { label: 'Import', icon: Load }
+							},
+							onConfirm: () => {
+								modals.close();
+								finishImport();
 							}
 						});
 					};
@@ -1216,16 +1139,16 @@
 							cancelClass: 'btn-warning',
 							onCancel: () => {
 								modals.close();
-								finishImport();
+								void confirmLocationsThenImport();
 							},
 							onConfirm: () => {
 								modals.close();
 								clearAlarmingDevices(importedGeniusDevices.devices);
-								finishImport();
+								void confirmLocationsThenImport();
 							}
 						});
 					} else {
-						finishImport();
+						void confirmLocationsThenImport();
 					}
 				}
 			} catch (error) {
@@ -1349,13 +1272,29 @@
 						disabled={!geniusDevices.isLoaded}
 						onclick={() =>
 							downloadObjectAsJson(
-								{ version: 2, devices: geniusDevices.devices },
+								{ version: DEVICES_FILE_VERSION, devices: geniusDevices.devices },
 								'genius-smoke-detectors'
 							)}
 					>
 						<Save class="h-6 w-6" />
 					</button>
 				</div>
+				{#if lineGroups.length > 1}
+					<!-- only offered when there is something to group -->
+					<div
+						class="tooltip tooltip-left"
+						data-tip={grouped ? 'Show as one list' : 'Group by alarm line'}
+					>
+						<button
+							class="btn btn-md {grouped ? 'btn-primary' : 'btn-outline btn-primary'}"
+							aria-label="Group smoke detectors by alarm line"
+							aria-pressed={grouped}
+							onclick={() => lineGrouping.set(!grouped)}
+						>
+							<IconGroupByLine class="h-6 w-6" />
+						</button>
+					</div>
+				{/if}
 				<div class="tooltip tooltip-left" data-tip="Generate PDF report">
 					<button
 						class="btn btn-primary btn-md"
@@ -1410,24 +1349,56 @@
 						<div class="text-right">Manage</div>
 					</div>
 
-					<!-- Draggable device list -->
-					<DraggableList
-						items={geniusDevices.devices}
-						onReorder={handleDeviceReorder}
-						useHandleMode={true}
-						class="space-y-1"
-					>
-						{#snippet children({ item: device, index }: { item: GeniusDevice; index: number })}
-							<SmokeDetectorRow
-								{device}
-								{index}
-								onEdit={handleEdit}
-								onDelete={confirmDelete}
-								onAlarmLog={handleAlarmLog}
-								onDetails={openDeviceDetails}
-							/>
-						{/snippet}
-					</DraggableList>
+					{#snippet deviceRow(device: GeniusDevice, index: number)}
+						<SmokeDetectorRow
+							{device}
+							{index}
+							onEdit={handleEdit}
+							onDelete={confirmDelete}
+							onAlarmLog={handleAlarmLog}
+							onDetails={openDeviceDetails}
+						/>
+					{/snippet}
+
+					{#if grouped}
+						<!-- One draggable list per alarm line -->
+						<div class="space-y-3">
+							{#each lineGroups as group (group.key)}
+								<section>
+									<AlarmLineHeading
+										{group}
+										class="px-3 pb-1 pt-2"
+										collapsed={collapsedLines[group.key]}
+										onToggle={() => (collapsedLines[group.key] = !collapsedLines[group.key])}
+									/>
+									{#if !collapsedLines[group.key]}
+										<DraggableList
+											items={group.devices}
+											onReorder={handleGroupReorder}
+											useHandleMode={true}
+											class="space-y-1"
+										>
+											{#snippet children({ item: device }: { item: GeniusDevice; index: number })}
+												{@render deviceRow(device, geniusDevices.devices.findIndex((d) => d.id === device.id))}
+											{/snippet}
+										</DraggableList>
+									{/if}
+								</section>
+							{/each}
+						</div>
+					{:else}
+						<!-- Draggable device list -->
+						<DraggableList
+							items={geniusDevices.devices}
+							onReorder={handleDeviceReorder}
+							useHandleMode={true}
+							class="space-y-1"
+						>
+							{#snippet children({ item: device, index }: { item: GeniusDevice; index: number })}
+								{@render deviceRow(device, index)}
+							{/snippet}
+						</DraggableList>
+					{/if}
 				</div>
 			{/if}
 		</SettingsCard>

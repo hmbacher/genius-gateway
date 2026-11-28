@@ -159,6 +159,16 @@ After making changes to the hostname, connection mode, or network list:
 !!! warning "Connection Changes"
     When changing WiFi settings, the gateway will reconnect to apply the new configuration. This may cause a brief disconnection.
 
+### When the Connection Is Lost
+
+The gateway reconnects by itself, however long the outage lasts:
+
+- **Every 5 seconds** it scans for the configured networks and connects to the one the connection mode selects
+- **A connection attempt has 20 seconds** to end with an IP address. Otherwise it is dropped and the gateway starts over with a new scan - also when it is connected to the access point but gets no IP address
+- **After 5 minutes offline**, and again every 5 minutes, the gateway restarts its WiFi interface
+
+The gateway itself is never restarted because of a missing WiFi connection. It keeps receiving its smoke detectors while it is offline, and reports again as soon as the connection is back.
+
 ## :tabler-access-point: Access Point
 
 The Access Point mode allows the Genius Gateway to create its own WiFi network, enabling direct connection from your devices. This is useful for initial setup when no WiFi credentials are known, or as a fallback when the primary WiFi connection is unavailable.

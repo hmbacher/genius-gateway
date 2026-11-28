@@ -1,13 +1,22 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
+	import type { GeniusDevice } from '$lib/types/models';
 	import { modals } from 'svelte-modals';
 	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
 	import { user } from '$lib/stores/user';
+	import { watchHaEntityRename } from '$lib/stores/haEntityRename.svelte';
 	import { notifications } from '$lib/components/toasts/notifications';
 	import DeviceStatusCard from '$lib/components/DeviceStatusCard.svelte';
+	import AlarmLineHeading from '$lib/components/genius/AlarmLineHeading.svelte';
+	import { groupByAlarmLine } from '$lib/genius/lineGroups';
+	import { lineGrouping } from '$lib/stores/lineGrouping.svelte';
 	import RadioSetupBanner from '$lib/components/RadioSetupBanner.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import AlarmEndingDialog from './AlarmEndingDialog.svelte';
+	import DeviceDetailsDialog from './gateway/smoke-detectors/DeviceDetailsDialog.svelte';
+	import { openDeviceEditor } from './gateway/smoke-detectors/deviceSave.svelte';
+	import ActivityLog from './gateway/smoke-detectors/ActivityLog.svelte';
 	import Info from '~icons/tabler/info-circle';
 	import BellOff from '~icons/tabler/bell-off';
 
@@ -16,6 +25,54 @@
 	}
 
 	let { data }: Props = $props();
+
+	// Smoke detectors grouped by alarm line - like the smoke detector list, where the grouping
+	// can be switched; by default only if the detectors are on more than one line
+	let grouped = $derived(lineGrouping.active(geniusDevices.devices));
+	let groups = $derived(groupByAlarmLine(geniusDevices.devices, lineGrouping.names));
+
+	$effect(() => {
+		if (geniusDevices.isLoaded) lineGrouping.loadNames();
+	});
+
+	// Editing a location here can make the gateway rename the detector's Home Assistant
+	// entities; it reports that through a WebSocket event (progress dialog). Only administrators
+	// can edit, so only they need to watch for it on this page.
+	onMount(() => {
+		if ($user.admin) return watchHaEntityRename();
+	});
+
+	/**
+	 * Opens the clicked detector on top of the Overview: the alarm log for alarming devices,
+	 * the (read-only) details dialog for all others. Readout and "set line" stay on the
+	 * Smoke Detectors page, so the user never leaves the Overview.
+	 */
+	function openDevice(device: GeniusDevice) {
+		if (device.isAlarming) {
+			modals.open(ActivityLog, {
+				title: 'Activity log',
+				geniusDevice: device,
+				alarmsOnly: true,
+				onDetails: () => openDetails(device)
+			});
+		} else {
+			openDetails(device);
+		}
+	}
+
+	/** Device Details are read-only and open for every user; editing is for administrators. */
+	function openDetails(device: GeniusDevice) {
+		modals.open(DeviceDetailsDialog, {
+			title: 'Device Details',
+			device,
+			onEdit: $user.admin ? () => openDeviceEditor(device) : undefined
+		});
+	}
+
+	/** Name of a detector for screen readers; the location may be empty. */
+	function deviceName(device: GeniusDevice): string {
+		return device.location || `detector ${device.smokeDetector.sn}`;
+	}
 
 	async function postEndAlarms(blockingTime: number) {
 		try {
@@ -62,7 +119,8 @@
 					<Spinner text="Loading devices..." />
 				</div>
 			{:else if geniusDevices.devices.length > 0}
-				{#if geniusDevices.isAlarming}
+				{#if geniusDevices.isAlarming && $user.admin}
+					<!-- Ending alarms is an administrator action; other users only watch. -->
 					<div class="col-span-full">
 						<div class="tooltip tooltip-left" data-tip="End all alarms">
 							<button class="btn btn-primary btn-wide" onclick={handleEndAlarms}>
@@ -72,15 +130,34 @@
 						</div>
 					</div>
 				{/if}
-				{#each geniusDevices.devices as device (device.id)}
-					<a
-						href="/gateway/smoke-detectors"
-						aria-label="Open smoke detectors page"
-						class="block w-full max-w-120 hover:scale-[1.03] active:scale-[0.97] transition-transform"
+				{#snippet deviceCard(device: GeniusDevice)}
+					<button
+						type="button"
+						onclick={() => openDevice(device)}
+						aria-label={device.isAlarming
+							? `Open alarm log of ${deviceName(device)}`
+							: `Open details of ${deviceName(device)}`}
+						class="block w-full max-w-120 cursor-pointer text-left hover:scale-[1.03] active:scale-[0.97] transition-transform"
 					>
 						<DeviceStatusCard detector={device} />
-					</a>
-				{/each}
+					</button>
+				{/snippet}
+				{#if grouped}
+					{#each groups as group (group.key)}
+						<!-- Alarm line heading, spans the whole grid row -->
+						<AlarmLineHeading
+							{group}
+							class="col-span-full justify-self-stretch border-b border-base-300 pb-1"
+						/>
+						{#each group.devices as device (device.id)}
+							{@render deviceCard(device)}
+						{/each}
+					{/each}
+				{:else}
+					{#each geniusDevices.devices as device (device.id)}
+						{@render deviceCard(device)}
+					{/each}
+				{/if}
 			{:else}
 				<div class="col-span-full">
 					<div class="alert alert-info shadow-lg">

@@ -246,6 +246,8 @@ void ESP32SvelteKit::begin()
     // Order matters: HAService starts the publish task, HASettingsService
     // applies persisted settings (enabled/prefix/identity) to HAService,
     // then HAUpdateService/HADiagnosticService register their entities.
+    _haService.setStatusTopicProvider([this]()
+                                      { return _mqttSettingsService.getStatusTopic(); });
     _haService.begin();
     _haSettingsService.begin();
     _haUpdateService.begin();

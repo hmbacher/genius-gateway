@@ -11,6 +11,8 @@ The Packet Visualizer provides real-time monitoring and analysis of RF communica
 !!! info "WebSocket Logger Required"
     The Packet Visualizer requires the WebSocket Logger to be enabled. If disabled, you'll see an informational message with a link to enable it in the [WebSocket Logger Settings](websocket-interface.md).
 
+    If the connection to the logger is refused or lost - the gateway restarts, the logger is switched off - the Packet Visualizer says so below the packet list and connects again by itself. Packets received while it had no connection are not shown. While the page is open it is listed on the WebSocket Logger page as a [connected client](websocket-interface.md#connected-clients).
+
 ## Overview
 
 The Packet Visualizer displays captured RF packets in real-time with intelligent deduplication, detailed interpretation, and visual highlighting. Each packet type is automatically identified and decoded to show meaningful information about detector communication, alarms, commissioning activities, and network topology.
@@ -28,6 +30,7 @@ When enabled, the visualizer interprets packet data and highlights important fie
 - **Packet type identification:** Automatic detection of packet types (alarm, commissioning, discovery, etc.)
 - **Field highlighting:** Important bytes are color-coded and labeled
 - **Data interpretation:** Serial numbers, line IDs, timestamps, and other fields are decoded
+- **Line code:** The rotary position of the addressed line, of the originator and of the forwarder is shown as text (for example `A.3`; `Any` for a packet addressed to every line), see [Line Addressing](../reverse-engineering/protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis)
 - **Location mapping:** Serial numbers are matched to configured device locations
 
 When disabled, packets are shown in raw hexadecimal format without interpretation.
@@ -64,6 +67,8 @@ The main packet display area shows all captured RF packets with real-time update
 ### Packet Information
 
 Each displayed packet shows general information and packet-specific details based on the packet type. For complete field descriptions and packet structure details, see the [Protocol Analysis](../reverse-engineering/protocol-analysis.md) documentation.
+
+[Status changes](../reverse-engineering/protocol-analysis.md#status-change) are labelled **Start Alarm** when they set the alarm flag, **Stop Alarm** when they clear it, and **Status Change** otherwise (e.g. battery low). For all three, the set and cleared flags are decoded by name - flags not known yet are shown by value.
 
 ### Packet Actions
 

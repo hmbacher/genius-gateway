@@ -145,7 +145,7 @@ The PCB is equipped with a standard 6-pin header (2x3) through which the connect
 | 2 | **3V3**<br>3.3 VDC power supply  |
 | 3 | **UART-RX**<br>Receive signal line (Radio module <-- Smoke detector) |
 | 4 | **UART-TX**<br>Transmit signal line (Radio module --> Smoke detector) |
-| 5 | ***Unknown***<br>This line is connected to MSP430's pin no. 8, which is a multipurpose pin (GPIO, Analog Input, Timer related function). Its exact function is unknown, but it may possibly be used to signal a fire alarm to the radio module (in addition to or instead of via UART). |
+| 5 | **Wake-up**<br>Wake-up signal line (Radio module <-- Smoke detector), active low, connected to MSP430's pin no. 8 (P2.2). Between events the radio module sleeps in a low-power mode in which its UART cannot receive; the smoke detector pulls this line low to wake it and holds it low while it talks over the UART. The line is not alarm-specific: alarms and all other data are sent over the UART. The radio module only reads the line, it never drives it. |
 | 6 | ***N.C.***<br>*No connection could be found.* |
 
 

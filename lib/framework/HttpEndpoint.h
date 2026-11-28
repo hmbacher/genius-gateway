@@ -22,23 +22,34 @@ protected:
     StatefulService<T> *_statefulService;
     SecurityManager *_securityManager;
     AuthenticationPredicate _authenticationPredicate;
+    AuthenticationPredicate _readPredicate;
     PsychicHttpServer *_server;
     const char *_servicePath;
 
 public:
+    /**
+     * @param authenticationPredicate Who may update the state (POST) - and read it (GET),
+     *                                unless readPredicate says otherwise.
+     * @param readPredicate           Optional: who may read the state (GET). Lets a service
+     *                                show its state to every signed-in user while only
+     *                                administrators change it. Left out, GET uses
+     *                                authenticationPredicate as before.
+     */
     HttpEndpoint(JsonStateReader<T> stateReader,
                  JsonStateUpdater<T> stateUpdater,
                  StatefulService<T> *statefulService,
                  PsychicHttpServer *server,
                  const char *servicePath,
                  SecurityManager *securityManager,
-                 AuthenticationPredicate authenticationPredicate = AuthenticationPredicates::IS_ADMIN) : _stateReader(stateReader),
-                                                                                                         _stateUpdater(stateUpdater),
-                                                                                                         _statefulService(statefulService),
-                                                                                                         _server(server),
-                                                                                                         _servicePath(servicePath),
-                                                                                                         _securityManager(securityManager),
-                                                                                                         _authenticationPredicate(authenticationPredicate)
+                 AuthenticationPredicate authenticationPredicate = AuthenticationPredicates::IS_ADMIN,
+                 AuthenticationPredicate readPredicate = nullptr) : _stateReader(stateReader),
+                                                                    _stateUpdater(stateUpdater),
+                                                                    _statefulService(statefulService),
+                                                                    _server(server),
+                                                                    _servicePath(servicePath),
+                                                                    _securityManager(securityManager),
+                                                                    _authenticationPredicate(authenticationPredicate),
+                                                                    _readPredicate(readPredicate ? readPredicate : authenticationPredicate)
     {
     }
 
@@ -69,7 +80,7 @@ public:
                             _statefulService->read(jsonObject, _stateReader);
                             return response.send();
                         },
-                        _authenticationPredicate));
+                        _readPredicate));
         ESP_LOGV(SVK_TAG, "Registered GET endpoint: %s", _servicePath);
 
         // POST

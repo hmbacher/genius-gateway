@@ -35,18 +35,20 @@
 #include <WiFi.h>
 #include <IPUtils.h>
 
+/* Line code of the packets the gateway transmits for an alarm line: the templates carry A.0
+ * (GENIUS_LINE_CODE_A0); _triggerAction() puts in the line setting of the line (effectiveLineCode()),
+ * because radio modules set to another rotary position neither accept nor forward a packet - see
+ * "Line Addressing" in docs/reverse-engineering/protocol-analysis.md. The range test addresses every line. */
+
 /// Base packet template for alarm line test operations
 const uint8_t AlarmLinesService::_packet_base_linetest[] = {
     0x02,
     0x00, 0x00, // Remaining-TX-Time (#1-2)
-    0x00,
-    0xFF,
-    0xFF,
-    0xFF,
-    0xFF,
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the addressed line (#3)
+    0xFF, 0xFF, 0xFF, 0xFF, // Addressed radio module (#4-7): all
+    GENIUS_LINE_CODE_A0,    // Line code of the originator (#8)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator of the packet (0xFFFFFFFE = Gateway)
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the forwarder (#13)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
     0x00, 0x00, 0x00, 0x00, // Alarm line ID (#18-#21)
     0x0F,                   // Hops (#22)
@@ -55,20 +57,17 @@ const uint8_t AlarmLinesService::_packet_base_linetest[] = {
     0x00,
     0x66,
     0x04,
-    0x00}; // 0x06: Start line test / 0x00 Stop line test (#28)
+    0x00}; // Test mode (#28): GENIUS_TEST_MODE_LINE_TEST (0x04) to start, GENIUS_TEST_MODE_STOP (0x00) to stop
 
 /// Base packet template for fire alarm operations
 const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
     0x02,
     0x00, 0x00, // Remaining-TX-Time (#1-2)
-    0x00,
-    0xFF,
-    0xFF,
-    0xFF,
-    0xFF,
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the addressed line (#3)
+    0xFF, 0xFF, 0xFF, 0xFF, // Addressed radio module (#4-7): all
+    GENIUS_LINE_CODE_A0,    // Line code of the originator (#8)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator of the packet (0xFFFFFFFE = Gateway)
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the forwarder (#13)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, repeater of the packet (0xFFFFFFFE = Gateway)
     0x00, 0x00, 0x00, 0x00, // Alarm line ID (#18-#21)
     0x0F,                   // Hops (#22)
@@ -87,16 +86,16 @@ const uint8_t AlarmLinesService::_packet_base_firealarm[] = {
 
 /// Base packet template for the ConfigCheckProbe request (silent direct-range reachability probe).
 /// Wire layout per the captured Linienabschlusstest request (see docs/reverse-engineering/
-/// protocol-analysis.md#configcheckprobe): wildcard-addressed (#3 = 0xFF), broadcast Line-ID,
+/// protocol-analysis.md#configcheckprobe): addressed to every line code (#3 = 0xFF), broadcast Line-ID,
 /// family marker 0x55 (#26) + type 0x06 (#27). 28 bytes total.
 const uint8_t AlarmLinesService::_packet_base_configcheckprobe[] = {
     0x02,
     0x00, 0x00, // Remaining-TX-Time (#1-2), set per-iteration by the TX loop
-    0xFF,       // Addr-mode (#3): 0xFF = wildcard (probe is not addressed to one line)
+    GENIUS_LINE_CODE_ANY,   // Line code of the addressed line (#3): every line - the probe is not addressed to one
     0xFF, 0xFF, 0xFF, 0xFF, // Dest SN (#4-7): broadcast
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the originator (#8)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator (#9-12) = Gateway (0xFFFFFFFE)
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the forwarder (#13)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, forwarder (#14-17) = Gateway (0xFFFFFFFE)
     0xFF, 0xFF, 0xFF, 0xFF, // Line-ID (#18-21): broadcast (wildcard probe)
     0x0F,                   // Hops (#22): fresh (0 hops traversed)
@@ -118,18 +117,18 @@ const uint8_t AlarmLinesService::_packet_base_configcheckprobe[] = {
 const uint8_t AlarmLinesService::_packet_base_commissioning[] = {
     0x02,
     0x00, 0x00, // Remaining-TX-Time (#1-2), set per-iteration by the TX loop
-    0x00,       // Addr-mode (#3)
+    GENIUS_LINE_CODE_A0,    // Line code of the addressed line (#3)
     0xFF, 0xFF, 0xFF, 0xFF, // Dest SN (#4-7): broadcast
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the originator (#8)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, originator (#9-12) = Gateway (0xFFFFFFFE)
-    0x00,
+    GENIUS_LINE_CODE_A0,    // Line code of the forwarder (#13)
     0xFF, 0xFF, 0xFF, 0xFE, // Radio module ID, forwarder (#14-17) = Gateway (0xFFFFFFFE)
     0x00, 0x00, 0x00, 0x00, // Line-ID (#18-21): set to the selected line
     0x0F,                   // Hops (#22): fresh (0 hops traversed)
     0x00,                   // Packet sequence number (#23), set at TX
-    0x45,                   // Flags (#24). Bit-fields: (type&3)<<5 | (relay&1)<<4 | (fwd_class&3)<<2 |
+    0x45,                   // Flags (#24). Bit-fields: (type&3)<<5 | (collective&1)<<4 | (fwd_class&3)<<2 |
                             // (low2&3). Commissioning uses fwd_class=1 (STRICT, forwarded in-scope) and
-                            // low2=1 -> low nibble 0x05; type=2/relay=0 give the high nibble 0x40.
+                            // low2=1 -> low nibble 0x05; type=2/collective=0 give the high nibble 0x40.
                             // 0x40 | 0x04 | 0x01 = 0x45. Matches a real on-air capture.
     0x00,                   // Constant (#25)
     0x66,                   // Family marker (#26): 0x66 (commissioning / line-test family)
@@ -159,7 +158,10 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClien
                                                                                                                                                                sveltekit->getServer(),
                                                                                                                                                                ALARMLINES_SERVICE_PATH,
                                                                                                                                                                sveltekit->getSecurityManager(),
-                                                                                                                                                               AuthenticationPredicates::IS_ADMIN),
+                                                                                                                                                               AuthenticationPredicates::IS_ADMIN,
+                                                                                                                                                               // The names of the alarm lines title the groups of smoke detectors for every signed-in
+                                                                                                                                                               // user; only reading is opened up
+                                                                                                                                                               AuthenticationPredicates::IS_AUTHENTICATED),
                                                                                                                                                  _fsPersistence(AlarmLines::read,
                                                                                                                                                                 AlarmLines::update,
                                                                                                                                                                 this,
@@ -191,6 +193,7 @@ AlarmLinesService::AlarmLinesService(ESP32SvelteKit *sveltekit, PsychicMqttClien
 void AlarmLinesService::begin()
 {
     _httpEndpoint.begin();
+    _lineCodeCacheMutex = xSemaphoreCreateMutex();
     _fsPersistence.readFromFS(); // Load the persisted packet sequence number from NVS
     if (loadPcktSeqNum() != ESP_OK)
     {
@@ -268,6 +271,7 @@ void AlarmLinesService::begin()
     this->addUpdateHandler([this](const String &originId)
                           {
                               _syncAlarmLineSubDevices();
+                              refreshLineCodeCache();
                           },
                           false);
 
@@ -478,7 +482,8 @@ bool AlarmLinesService::_alarmLineExists(uint32_t id)
 // Public Methods - Alarm Line Management
 // ============================================================================
 
-esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition, bool toFront)
+esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition, bool toFront,
+                                         int packetLineCode)
 {
     if (id == ALARMLINES_ID_NONE)
     {
@@ -510,6 +515,13 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
     newLine.created = time(nullptr);
     newLine.acquisition = acquisition;
     newLine.published = false;
+    newLine.lineCode = GENIUS_LINE_CODE_A0;
+    newLine.lineCodeSource = LCS_AUTOMATIC;
+    if (packetLineCode >= 0 && packetLineCode < 0xFF && genius_line_code_valid((uint8_t)packetLineCode))
+    {
+        newLine.lineCode = (uint8_t)packetLineCode;
+        newLine.lineCodeSource = LCS_PACKET;
+    }
 
     beginTransaction();
     if (toFront)
@@ -526,6 +538,108 @@ esp_err_t AlarmLinesService::addAlarmLine(uint32_t id, String name, alarm_line_a
         _emitNewAlarmLineEvent(id);
 
     return ESP_OK;
+}
+
+esp_err_t AlarmLinesService::addAlarmLineFromPacket(uint32_t id, int lineCode)
+{
+    char name[40];
+    snprintf(name, sizeof(name), ALARMLINES_AUTO_NAME_FORMAT, (unsigned long)id);
+    return addAlarmLine(id, String(name), ALA_GENIUS_PACKET, false, lineCode);
+}
+
+uint8_t AlarmLinesService::effectiveLineCode(uint32_t lineId)
+{
+    alarm_line_code_source_t source = LCS_AUTOMATIC;
+    uint8_t code = GENIUS_LINE_CODE_A0;
+    beginTransaction();
+    for (const auto &line : _state.lines)
+    {
+        if (line.id == lineId)
+        {
+            source = line.lineCodeSource;
+            code = line.lineCode;
+            break;
+        }
+    }
+    endTransaction();
+
+    if (source != LCS_AUTOMATIC)
+        return code;
+    uint8_t fromDetectors;
+    if (_lineCodeResolver && _lineCodeResolver(lineId, fromDetectors))
+        return fromDetectors;
+    return GENIUS_LINE_CODE_A0; // not known: as an FM Basis X
+}
+
+void AlarmLinesService::refreshLineCodeCache()
+{
+    std::vector<uint32_t> automatic;
+    beginTransaction();
+    for (const auto &line : _state.lines)
+    {
+        if (line.lineCodeSource == LCS_AUTOMATIC && line.id != ALARMLINES_ID_NONE && line.id != ALARMLINES_ID_BROADCAST)
+            automatic.push_back(line.id);
+    }
+    endTransaction();
+
+    // Outside the state lock: the resolver takes the lock of the devices
+    std::vector<uint32_t> awaiting;
+    for (uint32_t id : automatic)
+    {
+        uint8_t code;
+        if (!_lineCodeResolver || !_lineCodeResolver(id, code))
+            awaiting.push_back(id);
+    }
+
+    xSemaphoreTake(_lineCodeCacheMutex, portMAX_DELAY);
+    _linesAwaitingCode.swap(awaiting);
+    xSemaphoreGive(_lineCodeCacheMutex);
+}
+
+bool AlarmLinesService::learnLineCode(uint32_t lineId, uint8_t lineCode)
+{
+    if (!genius_line_code_valid(lineCode))
+        return false;
+
+    bool awaiting = false;
+    xSemaphoreTake(_lineCodeCacheMutex, portMAX_DELAY);
+    awaiting = std::find(_linesAwaitingCode.begin(), _linesAwaitingCode.end(), lineId) != _linesAwaitingCode.end();
+    xSemaphoreGive(_lineCodeCacheMutex);
+    if (!awaiting)
+        return false;
+
+    bool changed = false;
+    beginTransaction();
+    for (auto &line : _state.lines)
+    {
+        if (line.id == lineId && line.lineCodeSource == LCS_AUTOMATIC)
+        {
+            line.lineCode = lineCode;
+            line.lineCodeSource = LCS_PACKET;
+            changed = true;
+        }
+    }
+    endTransaction();
+    if (!changed)
+        return false;
+
+    ESP_LOGI(TAG, "Line setting of alarm line %lu taken from a radio packet: %c.%u.", (unsigned long)lineId,
+             genius_line_code_letter(lineCode), genius_line_code_number(lineCode));
+    callUpdateHandlers(ALARMLINES_ORIGIN_ID); // persist, refresh the list
+    return true;
+}
+
+std::vector<std::pair<uint32_t, std::string>> AlarmLinesService::getLineNames()
+{
+    std::vector<std::pair<uint32_t, std::string>> names;
+
+    beginTransaction();
+    names.reserve(_state.lines.size());
+    for (const auto &line : _state.lines)
+        names.emplace_back(line.id, std::string(line.name.c_str()));
+    endTransaction();
+
+    return names;
 }
 
 // ============================================================================
@@ -605,10 +719,12 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
         size_t datalen = std::min(sizeof(_packet_base_linetest), sizeof(_txBuffer));
         memcpy(_txBuffer, _packet_base_linetest, datalen);
 
+        // A line test (about 15 minutes, this alarm line). Up to v1.5.0 the gateway sent 0x06
+        // here, which is the network test (about 30 minutes) - see GENIUS_TEST_MODE_*.
         if (action == "line-test-start")
-            _txBuffer[28] = 0x06; // Set line test start flag
+            _txBuffer[DATAPOS_LINE_TEST_START_STOP_FLAG] = GENIUS_TEST_MODE_LINE_TEST;
         else
-            _txBuffer[28] = 0x00; // Set line test stop flag
+            _txBuffer[DATAPOS_LINE_TEST_START_STOP_FLAG] = GENIUS_TEST_MODE_STOP;
 
         _txDataLength = datalen;
     }
@@ -658,6 +774,15 @@ esp_err_t AlarmLinesService::_triggerAction(uint32_t lineIdHostOrder, const Stri
     // Common packet preparation
     memcpy(&_txBuffer[18], &lineId, sizeof(lineId)); // Set line id
     _txBuffer[23] = incPcktSeqNum();                 // Increment and persist sequence number
+
+    // For the line setting (rotary position) of the line: radio modules set to another one would
+    // neither accept nor forward the packet
+    const uint8_t lineCode = effectiveLineCode(lineIdHostOrder);
+    _txBuffer[DATAPOS_GENERAL_DEST_LINE_CODE] = lineCode;
+    _txBuffer[DATAPOS_GENERAL_ORIGIN_LINE_CODE] = lineCode;
+    _txBuffer[DATAPOS_GENERAL_SENDER_LINE_CODE] = lineCode;
+    ESP_LOGI(TAG, "Action '%s' is sent for the line setting %c.%u.", action.c_str(), genius_line_code_letter(lineCode),
+             genius_line_code_number(lineCode));
 
     // Record last action context for MQTT result publishing
     _lastActionLineId = lineIdHostOrder;
@@ -824,6 +949,9 @@ void AlarmLinesService::_removeAlarmLineSubDevice(uint32_t lineId)
 
 void AlarmLinesService::_syncAlarmLineSubDevices()
 {
+    // Lock order: HA registry lock first, state mutex second - see
+    // GeniusDevicesService::_syncSmokeDetectorSubDevices().
+    HAService::Lock haLock(_haService);
     beginTransaction();
 
     // Remove sub-devices for lines deleted via HTTP (populated by AlarmLines::update)
@@ -923,8 +1051,13 @@ esp_err_t AlarmLinesService::_removeAlarmLine(uint32_t id)
 
     ESP_LOGI(TAG, "Removed alarm line with id %lu", id);
 
-    // Unpublish HA entities for this alarm line
-    _removeAlarmLineSubDevice(id);
+    // Unpublish HA entities for this alarm line (lock order as in _syncAlarmLineSubDevices())
+    {
+        HAService::Lock haLock(_haService);
+        beginTransaction();
+        _removeAlarmLineSubDevice(id);
+        endTransaction();
+    }
 
     callUpdateHandlers(ALARMLINES_ORIGIN_ID);
 

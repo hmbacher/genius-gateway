@@ -1,12 +1,35 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import type { UserConfig } from 'vite';
+import { createLogger } from 'vite';
+import type { Logger, UserConfig } from 'vite';
 import Icons from 'unplugin-icons/vite';
 import viteLittleFS from './vite-plugin-littlefs';
 import viteAppVersion from './vite-plugin-app-version';
 import { FileSystemIconLoader } from 'unplugin-icons/loaders'
 import tailwindcss from '@tailwindcss/vite'
 
+/**
+ * Dev server only: a browser that drops its connection while the proxy writes to it - a reload, a
+ * phone that switches networks or apps - makes the proxy log an error with a stack trace. These codes
+ * are expected and get one short line instead; every other error is logged as before.
+ */
+const CLOSED_BY_BROWSER = new Set(['ECONNABORTED', 'ECONNRESET', 'EPIPE']);
+
+function proxyQuietLogger(): Logger {
+	const logger = createLogger();
+	const error = logger.error.bind(logger);
+	logger.error = (msg, options) => {
+		const code = (options?.error as { code?: string } | undefined)?.code;
+		if (code && CLOSED_BY_BROWSER.has(code) && msg.includes('proxy')) {
+			logger.warn(`proxy: connection closed by the browser (${code})`, { timestamp: true });
+			return;
+		}
+		error(msg, options);
+	};
+	return logger;
+}
+
 const config: UserConfig = {
+	customLogger: proxyQuietLogger(),
 	plugins: [
 		sveltekit(),
 		tailwindcss(),

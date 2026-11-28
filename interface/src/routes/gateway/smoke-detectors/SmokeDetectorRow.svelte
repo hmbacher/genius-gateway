@@ -3,13 +3,17 @@
 	import {
 		hasReadout,
 		isStaleReadout,
-		getSmokeDetectorFaults,
-		getRadioModuleFaults
+		hasSmokeDetectorStatus,
+		hasRadioModuleStatus,
+		getCurrentSmokeDetectorFaults,
+		getCurrentRadioModuleFaults
 	} from '$lib/utils/deviceStatus';
-	import { formatDate } from '$lib/utils/formatDate';
+	import { formatAgo, formatDate, formatDateTime } from '$lib/utils/formatDate';
+	import { deviceRuntime } from '$lib/stores/deviceRuntime.svelte';
 	import { isOldFmModule } from '$lib/genius/line';
 	import { dragHandle } from 'svelte-dnd-action';
 	import DetectorStatusBadge from './DetectorStatusBadge.svelte';
+	import { alarmCount, lastAlarm } from '$lib/genius/activity';
 	import SignalIndicator from './SignalIndicator.svelte';
 	import { GeniusSmokeDetector, GeniusRadioModule } from '$lib/types/enums';
 	import type { GeniusRadioModuleInfo } from '$lib/types/models';
@@ -77,9 +81,22 @@
 	const rmModelName = $derived(radioModuleModelName(device.radioModule.model));
 	const rmPresent = $derived(hasRadioModule(device.radioModule));
 	const sdReadout = $derived(hasReadout(device));
+	// Alarms: counted by the gateway; the newest one comes from the activity log
+	const alarms = $derived(alarmCount(device));
+	const newestAlarm = $derived(lastAlarm(device));
 	const stale = $derived(isStaleReadout(device));
-	const sdFaults = $derived(getSmokeDetectorFaults(device.smokeDetector));
-	const rmFaults = $derived(getRadioModuleFaults(device.radioModule));
+	// Current status: status flags (over the air / readout / manual reset) + readout-only findings
+	const sdStatus = $derived(hasSmokeDetectorStatus(device));
+	const rmStatus = $derived(hasRadioModuleStatus(device));
+	// Radio link supervision: FM Pro X modules send a daily series, so the gateway knows when it
+	// last heard them (kept in its RAM only - not heard since its start: no entry)
+	const supervised = $derived(device.radioModule.model === GeniusRadioModule.FmProX);
+	const lastSeen = $derived(deviceRuntime.byId[device.id]?.lastSeen);
+	const lastSeenText = $derived(
+		lastSeen ? `Seen ${formatAgo(lastSeen, deviceRuntime.now)}` : 'Not heard yet'
+	);
+	const sdFaults = $derived(getCurrentSmokeDetectorFaults(device));
+	const rmFaults = $derived(getCurrentRadioModuleFaults(device));
 	// Old FM module (FM.Basis / FM.Pro) without a manually-entered alarm line.
 	const lineRequired = $derived(
 		isOldFmModule(device.radioModule.model) && !device.radioModule.lineCharacter
@@ -122,12 +139,10 @@
 					{device.location}
 				</div>
 				<span
-					class="shrink-0 text-base {device.alarms.length > 0
-						? 'text-current/70 font-medium'
-						: 'text-current/40'}"
+					class="shrink-0 text-base {alarms > 0 ? 'text-current/70 font-medium' : 'text-current/40'}"
 				>
-					{device.alarms.length}
-					{device.alarms.length === 1 ? 'alarm' : 'alarms'}
+					{alarms}
+					{alarms === 1 ? 'alarm' : 'alarms'}
 				</span>
 			</div>
 			{#if sdReadout && !stale}
@@ -148,6 +163,7 @@
 					<SignalIndicator
 						rssi={device.radioModule.rssi}
 						lastRangeTest={device.radioModule.lastRangeTest}
+						unsupported={isOldFmModule(device.radioModule.model)}
 					/>
 				</div>
 			{/if}
@@ -160,13 +176,12 @@
 					tabindex="0"
 					class="dropdown-content menu menu-lg bg-base-100 rounded-box z-10 shadow-lg border border-base-300 p-1 w-44"
 				>
-					{#if device.alarms.length > 0}
-						<li>
-							<button onclick={() => blurAndCall(onAlarmLog)}>
-								<Logs class="h-6 w-6" /> Alarm log
-							</button>
-						</li>
-					{/if}
+					<!-- Every detector has an activity log, also without alarms -->
+					<li>
+						<button onclick={() => blurAndCall(onAlarmLog)}>
+							<Logs class="h-6 w-6" /> Activity log
+						</button>
+					</li>
 					<li>
 						<button onclick={() => blurAndCall(onEdit)}>
 							<Edit class="h-6 w-6" /> Edit
@@ -194,7 +209,7 @@
 			{/if}
 			<span class="text-current/30">·</span>
 			<DetectorStatusBadge
-				hasReadout={sdReadout}
+				hasStatus={sdStatus}
 				hasFaults={sdFaults.length > 0}
 				{stale}
 				isAlarming={device.isAlarming}
@@ -216,7 +231,7 @@
 				{/if}
 				<span class="text-current/30">·</span>
 				<DetectorStatusBadge
-					hasReadout={sdReadout}
+					hasStatus={rmStatus}
 					hasFaults={rmFaults.length > 0}
 					{stale}
 					isAlarming={device.isAlarming}
@@ -224,6 +239,12 @@
 					compact
 					onclick={() => onDetails(index)}
 				/>
+				{#if supervised}
+					<span class="text-current/30">·</span>
+					<span class="text-xs {lastSeen ? 'text-current/60' : 'italic text-current/40'}"
+						>{lastSeenText}</span
+					>
+				{/if}
 				{#if lineRequired}
 					<button
 						class="btn btn-warning btn-xs gap-1"
@@ -272,7 +293,7 @@
 				{/if}
 			</div>
 			<DetectorStatusBadge
-				hasReadout={sdReadout}
+				hasStatus={sdStatus}
 				hasFaults={sdFaults.length > 0}
 				{stale}
 				isAlarming={device.isAlarming}
@@ -297,13 +318,23 @@
 					{/if}
 				</div>
 				<DetectorStatusBadge
-					hasReadout={sdReadout}
+					hasStatus={rmStatus}
 					hasFaults={rmFaults.length > 0}
 					{stale}
 					isAlarming={device.isAlarming}
 					faults={rmFaults}
 					onclick={() => onDetails(index)}
 				/>
+				{#if supervised}
+					<div
+						class="truncate text-xs {lastSeen ? 'text-current/60' : 'italic text-current/40'}"
+						title={lastSeen
+							? `Last packet of this radio module: ${formatDateTime(lastSeen)}`
+							: 'No packet of this radio module since the gateway started'}
+					>
+						{lastSeenText}
+					</div>
+				{/if}
 				{#if lineRequired}
 					<button
 						class="btn btn-warning btn-xs gap-1"
@@ -318,9 +349,9 @@
 
 		<!-- Alarms -->
 		<div class="text-center text-sm">
-			<div>{device.alarms.length}</div>
-			{#if device.alarms.length > 0}
-				<div>{formatDate(device.alarms[device.alarms.length - 1].startTime)}</div>
+			<div>{alarms}</div>
+			{#if newestAlarm?.startTime}
+				<div>{formatDate(newestAlarm.startTime)}</div>
 			{/if}
 		</div>
 
@@ -343,6 +374,7 @@
 				<SignalIndicator
 					rssi={device.radioModule.rssi}
 					lastRangeTest={device.radioModule.lastRangeTest}
+					unsupported={isOldFmModule(device.radioModule.model)}
 				/>
 			{/if}
 		</div>
@@ -350,17 +382,15 @@
 		<!-- Manage buttons -->
 		<div class="flex items-center justify-end">
 			<span class="inline-flex flex-row">
-				{#if device.alarms.length > 0}
-					<div class="tooltip tooltip-left" data-tip="Show alarm log">
-						<button
-							class="btn btn-ghost btn-circle btn-sm"
-							aria-label="Show alarm log"
-							onclick={() => onAlarmLog(index)}
-						>
-							<Logs class="h-6 w-6" />
-						</button>
-					</div>
-				{/if}
+				<div class="tooltip tooltip-left" data-tip="Show activity log">
+					<button
+						class="btn btn-ghost btn-circle btn-sm"
+						aria-label="Show activity log"
+						onclick={() => onAlarmLog(index)}
+					>
+						<Logs class="h-6 w-6" />
+					</button>
+				</div>
 				<div class="tooltip tooltip-left" data-tip="Edit smoke detector">
 					<button
 						class="btn btn-ghost btn-circle btn-sm"

@@ -2,7 +2,7 @@
 	import { modals, type ModalProps, onBeforeClose } from 'svelte-modals';
 	import { focusTrap } from 'svelte-focus-trap';
 	import { fly } from 'svelte/transition';
-	import type { Component } from 'svelte';
+	import type { Component, Snippet } from 'svelte';
 	import Cancel from '~icons/tabler/x';
 	import Check from '~icons/tabler/check';
 	import AlertCircle from '~icons/tabler/alert-circle';
@@ -12,6 +12,10 @@
 	type IconComponent = Component<{ class?: string }>;
 
 	type Phase = 'pending' | 'progress' | 'success' | 'error' | 'aborted';
+
+	/** Colour of the 'success' phase. 'primary' is for an outcome that is done on our
+	 *  side but not confirmed by the other end - it must not look like a green OK. */
+	type SuccessTone = 'success' | 'primary';
 
 	type ActionButton = {
 		label: string;
@@ -25,6 +29,8 @@
 
 	interface Props extends ModalProps {
 		title: string;
+		/** Icon shown left of the title, matching what triggered the dialog. */
+		titleIcon?: IconComponent;
 		phase: Phase;
 		/** 0-100. Omit for an indeterminate spinner. */
 		progress?: number;
@@ -34,6 +40,15 @@
 		stepLabel?: string;
 		/** Detail shown beneath the error message in the 'error' phase. */
 		errorDetails?: string;
+		/** Detail shown beneath the message in the 'success' phase. */
+		successDetails?: string;
+		/** Further content of the 'success' phase, below the message: notes, lists. Left-aligned,
+		 *  full width. */
+		successContent?: Snippet;
+		/** Icon of the 'success' phase. Defaults to a check mark. */
+		successIcon?: IconComponent;
+		/** Colour of the 'success' phase. Defaults to 'success' (green). */
+		successTone?: SuccessTone;
 		/** Visible while phase === 'progress' or 'pending'. */
 		cancelButton?: ActionButton & { disabledDuringProgress?: boolean };
 		/** Visible while phase === 'success'. Optionally auto-fires after N seconds. */
@@ -49,11 +64,16 @@
 	let {
 		isOpen,
 		title,
+		titleIcon: TitleIcon,
 		phase,
 		progress,
 		message,
 		stepLabel,
 		errorDetails,
+		successDetails,
+		successContent,
+		successIcon: SuccessPhaseIcon = Check,
+		successTone = 'success',
 		cancelButton,
 		successButton,
 		errorButtons,
@@ -64,6 +84,12 @@
 	const titleId = `progress-dialog-title-${Math.random().toString(36).slice(2)}`;
 
 	let running = $derived(phase === 'pending' || phase === 'progress');
+
+	const successToneClasses: Record<SuccessTone, { background: string; icon: string }> = {
+		success: { background: 'bg-success/10', icon: 'text-success' },
+		primary: { background: 'bg-primary/10', icon: 'text-primary' }
+	};
+	const successClasses = $derived(successToneClasses[successTone]);
 
 	// Optional auto-trigger for the success button (firmware-update style countdown).
 	let countdown: number = $state(0);
@@ -105,7 +131,9 @@
 		>
 			<!-- Header -->
 			<div class="flex items-center justify-between p-6 pb-4">
-				<h2 id={titleId} class="text-base-content text-xl font-bold">{title}</h2>
+				<h2 id={titleId} class="text-base-content flex items-center gap-2 text-xl font-bold">
+					{#if TitleIcon}<TitleIcon class="text-primary h-7 w-7 flex-shrink-0" />{/if}{title}
+				</h2>
 			</div>
 
 			<!-- Progress Content -->
@@ -131,8 +159,10 @@
 						{/if}
 					</div>
 				{:else if phase === 'success'}
-					<div class="flex items-center justify-center w-24 h-24 rounded-full bg-success/10">
-						<Check class="h-16 w-16 text-success" />
+					<div
+						class="flex items-center justify-center w-24 h-24 rounded-full {successClasses.background}"
+					>
+						<SuccessPhaseIcon class="h-16 w-16 {successClasses.icon}" />
 					</div>
 				{:else if phase === 'aborted'}
 					<div class="flex items-center justify-center w-24 h-24 rounded-full bg-base-200">
@@ -145,7 +175,7 @@
 				{/if}
 
 				<!-- Status messages -->
-				<div class="space-y-1 text-center">
+				<div class="w-full space-y-1 text-center">
 					<p class="text-lg {phase === 'error' ? 'text-error' : 'text-base-content/70'}">
 						{message}
 					</p>
@@ -154,6 +184,14 @@
 					{/if}
 					{#if phase === 'error' && errorDetails}
 						<p class="text-sm text-error/70 mt-2">{errorDetails}</p>
+					{/if}
+					{#if phase === 'success' && successDetails}
+						<p class="text-sm text-base-content/50 mt-2">{successDetails}</p>
+					{/if}
+					{#if phase === 'success' && successContent}
+						<div class="mt-4 w-full space-y-2 text-left">
+							{@render successContent()}
+						</div>
 					{/if}
 					{#if phase === 'success' && successButton?.autoTriggerAfterSeconds && countdown > 0}
 						<p class="text-sm text-base-content/50 mt-2">

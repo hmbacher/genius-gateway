@@ -49,7 +49,7 @@ class HAService;
  *
  * Each sub-device publishes its own MQTT discovery block using its own
  * identity, with topics nested under the main device's base topic:
- *   {mainBaseTopic}/{subDeviceId}/{entityId}/state
+ *   {mainBaseTopic}/{subDeviceId}/{objectId}/state
  *
  * Usage (sub-device):
  * @code
@@ -82,13 +82,33 @@ public:
     HADeviceIdentity &identity() { return _identity; }
     const HADeviceIdentity &identity() const { return _identity; }
 
+    /**
+     * @brief Send an explicit default_entity_id with every discovery config
+     *
+     * With a non-empty prefix each entity config gets
+     * `default_entity_id = <component>.<prefix>_<slug(entity name)>`.
+     * HA only honours it when it creates an entity (not for already registered
+     * ones), so it only takes effect after the old entity was removed first.
+     *
+     * The prefix is independent of the device's display name, so the caller is
+     * free to derive it from something else (e.g. a serial number when there
+     * is no user-defined label).
+     *
+     * @param prefix Entity-ID prefix; slugified on the way in. Empty disables
+     *               the explicit ID and leaves entity-ID generation to HA.
+     */
+    void setEntityIdPrefix(const String &prefix);
+
+    /** @brief Entity-ID prefix currently in effect (empty = none, see setEntityIdPrefix). */
+    const String &entityIdPrefix() const { return _entityIdPrefix; }
+
     /** @brief Unique device identifier (HADeviceIdentity::id). */
     const String &getDeviceId() const { return _identity.id; }
 
     /**
      * @brief MQTT base topic for this device's entities.
      *
-     * For the main device:  {discoveryPrefix}{namespace}/{deviceId}
+     * For the main device:  {discoveryPrefix}{deviceId}
      * For a sub-device:     {mainDevice.baseTopic}/{subDeviceId}
      *
      * Entities store state at {baseTopic}/{objectId}/state and listen on
@@ -147,11 +167,29 @@ public:
      * The destructor does NOT call this automatically - on firmware restart
      * we want HA to keep the retained device config. Call explicitly before
      * destroying a sub-device that should disappear from HA.
+     *
+     * The retained state topics of the entities are cleared as well, so nothing of a
+     * removed device stays on the broker.
+     *
+     * @param qos MQTT QoS for the empty payloads. Use 1 when a lost removal
+     *            would leave HA in the wrong state (e.g. before re-creating the
+     *            entities under a new entity ID).
+     * @param keepState Keep the retained states - for entities that are published again
+     *            right away (a rename), so their states are not lost meanwhile.
      */
-    void unpublishAll();
+    void unpublishAll(int qos = 0, bool keepState = false);
 
     /** @brief Number of entities registered with this device. */
     size_t entityCount() const { return _entities.size(); }
+
+    /**
+     * @brief Number of discovery configs of this device that could not be published
+     *
+     * Counts every publishConfig() call that failed since boot, including
+     * those issued by helpers publishing through this device. Compare the
+     * value before and after a publishAll() to learn whether it went through.
+     */
+    uint32_t configPublishFailures() const { return _configPublishFailures; }
 
     // ========================================================================
     // MQTT helpers - used by entities owned by this device
@@ -183,6 +221,8 @@ public:
 private:
     HAService *_haService;
     HADeviceIdentity _identity;
+    String _entityIdPrefix;
+    uint32_t _configPublishFailures;
     std::vector<std::unique_ptr<HAEntityBase>> _entities;
 
     template <class E>

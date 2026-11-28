@@ -40,6 +40,8 @@ Resets all settings to factory defaults, including:
 
 The CC1101 page provides runtime SPI pin configuration for the CC1101 radio transceiver. This page is only accessible to administrators.
 
+![Radio (CC1101)](../assets/images/software/gg-system-cc1101.png)
+
 ### Top-Bar Radio Indicator
 
 The radio status is reflected by a persistent icon in the navigation bar that links to this page from anywhere in the interface:

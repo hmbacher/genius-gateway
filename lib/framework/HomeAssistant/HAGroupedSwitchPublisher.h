@@ -17,6 +17,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <functional>
+#include <map>
 #include <memory>
 #include <vector>
 #include <StatefulService.h>
@@ -92,7 +93,13 @@ public:
 
     virtual ~HAGroupedSwitchPublisher()
     {
+        // The callbacks run under the registry lock: taking it here waits for a
+        // publishAll() that is in the middle of this publisher.
+        HAService::Lock guard(_haService);
         *_alive = false;
+        if (_haService != nullptr)
+            for (const auto &sub : _subscriptions)
+                _haService->unsubscribe(sub.second.first, sub.second.second);
     }
 
     /**
@@ -205,6 +212,7 @@ protected:
     HAService *_haService;
     String _topicSuffix;
     std::vector<Switch> _switches;
+    std::map<String, std::pair<String, uint32_t>> _subscriptions; ///< objectId -> (command topic, subscription id)
 
     // Liveness flag captured by the lambdas registered with HAService in begin().
     // Set to false in the destructor so post-destruction invocations bail out
@@ -275,11 +283,19 @@ protected:
 
         Getter getter = sw.getter;
         Setter setter = sw.setter;
-        _haService->subscribe(_commandTopicAbs(sw.objectId),
-                              [this, getter, setter](char *topic, char *payload, int retain, int qos, bool dup)
-                              {
-                                  _onCommand(getter, setter, payload);
-                              });
+        auto alive = _alive;
+        const String topic = _commandTopicAbs(sw.objectId);
+        // HAService replaces the handler of a topic on every publish; a topic that changed gives up the old one
+        auto known = _subscriptions.find(sw.objectId);
+        if (known != _subscriptions.end() && known->second.first != topic)
+            _haService->unsubscribe(known->second.first, known->second.second);
+        const uint32_t id = _haService->subscribe(topic,
+                                                  [this, alive, getter, setter](char *, char *payload, int, int, bool)
+                                                  {
+                                                      if (*alive)
+                                                          _onCommand(getter, setter, payload);
+                                                  });
+        _subscriptions[sw.objectId] = {topic, id};
     }
 
     void _onCommand(Getter getter, Setter setter, const char *payload)

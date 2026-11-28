@@ -45,6 +45,9 @@ When enabled, the gateway will automatically add smoke detectors to your device 
 !!! warning "Security Consideration"
     When enabled, any Genius Plus X detector in radio range can be automatically added during an alarm. If you need strict control over which detectors are monitored, disable this setting and manually add only authorized devices.
 
+!!! info "Battery warnings and faults"
+    This setting only concerns **alarms**. Battery warnings and fault reports ([status changes](../reverse-engineering/protocol-analysis.md#status-change) without the alarm flag) are processed for registered smoke detectors only and never add a detector to the device list - regardless of this setting.
+
 ### :tabler-topology-ring-2: Alarm Lines
 
 Alarm line IDs are unique identifiers that group smoke detectors into logical networks. These IDs are essential for [alarm line management functions](alarm-lines-management.md) such as line tests and test alarms. The gateway can automatically learn and store these IDs from various types of radio packets.
@@ -75,7 +78,7 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 
 **Default:** Enabled (recommended)
 
-When enabled, the gateway automatically extracts and stores alarm line IDs from alarm start and alarm stop (silencing) packets. These packets are transmitted when a smoke detector triggers an alarm or when an alarm is silenced.
+When enabled, the gateway automatically extracts and stores alarm line IDs from alarm start and alarm stop (silencing) packets. These packets are transmitted when a smoke detector triggers an alarm or when an alarm is silenced - they are the [status changes](../reverse-engineering/protocol-analysis.md#status-change) that set or clear the alarm flag. Status changes reporting only a battery warning or a fault do not add alarm lines.
 
 **When enabled:**
 
@@ -88,13 +91,13 @@ When enabled, the gateway automatically extracts and stores alarm line IDs from 
 - Alarm packets don't update your alarm line list
 - Alarm line IDs must be added through other means
 
-**Learn more:** [Alarm Packets](../reverse-engineering/protocol-analysis.md#alarming-startstop)
+**Learn more:** [Alarm Packets](../reverse-engineering/protocol-analysis.md#status-change)
 
 #### Add alarm line ID of received line test packets automatically {#add-alarm-line-from-line-test}
 
 **Default:** Enabled (recommended)
 
-When enabled, the gateway automatically extracts and stores alarm line IDs from line test packets. Line test packets are sent when the line test function is activated on a smoke detector to verify communication between all detectors on that alarm line.
+When enabled, the gateway automatically extracts and stores alarm line IDs from line test packets. Line test packets are sent when the line test function is activated on a smoke detector to verify communication between all detectors on that alarm line. The start of a network test uses the same packet and is handled the same way.
 
 **When enabled:**
 

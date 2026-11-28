@@ -9,7 +9,6 @@
 	import type {
 		GeniusSmokeDetectorInfo,
 		GeniusRadioModuleInfo,
-		GeniusAlarm,
 		GeniusDevice
 	} from '$lib/types/models';
 	import {
@@ -46,6 +45,9 @@
 		geniusDevice?: GeniusDevice;
 		saveButtonLabel?: string;
 		titleIcon?: Component<{ class?: string }>;
+		/** True while the gateway renames Home Assistant entity IDs on a location change
+		 *  (HA integration enabled and the "update entity IDs" option switched on). */
+		haRenamesEntityIds?: boolean;
 	}
 
 	let {
@@ -54,6 +56,7 @@
 		onSaveGeniusDevice,
 		saveButtonLabel = 'Save',
 		titleIcon: TitleIcon,
+		haRenamesEntityIds = false,
 		geniusDevice: _geniusDevice = {
 			id: 0,
 			smokeDetector: {
@@ -67,8 +70,7 @@
 			} as GeniusRadioModuleInfo,
 			location: '',
 			registration: GeniusDeviceRegistration.Manual,
-			isAlarming: false,
-			alarms: [] as GeniusAlarm[]
+			isAlarming: false
 		} as GeniusDevice
 	}: Props = $props();
 
@@ -77,6 +79,12 @@
 	let geniusDevice = $state(_geniusDevice);
 
 	const titleId = `edit-smoke-detector-title-${Math.random().toString(36).slice(2)}`;
+
+	// Location the detector is currently saved with; undefined for a detector that does
+	// not exist yet. Looked up before a new device gets its ID assigned below.
+	const savedLocation = geniusDevices.devices.find((d) => d.id === _geniusDevice.id)?.location;
+	// Serial of the radio module when the dialog opened: its alarm line ID is kept while it stays the same.
+	const savedRadioModuleSN = _geniusDevice.radioModule.sn;
 
 	// Generate unique device ID with collision detection
 	function generateUniqueDeviceId(): number {
@@ -133,7 +141,7 @@
 	);
 	const hasRadioModule = $derived(geniusDevice.radioModule.model !== GeniusRadioModule.None);
 
-	// Old FM modules (FM.Basis / FM.Pro) cannot expose a trustworthy alarm line; the
+	// Old FM modules (FM.Basis / FM.Pro) do not report their line in an acoustic readout; the
 	// rotary switch position must be entered by hand here, so it can also be edited later.
 	const isOldModule = $derived(hasRadioModule && isOldFmModule(geniusDevice.radioModule.model));
 
@@ -172,6 +180,13 @@
 			isNaN(geniusDevice.smokeDetector.productionDate.getTime())
 	);
 	const locationError = $derived(!hasLength(geniusDevice.location, minLocationLength, maxLocationLength));
+
+	// Saving a changed location makes the gateway remove and re-create this detector's
+	// entities in Home Assistant. The texts are compared, not the entity-ID slugs, so the
+	// warning can show for an edit that ends up not changing the IDs (e.g. upper/lower case).
+	const locationRenamesEntities = $derived(
+		haRenamesEntityIds && savedLocation !== undefined && geniusDevice.location !== savedLocation
+	);
 	const hasErrors = $derived(
 		smokeDetectorSNRangeError ||
 			smokeDetectorSNDuplicateError ||
@@ -191,8 +206,11 @@
 				geniusDevice.radioModule.lineCharacter = lineMajor;
 				geniusDevice.radioModule.lineNumber = lineMinor;
 				geniusDevice.radioModule.lineManual = true;
-				// Old modules expose no 32-bit Line-ID; the rotary switch is the only identity.
-				geniusDevice.radioModule.lineId = 0;
+				// The alarm line ID was learned from the radio packets of this module and stays. If
+				// another module was entered, the gateway learns it again from that module's packets.
+				if (geniusDevice.radioModule.sn !== savedRadioModuleSN) {
+					geniusDevice.radioModule.lineId = 0;
+				}
 			}
 			onSaveGeniusDevice(geniusDevice);
 		}
@@ -204,11 +222,11 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby={titleId}
-		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center overflow-y-auto"
+		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
 		transition:fly={{ y: 50 }}
 	>
 		<div
-			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex min-w-fit max-w-md flex-col justify-between p-4 shadow-lg md:w-[28rem]"
+			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex max-h-full min-w-fit max-w-md flex-col justify-between overflow-y-auto overscroll-contain p-4 shadow-lg *:shrink-0 md:w-[28rem]"
 		>
 			<h2
 				id={titleId}
@@ -404,6 +422,19 @@
 						id="location"
 					/>
 					<FieldError show={locationError} message="Please set a location of length between {minLocationLength} and {maxLocationLength} characters." />
+					{#if locationRenamesEntities}
+						<!-- w-0 + min-w-full: fill the dialog without widening it. The dialog sizes
+						     itself to its content (min-w-fit), so a long line would stretch it. -->
+						<div class="w-0 min-w-full" transition:slide|local={{ duration: 300, easing: cubicOut }}>
+							<div class="alert alert-warning mt-2 items-start gap-2 p-2">
+								<IconWarning class="h-5 w-5 shrink-0 mt-0.5" />
+								<span class="text-sm"
+									>Saving renames this detector's entities in Home Assistant. Automations,
+									scripts and dashboards that use the old entity IDs must be updated.</span
+								>
+							</div>
+						</div>
+					{/if}
 				</div>
 
 				<div class="divider my-2"></div>

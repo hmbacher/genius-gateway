@@ -24,6 +24,13 @@
 
 #define EVENT_SERVICE_PATH "/ws/events"
 
+// How long emitEvent() may wait for one client to take a frame. The HTTP server's own send
+// timeout is meant for slow HTTP responses and far too long here: events are sent from the
+// task that emits them, and that task must not stand still because a browser tab is asleep.
+#ifndef EVENT_SOCKET_SEND_TIMEOUT_MS
+#define EVENT_SOCKET_SEND_TIMEOUT_MS 1000
+#endif
+
 typedef std::function<void(JsonObject &root, int originId)> EventCallback;
 typedef std::function<void(const String &originId)> SubscribeCallback;
 
@@ -40,8 +47,25 @@ public:
 
     void onSubscribe(String event, SubscribeCallback callback);
 
+    /**
+     * @brief Send an event to its subscribers
+     *
+     * Sends from the calling task, one client after the other. A client that does not take
+     * the frame within EVENT_SOCKET_SEND_TIMEOUT_MS is disconnected and loses its
+     * subscriptions; a browser reconnects and subscribes again by itself. So a call can
+     * take up to that time per unresponsive client, once.
+     *
+     * @param onlyToSameOrigin true: send to originId only; false: send to all subscribers
+     *                         except originId
+     */
     void emitEvent(String event, JsonObject &jsonObject, const char *originId = "", bool onlyToSameOrigin = false);
-    // if onlyToSameOrigin == true, the message will be sent to the originId only, otherwise it will be broadcasted to all clients except the originId
+
+    /**
+     * @brief Limit how long a send on this socket may block
+     *
+     * For WebSocket handlers that push data from a task of their own, like emitEvent() does.
+     */
+    static void setSendTimeout(int socket, uint32_t timeoutMs);
 
     bool isEventValid(String event);
 
@@ -59,6 +83,9 @@ private:
     std::map<String, std::list<SubscribeCallback>> subscribe_callbacks;
     void handleEventCallbacks(String event, JsonObject &jsonObject, int originId);
     void handleSubscribeCallbacks(String event, const String &originId);
+
+    /// Remove these sockets from every subscription list. Caller holds clientSubscriptionsMutex.
+    void removeSubscriptions(const std::vector<int> &sockets);
 
     void onWSOpen(PsychicWebSocketClient *client);
     void onWSClose(PsychicWebSocketClient *client);

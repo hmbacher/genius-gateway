@@ -42,6 +42,7 @@
 #include <CC1101PinsService.h>
 #include <cc1101.h>
 #include <AlarmBlocker.h>
+#include <GeniusPacket.h>
 #include <vector>
 
 #define RX_TASK_STACK_SIZE 4096  ///< Stack size for RX task in bytes
@@ -49,54 +50,16 @@
 #define RX_TASK_CORE_AFFINITY 1  ///< CPU core affinity for RX task (0 or 1)
 #define RX_TASK_NAME "genius-rx" ///< Name identifier for RX task
 
-#define HOPS_FIRST 0xF ///< Initial hops value for packet routing
-#define HOPS_LAST 0x0  ///< Final hops value for packet routing
-
-#define MIN_GENIUS_PACKET_LENGTH LEN_UNKNOWN_PURPOSE_1_PACKET ///< Minimum valid packet length
-
-#define LEN_COMMISSIONING_PACKET 37      ///< Commissioning packet length
-#define LEN_COMMISSIONING_PROBE_REQUEST_PACKET 28  ///< CommissioningProbe request packet length
-#define LEN_COMMISSIONING_PROBE_RESPONSE_PACKET 32 ///< CommissioningProbe response packet length
-#define LEN_ALARM_PACKET 36              ///< Alarm packet length
-#define LEN_LINE_TEST_PACKET 29          ///< Line test packet length
-#define LEN_CONFIG_CHECK_PROBE_REQUEST_PACKET 28 ///< ConfigCheckProbe request length (same wire length as CommissioningProbe Request; distinguished by the message-type byte)
-#define LEN_CONFIG_CHECK_PROBE_RESPONSE_PACKET 36 ///< ConfigCheckProbe response length (same wire length as Alarming; distinguished by the message-type byte)
-
-#define DATAPOS_GENERAL_ORIGIN_RADIO_MODULE_ID 9  ///< Origin radio module ID position
-#define DATAPOS_GENERAL_SENDER_RADIO_MODULE_ID 14 ///< Sender radio module ID position
-#define DATAPOS_GENERAL_LINE_ID 18                ///< Line ID position
-#define DATAPOS_GENERAL_HOPS 22                   ///< Hops counter position
-#define DATAPOS_COMISSIONING_NEW_LINE_ID 28       ///< New line ID position in commissioning packets
-#define DATAPOS_COMOSSIONING_TIME_HOUR 32         ///< Hour position in commissioning packets
-#define DATAPOS_COMOSSIONING_TIME_MINUTE 33       ///< Minute position in commissioning packets
-#define DATAPOS_COMOSSIONING_TIME_SECOND 34       ///< Second position in commissioning packets
-#define DATAPOS_ALARM_ACTIVE_FLAG 28              ///< Alarm active flag position
-#define DATAPOS_ALARM_SILENCE_FLAG 30             ///< Alarm silence flag position
-#define DATAPOS_ALARM_SOURCE_SMOKE_ALARM_ID 32    ///< Source smoke alarm ID position
-#define DATAPOS_LINE_TEST_START_STOP_FLAG 28      ///< Line test start/stop flag position
-#define DATAPOS_MSG_TYPE 27                       ///< Message-type discriminator byte (constant per packet type - how the radio module routes a received frame)
-#define DATAPOS_CONFIG_CHECK_PROBE_STATUS 29              ///< ConfigCheckProbe response: per-device status/capability flag
-#define DATAPOS_CONFIG_CHECK_PROBE_GROUPLINE 30           ///< ConfigCheckProbe response: detector group/line (hi nibble = group A-H, lo nibble = line 0-9)
-
-/* Message-type byte values (data[DATAPOS_MSG_TYPE]) - the on-air type discriminator the
- * genuine radio module routes on. Length disambiguates the single shared value (0x00). */
-#define MSGTYPE_ALARM_OR_COMMISSIONING_PROBE_REQ 0x00 ///< Alarming (36 B) OR CommissioningProbe Request (28 B)
-#define MSGTYPE_COMMISSIONING_PROBE_RESPONSE 0x01     ///< CommissioningProbe Response (32 B, carries Req-SN)
-#define MSGTYPE_COMMISSIONING 0x03          ///< Alarm-line commissioning (37 B)
-#define MSGTYPE_LINE_TEST 0x04              ///< Line test start/stop (29 B)
-#define MSGTYPE_CONFIG_CHECK_PROBE_05 0x05       ///< ConfigCheckProbe probe (29 B) - firmware-derived, provisional (not yet capture-confirmed)
-#define MSGTYPE_CONFIG_CHECK_PROBE_REQUEST 0x06     ///< ConfigCheckProbe request (28 B)
-#define MSGTYPE_CONFIG_CHECK_PROBE_RESPONSE 0x08    ///< ConfigCheckProbe response (36 B)
+/* Frame layout, packet types and classification: see GeniusPacket.h */
 
 #define EXTRACT32(buffer, pos) (__ntohl(*(uint32_t *)&buffer[pos])) ///< Extract 32-bit value with network byte order conversion
 #define EXTRACT32_REV(buffer, pos) (*(uint32_t *)&buffer[pos])      ///< Extract 32-bit value without byte order conversion
-
-#define GATEWAY_ID 0xFFFFFFFE ///< Gateway identifier for genius protocol
 
 #define RX_TASK_NOTIFICATION_INDEX 0            ///< Task notification array index (must be < CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES)
 #define RX_TASK_MAX_WAITING_TICKS portMAX_DELAY ///< Maximum ticks to wait for packet reception
 
 #define GATEWAY_EVENT_ALARM "alarm" ///< WebSocket event name for alarm notifications
+#define GATEWAY_EVENT_DEVICE_STATUS "device-status" ///< WebSocket event for smoke detector status changes (battery low, faults)
 #define GATEWAY_EVENT_CONFIG_CHECK_PROBE "config-check-probe" ///< WebSocket event for ConfigCheckProbe survey progress/result
 
 #define GATEWAY_ALARM_STATE_EMIT_INTERVAL_MS 1000 ///< Alarm state emission interval (1 second)
@@ -113,29 +76,6 @@
 #define CONFIG_CHECK_PROBE_COLLECT_MS 30000    ///< Active-listening window after each sweep (ms) - matches Genius-Port silent_ping_timeout
 #define CONFIG_CHECK_PROBE_MAX_RESPONDERS 64   ///< Cap on distinct responders collected per survey
 
-typedef enum genius_packet_type
-{
-  HPT_UNKNOWN = -1,       ///< Unknown packet type
-  HPT_COMMISSIONING = 0,  ///< Commissioning packet (smoke detector assignment to alarm line)
-  HPT_COMMISSIONING_PROBE_REQUEST,  ///< CommissioningProbe request packet (request for smoke detectors to identify)
-  HPT_COMMISSIONING_PROBE_RESPONSE, ///< CommissioningProbe response packet (smoke detector identification response)
-  HPT_ALARM_START,        ///< Alarm start packet (smoke detection notification)
-  HPT_ALARM_STOP,         ///< Alarm stop packet (smoke cleared or alarm silenced)
-  HPT_LINE_TEST_START,    ///< Line test start packet (line test initiation)
-  HPT_LINE_TEST_STOP,     ///< Line test stop packet (line test completion)
-  HPT_CONFIG_CHECK_PROBE_REQUEST, ///< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe)
-  HPT_CONFIG_CHECK_PROBE_RESPONSE ///< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status)
-} genius_packet_type_t;
-
-typedef struct genius_packet_t
-{
-  genius_packet_type_t type; ///< Packet type classification
-  uint32_t origin_id;        ///< Original sender radio module ID
-  uint32_t sender_id;        ///< Current sender radio module ID
-  uint32_t line_id;          ///< Associated alarm line ID
-  uint8_t hops;              ///< Hop count for packet routing
-} genius_packet_t;
-
 /// One radio module that answered a ConfigCheckProbe survey (heard directly, hops = 0).
 typedef struct config_check_responder_t
 {
@@ -143,7 +83,7 @@ typedef struct config_check_responder_t
   uint32_t lineId;        ///< Responder's own Line-ID
   int8_t rssi;            ///< Best measured RSSI this sweep, in dBm
   uint8_t status;         ///< Response status/capability byte (offset 29)
-  uint8_t groupLine;      ///< Group/line nibble byte (offset 30)
+  uint8_t groupLine;      ///< Line code of the responder: position of its rotary switches, letter << 4 | number (offset 30)
 } config_check_responder_t;
 
 /// Main gateway service for managing genius protocol communication
@@ -181,6 +121,7 @@ private:
   bool _hasLastPacketHash;  ///< Flag indicating if last packet hash is valid
 
   TaskHandle_t _mqttPublishTaskHandle = nullptr; ///< Handle for persistent HA publish task
+  TaskHandle_t _alarmEventTaskHandle = nullptr;  ///< Handle for the task that sends the alarm state to the web clients
 
   // --- ConfigCheckProbe RSSI survey session state (guarded by _probeMutex) ---
   SemaphoreHandle_t _probeMutex = nullptr;                  ///< Guards the probe-session fields below
@@ -248,9 +189,41 @@ private:
   /// Static wrapper for HA publish task
   static void _mqttPublishTaskImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_mqttPublishTask(); }
 
-  /// Analyze received packet data and extract packet information
-  esp_err_t _genius_analyze_packet_data(uint8_t *packet_data, size_t data_length, genius_packet_t *analyzed_packet);
+  /// Handle a received status change: alarm start/stop (alarm bit) plus all other status flags
+  void _handleStatusChange(const genius_packet_t &details);
 
   /// Emit current alarm state via WebSocket
   void _emitAlarmState();
+
+  /**
+   * @brief Have the alarm state sent to the web clients without waiting for it
+   *
+   * For the packet reception task: sending to the web clients can block on a client that
+   * does not take the data, and reception must not stand still for that. The state is sent
+   * by a task of its own; several requests in a row may result in one event with the
+   * latest state.
+   */
+  void _requestAlarmStateEmit();
+
+  /**
+   * @brief Have the device status summary sent to the web clients without waiting for it
+   *
+   * Same reason and same task as for the alarm state: a status change is applied by the
+   * packet reception task, which must not wait for a web client.
+   */
+  void _requestDeviceStatusEmit();
+
+  /// Sends the alarm state and / or the device status summary when woken by one of the
+  /// _request...Emit() functions (persistent task)
+  void _alarmEventTask();
+
+  static constexpr uint32_t EVENT_TASK_ALARM_STATE = 0x01;   ///< Notification bit: send the alarm state
+  static constexpr uint32_t EVENT_TASK_DEVICE_STATUS = 0x02; ///< Notification bit: send the device status summary
+  static constexpr uint32_t EVENT_TASK_DEVICE_RUNTIME = 0x04; ///< Notification bit: send the changed last seen / signal values
+
+  /// Static wrapper for the alarm event task
+  static void _alarmEventTaskImpl(void *_this) { static_cast<GeniusGateway *>(_this)->_alarmEventTask(); }
+
+  /// Emit the smoke detectors' status summary (faulty / battery-low counts) via WebSocket
+  void _emitDeviceStatus();
 };

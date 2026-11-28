@@ -151,9 +151,12 @@ export type MQTTSettings = {
 	message_interval_ms: number;
 };
 
+/** An alarm of a device - a view on the alarm entries of its activity log (see $lib/genius/activity). */
 export type GeniusAlarm = {
-	startTime: Date;
-	endTime: Date;
+	/** Missing when the gateway's clock was not set at the time. */
+	startTime?: Date;
+	/** Missing while the alarm lasts. */
+	endTime?: Date;
 	endingReason: number;
 }
 
@@ -205,7 +208,7 @@ export type ConfigCheckResponder = {
 	lineId: number;
 	/** Response status/capability byte. */
 	status: number;
-	/** Group/line nibble byte (high nibble = group A–H, low nibble = line 0–9). */
+	/** Line code of the responder: position of its rotary switches (high nibble = letter A–H, low nibble = number 0–9). */
 	groupLine: number;
 };
 
@@ -241,9 +244,61 @@ export type GeniusDevice = {
 	location: string;
 	registration: number;
 	isAlarming: boolean;
-	alarms: GeniusAlarm[];
+	/** Number of alarms of this smoke detector. The alarms themselves are entries of the activity
+	 *  log (`events`), which only keeps the newest ones. Backend-owned. */
+	alarmCount?: number;
 	readoutTime?: Date;
 	readoutProtocolVersion?: number;
+	/** Entity-ID prefix last announced to Home Assistant. Backend-owned: the gateway
+	 *  reports it, but ignores any value a client sends. */
+	haEntityIdPrefix?: string;
+	/** Current state per status flag (see $lib/genius/status). A flag without an entry is unknown:
+	 *  the gateway never heard about it, so it is neither OK nor active. Backend-owned. */
+	status?: GeniusFlagState[];
+	/** Activity log, oldest first. Backend-owned. */
+	events?: GeniusDeviceEvent[];
+};
+
+/**
+ * Current state of one status flag. Fed by status-change packets received over the air and by
+ * acoustic readouts - whichever is newest; a manual reset makes active flags unknown again.
+ */
+export type GeniusFlagState = {
+	/** The flag (a single STATUS_* bit). */
+	flag: number;
+	/** true = fault / condition present, false = reported OK. */
+	active: boolean;
+	/** Since when this state holds; missing when the gateway's clock was not set at the time. */
+	since?: Date;
+	/** Where the state comes from (EVENT_READOUT or EVENT_STATUS_PACKET). */
+	source: number;
+};
+
+/** One entry of a device's activity log (see EVENT_* in $lib/genius/status). */
+export type GeniusDeviceEvent = {
+	/** When it happened; missing when the gateway's clock was not set at the time. */
+	time?: Date;
+	type: number;
+	/** Readout / status packet: flags reported active. */
+	set?: number;
+	/** Readout / status packet: flags reported OK. */
+	cleared?: number;
+	/** Created: registration type of the device. */
+	registration?: number;
+	/**
+	 * Radio link supervision: serial of the other radio module - the one this detector reports
+	 * as missing, the one that reports it (with `set`) or the one that confirmed it present
+	 * (with `cleared`; none if its own radio module was heard again).
+	 */
+	cause?: number;
+	/** How often it was reported, if more than once: a report that is made again while its cause lasts is counted on its entry. */
+	count?: number;
+	/** With `count`: when it was reported last (`time` is the first report). */
+	last?: Date;
+	/** Alarm: when it ended; missing while it lasts. */
+	end?: Date;
+	/** Alarm: how it ended (GeniusAlarmEnding), AlarmActive while it lasts. */
+	endingReason?: number;
 };
 
 export type GeniusDevices = {
@@ -255,6 +310,33 @@ export type AlarmState = {
 	isAlarming: boolean;
 };
 
+/** Payload of the `device-status` WebSocket event. */
+/**
+ * What the gateway heard of a supervised radio module (FM Pro X) since it started. RAM only on
+ * the gateway: a module without an entry has not been heard since the last restart.
+ */
+export type GeniusModuleRuntime = {
+	/** Device id of the smoke detector the radio module belongs to. */
+	id: number;
+	/** Last packet this module originated or transmitted. */
+	lastSeen: Date;
+	/** Signal strength (dBm) of the last packet the module transmitted itself. */
+	rssi?: number;
+	rssiTime?: Date;
+};
+
+/** Payload of `GET /rest/gateway-devices/runtime` and of the `device-runtime` WebSocket event. */
+export type DeviceRuntimeEvent = {
+	devices: { id: number; lastSeen: string; rssi?: number; rssiTime?: string }[];
+};
+
+export type DeviceStatusEvent = {
+	/** Devices with at least one active fault. */
+	numFaulty: number;
+	/** Devices reporting a low battery. */
+	numBatteryLow: number;
+};
+
 export type VisualizerSettings = {
 	showDetails: boolean;
 	showMetadata: boolean;
@@ -263,12 +345,16 @@ export type VisualizerSettings = {
 export type PacketIdentifier = {
 	byteNr: number;
 	value: number;
+	/** If set, only these bits of the byte are compared: (data[byteNr] & mask) === value. */
+	mask?: number;
 }
 
 export type PacketType = {
 	name: string;
 	cssClass: string;
-	/** On-air message-type byte at offset 27 - the radio module's primary type discriminator. */
+	/** On-air message-family byte at offset 26 - groups the message types. */
+	familyByte: number;
+	/** On-air message-type byte at offset 27 - the type within the family. */
 	typeByte: number;
 	packetLength: number;
 	description: string;
@@ -276,6 +362,8 @@ export type PacketType = {
 	identifiers: PacketIdentifier[];
 };
 
+/** Offset of the message-family byte in a Genius frame (matches backend DATAPOS_MSG_FAMILY). */
+export const MSG_FAMILY_POS = 26;
 /** Offset of the message-type byte in a Genius frame (matches backend DATAPOS_MSG_TYPE). */
 export const MSG_TYPE_POS = 27;
 
@@ -284,22 +372,39 @@ export const PacketTypeNames = {
 	CommissioningProbeRequest: 'CommissioningProbe Request',
 	CommissioningProbeResponse: 'CommissioningProbe Response',
 	StartLineTest: 'Start Line Test',
-	StopLineTest: 'Stop Line Test',
+	StartNetworkTest: 'Start Network Test',
+	StopLineTest: 'Stop Line / Network Test',
 	StartAlarm: 'Start Alarm',
 	StopAlarm: 'Stop Alarm',
+	StatusChange: 'Status Change',
 	ConfigCheckProbeRequest: 'ConfigCheckProbe Request',
-	ConfigCheckProbeResponse: 'ConfigCheckProbe Response'
+	ConfigCheckProbeResponse: 'ConfigCheckProbe Response',
+	SupervisionSeries: 'Supervision Series',
+	SupervisionRollCall: 'Supervision Roll Call',
+	ModuleMissing: 'Module Missing',
+	ModulePresent: 'Module Present',
+	LineClock: 'Line Clock'
 } as const;
 
-// Classification keys on the message-type byte (offset 27) with packetLength as a validator -
-// the same discrimination the radio module uses. Length alone is ambiguous: typeByte 0x00 is
-// shared by Alarming (36 B) and the CommissioningProbe request (28 B), and a 36-byte frame
-// is either Alarming (0x00) or a ConfigCheckProbe response (0x08). `identifiers` carry sub-variant
-// bytes only (start/stop).
+/** Names of the packet types that are a status change (alarm start/stop are its alarm-bit cases). */
+export const StatusChangePacketTypeNames: string[] = [
+	PacketTypeNames.StartAlarm,
+	PacketTypeNames.StopAlarm,
+	PacketTypeNames.StatusChange
+];
+
+// Classification keys on the message-family byte (offset 26) and the message-type byte
+// (offset 27) with packetLength as a validator - the same discrimination the radio module
+// uses. The type byte repeats across the families: 0x00 is the status change in family 0x00,
+// the CommissioningProbe request in family 0x66 and the daily radio link supervision series
+// in family 0x33 (same length as the CommissioningProbe request). `identifiers`
+// carry sub-variant bytes only (start/stop). First match wins - so a status change setting the
+// alarm bit is a Start Alarm, one clearing it a Stop Alarm, and any other a Status Change.
 export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.Comissioning,
 		cssClass: 'type-comissioning',
+		familyByte: 0x66,
 		typeByte: 0x03,
 		packetLength: 37,
 		description: 'Commissioning of new alarm line.',
@@ -308,6 +413,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.CommissioningProbeRequest,
 		cssClass: 'type-commissioningprobe-request',
+		familyByte: 0x66,
 		typeByte: 0x00,
 		packetLength: 28,
 		description: 'CommissioningProbe request seen in the commissioning context (not forwarded).',
@@ -316,6 +422,7 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.CommissioningProbeResponse,
 		cssClass: 'type-commissioningprobe-response',
+		familyByte: 0x66,
 		typeByte: 0x01,
 		packetLength: 32,
 		description: 'CommissioningProbe response carrying the requester serial (Req-SN); not forwarded.',
@@ -324,46 +431,122 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.StartLineTest,
 		cssClass: 'type-linetest-start',
+		familyByte: 0x66,
 		typeByte: 0x04,
 		packetLength: 29,
-		description: 'Packets sent to initiate line test function.',
+		description: 'Starts a line test on the alarm line (about 15 minutes).',
 		identifiers: [
-			{ byteNr: 28, value: 0x06 }, // Identifier for Line Test Start
+			{ byteNr: 28, value: 0x04 } // Test mode: line test
+		]
+	},
+	{
+		name: PacketTypeNames.StartNetworkTest,
+		cssClass: 'type-networktest-start',
+		familyByte: 0x66,
+		typeByte: 0x04,
+		packetLength: 29,
+		description: 'Starts a network test across the whole network (about 30 minutes).',
+		identifiers: [
+			{ byteNr: 28, value: 0x06 } // Test mode: network test
 		]
 	},
 	{
 		name: PacketTypeNames.StopLineTest,
 		cssClass: 'type-linetest-stop',
+		familyByte: 0x66,
 		typeByte: 0x04,
 		packetLength: 29,
-		description: 'Packets sent to end line test function.',
+		description: 'Ends a running line test or network test.',
 		identifiers: [
-			{ byteNr: 28, value: 0x00 }, // Identifier for Line Test Stop
+			{ byteNr: 28, value: 0x00 } // Test mode: stop
 		]
 	},
 	{
 		name: PacketTypeNames.StartAlarm,
 		cssClass: 'type-alarm-start',
+		familyByte: 0x00,
 		typeByte: 0x00,
 		packetLength: 36,
-		description: 'Packet sent to start/distribute an alarm.',
+		description: 'Status change setting the alarm flag - starts/distributes an alarm.',
 		identifiers: [
-			{ byteNr: 28, value: 0x01 }, // Identifier for Alarm Start
+			{ byteNr: 28, value: 0x01, mask: 0x01 } // Alarm bit in the set mask
 		]
 	},
 	{
 		name: PacketTypeNames.StopAlarm,
 		cssClass: 'type-alarm-stop',
+		familyByte: 0x00,
 		typeByte: 0x00,
 		packetLength: 36,
-		description: 'Packet sent to stop/silence an alarm.',
+		description: 'Status change clearing the alarm flag - stops/silences an alarm.',
 		identifiers: [
-			{ byteNr: 30, value: 0x01 }, // Identifier for Alarm Stop
+			{ byteNr: 30, value: 0x01, mask: 0x01 } // Alarm bit in the cleared mask
 		]
+	},
+	{
+		name: PacketTypeNames.SupervisionSeries,
+		cssClass: 'type-supervision-series',
+		familyByte: 0x33,
+		typeByte: 0x00,
+		packetLength: 28,
+		description:
+			'Daily series of the radio link supervision (FM Pro X with the DIP switch switched on) - a sign of life of the sender.',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.ModuleMissing,
+		cssClass: 'type-module-missing',
+		familyByte: 0x33,
+		typeByte: 0x02,
+		packetLength: 32,
+		description:
+			'Radio link supervision: the sender reports a radio module as missing (bytes 28-31: its serial number).',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.ModulePresent,
+		cssClass: 'type-module-present',
+		familyByte: 0x33,
+		typeByte: 0x03,
+		packetLength: 32,
+		description:
+			'Radio link supervision: answer to a Module Missing report - the sender hears the named radio module (bytes 28-31: its serial number).',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.SupervisionRollCall,
+		cssClass: 'type-supervision-roll-call',
+		familyByte: 0x33,
+		typeByte: 0x01,
+		packetLength: 28,
+		description:
+			'Radio link supervision: roll call - every radio module that hears it sends its series.',
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.LineClock,
+		cssClass: 'type-line-clock',
+		familyByte: 0x22,
+		typeByte: 0x00,
+		packetLength: 33,
+		description:
+			"The line's own clock, sent in a supervision round (bytes 28-30: hour, minute, second; bytes 31-32: day counter).",
+		identifiers: []
+	},
+	{
+		name: PacketTypeNames.StatusChange,
+		cssClass: 'type-status-change',
+		familyByte: 0x00,
+		typeByte: 0x00,
+		packetLength: 36,
+		description:
+			'Status change of a smoke detector - flags such as battery low, device fault, radio link fault or dismount set or cleared.',
+		identifiers: []
 	},
 	{
 		name: PacketTypeNames.ConfigCheckProbeRequest,
 		cssClass: 'type-configcheckprobe-request',
+		familyByte: 0x55,
 		typeByte: 0x06,
 		packetLength: 28,
 		description:
@@ -373,10 +556,11 @@ export const PacketTypes: PacketType[] = [
 	{
 		name: PacketTypeNames.ConfigCheckProbeResponse,
 		cssClass: 'type-configcheckprobe-response',
+		familyByte: 0x55,
 		typeByte: 0x08,
 		packetLength: 36,
 		description:
-			'ConfigCheckProbe response - a directly reachable detector reports its presence, group/line and status (not forwarded).',
+			'ConfigCheckProbe response - a directly reachable detector reports its presence, line code (rotary position) and status (not forwarded).',
 		identifiers: []
 	}
 ];
@@ -402,14 +586,29 @@ export type CommissioningProbeResponseInfo = {
 	requestingLocation: string;
 };
 
-export type AlarmStartInfo = {
-	startingSmokeDetector: number;
-	startingLocation: string;
-}
+/** Radio module named by a Module Missing / Module Present packet (uint32 BE at offset 28). */
+export type NamedModuleInfo = {
+	radioModule: number;
+	location: string;
+};
 
-export type AlarmStopInfo = {
-	silencingSmokeDetector: number;
-	silencingLocation: string;
+/** Decoded tail of a Line Clock packet. */
+export type LineClockInfo = {
+	/** Time of the line's own clock (bytes 28-30). It is not the time of day. */
+	timeStr: string;
+	/** Day counter (uint16 LE at offset 31). */
+	day: number;
+};
+
+/** Decoded tail of a status-change packet (Start Alarm / Stop Alarm / Status Change). */
+export type StatusChangeInfo = {
+	/** Status flags newly set (STATUS_* bits, uint16 LE at offset 28). */
+	setMask: number;
+	/** Status flags newly cleared (uint16 LE at offset 30). */
+	clearedMask: number;
+	/** Affected smoke detector (uint32 LE at offset 32). */
+	smokeDetector: number;
+	location: string;
 }
 
 export type Packet = {
@@ -421,7 +620,13 @@ export type Packet = {
 	counter: number;
 	hash: number;
 	generalInfo: GeneralInfo | null;
-	specificInfo: CommissioningInfo | CommissioningProbeResponseInfo | AlarmStartInfo | AlarmStopInfo | null;
+	specificInfo:
+		| CommissioningInfo
+		| CommissioningProbeResponseInfo
+		| StatusChangeInfo
+		| NamedModuleInfo
+		| LineClockInfo
+		| null;
 };
 
 export type AlarmLine = {
@@ -429,6 +634,10 @@ export type AlarmLine = {
 	name: string;
 	created: Date;
 	acquisition: number;
+	/** Where the line setting comes from (AlarmLineCodeSource); missing = automatic. */
+	lineCodeSource?: number;
+	/** Line setting (line code, see lib/genius/line.ts) unless the source is automatic. */
+	lineCode?: number;
 };
 
 export type AlarmLines = {
@@ -497,12 +706,77 @@ export type WSLoggerSettings = {
 	wsLoggerEnabled: boolean;
 };
 
+/** One client connected to the WebSocket logger (GET /rest/wslogger/clients). */
+export type WSLoggerClient = {
+	/** Socket of the connection - unique while it is open. */
+	id: number;
+	address: string;
+	port: number;
+	/** Name the client gave itself with ?client=... in the URL. */
+	name?: string;
+	/** User-Agent of the connection request. */
+	userAgent?: string;
+	/** Age of the connection when the list was made. */
+	connectedMs: number;
+	/** Radio packets sent to the client, every repetition counted. */
+	packets: number;
+	/** Payload bytes of these packets. */
+	bytes: number;
+};
+
+export type WSLoggerClients = {
+	enabled: boolean;
+	clients: WSLoggerClient[];
+};
+
 export type HASettings = {
 	enabled: boolean;
 	discovery_prefix: string;
 	device_name: string;
 	manufacturer: string;
 	model: string;
+	rename_entity_ids: boolean;
+};
+
+/** Progress of a Home Assistant entity-ID rename. `sent` is the final state: Home
+ *  Assistant does not acknowledge the change. `deferred` means there is no MQTT
+ *  connection and the rename is caught up on the next connect. */
+export type HaEntityRenameState =
+	| 'started'
+	| 'removing'
+	| 'waiting'
+	| 'publishing'
+	| 'sent'
+	| 'deferred'
+	| 'failed';
+
+/** Payload of the `ha-entity-rename` WebSocket event. */
+export type HaEntityRenameEvent = {
+	state: HaEntityRenameState;
+	/** Number of smoke detectors renamed in this batch. */
+	count: number;
+	/** Locations of the first detectors of the batch; `count` covers the rest. */
+	detectors?: string[];
+	/** True for a cycle caused by an import: no progress is shown, only what was not sent. */
+	background?: boolean;
+};
+
+/**
+ * Payload of the `device-import` WebSocket event: what the gateway does after an import was
+ * committed. `saved`: the list is written to flash (`ha`: Home Assistant integration enabled,
+ * an update of Home Assistant follows). `done`: the gateway is through, with what was done
+ * for Home Assistant - `renaming` means a background entity-ID rename is still running and
+ * ends with its own `ha-entity-rename` event.
+ */
+export type DeviceImportEvent =
+	| { state: 'saved'; ha: boolean }
+	| { state: 'done'; ha: 'disabled' | 'offline' | 'renaming' | 'sent' };
+
+/** Latest rename state held on the client; `state` is null until an event arrived. */
+export type HaEntityRenameStatus = {
+	state: HaEntityRenameState | null;
+	count: number;
+	detectors: string[];
 };
 
 export type ReportSettings = {

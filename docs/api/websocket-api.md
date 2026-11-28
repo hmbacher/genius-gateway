@@ -29,7 +29,7 @@ WebSocket connections can be authenticated by including the JWT token in:
 | Endpoint | Auth | Description |
 |----------|------|-------------|
 | `/ws/events` | 🔒 | Real-time event stream for system and application events |
-| `/ws/logger` | 🛡️ | Real-time RF packet stream from CC1101 radio |
+| `/ws/logger` | none | Real-time RF packet stream from CC1101 radio (no login, see below) |
 
 ---
 
@@ -307,6 +307,31 @@ Global alarm state notifications
 
 ---
 
+### `device-status`
+Smoke detector status summary (battery low, faults)
+
+**Trigger:** A smoke detector's status flags change - a [status change](../reverse-engineering/protocol-analysis.md#status-change) received over the air, or a manual status reset. Repeated copies of the same change (mesh forwarding) trigger it only once.
+
+**Data Format:**
+```json
+{
+  "event": "device-status",
+  "data": {
+    "numFaulty": 1,
+    "numBatteryLow": 1
+  }
+}
+```
+
+**Fields:**
+
+- `numFaulty` - Number of smoke detectors with at least one active fault (battery low, device fault, radio link fault, dismounted)
+- `numBatteryLow` - Number of smoke detectors reporting a low battery
+
+The per-device status is part of the device list (`status` object, see [`/rest/gateway-devices`](http-api.md#device-management)); the web interface reloads it on this event.
+
+---
+
 ### `alarm-state-change`
 Individual device alarm state changes
 
@@ -438,6 +463,93 @@ Remaining alarm blocking time updates
 
 ---
 
+### `device-import`
+What the gateway does after an import was committed
+
+**Trigger:** `POST /rest/gateway-devices/import/commit` only hands the new device list over. Writing it to flash and updating Home Assistant happen afterwards in a task of their own, which reports its progress with this event
+
+**Data Format:**
+```json
+{
+  "event": "device-import",
+  "data": {
+    "state": "done",
+    "ha": "renaming"
+  }
+}
+```
+
+**Fields:**
+
+- `state` - Step that was completed:
+    - `saved` - The device list is written to flash. `ha` is a boolean: whether the Home Assistant integration is enabled, i.e. whether an update of Home Assistant follows
+    - `done` - The gateway is through. `ha` says what was done for Home Assistant:
+        - `disabled` - The integration is not enabled
+        - `offline` - No MQTT connection, nothing was sent. Everything is published on the next connect
+        - `sent` - All changes were sent. Home Assistant does not acknowledge them
+        - `renaming` - Sent, except for detectors whose entity IDs change: their rename cycle is still running and ends with a [`ha-entity-rename`](#ha-entity-rename) event that carries `background: true` (`sent`, `deferred` or `failed`). That event can also arrive before `done`
+
+---
+
+### `device-runtime`
+Last seen / signal of supervised radio modules changed
+
+**Trigger:** A packet that a radio module with radio link supervision (FM Pro X) originated or transmitted was received
+
+**Data Format:**
+```json
+{
+  "event": "device-runtime",
+  "data": {
+    "devices": [
+      {
+        "id": 1758215385,
+        "lastSeen": "2026-11-23T17:14:12.000Z",
+        "rssi": -87,
+        "rssiTime": "2026-11-23T17:14:12.000Z"
+      }
+    ]
+  }
+}
+```
+
+**Fields:** only the detectors whose values changed, in the format of [`GET /rest/gateway-devices/runtime`](http-api.md#restgateway-devicesruntime). The values are not persisted on the gateway.
+
+---
+
+### `ha-entity-rename`
+Progress of a Home Assistant entity-ID rename
+
+**Trigger:** The entity IDs of one or more smoke detectors have to change while the option *Update entity IDs when a detector's location changes* is enabled - after a location was edited, after the option was switched on, after an import changed locations or brought detectors the gateway did not know, or when a rename that could not be sent earlier is caught up on an MQTT connect
+
+**Data Format:**
+```json
+{
+  "event": "ha-entity-rename",
+  "data": {
+    "state": "waiting",
+    "count": 5,
+    "detectors": ["Kitchen", "Hall", "Attic"]
+  }
+}
+```
+
+**Fields:**
+
+- `state` - Step of the rename cycle:
+    - `started` - A rename cycle begins
+    - `removing` - The retained discovery configs are being cleared, so Home Assistant removes the entities
+    - `waiting` - Pause that lets Home Assistant finish the removal
+    - `publishing` - The discovery configs are being published again with the new entity IDs
+    - `sent` - Everything was sent. Final state of a successful cycle; Home Assistant does not acknowledge the rename
+    - `failed` - The MQTT connection was lost during the cycle. It is repeated on the next MQTT connect
+    - `deferred` - There is no MQTT connection, nothing was sent. The rename is caught up on the next MQTT connect. Emitted on its own, without `started`
+- `count` - Number of smoke detectors in the batch
+- `detectors` - Locations of the first smoke detectors of the batch (at most 3); `count` covers the rest
+- `background` - Only present (`true`) for a cycle caused by an import. The web interface shows no progress dialog for it: the import dialog reports it as its Home Assistant step (see [`device-import`](#device-import)); without that dialog only `deferred` and `failed` are reported
+
+---
+
 ### Error Handling
 
 **Connection Errors:**
@@ -473,7 +585,7 @@ eventsWs.onopen = () => {
   console.log('Connected to events stream');
   
   // Subscribe to multiple events
-  ['alarm', 'alarm-state-change', 'system_health'].forEach(eventName => {
+  ['alarm', 'alarm-state-change', 'device-status', 'system_health'].forEach(eventName => {
     eventsWs.send(JSON.stringify({
       event: 'subscribe',
       data: { id: eventName }
@@ -489,6 +601,9 @@ eventsWs.onmessage = (event) => {
   switch(msg.event) {
     case 'alarm':
       handleAlarm(msg.data);
+      break;
+    case 'device-status':
+      handleDeviceStatus(msg.data); // e.g. warn when numBatteryLow increases
       break;
     case 'system_health':
       updateHealthDisplay(msg.data);
@@ -515,7 +630,7 @@ import time
 class EventsClient:
     def __init__(self, token):
         self.token = token
-        self.subscriptions = ['alarm', 'alarm-state-change', 'system_health']
+        self.subscriptions = ['alarm', 'alarm-state-change', 'device-status', 'system_health']
         self.ws = None
         
     def on_open(self, ws):
@@ -534,6 +649,8 @@ class EventsClient:
         # Handle specific events
         if msg['event'] == 'alarm':
             self.handle_alarm(msg['data'])
+        elif msg['event'] == 'device-status':
+            self.handle_device_status(msg['data'])
         elif msg['event'] == 'system_health':
             self.update_health(msg['data'])
     
@@ -558,6 +675,10 @@ class EventsClient:
     def handle_alarm(self, data):
         if data.get('isAlarming'):
             print(f"ALARM! {data['numAlarmingDevices']} device(s) alarming")
+
+    def handle_device_status(self, data):
+        if data['numBatteryLow'] > 0:
+            print(f"{data['numBatteryLow']} smoke detector(s) report a low battery")
     
     def update_health(self, data):
         print(f"Free heap: {data['free_heap']} bytes")
@@ -574,7 +695,7 @@ const WebSocket = require('ws');
 class EventsClient {
   constructor(token) {
     this.token = token;
-    this.subscriptions = ['alarm', 'alarm-state-change', 'system_health'];
+    this.subscriptions = ['alarm', 'alarm-state-change', 'device-status', 'system_health'];
     this.reconnectDelay = 1000;
     this.maxReconnectDelay = 30000;
   }
@@ -623,12 +744,12 @@ client.connect();
 ### Connection Details
 
 - **URL:** `/ws/logger`
-- **Auth:** 🛡️ Admin
+- **Auth:** none - any client in the network can connect while the logger is enabled
 - **Description:** Real-time binary stream of RF packets received by the CC1101 radio transceiver. Provides raw packet data for debugging, analysis, and visualization.
 
 ### Connection Flow
 
-1. **Connect** - Establish WebSocket connection with admin authentication
+1. **Connect** - Establish the WebSocket connection; no login is needed
 2. **Receive ID** - Server sends unique client ID
 3. **Stream** - Receive binary packet data continuously
 4. **Disconnect** - Close connection when done
@@ -638,7 +759,8 @@ client.connect();
 #### Client ID (Server → Client, on connect)
 ```json
 {
-  "clientId": "wslogger:12345"
+  "type": "id",
+  "id": "wslogger:12345"
 }
 ```
 
@@ -673,9 +795,11 @@ For further details, also see [WebSocket Logging Interface](../features/websocke
 ### Usage Notes
 
 - Only available when WebSocket logger is enabled (via `/rest/wslogger` or web frontend)
-- Connection filter checks admin authentication
+- No login: the connection filter only checks that the logger is enabled. Anyone in the network can read the received radio packets while it is - switch the logger off when it is not needed
 - Multiple clients can connect simultaneously
 - Each client receives all packets (broadcast)
+- The gateway holds up to 13 HTTP and WebSocket connections at once; beyond that it closes the least recently used one, which can be an idle logger connection. A tool should connect again when its connection closes - the built-in Packet Visualizer does
+- A client can name itself with the query parameter `client` (`/ws/logger?client=my-recorder`); the name is shown in the list of connected clients on the WebSocket Logger page and in [`/rest/wslogger/clients`](http-api.md#restwsloggerclients)
 - Binary format requires client-side parsing
 - Timestamp is in microseconds since device boot
 
@@ -712,7 +836,7 @@ For further details, also see [WebSocket Logging Interface](../features/websocke
 
 #### JavaScript (Browser)
 ```javascript
-const loggerWs = new WebSocket('ws://gateway.local/ws/logger?access_token=' + token);
+const loggerWs = new WebSocket('ws://gateway.local/ws/logger?client=browser-logger');
 loggerWs.binaryType = 'arraybuffer';
 
 loggerWs.onopen = () => {
@@ -768,8 +892,8 @@ import struct
 import json
 
 class PacketLoggerClient:
-    def __init__(self, token):
-        self.token = token
+    def __init__(self, name='python-logger'):
+        self.name = name  # shown on the WebSocket Logger page
         self.ws = None
     
     def on_open(self, ws):
@@ -779,7 +903,7 @@ class PacketLoggerClient:
         if isinstance(message, str):
             # Client ID message
             msg = json.loads(message)
-            print(f"Client ID: {msg['clientId']}")
+            print(f"Client ID: {msg['id']}")
         else:
             # Binary packet data
             # Parse cc1101_packet_t structure
@@ -807,7 +931,7 @@ class PacketLoggerClient:
     
     def connect(self):
         self.ws = websocket.WebSocketApp(
-            f"ws://gateway.local/ws/logger?access_token={self.token}",
+            f"ws://gateway.local/ws/logger?client={self.name}",
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,
@@ -816,7 +940,7 @@ class PacketLoggerClient:
         self.ws.run_forever()
 
 # Usage
-client = PacketLoggerClient(token='your_jwt_token')
+client = PacketLoggerClient(name='python-logger')
 client.connect()
 ```
 
@@ -825,12 +949,12 @@ client.connect()
 const WebSocket = require('ws');
 
 class PacketLoggerClient {
-  constructor(token) {
-    this.token = token;
+  constructor(name) {
+    this.name = name; // shown on the WebSocket Logger page
   }
   
   connect() {
-    this.ws = new WebSocket(`ws://gateway.local/ws/logger?access_token=${this.token}`);
+    this.ws = new WebSocket(`ws://gateway.local/ws/logger?client=${this.name}`);
     this.ws.binaryType = 'arraybuffer';
     
     this.ws.on('open', () => {
@@ -841,7 +965,7 @@ class PacketLoggerClient {
       if (typeof data === 'string') {
         // Client ID message
         const msg = JSON.parse(data);
-        console.log('Client ID:', msg.clientId);
+        console.log('Client ID:', msg.id);
       } else {
         // Binary packet data
         const buffer = Buffer.from(data);
@@ -876,6 +1000,6 @@ class PacketLoggerClient {
   }
 }
 
-const client = new PacketLoggerClient('your_jwt_token');
+const client = new PacketLoggerClient('node-logger');
 client.connect();
 ```

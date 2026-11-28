@@ -9,13 +9,16 @@
 	 * can be opened on click). Compact mode (mobile) omits the text label; the
 	 * full mode (desktop) shows it.
 	 *
+	 * Status comes from the status flags (received over the air, from the last readout or reset
+	 * manually) plus readout-only findings. Without either, nothing is known: no OK is shown.
+	 *
 	 * Color rules:
 	 *   - alarming row → inherit `text-current` so the icon contrasts on the red bg
 	 *   - stale readout + OK → dimmed to indicate "data may be outdated"
 	 *   - otherwise → success/error theme colors
 	 */
 	interface Props {
-		hasReadout: boolean;
+		hasStatus: boolean;
 		hasFaults: boolean;
 		stale: boolean;
 		isAlarming: boolean;
@@ -25,7 +28,7 @@
 	}
 
 	let {
-		hasReadout,
+		hasStatus,
 		hasFaults,
 		stale,
 		isAlarming,
@@ -41,7 +44,7 @@
 	const iconSize = compact ? 'h-6 w-6' : 'h-5 w-5';
 </script>
 
-{#if !hasReadout}
+{#if !hasStatus}
 	{#if compact}
 		<span class="text-current/40 italic">No readout</span>
 	{:else}

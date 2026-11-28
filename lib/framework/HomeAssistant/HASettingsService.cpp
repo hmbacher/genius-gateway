@@ -51,30 +51,58 @@ void HASettingsService::_applyToHAService()
 
     bool wasReady = _haService->isReady();
 
+    // The rename option appears in none of the discovery configs published from here. If
+    // it is the only setting that changed, the sub-device owners that act on it publish
+    // what they need (see the class description). Sending everything from here first
+    // would only keep them waiting - and send their devices as the old setting had them.
+    const bool onlyRenameOptionChanged = _hasApplied &&
+                                         _state.renameEntityIds != _applied.renameEntityIds &&
+                                         _state.enabled == _applied.enabled &&
+                                         _state.discoveryPrefix == _applied.discoveryPrefix &&
+                                         _state.deviceName == _applied.deviceName &&
+                                         _state.manufacturer == _applied.manufacturer &&
+                                         _state.model == _applied.model;
+    _applied = _state;
+    _hasApplied = true;
+
     // Empty device_name falls back to APP_NAME (compile-time firmware name)
     String name = _state.deviceName.isEmpty() ? String(APP_NAME) : _state.deviceName;
 
-    _haService->setDeviceName(name);
-    _haService->setManufacturer(_state.manufacturer);
-    _haService->setModel(_state.model);
-    _haService->setDiscoveryPrefix(_state.discoveryPrefix);
-
-    // Remove from HA before disabling - must happen while MQTT is still connected
-    if (wasReady && !_state.enabled)
     {
-        _haService->unpublishAll();
+        // One step for publishAll(), which may be running in its own task: it sees
+        // either the old settings or the new ones, not a mix.
+        HAService::Lock guard(_haService);
+        _haService->setDeviceName(name);
+        _haService->setManufacturer(_state.manufacturer);
+        _haService->setModel(_state.model);
+        _haService->setDiscoveryPrefix(_state.discoveryPrefix);
+        _haService->setRenameEntityIds(_state.renameEntityIds);
     }
 
-    _haService->setEnabled(_state.enabled);
+    if (wasReady && !_state.enabled)
+    {
+        // Remove from HA before disabling - must happen while MQTT is still connected.
+        // The lock keeps a publishAll() that is running in the publish task from sending
+        // anything between the removal and the switch-off.
+        HAService::Lock guard(_haService);
+        _haService->unpublishAll();
+        _haService->setEnabled(false);
+    }
+    else
+    {
+        _haService->setEnabled(_state.enabled);
+    }
 
     ESP_LOGI(TAG, "Applied HA settings (enabled=%d, prefix=%s, device=%s)",
              _state.enabled,
              _state.discoveryPrefix.c_str(),
              name.c_str());
 
-    // Republish on settings change if MQTT is connected
-    if (_haService->isReady())
+    // Republish on settings change if MQTT is connected. Handed to the publish task:
+    // this usually runs in an HTTP request, which a full publish would hold up for
+    // seconds.
+    if (_haService->isReady() && !onlyRenameOptionChanged)
     {
-        _haService->publishAll();
+        _haService->requestPublishAll();
     }
 }

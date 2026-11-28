@@ -48,23 +48,36 @@ binary_dir = Path("./src/certs")
 
 quiet = False
 
+# A stalled connection must not hang the build: connect within 10 s, and no silence longer
+# than 30 s while the file is read. Without a timeout requests waits forever.
+download_timeout = (10, 30)
+
 def download_cacert_file(source):
     if source == "mozilla":
-        response = requests.get(mozilla_cacert_url)
+        url = mozilla_cacert_url
     elif source == "adafruit":
-        response = requests.get(adafruit_filtered_cacert_url)
+        url = adafruit_filtered_cacert_url
     elif source == "adafruit-full":
-        response = requests.get(adafruit_full_cacert_url)
+        url = adafruit_full_cacert_url
     else:
         raise InputError('Invalid certificate source')
+
+    # Generate the full path to the output file
+    output_file = os.path.join(certs_dir, "cacert.pem")
+
+    try:
+        response = requests.get(url, timeout=download_timeout)
+    except requests.RequestException as e:
+        # No network, or the server stalls: the bundle of the last build is good enough
+        if os.path.isfile(output_file):
+            status('Could not fetch the certificate bundle (%s), using the one from the last build.' % e.__class__.__name__)
+            return
+        raise
 
     if response.status_code == 200:
 
         # Ensure the directory exists, create it if necessary
         os.makedirs(certs_dir, exist_ok=True)
-
-        # Generate the full path to the output file
-        output_file = os.path.join(certs_dir, "cacert.pem")
 
         # Write the certificate bundle to the output file with utf-8 encoding
         with open(output_file, "w", encoding="utf-8") as f:

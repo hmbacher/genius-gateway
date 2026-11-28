@@ -1,3 +1,180 @@
+# v1.6.0
+
+## Home Assistant: Entity IDs Follow the Detector Location
+Home Assistant builds an entity ID once, when an entity is first registered, and never changes it afterwards - renaming a detector's location in the gateway left IDs such as `sensor.hallway_genius_plus_x_alarm_line` behind. A new opt-in setting makes the entity IDs follow the location (#24).
+
+- **New opt-in setting in the Home Assistant Integration card**: "Update entity IDs when a detector's location changes" (`rename_entity_ids` in `/rest/haSettings`, off by default). With the setting off nothing changes
+- **Detectors are named after their location** in Home Assistant, and every detector gets explicit entity IDs such as `sensor.living_room_alarm_line`. Without a usable location the serial number is used instead (`sensor.genius_12345678_alarm_line`), so clearing a location frees the location-based IDs
+- **Changing a location renames the entities of that detector**: the gateway clears the detector's retained discovery configs, waits a few seconds and publishes them again with an explicit `default_entity_id`. An edit that does not change the resulting IDs triggers nothing
+- **Switching the setting on renames all detectors at once**, as a single batch
+- **Missed renames are caught up**: the gateway persists per detector which IDs it last announced to Home Assistant. A rename that could not be sent because MQTT was down is carried out on the next connect, also after a restart
+- **Alarm handling is never held up**: the rename runs in its own task. The web server, the packet receiver and the alarm path are not blocked while the gateway waits for Home Assistant
+- **Web interface**: the detector editor warns before a location change renames entities; a progress dialog follows the three steps (remove, wait, publish), lists the detectors and ends with "Sent to Home Assistant", since Home Assistant does not acknowledge the rename; without an MQTT connection a dialog explains that the rename is caught up later (new `ha-entity-rename` WebSocket event)
+- **Import**: an import that changes the location of known detectors asks first and lists the changes, as it renames their entities. The import dialog then follows the gateway through all steps - upload, saving on the gateway, updating Home Assistant - and ends with one result: devices imported, file migrated, changes sent to Home Assistant or still to be sent on the next MQTT connect. Before, it reported success as soon as the upload was accepted, while the gateway was still saving (new `device-import` WebSocket event). The entity-ID update is one of these steps and no longer a dialog of its own after an import. The dialog can be hidden once the list is handed over and comes back with the result if something needs attention
+- **References to the old entity IDs** in automations, scripts and dashboards must be updated. The recorded history and the long-term statistics follow the new IDs. Requires Home Assistant 2025.10 or newer
+
+See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for details and limitations.
+
+## Overview Cards Open the Clicked Detector
+Clicking a detector card on the Overview page now opens that detector directly, on top of the Overview, instead of switching to the device list.
+
+- **Device Details / Alarm Log on click**: normal cards open the read-only **Device Details** dialog of the clicked detector, alarming cards open its **Alarm Log**. A **Details** button in the Alarm Log leads on to Device Details. Acoustic readout and changing the alarm line stay on the Smoke Detectors page
+- **Edit from the Overview**: administrators get an **Edit** button in the footer of Device Details that switches to the **Edit smoke detector** dialog. Saving runs the same follow-ups as on the Smoke Detectors page (fault warning, manual line entry for old FM modules, offer to add an unknown alarm line) and shows the same warning before a location change renames Home Assistant entities
+- **Read-only for other users**: users without administrator rights can open Device Details and the Alarm Log, but are not offered the edit action (the old link bounced them straight back to the Overview)
+- **Overview works without administrator rights**: the detector list can now be read by every signed-in user (`GET /rest/gateway-devices`), so the Overview shows the cards to them as well - before, it stayed at "Loading devices..." forever. Changing detectors and ending alarms remain administrator actions
+- **One editor for all flows**: adding, editing and replacing a detector now go through one shared editor and save path (`deviceSave.svelte.ts`). A failed save no longer opens the follow-up dialogs
+
+## Battery Warnings and Fault Status over Radio
+Smoke detectors announce more than alarms over the air: the 36-byte packet the gateway already received for alarms turned out to be a generic **status change** - a pair of masks over the detector's status flags (newly set / newly cleared) plus its serial number. Alarm start/stop is just the alarm-flag case. The gateway now evaluates every flag, so a **low battery**, **device faults**, **radio link faults** and **dismounting** are picked up live (issue #23).
+
+- **One current status per smoke detector**: for every status flag the gateway keeps whether it is active or OK, since when, and where it learned it - from a status change received over the air or from an acoustic readout. The newest information wins per flag. Smoke detectors announce a flag only when it changes, so a flag the gateway has not heard about is **Unknown** rather than OK, and the status survives a restart. The readout no longer keeps a second copy of battery, detector fault and radio fault that ages next to the current status
+- **Activity log per smoke detector**: one chronology of what the gateway recorded - the detector was added, acoustic readouts, status changes over the air, status resets and alarms (the newest 50 entries). The **Alarm Log** dialog became the **Activity Log**, with a switch "Alarms only"
+- **Reset Status**: a button in the Device Details dialog discards the reported faults of a detector. They become **Unknown**, not OK - the gateway cannot check that a fault is gone. The overview card and the device list then read *Status unknown* until the detector reports again or is read out, also if its last readout is still current (`POST /rest/gateway-devices/device/reset-status`). Replacing a smoke detector (its serial number changes) starts status, activity log and alarm counter over by itself
+- **Four conditions in the web interface**, used alike by the overview cards, the device list and the top-bar health indicator: alarm, fault, OK, unknown. Yellow now only means that a detector reports a fault; a detector without a current readout is grey instead of yellow. OK needs a current readout
+- **Overview cards name the fault**: a status line shows one icon per fault and the fault in text, for a single fault with its date. A fault muted on the detector, chamber drift, a negative dirt forecast and warranty flags are hints and do not change the colour
+- **Activity log for every detector**: the log button in the device list is always there, not only for detectors with alarms; without alarms the log opens unfiltered
+- **Notification**: a toast names the detector and the fault whenever a detector reports a new fault (new `device-status` WebSocket event)
+- **PDF report**: each device page carries the same *Current Status* block as the Device Details dialog - state, date and source per flag, *Unknown* for what was never reported. What only a readout reports is listed as *Readout Findings*. The alarm log at the end of a device page is now the full activity log, with the same entries and wording as in the dialog. In the overview table an alarm or a fault counts even for a detector without a readout
+- **Home Assistant**: the existing **Battery**, **Smoke Detector State** and **Radio Module State** entities now show the current status and update live; a new **Dismount** entity (`tamper`) is added. Each of them is unavailable until its state is known instead of suggesting an unconfirmed OK
+- **Simple fault publishing**: optional second topic (default `smarthome/genius-gateway/fault`) with the number of faulty and battery-low detectors and the faults per detector, configured alongside simple alarm publishing. Switching it off removes the retained message
+- **Packets are classified by message family and type**: the type byte repeats across the message families, so the daily radio link supervision series of FM Pro X modules was shown as a CommissioningProbe request. Packets of a family the gateway does not know are shown as unknown
+- **Packet visualizer**: status changes are decoded flag by flag - labelled *Start Alarm* / *Stop Alarm* for the alarm flag and *Status Change* otherwise
+- **Device configuration file version 3**: the alarms moved into the activity log (`events`), `alarmCount` counts them, `status` holds the state per flag. Older files and exports are converted when they are loaded or imported. **Clients of `GET /rest/gateway-devices` that read the `alarms` list have to switch to `events`**
+
+## Radio Link Supervision (FM Pro X)
+FM Pro X radio modules with the DIP switch *radio link supervision* check their line once a day and report a module they no longer hear. The gateway now understands this: it shows which detector is missing, hours before the detectors start to beep, and when each supervised module was last heard. Contributed by danielrdt (#27), who captured and analysed the telegrams; rebuilt here on the status model above.
+
+- **Reported missing**: a detector whose radio module is named in a "module missing" report gets this status. It counts as a fault on the overview, in Home Assistant (*Radio Module State*) and on the fault topic. The reporting detector gets an entry in its activity log; if the module stays missing the report comes up to three times, about five hours apart, which is counted on that entry (*3 times, last ...*). With the third report the reporting detector announces its radio link fault - the status flag already handled above - and stops supervising
+- **Ends when the module is heard again or confirmed present**: the status ends with the next packet of that module, with the answer of another module that still hears it (*Module Present* - the module is only out of range of the one that reported it), or with *Reset Status*. All three are in the activity log. Ending it does not make the radio module OK: *Radio Module State* in Home Assistant goes back to what the radio link itself reported, and stays unavailable if that was never reported
+- **A new commissioning clears the radio link fault silently**: the radio modules send no telegram for it, so the gateway keeps showing the fault of the reporting detector until *Reset Status*. A reset on the radio module itself is reported and shown
+- **Last seen and signal**: for detectors with an FM Pro X module the device list and the Device Details dialog show when the module was last heard, the dialog also how strong. The values are kept in memory only: after a restart a module is *not heard* until its next packet (`GET /rest/gateway-devices/runtime`, new `device-runtime` WebSocket event)
+- **Home Assistant**: two more diagnostic entities for detectors with an FM Pro X module, *Last Seen* and *Signal Strength*, on a state topic of their own. They are unavailable until the module was heard since the gateway started
+- **Packet visualizer**: the telegrams of the supervision are named - *Supervision Series*, *Supervision Roll Call*, *Module Missing* and *Module Present* with the module they name, and the *Line Clock* with its time and day counter. The series was shown as a CommissioningProbe Request before - both have the same type byte and length
+- **Documentation**: the protocol analysis describes the telegrams with their byte layout and captured examples, explains how the supervision works, and says how far each statement is verified by the manufacturer's product information and by captures. The two telegrams of family `0x11` that accompany a supervision round are only partly understood
+- **API**: an activity log entry can carry `count` and `last` - a report that was repeated while its cause lasted
+- **Not yet seen on a line with more than two modules**: the captures come from the contributor's line with two FM Pro X modules. *Module Present* has not been captured yet. A test of this version on a supervised line is pending. FM Basis X modules do not supervise their line, so nothing changes for installations without FM Pro X
+
+## Smoke Detectors Grouped by Alarm Line
+Installations with several alarm lines get their smoke detectors in one group per line, in the smoke detector list and on the Overview. Contributed by danielrdt (#27).
+
+- **One group per alarm line**, under a heading with the name of the line, the number of its detectors and how many of them are alarming or have a fault. Detectors whose line is not known - no acoustic readout yet - form the last group
+- **Only when there is more than one line**: with a single alarm line nothing changes. A button above the smoke detector list switches between groups and one list; the choice is kept in the browser and applies to the Overview as well
+- **Reordering stays**: detectors are dragged inside their group; the one saved order is kept
+- **Groups can be folded**: a click on a heading in the smoke detector list hides the detectors of that line; the heading keeps showing how many of them are alarming or have a fault
+- **Line names for every user**: the groups are named after the alarm lines. For that the list of alarm lines can now be read by every signed-in user (`GET /rest/alarm-lines`); changing it stays with administrators
+
+## MQTT Value Tree
+A third way of publishing over MQTT, for smart home systems other than Home Assistant: every value of every smoke detector and alarm line on a topic of its own, as plain text - `true` / `false`, a number or text, no JSON. Contributed by danielrdt (#27).
+
+- **Opt-in, with a settings card of its own** under Connections → MQTT: on/off and the root topic (default `genius-gateway/<mac>`; `treeEnabled`, `treeBaseTopic` in `/rest/alarm-publishing`)
+- **Per smoke detector**: alarm, location, serial numbers, alarm line, the status flags (`battery_low`, `device_fault`, `radio_fault`, `dismounted`, `reported_missing`) and, for FM Pro X, `last_seen` and `rssi`
+- **Per alarm line and overall**: name, alarm, number of alarming and faulty detectors
+- **Nothing is assumed**: a value that is not known has an empty payload; a status flag gets a value once it was reported or read out
+- **Only changes are published**, everything again after a reconnect; deleting a detector, switching the tree off or changing the root clears the old topics
+- **Cleans up after itself**: with every full publish, retained topics of smoke detectors and alarm lines that no longer exist are cleared - only topics of the tree's own layout, nothing else under the root
+- **Does not get in the way of alarms**: the tree publishes in the background, in batches, never from the packet receiver. When everything is published again, the alarm topics go out first and a value that changes meanwhile is sent ahead of the rest
+
+## Line Setting of Alarm Lines (Rotary Switches)
+Radio modules react only to packets of their alarm line ID **and** their line setting - the line they are set to with their rotary switches, e.g. `A.3` (Hekatron: *Linie*). Up to now the gateway sent every action for A.0, the fixed line of the *FM Basis X*: on lines of *FM Pro X* or old modules set to anything else, line test, fire alarm and commissioning from the gateway had no effect. Each alarm line now has a line setting, and the gateway sends its actions for it.
+
+- **Automatic by default**: the line setting comes from the smoke detectors of the line - A.0 for an *FM Basis X*, the rotary position of an *FM Pro X* from its readout or its radio packets, the position entered by hand for an old module. Detectors set differently: the most frequent one. Not known: A.0, as before
+- **Set by hand**: the edit dialog of an alarm line offers *Automatic* or any valid line (A.0 - G.9, H.0, H.1, H.2, H.4, H.5, H.7), also when the line is created by hand - the way for a line without registered detectors
+- **Taken from radio packets**: a line that is added automatically takes the line setting of the module that sent the packet. An automatic line whose detectors do not tell it takes it from the next packet of the line. Packets of a gateway are never used
+- **Detectors learn their rotary position**: the packets of an *FM Pro X* tell it, also without an acoustic readout
+- **New *Line Setting* column** on the Alarm Lines page (a badge on phones) with the one line the gateway sends for: light grey where it does not matter (only *FM Basis X*, or not known), otherwise a badge whose colour tells where it comes from (black: smoke detectors, primary: set by hand, secondary: radio packet), and a yellow one with the number of smoke detectors that are set to another line. Those detectors carry a badge with their line in the *Smoke Detectors* column, so it is clear which ones would have to be set again. The tooltip tells where the line setting comes from, the info icon of the column explains it
+- **Warning before an action**: when smoke detectors of the line are set to another line, the confirmation of line test, fire alarm and commissioning names them and warns that they will not react
+- **The *Acquisition* column is now called *Source***, the ID moved below the name, and the line actions fit in one row
+- **Export and import** carry the line setting (`lineCodeSource`, `lineCode`). Files of earlier versions import as *Automatic*
+- **Smoke Detectors column**: lists every detector of the line, also the ones registered from radio packets only
+
+See **[Alarm Lines Management - Line Setting](https://hmbacher.github.io/genius-gateway/features/alarm-lines-management/#line-setting)**.
+
+## Old FM Basis / FM Pro Modules
+Observations on an installation with radio modules that have rotary switches, reported by aoswald82 (#33), corrected two assumptions the gateway was built on: old modules get a 32-bit alarm line ID at commissioning as well, and the rotary position is not just a label - it is transmitted in every packet and decides, together with the alarm line ID, which modules work together.
+
+- **Alarm line learned from radio packets**: a registered detector takes its alarm line over from the packets of its radio module - an alarm, a status change, a line test, a telegram of the radio link supervision. For old modules that is the only source: an acoustic readout does not report their line and they do not answer the range test. For every other module it keeps the alarm line current after a new commissioning. A known alarm line is only replaced by a packet the module transmitted itself
+- **Detectors with old modules appear under their alarm line**: in the groups by alarm line and in the *Smoke Detectors* column of the Alarm Lines page, which is no longer hidden on installations that only have old modules. The rotary position is still entered by hand; entering it or editing the detector no longer clears the alarm line ID
+- **Range test explains old modules**: old modules do not answer the range test. Their signal icon no longer shows *Out of direct range*; the icon's tooltip, the survey dialog and the PDF report say that these modules give no answer
+- **Protocol documentation corrected**: the bytes 3, 8 and 13 of every packet are the line code - the rotary position - of the addressed line, the originator and the forwarder. The section on line addressing describes the receive and forward rules and the collective alarm lines (H), and no longer claims that the rotary position is never compared or that the line ID of an old module follows from its rotary switches
+- **Packet visualizer shows the line code**: the header of every packet names the rotary position of the addressed line, the originator and the forwarder (for example `A.3`, or `Any`)
+- **Packets for the right rotary position**: modules set to another position than the one in a packet do not react to it - a line test sent for another position was observed to be ignored and not forwarded. The gateway now sends for the line setting of the line, see *Line Setting of Alarm Lines* above
+
+## Home Assistant: Last Reset Reason
+The gateway device in Home Assistant gets a diagnostic sensor **Last Reset Reason**: why the gateway last restarted - power-on, software restart, exception, watchdog, brownout and so on. Contributed by aoswald82 (#37).
+
+- **The same texts as in the web interface**: the sensor shows what *Reset Reason* under System → System Status shows
+- **An enum sensor**: Home Assistant knows every possible value and offers them in automations, for example to get notified after a watchdog or brownout reset
+- **No new topic**: the value is part of the existing diagnostics state (`reset_reason`)
+
+## Home Assistant: Entities Become Unavailable While the Gateway Is Offline
+Up to now Home Assistant kept showing the last state of every entity when the gateway had lost its connection or had died - a smoke detector stayed *clear* although nobody was listening. Suggested by aoswald82 (#31).
+
+- **Every entity follows the MQTT status topic**: the entities of the gateway, the smoke detectors and the alarm lines turn *unavailable* while `genius-gateway/<mac>/status` says `offline`
+- **The Status sensor shows the connection**: `online` or `offline`, instead of an `online` that could never change
+- **Existing conditions stay**: a value that is unknown until a detector reported it is still unavailable for that reason; both conditions have to hold
+- **How fast**: at once for a restart. If the gateway just disappears, after one and a half times the MQTT keep alive - about three minutes with the default of 120 seconds
+- **Visible change**: after every restart of the gateway its entities are unavailable for a few seconds
+
+## Line Test and Network Test Told Apart
+The packet that starts a line test also starts a network test. The byte that was taken for a start/stop flag is a test mode: `0x04` starts a line test (about 15 minutes), `0x06` a network test (about 30 minutes), `0x00` stops either. The assignment follows from the durations of the two tests, 15 and 30 minutes, which are the ones the manufacturer states; it is not yet confirmed on air which of the two values is the line test.
+
+- **Start Line Test now starts a line test**: the action of an alarm line - in the web interface, over the REST API and as the Home Assistant button - sends test mode `0x04`. Up to v1.5.0 it sent `0x06`, which by this assignment starts a network test of twice the duration
+- **Both tests are recognised and named**: the gateway and the packet visualizer tell *Start Line Test*, *Start Network Test* and *Stop Line / Network Test* apart, each by its exact test mode value. A line test start with test mode `0x04`, as smoke detectors send it, was not named by the packet visualizer before; a test packet with an unknown mode is shown as unknown
+- **Automatically added alarm lines are named after their ID**: `<ID> (automatically added)` instead of a sentence about the packet they were learned from - the name shows up wherever the line does, e.g. in the packet visualizer. Lines are also learned from a network test start. Lines that already exist keep their name
+- **Documentation**: the protocol analysis describes the test mode byte, with the evidence and a captured line test start
+
+## WebSocket Logger: Connected Clients
+The WebSocket Logger page lists the clients that are connected to the logger right now.
+
+- **Laid out like the MQTT page**: the status on top - *Active* / *Disabled*, the URL to connect to and, under the heading *Connected Clients*, one entry per connected client - and the settings below
+- **One entry per connection**: what connected - the built-in *Packet Visualizer*, a tool that named itself, or the browser / tool from its User-Agent - with IP address and port, how long the connection has been open, and how many radio packets and how much data were sent to it
+- **No client connected** is shown as such; URL and clients are only listed while the logger is enabled
+- **Clients can name themselves** with `?client=<name>` in the URL; the Packet Visualizer connects as `packet-visualizer`
+- **Switching the logger off disconnects the clients** that are still connected - before, they stayed connected and received nothing
+- **REST API**: `GET /rest/wslogger/clients` (admin)
+
+See **[Connected Clients](https://hmbacher.github.io/genius-gateway/features/websocket-interface/#connected-clients)** for details.
+
+## Home Assistant MQTT Topic Restructuring
+The Home Assistant topic tree carried a redundant namespace level and derived its identity from the user-editable **Device Name**, which duplicated the gateway's MAC address in every state topic and made renaming the gateway a destructive operation. Both are fixed.
+
+- **Redundant namespace level removed**: base topics collapse from `{prefix}{namespace}/{device_id}/…` to `{prefix}{device_id}/…`. The namespace was always a literal string prefix of the device ID that followed it, so it carried no information - nothing subscribed to it and Home Assistant never saw it, since discovery payloads always name their topics explicitly
+
+    ```
+    v1.5.0  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-gateway-1a2b3c4d5e6f-1a2b3c4d5e6f/genius-123/diagnostics/state
+    v1.6.0  homeassistant/genius-gateway-1a2b3c4d5e6f/genius-123/diagnostics/state
+    ```
+
+- **MAC address no longer duplicated**: the device ID was built as `slugify(deviceName) + "-" + MAC`, while the factory-default device name already ended in the MAC - producing `genius-gateway-<mac>-<mac>`. Topic identity is now derived from the compile-time firmware name, so the MAC appears exactly once
+- **Renaming the gateway is now safe**: the **Device Name** is purely cosmetic and feeds only Home Assistant's display label. Previously it drove the topic namespace, the discovery `node_id`, and `device.identifiers`, so a rename silently re-registered the gateway as a *new* device in Home Assistant and abandoned the old one - along with all its retained discovery configs - as an unremovable ghost
+- **Sub-devices no longer go stale on rename**: a sub-device captured its topic namespace once, when it was created, and never re-synced. After a rename the gateway published under the new tree while every smoke detector kept publishing under the old one. With a stable identity this cannot happen
+- **Automatic cleanup of the old topic tree**: on the first MQTT connect after the upgrade, the gateway clears every retained discovery config and state message it previously published under the old paths, retiring each old config immediately before publishing its replacement so Home Assistant reclaims the entity ID instead of suffixing the new entity with `_2`. Smoke detectors and alarm lines are untouched by the migration - their topics never contained the device name and their `unique_id` is unchanged, so Home Assistant updates them in place and their history and automations survive
+
+See **[Home Assistant Integration](https://hmbacher.github.io/genius-gateway/setup/connections/#home-assistant-integration)** for upgrade details and the two things worth verifying afterwards.
+
+## Documentation
+- **MQTT topic reference corrected**: the documented discovery config topic pattern (`{discovery_prefix}{component}/{topicNamespace}/{gateway_device_id}/…/config`) never matched the firmware, which has always published to a flat single-level `node_id` as the Home Assistant discovery spec requires. All topic examples now reflect the actual v1.6.0 layout
+- **Status Change packet**: the protocol analysis describes the former *Alarming* packet as the generic status change, with the full flag table and a captured battery warning
+
+## Bugfixes
+- **WiFi never reconnected after an outage of more than two minutes**: the gateway reconnected after a short outage, but stayed offline for good - until it was power-cycled - when the access point was gone for more than two minutes. Two minutes after a disconnect the WiFi status changes to a value the gateway took for "connection attempt in progress", and from then on it waited instead of trying. Reported by aoswald82 (#30)
+    - The gateway now keeps track of its own connection attempts: an attempt has 20 seconds to end with an IP address, then it is dropped and the gateway scans again. This also ends the state "connected to the access point, but no IP address"
+    - After 5 minutes offline, and again every 5 minutes, the WiFi interface is restarted. The gateway itself is never restarted because of WiFi, so it keeps receiving its smoke detectors
+- **Tall dialogs could not be scrolled on iOS Safari**: on an iPhone the add / edit smoke detector dialog could not be scrolled, its lower fields and buttons were out of reach. The dialogs scrolled on a full-screen wrapper that does not take touches, so iOS Safari did not scroll it; on a short screen the part above the centre was also cut off, in every browser. The dialog box is now limited to the screen height and scrolls itself. Reported and tested by aoswald82 (#35)
+- **Reset Reason showed "Unknown reset reason (11)" for some resets**: a reset by the USB peripheral, by JTAG, after an efuse error, a power glitch or a CPU lock-up had no text in the System Status. These reasons are named now
+- **Restart when a smoke detector or alarm line was added or removed while the gateway published to Home Assistant**: after every MQTT connect, and after applying the Home Assistant settings, the gateway republishes all entities in a background task - a few seconds with many detectors. Adding or deleting a detector or an alarm line during that time changed the lists that task was working on and could crash the gateway (present since v1.3.0). The Home Assistant registry is now locked per device while it is published: a change waits for the device in progress instead of pulling it away
+- **Web interface held up for seconds after applying the Home Assistant settings**: the gateway republished every entity before it answered the request, so **Apply Settings** showed no reaction for about five seconds with a dozen detectors. The republish now runs in the background and the gateway answers at once. The button shows a spinner and is locked while a request is under way - switching the integration off still removes all entities before the gateway answers
+- **Radio packets could be missed while a browser did not respond**: the gateway sent web interface events (alarm state, packet log, system values) straight from the task that emitted them and waited up to 60 seconds for every client that did not take the data - for example a browser tab on a phone in standby. The alarm state was sent by the task that receives the radio packets, so during that wait further packets were lost: in a test the all-clear of an alarm was never processed and the alarm event reached other browsers 56 seconds late. The first alarm message to MQTT / Home Assistant was not affected. A client now gets one second to take an event and is disconnected if it does not (browsers reconnect by themselves), and the alarm state is sent by a task of its own
+- **Retained states of deleted detectors and alarm lines stayed on the broker**: deleting a detector or an alarm line removed it from Home Assistant, but its last state message (`…/smoke/state`, `…/transmission/state`) stayed retained on the broker. Removing a device now clears the retained states of its entities as well; a rename of entity IDs keeps them, as the entities are published again right away. Turning the Home Assistant integration off clears them too (#38)
+- **Home Assistant buttons ran their action several times after MQTT reconnects**: the gateway subscribed the command topics of all Home Assistant buttons and switches again whenever it republished its entities - after every MQTT connect and every change of the Home Assistant settings. The MQTT library keeps every subscription and cannot remove one, so a single press ran the action once per reconnect (observed: twice after two reconnects), and the memory for the subscriptions grew with every reconnect and every re-created alarm line. Each topic is now subscribed only once; a republished or re-created entity replaces the handler, and a removed one gives it up. A press runs its action exactly once
+- **Alarms reached Home Assistant up to ~15 seconds late after a detector was saved**: MQTT messages that the gateway queues (states and diagnostics) left at only one message per second. Saving a detector republishes the diagnostics of all detectors, so an alarm received right after it had to wait behind them - about one second per detector. The gateway itself always registered the alarm at once; only the way to MQTT was held up. The queue is now drained at up to 50 messages per second. Applies to the `gg-v1_0`, `seeed-xiao-esp32s3` and `esp32-s3-devkitc-1-n8r2` builds
+- **Radio module status and DIP switches of an acoustic readout were shown under the wrong names**: two bit fields of the readout were decoded in the wrong bit order - the radio state flags (readout byte 20) were mirrored and the DIP switches (byte 30) misplaced, with different mappings in the readout parser, the Device Details dialog and the PDF report. A set **Radio Link Supervision** switch, for example, appeared as *Send Collective Alarm*, and a **Remote Alarm** flag as *FM Fault*. **Radio Status: Fault** in Device Details and in the PDF report was derived from the wrong two bits as well. The bit order now follows the Hekatron apps (Genius Control and Genius Home), from one shared definition for parser, dialog and report
+    - Only readouts of radio modules that report one of these bits are affected; modules that report `0x00` in both fields (as an FM Basis X without set flags does) were always shown correctly
+    - Stored readouts are corrected without a new readout: the gateway stores the two bytes unchanged, only their interpretation was wrong
+    - The [acoustic readout documentation](https://hmbacher.github.io/genius-gateway/reverse-engineering/acoustic-readout/) lists the corrected bit tables
+- **New connections were refused after about nine**: the web server may hold 13 connections and closes the least recently used one beyond that, but the network stack had only 16 sockets for everything - web server, MQTT, mDNS, time sync. They ran out first: a new connection was reset and the web server never got to close an idle one. Two browser tabs on the gateway were enough to lock out a WebSocket logger client or the Packet Visualizer. The network stack now has 24 sockets
+- **Packet Visualizer stayed disconnected without saying so**: when its connection to the WebSocket logger was refused or lost - gateway restart, too many connections, logger switched off - it kept showing "Waiting for packets...". It now connects again by itself (after 2 s, then waiting longer up to 15 s) and shows while it has no connection; a disabled logger is checked again every 10 s
+
 # v1.5.0
 
 ## Direct-Link Signal / Range Survey
@@ -16,7 +193,7 @@ Packets are now identified by the radio module's on-air **message-type byte** (o
 - **Recognizes the ConfigCheckProbe family**: ConfigCheckProbe request/response packets are now decoded (message type, group/line, status) in the backend and the packet visualizer
 
 ## Packet Visualizer
-- **Header field `Counter` renamed to `Remaining TX Time`**: reverse-engineering the radio-module firmware confirmed that bytes 2-3 are not a packet counter but the **remaining transmission time** - a countdown of the packet's repetition window. The visualizer label and the underlying field naming now reflect that
+- **Header field `Counter` renamed to `Remaining TX Time`**: bytes 2-3 are not a packet counter but the **remaining transmission time** - a countdown of the packet's repetition window. The visualizer label and the underlying field naming now reflect that
 
 ## Modal Dialog Title Icons
 Every modal dialog now shows an icon beside its title, so add/edit/replace and info dialogs are recognizable at a glance and visually consistent across the app.

@@ -213,8 +213,8 @@ function buildPayload(o) {
     // Bytes 20+ only present when radioProductType > 0
     if ((o.radioProductType ?? 0) > 0) {
         // Byte 20: radio state mask
-        // bit 0=FmFault, 1=TransmissionRangeTest, 2=Selftest, 3=FmBatteryLowFault,
-        // 4=RemoteBattLow, 5=RemoteError, 6=RadioLinkError, 7=RemoteAlarm
+        // bit 0=RemoteAlarm, 1=RadioLinkError, 2=RemoteError, 3=RemoteBattLow,
+        // 4=FmBatteryLowFault, 5=Selftest, 6=TransmissionRangeTest, 7=FmFault
         p.push(o.radioStateMask ?? 0);
 
         // Bytes 21–24: radio module serial number (big-endian)
@@ -228,9 +228,9 @@ function buildPayload(o) {
         p.push(((o.lineCharIdx ?? 0) << 4) | (o.lineNumber ?? 0));
 
         // Byte 30: radio switch flags
-        // bit 2=ReducedTransmittingPower, 3=RadioLinkSupervision,
-        // 4=ReceiveCollectiveAlarm, 5=SendCollectiveAlarm,
-        // 6=SuppressAlarms, 7=SuppressWarnings
+        // bit 0=SuppressWarnings, 1=SuppressAlarms,
+        // 2=SendCollectiveAlarm, 3=ReceiveCollectiveAlarm,
+        // 4=RadioLinkSupervision, 5=ReducedTransmittingPower (bits 6-7 unused)
         p.push(o.radioSwitchFlags ?? 0);
 
         // Byte 31: radio interference in 0.1 dB units (0–25.5 dB)

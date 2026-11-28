@@ -26,7 +26,7 @@ Smoke detector and alarm line configuration for full functionality:
 
 External service integration for smart home and time synchronization:
 
-- **MQTT Configuration**: Connect to MQTT broker (encrypted/unencrypted), configure authentication and connection parameters, set up simple alarm publishing and Home Assistant MQTT Discovery
+- **MQTT Configuration**: Connect to MQTT broker (encrypted/unencrypted), configure authentication and connection parameters, set up simple alarm and fault publishing and Home Assistant MQTT Discovery
 - **NTP Setup**: Configure time server, select timezone with automatic DST handling, ensure accurate timestamps for logging
 
 ### :tabler-wifi: [WiFi](wifi.md)

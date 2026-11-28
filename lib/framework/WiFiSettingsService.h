@@ -47,6 +47,8 @@
 #define WIFI_SETTINGS_SERVICE_PATH "/rest/wifiSettings"
 
 #define WIFI_RECONNECTION_DELAY 1000 * 5
+#define WIFI_CONNECT_TIMEOUT 1000 * 20             // A connection attempt has this long to end with an IP address
+#define WIFI_INTERFACE_RESTART_DELAY 1000 * 60 * 5 // Offline this long: restart the WiFi interface, and again after the same time
 #define RSSI_EVENT_DELAY 1000
 #define DELAYED_RECONNECT_MS 1000
 
@@ -228,6 +230,11 @@ private:
     FSPersistence<WiFiSettings> _fsPersistence;
     EventSocket *_socket;
     unsigned long _lastConnectionAttempt;
+    bool _connectPending = false;            ///< WiFi.begin() was called, its outcome is still open
+    unsigned long _connectStartedAt = 0;     ///< millis() of that WiFi.begin()
+    bool _offline = false;                   ///< A network is configured, but there is no connection
+    unsigned long _offlineSince = 0;         ///< millis() when that was noticed
+    unsigned long _lastInterfaceRestart = 0; ///< millis() of the last restart of the WiFi interface (or of going offline)
     unsigned long _lastRssiUpdate;
     unsigned long _delayedReconnectTime;
     bool _delayedReconnectPending;

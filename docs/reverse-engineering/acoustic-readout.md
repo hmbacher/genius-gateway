@@ -126,8 +126,8 @@ Field| rs | RM-Serial   | Line-ID     | line| sw  | int |
 | 20 | 1 | `radioStateMask` | `u8` | Radio module link & fault flags. See [Radio State Mask](#radio-state-mask-byte-20). Only present if the radio module is fitted. |
 | 21–24 | 4 | `radioSerialNumber` | `u32` BE | Radio module serial number, big-endian. `0` = no radio module. |
 | 25–28 | 4 | `lineId` | `u32` BE | Alarm line identifier the detector is commissioned to. `0` = unassigned, `0xFFFFFFFF` = broadcast/global. |
-| 29 [7:4] | ½ | `lineCharacter` | `u4` → char | Maps `0..9` to `'A'..'J'`. Identifies the alarm-line letter. |
-| 29 [3:0] | ½ | `lineNumber` | `u4` | Alarm-line numeric suffix (`0..15`). |
+| 29 [7:4] | ½ | `lineCharacter` | `u4` → char | Maps `0..9` to `'A'..'J'`. Identifies the alarm-line letter. On an FM Pro X the first rotary switch; an FM Basis X reports `0` (A). Byte 29 as a whole is the [line code](protocol-analysis.md#line-addressing-fm-basis-x-vs-old-fm-basis) the module transmits in every radio packet. |
+| 29 [3:0] | ½ | `lineNumber` | `u4` | Alarm-line numeric suffix (`0..15`). On an FM Pro X the second rotary switch; an FM Basis X reports `0`. |
 | 30 | 1 | `radioSwitchMask` | `u8` | DIP-switch / configuration bits. See [Radio Switch Mask](#radio-switch-mask-byte-30). |
 | 31 | 1 | `radioInterference` | `u8` | Interference level. The UI scales values `> 0` by 1/10 and renders the result as a percentage (so byte `25` → `2.5%`). |
 
@@ -140,6 +140,8 @@ Field| rs | RM-Serial   | Line-ID     | line| sw  | int |
 | 2 | `0x04` | `radioNetworkFault` | Radio mesh / link integrity issue (mirrored from the radio module). |
 | 3–6 | `0x78` | `driftState` | Smoke chamber drift indicator. Observed values: `0` = OK, `2` = warning, `4` = defect. Other values are unspecified. |
 | 7 | `0x80` | `dirtForecastNegative` | Predictive dust accumulation will cause failure before end of warranty. |
+
+Bits 0–2 correspond to the over-the-air status flags *BattLow*, *Error* and *Radio* of the [Status Change packet](protocol-analysis.md#status-change). The gateway takes them over as the detector's [current status](../features/device-management.md#current-status) whenever a new readout arrives (for old FM.Basis / FM.Pro modules, which report no radio status, only bits 0–1).
 
 #### Warranty Flags (bytes 17–18, LE) {#warranty-flags}
 
@@ -168,27 +170,30 @@ If `warrantyFlagsRaw == 0`, the warranty is fully intact and the parser surfaces
 
 | Bit | Mask | Mnemonic | Meaning when set |
 |:---:|:----:|:---------|:-----------------|
-| 0 | `0x01` | `FmFault` | Radio module reports a generic fault. |
-| 1 | `0x02` | `TransmissionRangeTest` | A range test is currently active. |
-| 2 | `0x04` | `Selftest` | The radio module is performing a self-test. |
-| 3 | `0x08` | `FmBatteryLowFault` | Radio module battery low. |
-| 4 | `0x10` | `RemoteBattLow` | Battery-low reported by a remote (linked) device. |
-| 5 | `0x20` | `RemoteError` | Generic error reported by a remote device. |
-| 6 | `0x40` | `RadioLinkError` | Radio link layer error (packet loss / supervision miss). |
-| 7 | `0x80` | `RemoteAlarm` | Alarm triggered remotely (collective alarm propagation). |
+| 0 | `0x01` | `RemoteAlarm` | Alarm triggered remotely (collective alarm propagation). |
+| 1 | `0x02` | `RadioLinkError` | Radio link layer error (packet loss / supervision miss). |
+| 2 | `0x04` | `RemoteError` | Generic error reported by a remote device. |
+| 3 | `0x08` | `RemoteBattLow` | Battery-low reported by a remote (linked) device. |
+| 4 | `0x10` | `FmBatteryLowFault` | Radio module battery low. |
+| 5 | `0x20` | `Selftest` | The radio module is performing a self-test. |
+| 6 | `0x40` | `TransmissionRangeTest` | A range test is currently active. |
+| 7 | `0x80` | `FmFault` | Radio module reports a generic fault. |
 
 #### Radio Switch Mask (byte 30) {#radio-switch-mask-byte-30}
 
-These bits mirror the DIP-switch configuration on the FM Basis X module. Bits 0 and 1 are reserved.
+These bits are the DIP switch of an FM Pro X module, passed on unchanged; an FM Basis X has no DIP switch and reports `0`. Bit *n* is DIP switch *n*+1 - confirmed for DIP switch 5 (`RadioLinkSupervision`) by the manufacturer, the others follow from the bit order. Bits 6 and 7 are not used - the Hekatron apps reject a readout in which one of them is set.
 
 | Bit | Mask | Mnemonic | Function |
 |:---:|:----:|:---------|:---------|
-| 2 | `0x04` | `ReducedTransmittingPower` | TX output is reduced (battery saving / regulatory). |
-| 3 | `0x08` | `RadioLinkSupervision` | Periodic link-supervision heartbeats are enabled. |
-| 4 | `0x10` | `ReceiveCollectiveAlarm` | Module forwards collective alarms received from peers. |
-| 5 | `0x20` | `SendCollectiveAlarm` | Module emits collective alarms to peers. |
-| 6 | `0x40` | `SuppressAlarms` | Local alarm output is suppressed. |
-| 7 | `0x80` | `SuppressWarnings` | Local warning chirps are suppressed. |
+| 0 | `0x01` | `SuppressWarnings` | Local warning chirps are suppressed. |
+| 1 | `0x02` | `SuppressAlarms` | Local alarm output is suppressed. |
+| 2 | `0x04` | `SendCollectiveAlarm` | Module emits collective alarms to peers, see [collective alarm lines](protocol-analysis.md#collective-alarm-lines). |
+| 3 | `0x08` | `ReceiveCollectiveAlarm` | Module accepts and forwards collective alarms of the lines paired with its own, see [collective alarm lines](protocol-analysis.md#collective-alarm-lines). |
+| 4 | `0x10` | `RadioLinkSupervision` | Periodic link-supervision heartbeats are enabled - see [Radio Link Supervision](protocol-analysis.md#radio-link-supervision). |
+| 5 | `0x20` | `ReducedTransmittingPower` | TX output is reduced (battery saving / regulatory). |
+
+!!! note "Bit order of both masks"
+    The Hekatron apps (Genius Control and Genius Home) read these two bytes as an 8-digit binary string with the most significant bit first, so the last digit is bit 0. Up to v1.5.0 Genius Gateway took the position in that string for the bit number, which mirrored the radio state mask and misplaced the DIP switches.
 
 ### Date Reconstruction {#date-reconstruction}
 

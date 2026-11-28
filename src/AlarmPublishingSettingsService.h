@@ -38,6 +38,7 @@
 #define ALARM_PUBLISHING_SETTINGS_PATH "/rest/alarm-publishing"        ///< REST API service endpoint path
 
 #define DEFAULT_ALARM_PUBLISHING_TOPIC "smarthome/genius-gateway/alarm" ///< Default alarm MQTT topic
+#define DEFAULT_FAULT_PUBLISHING_TOPIC "smarthome/genius-gateway/fault" ///< Default fault (device status) MQTT topic
 
 /// Simple alarm-publishing settings data model
 class AlarmPublishingSettings
@@ -45,17 +46,29 @@ class AlarmPublishingSettings
 public:
     AlarmPublishingSettings()
         : alarmEnabled(false),
-          alarmTopic(DEFAULT_ALARM_PUBLISHING_TOPIC)
+          alarmTopic(DEFAULT_ALARM_PUBLISHING_TOPIC),
+          faultEnabled(false),
+          faultTopic(DEFAULT_FAULT_PUBLISHING_TOPIC),
+          treeEnabled(false),
+          treeBaseTopic("")
     {
     }
 
     boolean alarmEnabled; ///< Enable simple alarm publishing over MQTT
     String alarmTopic;    ///< MQTT topic for alarm state
+    boolean faultEnabled; ///< Enable simple fault (battery low, device faults) publishing over MQTT
+    String faultTopic;    ///< MQTT topic for the fault summary
+    boolean treeEnabled;  ///< Enable the MQTT value tree (one retained topic per value, plain text)
+    String treeBaseTopic; ///< Root topic of the value tree; empty = "genius-gateway/<mac>"
 
     static void read(AlarmPublishingSettings &settings, JsonObject &root)
     {
         root["alarmEnabled"] = settings.alarmEnabled;
         root["alarmTopic"] = settings.alarmTopic;
+        root["faultEnabled"] = settings.faultEnabled;
+        root["faultTopic"] = settings.faultTopic;
+        root["treeEnabled"] = settings.treeEnabled;
+        root["treeBaseTopic"] = settings.treeBaseTopic;
 
         ESP_LOGV(AlarmPublishingSettings::TAG, "Alarm publishing settings read.");
     }
@@ -80,6 +93,46 @@ public:
             if (settings.alarmTopic != newSetting)
             {
                 settings.alarmTopic = newSetting;
+                changed = true;
+            }
+        }
+
+        if (root["faultEnabled"].is<bool>())
+        {
+            bool newSetting = root["faultEnabled"];
+            if (settings.faultEnabled != newSetting)
+            {
+                settings.faultEnabled = newSetting;
+                changed = true;
+            }
+        }
+
+        if (root["faultTopic"].is<String>())
+        {
+            String newSetting = root["faultTopic"];
+            if (settings.faultTopic != newSetting)
+            {
+                settings.faultTopic = newSetting;
+                changed = true;
+            }
+        }
+
+        if (root["treeEnabled"].is<bool>())
+        {
+            bool newSetting = root["treeEnabled"];
+            if (settings.treeEnabled != newSetting)
+            {
+                settings.treeEnabled = newSetting;
+                changed = true;
+            }
+        }
+
+        if (root["treeBaseTopic"].is<String>())
+        {
+            String newSetting = root["treeBaseTopic"];
+            if (settings.treeBaseTopic != newSetting)
+            {
+                settings.treeBaseTopic = newSetting;
                 changed = true;
             }
         }

@@ -3,7 +3,7 @@
 	import GeniusPacketContentHeader from './GeniusPacketContentHeader.svelte';
 	import GeniusPacketDataBlock from './GeniusPacketDataBlock.svelte';
 	import GeniusPacketRawBytes from './GeniusPacketRawBytes.svelte';
-	import IconRing from '~icons/tabler/topology-ring-2';
+	import { lineCodeText } from '$lib/genius/line';
 
 	interface Props {
 		packet: Packet;
@@ -12,11 +12,9 @@
 
 	let { packet, showDetails = true }: Props = $props();
 
-	// Responder group/line (offset 30): high nibble = group A-H, low nibble = line 0-9.
-	let groupLineByte = $derived(packet.data[30] ?? 0);
-	let groupLineText = $derived(
-		`${String.fromCharCode(65 + ((groupLineByte >> 4) & 0x0f))}.${groupLineByte & 0x0f}`
-	);
+	// Line code of the responder (offset 30): the position of its rotary switches,
+	// high nibble = letter A-H, low nibble = number 0-9.
+	let lineCode = $derived(packet.data[30] ?? 0);
 </script>
 
 <GeniusPacketContentHeader {packet} {showDetails} />
@@ -24,11 +22,11 @@
 <GeniusPacketRawBytes {showDetails} data={packet.data.subarray(24, 29)} />
 <!-- 29: per-device status / capability flag -->
 <GeniusPacketDataBlock {showDetails} data={packet.data.subarray(29, 30)} details={{ text: 'Status' }} />
-<!-- 30: responder group / line -->
+<!-- 30: line code of the responder -->
 <GeniusPacketDataBlock
 	{showDetails}
 	data={packet.data.subarray(30, 31)}
-	details={{ icon: IconRing, text: groupLineText, type: 'line' }}
+	details={{ text: lineCodeText(lineCode), type: 'line-code' }}
 />
 <!-- 31..36: trailing (const 60 00 00 + checksum/metric) -->
 <GeniusPacketRawBytes {showDetails} data={packet.data.subarray(31, 36)} />

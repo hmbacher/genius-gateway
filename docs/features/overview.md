@@ -16,41 +16,61 @@ The health indicator icon in the navigation bar reflects the overall system stat
 |------|---------|
 | :tabler-loader-2: | Connecting - device list not yet received |
 | :tabler-heart-off: | No smoke detectors configured yet |
-| :tabler-heart:{ style="color: #4caf50" } | All detectors healthy - readout present and up to date, no faults |
-| :tabler-heart-exclamation:{ style="color: #ff9800" } | At least one detector needs attention (see [warning conditions](#warning) below) |
+| :tabler-heart:{ style="color: #4caf50" } | All detectors OK - no fault reported and every detector has a current readout |
+| :tabler-heart-question: | No fault reported, but the status of at least one detector is unknown (see [Unknown](#unknown) below) |
+| :tabler-heart-exclamation:{ style="color: #ff9800" } | At least one detector reports a fault (see [Fault](#warning) below); the tooltip names how many |
 | :tabler-alert-hexagon-filled:{ style="color: #f44336" } | At least one detector is actively alarming |
 
 ## Device Status Grid
 
-The Overview page displays all registered smoke detectors in a responsive grid layout. Each card is a link to the [Device Management](device-management.md) page. Clicking any card opens the full device list.
+The Overview page displays all registered smoke detectors in a responsive grid layout. Each card opens the clicked detector right on top of the Overview, without leaving the page:
 
-### Card Color States
+- **Normal cards** open the **Device Details** dialog of that detector (no readout/set-line there). Administrators find an **Edit** button (:tabler-pencil:) in its footer that switches to the edit dialog; saving behaves exactly as on the Smoke Detectors page.
+- **Alarming cards** open the **Activity Log** of that detector instead, filtered to alarms. Its **Details** button (:tabler-list-details:) leads on to Device Details.
 
-Cards use a three-level health-driven color scheme:
+Acoustic readout and changing the alarm line remain on the [Device Management](device-management.md) page. Users without administrator rights can open both dialogs, but are not offered the edit action.
 
-#### Healthy (Primary theme color) {#healthy}
+When the smoke detectors are on more than one alarm line, the cards are shown in one group per line, under a heading with the name of the line, the number of its detectors and how many of them are alarming or have a fault. The grouping can be switched in the [smoke detector list](device-management.md#grouping-by-alarm-line).
 
-All of the following are true:
+### Card Conditions
 
-- Device has an acoustic readout on record
-- Readout was performed within the last year
-- No fault conditions detected
+Every card shows one of four conditions - the most important one that applies, in this order. The colour and a status line below the location name say which:
 
-A :tabler-award:{ style="color: #4caf50" } icon appears in the top-right corner of these cards.
+#### Alarm (Error theme color) {#alarming}
 
-#### Needs Attention (Warning theme color) {#warning}
+The smoke detector is alarming. The status line shows :tabler-flame-filled: *Smoke detected* and since when.
 
-One or more of the following apply:
+#### Fault (Warning theme color) {#warning}
 
-- **No readout data** - the device has never had an acoustic readout performed. A :tabler-microphone-off: icon is shown.
-- **Faults detected** - at least one fault condition is active (battery low, device fault, drift defect or warning, dirt forecast negative, warranty flags set, radio network fault). A :tabler-alert-circle: icon is shown.
-- **Stale readout** - the last acoustic readout is more than one year old. A :tabler-calendar-exclamation: icon is shown.
+The smoke detector reports at least one fault - its [current status](device-management.md#current-status), reported over the air or by the last readout. The status line shows one icon per fault and names the fault, for a single fault with its date:
 
-Multiple icons can appear together when more than one condition applies (e.g. both faults and a stale readout). A :tabler-external-link: foreign-detector indicator is appended last when applicable, independent of the health state.
+| Icon | Fault |
+|------|-------|
+| :tabler-battery-off: | Battery low |
+| *smoke detector, struck through* | Device fault |
+| :tabler-access-point-off: | Radio link fault |
+| :tabler-pinned-off: | Dismounted from its base |
+| :tabler-antenna-off: | Radio module reported as missing by another detector |
 
-#### Alarming (Error theme color) {#alarming}
+#### OK (Primary theme color) {#healthy}
 
-The device has an active alarm (`isAlarming` is set). A :tabler-flame-filled: flame icon appears in the top-right corner.
+No fault is reported and an acoustic readout from within the last year confirms battery, detector and radio link. The status line shows :tabler-award: *OK* and the date of the readout.
+
+#### Unknown (neutral grey) {#unknown}
+
+No fault is reported, but nothing current confirms that all is well:
+
+- :tabler-microphone-off: **No readout** - the device has never had an acoustic readout performed
+- :tabler-calendar-exclamation: **Readout outdated** - the last acoustic readout is more than one year old
+- :tabler-help-circle: **Status unknown** - the reported faults were [reset](device-management.md#resetting-the-status); the last readout no longer stands for them
+
+Up to v1.5.0 these cards were yellow like a fault.
+
+#### Hints
+
+A :tabler-info-circle: icon at the end of the status line marks information that is no fault and does not change the colour - a fault muted on the detector, a status flag the gateway does not know yet, chamber drift, a negative dirt forecast or warranty flags from the last readout. The Device Details dialog has the particulars.
+
+A :tabler-external-link: icon in the top-right corner marks a detector that was registered from a received packet, independent of its condition.
 
 ### Card Information
 

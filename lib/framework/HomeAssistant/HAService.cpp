@@ -14,6 +14,7 @@
 
 #include <HomeAssistant/HAService.h>
 #include <HomeAssistant/HADevice.h>
+#include <HomeAssistant/HAUtils.h>
 
 HAService::HAService(PsychicMqttClient *mqttClient)
     : _mqttClient(mqttClient),
@@ -22,10 +23,17 @@ HAService::HAService(PsychicMqttClient *mqttClient)
       _model(""),
       _discoveryPrefix(HA_DEFAULT_DISCOVERY_PREFIX),
       _enabled(false),
-      _publishTaskHandle(nullptr)
+      _renameEntityIds(false),
+      _publishTaskHandle(nullptr),
+      _registryMutex(xSemaphoreCreateRecursiveMutex()),
+      _topicMutex(xSemaphoreCreateMutex()),
+      _nextSubscriptionId(1)
 {
-    _generateDeviceId();
-    _topicNamespace = _slugify(_deviceName);
+    // Topic identity is derived from the compile-time firmware name, never from
+    // the user-editable display name. Renaming the device in the UI therefore
+    // leaves both the MQTT topics and HA's device registry entry untouched.
+    _deviceId = HAUtils::slugify(APP_NAME, '-', false) + "-" + SettingValue::getUniqueId();
+    _updateLegacyTopicIdentity();
 }
 
 // Defined here (not =default in the header) so that the unique_ptr<HADevice>
@@ -77,49 +85,77 @@ void HAService::_publishTask()
     while (true)
     {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        ESP_LOGI(TAG, "MQTT connected - invoking publishAll()");
+        ESP_LOGI(TAG, "Publish requested (MQTT connect or settings change) - invoking publishAll()");
         publishAll();
     }
+}
+
+// ============================================================================
+// Registry lock
+// ============================================================================
+
+void HAService::lock()
+{
+    if (_registryMutex != nullptr)
+        xSemaphoreTakeRecursive(_registryMutex, portMAX_DELAY);
+}
+
+void HAService::unlock()
+{
+    if (_registryMutex != nullptr)
+        xSemaphoreGiveRecursive(_registryMutex);
 }
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
+// The setters change strings that publishAll() reads in its own task.
+
 void HAService::setDeviceName(const String &name)
 {
+    Lock guard(this);
     _deviceName = name;
-    _topicNamespace = _slugify(name);
-    _generateDeviceId();
+    _updateLegacyTopicIdentity();
     _syncMainDeviceIdentity();
 }
 
 void HAService::setManufacturer(const String &manufacturer)
 {
+    Lock guard(this);
     _manufacturer = manufacturer;
     _syncMainDeviceIdentity();
 }
 
 void HAService::setModel(const String &model)
 {
+    Lock guard(this);
     _model = model;
     _syncMainDeviceIdentity();
 }
 
 void HAService::setDiscoveryPrefix(const String &prefix)
 {
+    Lock guard(this);
     _discoveryPrefix = prefix;
     // Ensure prefix ends with /
     if (!_discoveryPrefix.endsWith("/"))
     {
         _discoveryPrefix += "/";
     }
+    // The legacy base topic embeds the prefix, so it has to follow along.
+    _updateLegacyTopicIdentity();
 }
 
 void HAService::setEnabled(bool enabled)
 {
     _enabled = enabled;
     ESP_LOGI(TAG, "HA integration %s", enabled ? "enabled" : "disabled");
+}
+
+void HAService::setRenameEntityIds(bool enabled)
+{
+    _renameEntityIds = enabled;
 }
 
 // ============================================================================
@@ -133,7 +169,7 @@ bool HAService::isReady() const
 
 String HAService::getBaseTopic() const
 {
-    return _discoveryPrefix + _topicNamespace + "/" + _deviceId;
+    return _discoveryPrefix + _deviceId;
 }
 
 // ============================================================================
@@ -176,6 +212,55 @@ void HAService::addDeviceInfo(JsonDocument &doc) const
     }
 }
 
+void HAService::addDeviceAvailability(JsonDocument &config) const
+{
+    const String statusTopic = getStatusTopic();
+    if (statusTopic.isEmpty())
+        return;
+
+    // The entity that shows the status topic stays available: it is the one that says "offline"
+    if (statusTopic == (config["state_topic"] | ""))
+        return;
+
+    if (!config["availability"].is<JsonArray>())
+    {
+        // A single availability topic of the entity becomes the first entry of the list
+        const String ownTopic = config["availability_topic"] | "";
+        const String ownTemplate = config["availability_template"] | "";
+        const String ownAvailable = config["payload_available"] | "";
+        const String ownNotAvailable = config["payload_not_available"] | "";
+        config.remove("availability_topic");
+        config.remove("availability_template");
+
+        JsonArray list = config["availability"].to<JsonArray>();
+        if (!ownTopic.isEmpty())
+        {
+            JsonObject own = list.add<JsonObject>();
+            own["topic"] = ownTopic;
+            if (!ownTemplate.isEmpty())
+                own["value_template"] = ownTemplate;
+            if (!ownAvailable.isEmpty())
+                own["payload_available"] = ownAvailable;
+            if (!ownNotAvailable.isEmpty())
+                own["payload_not_available"] = ownNotAvailable;
+            config.remove("payload_available");
+            config.remove("payload_not_available");
+        }
+    }
+
+    JsonArray list = config["availability"].as<JsonArray>();
+    for (JsonObject entry : list)
+    {
+        if (statusTopic == (entry["topic"] | ""))
+            return; // the same document is published again
+    }
+
+    // "online" / "offline" are the payloads Home Assistant expects by default
+    JsonObject device = list.add<JsonObject>();
+    device["topic"] = statusTopic;
+    config["availability_mode"] = "all";
+}
+
 bool HAService::publishConfig(const String &component, const String &objectId, JsonDocument &config)
 {
     if (!isReady())
@@ -183,6 +268,9 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
 
     // Set "~" abbreviation base
     config["~"] = getBaseTopic();
+
+    // Unavailable in Home Assistant while this device is offline
+    addDeviceAvailability(config);
 
     // Add device info if not already present
     if (!config["device"].is<JsonObject>())
@@ -195,6 +283,11 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
 
     String payload;
     serializeJson(config, payload);
+
+    // Retire the pre-v1.6.0 config first so HA drops the old entity before the
+    // new one arrives - otherwise it would keep both and suffix the new entity
+    // ID with "_2".
+    purgeLegacyConfig(component, objectId, _deviceId);
 
     int result = _mqttClient->publish(configTopic.c_str(), 0, true, payload.c_str(), 0, false);
 
@@ -210,22 +303,92 @@ bool HAService::publishConfig(const String &component, const String &objectId, J
     }
 }
 
+void HAService::purgeLegacyConfig(const String &component, const String &objectId, const String &deviceId)
+{
+    // Sub-devices always used their own (unchanged) ID as node_id, so only the
+    // main device's discovery topics moved in v1.6.0.
+    if (!_legacyPurgeArmed || _legacyDeviceId.isEmpty() || deviceId != _deviceId)
+        return;
+
+    if (_mqttClient == nullptr || !_mqttClient->connected())
+        return;
+
+    String legacyTopic = _discoveryPrefix + component + "/" + _legacyDeviceId +
+                         "/" + objectId + "/config";
+    _mqttClient->publish(legacyTopic.c_str(), 0, true, "", 0, false);
+    ESP_LOGD(TAG, "Cleared legacy config topic %s", legacyTopic.c_str());
+}
+
 bool HAService::publish(const String &topic, const String &payload, int qos, bool retain, bool async)
 {
     if (_mqttClient == nullptr || !_mqttClient->connected())
         return false;
 
+    _purgeLegacyState(topic);
+
     return _mqttClient->publish(topic.c_str(), qos, retain, payload.c_str(), payload.length(), async) != -1;
 }
 
-void HAService::subscribe(const String &topic,
-                          std::function<void(char *, char *, int, int, bool)> callback,
-                          int qos)
+void HAService::_purgeLegacyState(const String &topic)
 {
-    if (_mqttClient == nullptr)
+    if (!_legacyPurgeArmed || _legacyBaseTopic.isEmpty())
         return;
 
-    _mqttClient->onTopic(topic.c_str(), qos, callback);
+    // Only topics under our own base topic have a legacy counterpart; discovery
+    // config topics live under {prefix}{component}/... and are handled by
+    // purgeLegacyConfig() instead.
+    const String base = getBaseTopic();
+    if (!topic.startsWith(base))
+        return;
+
+    String legacyTopic = _legacyBaseTopic + topic.substring(base.length());
+    _mqttClient->publish(legacyTopic.c_str(), 0, true, "", 0, false);
+    ESP_LOGD(TAG, "Cleared legacy state topic %s", legacyTopic.c_str());
+}
+
+uint32_t HAService::subscribe(const String &topic, MessageHandler callback, int qos)
+{
+    if (_mqttClient == nullptr || topic.isEmpty())
+        return 0;
+
+    const std::string key(topic.c_str());
+    bool registerWithClient = false;
+    xSemaphoreTake(_topicMutex, portMAX_DELAY);
+    const uint32_t id = _nextSubscriptionId++;
+    _topicHandlers[key] = TopicHandler{id, std::move(callback)};
+    if (_clientTopics.insert(key).second)
+        registerWithClient = true;
+    xSemaphoreGive(_topicMutex);
+
+    // Once per topic: the client keeps the registration and subscribes again on every connect
+    if (registerWithClient)
+        _mqttClient->onTopic(topic.c_str(), qos, [this, key](char *t, char *p, int r, int q, bool d)
+                             { _dispatch(key, t, p, r, q, d); });
+    return id;
+}
+
+void HAService::unsubscribe(const String &topic, uint32_t id)
+{
+    if (id == 0)
+        return;
+    xSemaphoreTake(_topicMutex, portMAX_DELAY);
+    auto it = _topicHandlers.find(std::string(topic.c_str()));
+    if (it != _topicHandlers.end() && it->second.id == id)
+        _topicHandlers.erase(it);
+    xSemaphoreGive(_topicMutex);
+}
+
+void HAService::_dispatch(const std::string &topic, char *msgTopic, char *payload, int retain, int qos, bool dup)
+{
+    // Copied under the lock, called outside it: the handler may subscribe or unsubscribe itself
+    MessageHandler handler;
+    xSemaphoreTake(_topicMutex, portMAX_DELAY);
+    auto it = _topicHandlers.find(topic);
+    if (it != _topicHandlers.end())
+        handler = it->second.handler;
+    xSemaphoreGive(_topicMutex);
+    if (handler)
+        handler(msgTopic, payload, retain, qos, dup);
 }
 
 // ============================================================================
@@ -234,6 +397,7 @@ void HAService::subscribe(const String &topic,
 
 HAService::CallbackId HAService::onPublishAll(PublishAllCallback callback)
 {
+    Lock guard(this);
     CallbackId id = _nextCallbackId++;
     _publishCallbacks.emplace_back(id, std::move(callback));
     return id;
@@ -241,6 +405,7 @@ HAService::CallbackId HAService::onPublishAll(PublishAllCallback callback)
 
 HAService::CallbackId HAService::onUnpublishAll(PublishAllCallback callback)
 {
+    Lock guard(this);
     CallbackId id = _nextCallbackId++;
     _unpublishCallbacks.emplace_back(id, std::move(callback));
     return id;
@@ -248,6 +413,7 @@ HAService::CallbackId HAService::onUnpublishAll(PublishAllCallback callback)
 
 void HAService::removePublishAllCallback(CallbackId id)
 {
+    Lock guard(this);
     auto it = std::find_if(_publishCallbacks.begin(), _publishCallbacks.end(),
                            [id](const CallbackEntry &e) { return e.first == id; });
     if (it != _publishCallbacks.end())
@@ -256,6 +422,7 @@ void HAService::removePublishAllCallback(CallbackId id)
 
 void HAService::removeUnpublishAllCallback(CallbackId id)
 {
+    Lock guard(this);
     auto it = std::find_if(_unpublishCallbacks.begin(), _unpublishCallbacks.end(),
                            [id](const CallbackEntry &e) { return e.first == id; });
     if (it != _unpublishCallbacks.end())
@@ -273,27 +440,87 @@ void HAService::publishAll()
         return;
     }
 
+    // Remember what is registered right now, then publish it piece by piece. The
+    // registry lock is held per callback and per device only: another task that adds
+    // or removes a device waits for one of them at most, never for the whole run.
+    std::vector<CallbackId> callbackIds;
+    std::vector<const HADevice *> subDevices;
+    {
+        Lock guard(this);
+        callbackIds.reserve(_publishCallbacks.size());
+        for (const CallbackEntry &entry : _publishCallbacks)
+            callbackIds.push_back(entry.first);
+        subDevices.reserve(_subDevices.size());
+        for (const auto &dev : _subDevices)
+            subDevices.push_back(dev.get());
+    }
+
     ESP_LOGI(TAG, "Publishing all HA entities (%d callbacks, main+%d sub-devices)",
-             _publishCallbacks.size(), (int)_subDevices.size());
+             (int)callbackIds.size(), (int)subDevices.size());
 
-    for (auto &[id, callback] : _publishCallbacks)
+    // The integration can be switched off while this runs (the caller holds the registry
+    // lock around unpublishAll() and setEnabled(false)). Checking under the same lock
+    // makes this run stop there: what it sent before is removed by that unpublishAll(),
+    // and nothing is sent after it.
+    for (CallbackId id : callbackIds)
     {
-        if (callback) callback();
+        {
+            Lock guard(this);
+            if (!_enabled)
+                return;
+            _invokeCallback(_publishCallbacks, id);
+        }
         vTaskDelay(pdMS_TO_TICKS(1));
     }
 
-    if (_mainDevice)
     {
-        _syncMainDeviceIdentity();
-        _mainDevice->publishAll();
+        Lock guard(this);
+        if (!_enabled)
+            return;
+        if (_mainDevice)
+        {
+            _syncMainDeviceIdentity();
+            _mainDevice->publishAll();
+        }
     }
 
-    for (auto &dev : _subDevices)
+    for (const HADevice *candidate : subDevices)
     {
-        if (dev)
-            dev->publishAll();
+        {
+            Lock guard(this);
+            if (!_enabled)
+                return;
+            // Publish the device only if it is still registered - it may have been
+            // removed, and destroyed, since the list was taken. The pointer is merely
+            // compared here, never dereferenced.
+            for (auto &dev : _subDevices)
+            {
+                if (dev.get() == candidate)
+                {
+                    dev->publishAll();
+                    break;
+                }
+            }
+        }
         vTaskDelay(pdMS_TO_TICKS(1));
     }
+
+    // Everything has now been (re)published under the current topic tree, and
+    // each publish cleared its pre-v1.6.0 counterpart on the way. Nothing left
+    // to purge - stop paying for the check on every subsequent publish.
+    if (_legacyPurgeArmed)
+    {
+        ESP_LOGI(TAG, "Legacy HA topic purge complete");
+        _legacyPurgeArmed = false;
+    }
+}
+
+void HAService::requestPublishAll()
+{
+    if (_publishTaskHandle != nullptr)
+        xTaskNotifyGive(_publishTaskHandle);
+    else
+        publishAll();
 }
 
 void HAService::unpublishAll()
@@ -307,22 +534,59 @@ void HAService::unpublishAll()
         return;
     }
 
+    // Same pattern as publishAll(): take the lists, then work through them with the
+    // registry lock held per callback and per device.
+    std::vector<CallbackId> callbackIds;
+    std::vector<const HADevice *> subDevices;
+    {
+        Lock guard(this);
+        callbackIds.reserve(_unpublishCallbacks.size());
+        for (const CallbackEntry &entry : _unpublishCallbacks)
+            callbackIds.push_back(entry.first);
+        subDevices.reserve(_subDevices.size());
+        for (const auto &dev : _subDevices)
+            subDevices.push_back(dev.get());
+    }
+
     ESP_LOGI(TAG, "Unpublishing all HA entities (%d callbacks, main+%d sub-devices)",
-             _unpublishCallbacks.size(), (int)_subDevices.size());
+             (int)callbackIds.size(), (int)subDevices.size());
 
-    for (auto &[id, callback] : _unpublishCallbacks)
+    for (CallbackId id : callbackIds)
+        _invokeCallback(_unpublishCallbacks, id);
+
     {
-        if (callback) callback();
+        Lock guard(this);
+        if (_mainDevice)
+            _mainDevice->unpublishAll();
     }
 
-    if (_mainDevice)
-        _mainDevice->unpublishAll();
-
-    for (auto &dev : _subDevices)
+    for (const HADevice *candidate : subDevices)
     {
-        if (dev)
-            dev->unpublishAll();
+        Lock guard(this);
+        for (auto &dev : _subDevices)
+        {
+            if (dev.get() == candidate)
+            {
+                dev->unpublishAll();
+                break;
+            }
+        }
     }
+}
+
+void HAService::_invokeCallback(const std::vector<CallbackEntry> &callbacks, CallbackId id)
+{
+    Lock guard(this);
+
+    auto it = std::find_if(callbacks.begin(), callbacks.end(),
+                           [id](const CallbackEntry &e) { return e.first == id; });
+    if (it == callbacks.end() || !it->second)
+        return; // deregistered since the list was taken
+
+    // Run a copy: the callback may register or remove callbacks itself, which would
+    // move or destroy the vector element it is running from.
+    PublishAllCallback callback = it->second;
+    callback();
 }
 
 // ============================================================================
@@ -331,6 +595,7 @@ void HAService::unpublishAll()
 
 HADevice &HAService::mainDevice()
 {
+    Lock guard(this);
     _ensureMainDevice();
     return *_mainDevice;
 }
@@ -340,12 +605,14 @@ HADevice *HAService::addSubDevice(std::unique_ptr<HADevice> device)
     if (!device)
         return nullptr;
 
+    Lock guard(this);
+
     // Wire in the main device relationship if not already set by the caller.
     HADeviceIdentity &id = device->identity();
     if (id.viaDevice.isEmpty())
         id.viaDevice = _deviceId;
     if (id.topicNamespace.isEmpty())
-        id.topicNamespace = _topicNamespace + "/" + _deviceId;
+        id.topicNamespace = _deviceId;
 
     HADevice *raw = device.get();
     _subDevices.push_back(std::move(device));
@@ -366,6 +633,10 @@ HADevice *HAService::addSubDevice(std::unique_ptr<HADevice> device)
 
 bool HAService::removeSubDevice(const String &deviceId)
 {
+    // Holding the lock makes this wait for a publishAll() that is busy with the
+    // device, so the device is never destroyed underneath it.
+    Lock guard(this);
+
     for (auto it = _subDevices.begin(); it != _subDevices.end(); ++it)
     {
         if (*it && (*it)->getDeviceId() == deviceId)
@@ -393,7 +664,9 @@ void HAService::_ensureMainDevice()
     identity.model = _model;
     identity.swVersion = String(APP_VERSION);
     identity.hwVersion = String(HW_VERSION);
-    identity.topicNamespace = _topicNamespace;
+    // Empty namespace - the main device sits directly under the discovery
+    // prefix at {prefix}{deviceId}.
+    identity.topicNamespace = String();
 
     _mainDevice = std::unique_ptr<HADevice>(new HADevice(this, std::move(identity)));
 }
@@ -410,7 +683,7 @@ void HAService::_syncMainDeviceIdentity()
     id.model = _model;
     id.swVersion = String(APP_VERSION);
     id.hwVersion = String(HW_VERSION);
-    id.topicNamespace = _topicNamespace;
+    id.topicNamespace = String();
 
     IPAddress localIP = WiFi.localIP();
     if (IPUtils::isSet(localIP))
@@ -423,43 +696,16 @@ void HAService::_syncMainDeviceIdentity()
 // Private methods
 // ============================================================================
 
-void HAService::_generateDeviceId()
+void HAService::_updateLegacyTopicIdentity()
 {
-    _deviceId = _slugify(_deviceName) + "-" + SettingValue::getUniqueId();
-}
+    const String legacyNamespace = HAUtils::slugify(_deviceName, '-', false);
+    const String legacyDeviceId  = legacyNamespace + "-" + SettingValue::getUniqueId();
+    const String legacyBaseTopic = _discoveryPrefix + legacyNamespace + "/" + legacyDeviceId;
 
-String HAService::_slugify(const String &name)
-{
-    String slug = name;
-    slug.toLowerCase();
-
-    // Replace spaces and underscores with dashes
-    slug.replace(" ", "-");
-    slug.replace("_", "-");
-
-    // Remove any characters that aren't alphanumeric or dash
-    String clean;
-    clean.reserve(slug.length());
-    for (unsigned int i = 0; i < slug.length(); i++)
-    {
-        char c = slug.charAt(i);
-        if (isalnum(c) || c == '-')
-        {
-            clean += c;
-        }
-    }
-
-    // Remove consecutive dashes
-    while (clean.indexOf("--") >= 0)
-    {
-        clean.replace("--", "-");
-    }
-
-    // Remove leading/trailing dashes
-    while (clean.startsWith("-"))
-        clean = clean.substring(1);
-    while (clean.endsWith("-"))
-        clean = clean.substring(0, clean.length() - 1);
-
-    return clean;
+    // Store each value only if it actually differs - an identical value means
+    // there is nothing stale at that address to clear. The two are independent:
+    // a display name of exactly APP_NAME yields the same device ID but still a
+    // different base topic, because the old scheme carried a namespace level.
+    _legacyDeviceId  = (legacyDeviceId == _deviceId) ? String() : legacyDeviceId;
+    _legacyBaseTopic = (legacyBaseTopic == getBaseTopic()) ? String() : legacyBaseTopic;
 }

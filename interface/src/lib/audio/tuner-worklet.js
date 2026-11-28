@@ -53,6 +53,10 @@ function buildBitPattern() {
 }
 const BIT_PATTERN = buildBitPattern();
 
+/**
+ * @param {Array<[number, number]>} segs  [length, value] segments
+ * @param {number} totalLen
+ */
 function buildPattern(segs, totalLen) {
 	const p = new Int16Array(totalLen);
 	let idx = 0;
@@ -112,6 +116,17 @@ const SYNC2 = buildPattern(
 	1578
 );
 
+/**
+ * @typedef {object} PatternSet
+ * @property {number} id
+ * @property {Int16Array} sync
+ * @property {number} bOffset
+ * @property {number} cOffset
+ * @property {number} dOffset
+ * @property {number} symbolLen
+ */
+
+/** @type {PatternSet} */
 const PATTERN_SET_1 = {
 	id: 1,
 	sync: SYNC1,
@@ -121,6 +136,7 @@ const PATTERN_SET_1 = {
 	symbolLen: 65.708
 };
 
+/** @type {PatternSet} */
 const PATTERN_SET_2 = {
 	id: 2,
 	sync: SYNC2,
@@ -135,12 +151,17 @@ const PATTERN_SET_2 = {
 // ========================
 
 class IIRFilter {
+	/**
+	 * @param {number[]} a
+	 * @param {number[]} b
+	 */
 	constructor(a, b) {
 		this.a = a;
 		this.b = b;
 		this.state = new Float64Array(a.length).fill(0);
 		this.order = a.length - 1;
 	}
+	/** @param {number} x */
 	process(x) {
 		let y = this.b[0] * x + this.state[1];
 		for (let i = 1; i < this.order; i++) {
@@ -152,12 +173,14 @@ class IIRFilter {
 }
 
 class MedianFilter {
+	/** @param {number} size */
 	constructor(size) {
 		this.size = size;
 		this.buf = new Float64Array(size).fill(0);
 		this.sorted = new Float64Array(size).fill(0);
 		this.odd = size % 2 !== 0;
 	}
+	/** @param {number} x */
 	process(x) {
 		for (let i = this.size - 1; i > 0; i--) {
 			this.buf[i] = this.buf[i - 1];
@@ -174,11 +197,16 @@ class MedianFilter {
 }
 
 class Decimator {
+	/** @param {number} factor */
 	constructor(factor) {
 		this.factor = factor;
 		this.counter = 0;
 		this.output = new Float64Array(0);
 	}
+	/**
+	 * @param {ArrayLike<number>} arr
+	 * @param {number} len
+	 */
 	processInto(arr, len) {
 		const maxOut = Math.ceil(len / this.factor) + 1;
 		if (this.output.length < maxOut) this.output = new Float64Array(maxOut);
@@ -194,6 +222,12 @@ class Decimator {
 	}
 }
 
+/**
+ * @param {ArrayLike<number>} signal
+ * @param {ArrayLike<number>} pattern
+ * @param {number} start
+ * @param {number} windowLen
+ */
 function correlate(signal, pattern, start, windowLen) {
 	const patLen = pattern.length;
 	const end = start + windowLen - patLen;
@@ -216,6 +250,10 @@ function correlate(signal, pattern, start, windowLen) {
 	return { maxVal, maxIdx, minVal, minIdx };
 }
 
+/**
+ * @param {number} a
+ * @param {number} b
+ */
 function hammingDist(a, b) {
 	let d = a ^ b,
 		c = 0;
@@ -223,6 +261,7 @@ function hammingDist(a, b) {
 	return c;
 }
 
+/** @param {number} raw */
 function hammingDecode(raw) {
 	let bestDist = 8,
 		bestIdx = 0;
@@ -239,6 +278,10 @@ function hammingDecode(raw) {
 // ========================
 // CRC16 (POLY=0x8005, init=0xFFFF, big-endian bit processing)
 // ========================
+/**
+ * @param {ArrayLike<number>} data
+ * @param {number} len
+ */
 function crc16(data, len) {
 	const POLY = 0x8005;
 	let crc = 0xffff;
@@ -263,7 +306,19 @@ function crc16(data, len) {
 
 const RING_CAPACITY = 16384;
 
+/**
+ * @typedef {object} PipelineCallbacks
+ * @property {(msg: string) => void} onLog
+ * @property {(info: { quality: number, pattern: number }) => void} onSync
+ * @property {(hexBytes: string[]) => void} onFrame
+ * @property {(msg: string) => void} onError
+ */
+
 class TunerPipeline {
+	/**
+	 * @param {PipelineCallbacks} callbacks
+	 * @param {number} [sampleRate]
+	 */
 	constructor(callbacks, sampleRate) {
 		this.onLog = callbacks.onLog;
 		this.onSync = callbacks.onSync;
@@ -313,6 +368,7 @@ class TunerPipeline {
 		this.ringOffset = 0;
 
 		this.state = 'IDLE';
+		/** @type {PatternSet | null} */
 		this.patternSet = null;
 		this.symbolRate = 0;
 		this.symbolPos = 0;
@@ -327,11 +383,13 @@ class TunerPipeline {
 
 		this.framingState = 'LENGTH';
 		this.frameLen = 0;
+		/** @type {number[]} */
 		this.frameData = [];
 		this.frameChecksumBytes = 0;
 		this.frameChecksum = 0;
 	}
 
+	/** @param {number} blockLen */
 	ensureScratch(blockLen) {
 		if (this.iScratch.length < blockLen) {
 			this.iScratch = new Float64Array(blockLen);
@@ -346,6 +404,7 @@ class TunerPipeline {
 	/**
 	 * Process a block of Float32 audio samples (Web Audio native format).
 	 * Samples are expected in the -1.0..1.0 range; we scale to Int16 internally.
+	 * @param {Float32Array} samples
 	 */
 	processBlock(samples) {
 		const blockLen = samples.length;
@@ -418,6 +477,10 @@ class TunerPipeline {
 		this.processStateMachine();
 	}
 
+	/**
+	 * @param {Int16Array} src
+	 * @param {number} count
+	 */
 	appendRing(src, count) {
 		if (this.ringHead + this.ringLen + count > this.ringBuf.length) {
 			if (this.ringHead > 0) {
@@ -474,9 +537,11 @@ class TunerPipeline {
 		this.consumeRing(syncLen1);
 	}
 
+	/** @param {{ maxVal: number, maxIdx: number, minVal: number, minIdx: number }} corr */
 	onSyncFound(corr) {
 		this.state = 'DECODING';
-		const ps = this.patternSet;
+		// trySync() always sets patternSet before calling this method.
+		const ps = /** @type {PatternSet} */ (this.patternSet);
 
 		this.onSync({
 			quality: Math.round((corr.maxVal * 100) / (CLAMP * ps.sync.length)),
@@ -565,6 +630,7 @@ class TunerPipeline {
 		}
 	}
 
+	/** @param {number} charVal */
 	processFramingChar(charVal) {
 		if (this.framingState === 'LENGTH') {
 			if (charVal >= 40) {
@@ -609,6 +675,7 @@ class TunerPipeline {
 		}
 	}
 
+	/** @param {number} count */
 	consumeRing(count) {
 		if (count <= 0 || count > this.ringLen) return;
 		this.ringHead += count;
@@ -629,6 +696,7 @@ class TunerPipeline {
 // ========================
 
 class TunerProcessor extends AudioWorkletProcessor {
+	/** @param {{ processorOptions?: { sampleRate?: number } }} [options] */
 	constructor(options) {
 		super();
 		const opts = options && options.processorOptions ? options.processorOptions : {};
@@ -651,11 +719,12 @@ class TunerProcessor extends AudioWorkletProcessor {
 				this.targetRate
 			);
 		} catch (e) {
-			this.port.postMessage({ type: 'error', message: e.message });
+			this.port.postMessage({ type: 'error', message: e instanceof Error ? e.message : String(e) });
 			this.pipeline = null;
 		}
 	}
 
+	/** @param {Float32Array[][]} inputs */
 	process(inputs) {
 		if (!this.pipeline) return false; // shut down
 		const input = inputs[0];

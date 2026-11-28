@@ -13,13 +13,20 @@
 		CommissioningInfo,
 		CommissioningProbeResponseInfo,
 		AlarmLines,
-		AlarmStartInfo,
-		AlarmStopInfo,
+		StatusChangeInfo,
+		NamedModuleInfo,
+		LineClockInfo,
 		WSLoggerSettings
 	} from '$lib/types/models';
 	import {geniusDevices} from '$lib/stores/geniusDevices.svelte';
 	import { GATEWAY_NAME } from '$lib/genius/entity';
-	import { PacketTypes, PacketTypeNames, MSG_TYPE_POS } from '$lib/types/models';
+	import {
+		PacketTypes,
+		PacketTypeNames,
+		StatusChangePacketTypeNames,
+		MSG_FAMILY_POS,
+		MSG_TYPE_POS
+	} from '$lib/types/models';
 	import { jsonDateReviver } from '$lib/utils/misc';
 	import { deserializePacket, downloadPacketAsJson } from '$lib/utils/serialization';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -37,6 +44,7 @@
 	import IconExpandAll from '~icons/tabler/arrows-maximize';
 	import IconCollapseAll from '~icons/tabler/arrows-minimize';
 	import Info from '~icons/tabler/info-circle';
+	import IconPlugOff from '~icons/tabler/plug-connected-x';
 
 	const OFFSET_TIMESTAMP = 0; // Offset for the timestamp in the byte array
 	const OFFSET_DATA_LENGTH = 76; // Offset for the data length in the byte array
@@ -79,12 +87,14 @@
 	function determinePacketType(data: Uint8Array): PacketType | null {
 		for (const type of PacketTypes) {
 			if (data.length !== type.packetLength) continue;
-			// Primary discriminator: the on-air message-type byte (offset 27), like the radio module.
-			if (data.length <= MSG_TYPE_POS || data[MSG_TYPE_POS] !== type.typeByte) continue;
+			// Discriminators: the on-air message-family byte (offset 26) and message-type byte
+			// (offset 27), like the radio module.
+			if (data.length <= MSG_TYPE_POS) continue;
+			if (data[MSG_FAMILY_POS] !== type.familyByte || data[MSG_TYPE_POS] !== type.typeByte) continue;
 			let identifiersMatch = true;
 			if (type.identifiers && Array.isArray(type.identifiers)) {
-				for (const { byteNr, value } of type.identifiers) {
-					if (data[byteNr] !== value) {
+				for (const { byteNr, value, mask } of type.identifiers) {
+					if ((mask === undefined ? data[byteNr] : data[byteNr] & mask) !== value) {
 						identifiersMatch = false;
 						break;
 					}
@@ -126,18 +136,28 @@
 				requestingRadioModule: dv.getUint32(28),
 				requestingLocation: getDetectorLocationByRadioModuleSN(dv.getUint32(28))
 			} as CommissioningProbeResponseInfo;
-		} else if (packet.type?.name === PacketTypeNames.StartAlarm) {
-			// Alarm Start
+		} else if (packet.type && StatusChangePacketTypeNames.includes(packet.type.name)) {
+			// Status change (Start Alarm / Stop Alarm are its alarm-bit cases)
 			packet.specificInfo = {
-				startingSmokeDetector: dv.getUint32(32, true),
-				startingLocation: getDetectorLocationBySmokeDetectorSN(dv.getUint32(32, true))
-			} as AlarmStartInfo;
-		} else if (packet.type?.name === PacketTypeNames.StopAlarm) {
-			// Alarm Stop
+				setMask: dv.getUint16(28, true),
+				clearedMask: dv.getUint16(30, true),
+				smokeDetector: dv.getUint32(32, true),
+				location: getDetectorLocationBySmokeDetectorSN(dv.getUint32(32, true))
+			} as StatusChangeInfo;
+		} else if (
+			packet.type?.name === PacketTypeNames.ModuleMissing ||
+			packet.type?.name === PacketTypeNames.ModulePresent
+		) {
+			// Radio link supervision: the radio module that is reported missing / confirmed present
 			packet.specificInfo = {
-				silencingSmokeDetector: dv.getUint32(32, true),
-				silencingLocation: getDetectorLocationBySmokeDetectorSN(dv.getUint32(32, true))
-			} as AlarmStopInfo;
+				radioModule: dv.getUint32(28),
+				location: getDetectorLocationByRadioModuleSN(dv.getUint32(28))
+			} as NamedModuleInfo;
+		} else if (packet.type?.name === PacketTypeNames.LineClock) {
+			packet.specificInfo = {
+				timeStr: `${dv.getUint8(28).toString().padStart(2, '0')}:${dv.getUint8(29).toString().padStart(2, '0')}:${dv.getUint8(30).toString().padStart(2, '0')}`,
+				day: dv.getUint16(31, true)
+			} as LineClockInfo;
 		}
 	}
 
@@ -168,76 +188,129 @@
 		return null;
 	}
 
-	let ws: WebSocket;
-	let loggerEnabled: boolean = $state(false);
+	/** First wait before connecting again; doubles up to RETRY_MAX_MS while the logger cannot be reached. */
+	const RETRY_MIN_MS = 2000;
+	const RETRY_MAX_MS = 15000;
+	/** How often a disabled logger is checked again. */
+	const DISABLED_RECHECK_MS = 10000;
 
-	onMount(async () => {
-		let loggerSettings: WSLoggerSettings | null = await getWSLoggerSettings();
-		if (loggerSettings) {
-			loggerEnabled = loggerSettings.wsLoggerEnabled;
+	/**
+	 * State of the connection to the WebSocket logger: a connection that is refused or lost (gateway
+	 * restart, too many connections, logger switched off) is made again by itself, and the page says so.
+	 */
+	type LoggerConnection = 'connecting' | 'connected' | 'reconnecting' | 'disabled';
+
+	let ws: WebSocket | null = null;
+	let loggerEnabled: boolean = $state(true);
+	let connection: LoggerConnection = $state('connecting');
+	let retryTimer: ReturnType<typeof setTimeout> | undefined;
+	let retryDelayMs = RETRY_MIN_MS;
+	let destroyed = false;
+	let warnedDisabled = false;
+
+	function handleLoggerMessage(ev: MessageEvent) {
+		if (ev.data instanceof ArrayBuffer) {
+			let dv = new DataView(ev.data);
+			let datalength = dv.getUint32(OFFSET_DATA_LENGTH, true);
+			let timestamp = dv.getUint32(OFFSET_TIMESTAMP, true);
+			let databuf = new Uint8Array(ev.data, OFFSET_DATA_START, datalength);
+
+			let lastpacket = packets.length > 0 ? packets[packets.length - 1] : null;
+			let hash = calculateHash(databuf);
+
+			if (lastpacket && lastpacket.hash === hash) {
+				// Packet with this hash already exists, so just update the last packet
+				lastpacket.counter++;
+				lastpacket.timestampLast = dv.getUint32(OFFSET_TIMESTAMP, true);
+			} else {
+				// New packet, so create a new entry
+				packets.push({
+					id: packets.length + 1,
+					timestampFirst: timestamp,
+					timestampLast: timestamp,
+					type: determinePacketType(databuf),
+					data: databuf,
+					counter: 1,
+					hash: hash,
+					generalInfo: null,
+					specificInfo: null
+				});
+
+				// Interpret the packet
+				interpretPacket(packets[packets.length - 1]);
+			}
 		}
+	}
 
+	function scheduleConnect(delayMs: number) {
+		clearTimeout(retryTimer);
+		if (!destroyed) retryTimer = setTimeout(connectLogger, delayMs);
+	}
+
+	/** Waits longer after every failed attempt, up to RETRY_MAX_MS. */
+	function retryLater() {
+		connection = 'reconnecting';
+		scheduleConnect(retryDelayMs);
+		retryDelayMs = Math.min(retryDelayMs * 2, RETRY_MAX_MS);
+	}
+
+	async function connectLogger() {
+		if (destroyed) return;
+		const loggerSettings: WSLoggerSettings | null = await getWSLoggerSettings();
+		if (destroyed) return;
+		if (!loggerSettings) {
+			// Gateway not reachable (restart, network) - try again
+			retryLater();
+			return;
+		}
+		loggerEnabled = loggerSettings.wsLoggerEnabled;
 		if (!loggerEnabled) {
-			notifications.warning('WebSocket Logger is disabled.', 3000);
+			if (!warnedDisabled) notifications.warning('WebSocket Logger is disabled.', 3000);
+			warnedDisabled = true;
+			connection = 'disabled';
+			retryDelayMs = RETRY_MIN_MS;
+			scheduleConnect(DISABLED_RECHECK_MS);
 			return;
 		}
 
 		const ws_protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-		ws = new WebSocket(`${ws_protocol}://${window.location.host}/ws/logger`);
-		ws.binaryType = 'arraybuffer';
+		// Named, so the WebSocket Logger page lists it as the Packet Visualizer
+		const socket = new WebSocket(
+			`${ws_protocol}://${window.location.host}/ws/logger?client=packet-visualizer`
+		);
+		ws = socket;
+		socket.binaryType = 'arraybuffer';
 
-		ws.onopen = (ev) => {
+		socket.onopen = () => {
+			connection = 'connected';
+			retryDelayMs = RETRY_MIN_MS;
 			console.log('WebSocket opened. Waiting for packets...');
 		};
 
-		ws.onmessage = (ev) => {
-			if (ev.data instanceof ArrayBuffer) {
-				let dv = new DataView(ev.data);
-				let datalength = dv.getUint32(OFFSET_DATA_LENGTH, true);
-				let timestamp = dv.getUint32(OFFSET_TIMESTAMP, true);
-				let databuf = new Uint8Array(ev.data, OFFSET_DATA_START, datalength);
+		socket.onmessage = handleLoggerMessage;
 
-				let lastpacket = packets.length > 0 ? packets[packets.length - 1] : null;
-				let hash = calculateHash(databuf);
-
-				if (lastpacket && lastpacket.hash === hash) {
-					// Packet with this hash already exists, so just update the last packet
-					lastpacket.counter++;
-					lastpacket.timestampLast = dv.getUint32(OFFSET_TIMESTAMP, true);
-				} else {
-					// New packet, so create a new entry
-					packets.push({
-						id: packets.length + 1,
-						timestampFirst: timestamp,
-						timestampLast: timestamp,
-						type: determinePacketType(databuf),
-						data: databuf,
-						counter: 1,
-						hash: hash,
-						generalInfo: null,
-						specificInfo: null
-					});
-
-					// Interpret the packet
-					interpretPacket(packets[packets.length - 1]);
-				}
-			}
-		};
-
-		ws.onerror = (ev) => {
+		socket.onerror = (ev) => {
 			console.log('WebSocket error.', ev);
 		};
 
-		ws.onclose = (ev) => {
-			ws.close();
+		// Refused or lost: connect again (onclose also follows every error)
+		socket.onclose = () => {
+			if (ws !== socket) return;
+			ws = null;
 			console.log('WebSocket closed.');
+			if (!destroyed) retryLater();
 		};
+	}
 
+	onMount(async () => {
+		connectLogger();
 		await getAlarmLines();
 	});
 
-	onDestroy(async () => {
-		ws.close();
+	onDestroy(() => {
+		destroyed = true;
+		clearTimeout(retryTimer);
+		ws?.close();
 	});
 
 	let alarmLines: AlarmLines = $state({ lines: [] });
@@ -496,13 +569,23 @@
 		{/each}
 
 		<div class="divider mt-1 mb-2"></div>
-		{#if !loggerEnabled}
-			<div class="alert alert-info shadow-lg">
+		{#if connection === 'disabled'}
+			<div class="alert alert-info shadow-lg" data-testid="logger-disabled">
 				<Info class="h-6 w-6 shrink-0" />
 				<span>
 					WebSocket Logger is disabled. Please enable it in the <a class="link" href="/gateway/wslogger">WebSocket Logger settings</a> to receive packets. You can still import packets from a file to visualize/analyze them.
 				</span>
 			</div>
+		{:else if connection === 'reconnecting'}
+			<div class="alert alert-warning shadow-lg" data-testid="logger-reconnecting">
+				<IconPlugOff class="h-6 w-6 shrink-0" />
+				<span>
+					No connection to the WebSocket Logger - trying again. Packets received meanwhile are
+					not shown.
+				</span>
+			</div>
+		{:else if connection === 'connecting'}
+			<Spinner text="Connecting to the WebSocket Logger..." />
 		{:else}
 			<Spinner text="Waiting for packets..." />
 		{/if}

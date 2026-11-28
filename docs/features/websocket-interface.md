@@ -13,13 +13,29 @@ The WebSocket Logger provides real-time streaming of RF packets from the CC1101 
 
 The WebSocket Logger acts as a bridge between the gateway's RF packet reception and client applications that need real-time packet data. When enabled, all received packets are immediately streamed to connected WebSocket clients, providing live monitoring and analysis capabilities.
 
-![WebSocket Logger Settings](../assets/images/software/gg-gateway-websocket-logger.png)
+![WebSocket Logger with two connected clients](../assets/images/software/gg-gateway-websocket-logger.png)
 
-## :tabler-adjustments: WebSocket Logger Settings
+## :tabler-plug-connected: Status and Connected Clients {#connected-clients}
+
+The upper part of the WebSocket Logger card shows the state of the logger, the settings follow below. The status is updated every two seconds:
+
+- **Status** - *Active*, or *Disabled* when the logger refuses connections
+- **URL** - the address logging tools connect to (only while active)
+- **Connected Clients** - a heading with the number of connected clients, below it one entry per client - logging tools as well as open [Packet Visualizers](packet-visualizer.md), in this browser or elsewhere (only while active):
+    - **Name** - *Packet Visualizer* for the built-in one, the name a tool gave itself (see [Naming a client](#naming-a-client)), otherwise the browser or tool from its User-Agent (e.g. *Chrome on Windows*, *Python/3.13 websockets/13.1*)
+    - **Address** - IP address and port of the connection, followed by the browser or tool if the client has a name
+    - **connected for** - how long the connection has been open; the tooltip shows since when
+    - **Packets and data** - radio packets sent to the client since it connected, and their data (80 bytes per packet). Every repetition of a packet is counted, as the logger forwards each one
+
+The counters live in the gateway's memory and start at zero with every connection. Without a connected client the list says **No client connected**:
+
+![WebSocket Logger without a connected client](../assets/images/software/gg-gateway-websocket-logger-no-clients.png)
+
+## :tabler-adjustments: Settings
 
 ### Enable WebSocket Logger
 
-**Default:** Disabled
+**Default:** Enabled
 
 Controls whether the WebSocket logging service is active and accepting client connections.
 
@@ -29,14 +45,18 @@ Controls whether the WebSocket logging service is active and accepting client co
 - All received RF packets are streamed in real-time to connected clients
 - The [Packet Visualizer](packet-visualizer.md) can display live packet data
 - External tools can connect to receive raw packet streams
-- An informational message displays the WebSocket connection URL
+- The status shows the WebSocket connection URL and the [connected clients](#connected-clients)
 
 **When disabled:**
 
 - The WebSocket server rejects all connection attempts
+- Clients that are still connected are disconnected when the setting is saved
 - No packet data is transmitted over WebSocket
 - The [Packet Visualizer](packet-visualizer.md) cannot receive live packets (file import still works)
 - Reduces system load when real-time monitoring is not needed
+
+!!! warning "No login"
+    The logger stream needs no login: while the logger is enabled, any device in the network can connect and read the received radio packets. Switch it off when it is not needed.
 
 !!! warning "Performance Impact"
     Packets are sent to connected clients **synchronously** during packet reception. A slow network connection or multiple connected clients can significantly impact packet processing performance and may lead to packet loss. For best results, use a fast local network connection and limit the number of simultaneous clients. See [Performance Considerations](#performance-considerations) for details.
@@ -53,8 +73,12 @@ ws://[gateway-ip-address]/ws/logger
 
 - **Protocol:** WebSocket (RFC 6455)
 - **Data Format:** Binary (raw packet data structure)
-- **Authentication:** Follows gateway security settings
+- **Authentication:** none - any device in the network can connect while the logger is enabled
 - **Path:** `/ws/logger`
+
+### Naming a client {#naming-a-client}
+
+A client can give itself a name with the query parameter `client`, for example `ws://[gateway-ip-address]/ws/logger?client=my-recorder`. The name is shown in the list of [connected clients](#connected-clients) (up to 32 characters; letters, digits, spaces and punctuation). The built-in Packet Visualizer connects as `packet-visualizer`.
 
 ### Data Structure
 

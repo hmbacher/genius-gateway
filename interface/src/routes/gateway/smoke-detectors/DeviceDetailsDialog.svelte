@@ -10,10 +10,25 @@
 		GeniusDeviceRegistration
 	} from '$lib/types/enums';
 	import { isStaleReadout } from '$lib/utils/deviceStatus';
+	import { geniusDevices } from '$lib/stores/geniusDevices.svelte';
+	import { deviceRuntime } from '$lib/stores/deviceRuntime.svelte';
+	import { RADIO_STATE, RADIO_SWITCH, RADIO_FAULT_MASK } from '$lib/audio/radio-flags';
+	import {
+		STATUS_BATTERY_LOW,
+		STATUS_DEVICE_FAULT,
+		STATUS_RADIO_FAULT,
+		STATUS_DISMOUNTED,
+		STATUS_REPORTED_MISSING,
+		flagState,
+		activeStatusFlags,
+		EVENT_READOUT,
+		statusFlagLabels
+	} from '$lib/genius/status';
 	import { isOldFmModule } from '$lib/genius/line';
 	import { formatDate, formatDateTime, formatAge } from '$lib/utils/formatDate';
 	import DetailRow from './DetailRow.svelte';
 	import Cancel from '~icons/tabler/x';
+	import Edit from '~icons/tabler/pencil';
 	import IconListDetails from '~icons/tabler/list-details';
 	import Microphone from '~icons/tabler/microphone';
 	import MicrophoneOff from '~icons/tabler/microphone-off';
@@ -47,15 +62,42 @@
 	import IconPackages from '~icons/tabler/packages';
 	import IconGauge from '~icons/tabler/gauge';
 	import IconToggleRightFilled from '~icons/tabler/toggle-right-filled';
+	import IconLink from '~icons/tabler/link';
+	import IconLinkOff from '~icons/tabler/link-off';
+	import IconUnknown from '~icons/tabler/help-circle';
+	import IconReportedMissing from '~icons/tabler/antenna-off';
+	import IconRestore from '~icons/tabler/restore';
 
 	interface Props extends ModalProps {
 		title: string;
 		device: GeniusDevice;
 		onReadout?: () => void;
 		onSetLine?: () => void;
+		/** Switch from this read-only view to the edit dialog. When set, the footer shows an
+		 *  "Edit" button. Passed where no edit action is at hand otherwise (Overview). */
+		onEdit?: () => void;
+		onResetStatus?: () => void;
 	}
 
-	let { isOpen, title, device, onReadout, onSetLine }: Props = $props();
+	let {
+		isOpen,
+		title,
+		device: openedDevice,
+		onReadout,
+		onSetLine,
+		onEdit,
+		onResetStatus
+	}: Props = $props();
+
+	// Show the device as the list has it now: a status change that arrives while the dialog is
+	// open reloads the list, and the dialog follows. The prop is the fallback (e.g. a device
+	// that is not part of the list).
+	let device = $derived(geniusDevices.devices.find((d) => d.id === openedDevice.id) ?? openedDevice);
+
+	// Heard over the air since the gateway started (RAM only). Kept for FM Pro X modules: they
+	// send a daily supervision series, so only there "last seen" says something.
+	let supervised = $derived(device.radioModule.model === GeniusRadioModule.FmProX);
+	let runtime = $derived(deviceRuntime.byId[device.id]);
 
 	const titleId = `device-details-title-${Math.random().toString(36).slice(2)}`;
 
@@ -112,34 +154,73 @@
 		'Too many RX events'
 	];
 
+	// Bit masks: see $lib/audio/radio-flags. The order here is the display order.
 	const RADIO_STATE_FLAGS: {
+		mask: number;
 		name: string;
 		inactive: [string, string, string];
 		neutral: boolean;
 		warn?: boolean;
 	}[] = [
-		{ name: 'FM Fault', inactive: ['No ', 'FM Fault', ''], neutral: false },
-		{ name: 'Range Test active', inactive: ['', 'Range Test', ' is not active'], neutral: true },
-		{ name: 'Self-Test active', inactive: ['', 'Self-Test', ' is not active'], neutral: true },
-		{ name: 'FM Battery Low', inactive: ['', 'FM Battery', ' is not low'], neutral: false },
 		{
+			mask: RADIO_STATE.FmFault,
+			name: 'FM Fault',
+			inactive: ['No ', 'FM Fault', ''],
+			neutral: false
+		},
+		{
+			mask: RADIO_STATE.TransmissionRangeTest,
+			name: 'Range Test active',
+			inactive: ['', 'Range Test', ' is not active'],
+			neutral: true
+		},
+		{
+			mask: RADIO_STATE.Selftest,
+			name: 'Self-Test active',
+			inactive: ['', 'Self-Test', ' is not active'],
+			neutral: true
+		},
+		{
+			mask: RADIO_STATE.FmBatteryLowFault,
+			name: 'FM Battery Low',
+			inactive: ['', 'FM Battery', ' is not low'],
+			neutral: false
+		},
+		{
+			mask: RADIO_STATE.RemoteBattLow,
 			name: 'Remote Battery Low',
 			inactive: ['', 'Remote Battery', ' is not low'],
 			neutral: false,
 			warn: true
 		},
-		{ name: 'Remote Error', inactive: ['No ', 'Remote Error', ''], neutral: false, warn: true },
-		{ name: 'Radio Link Error', inactive: ['No ', 'Radio Link Error', ''], neutral: false },
-		{ name: 'Remote Alarm', inactive: ['', 'Remote Alarm', ' is not active'], neutral: true }
+		{
+			mask: RADIO_STATE.RemoteError,
+			name: 'Remote Error',
+			inactive: ['No ', 'Remote Error', ''],
+			neutral: false,
+			warn: true
+		},
+		{
+			mask: RADIO_STATE.RadioLinkError,
+			name: 'Radio Link Error',
+			inactive: ['No ', 'Radio Link Error', ''],
+			neutral: false
+		},
+		{
+			mask: RADIO_STATE.RemoteAlarm,
+			name: 'Remote Alarm',
+			inactive: ['', 'Remote Alarm', ' is not active'],
+			neutral: true
+		}
 	];
 
 	const RADIO_SWITCH_CONFIG: [number, string][] = [
-		[2, 'Suppress Warnings'],
-		[3, 'Suppress Alarms'],
-		[4, 'Send Collective Alarm'],
-		[5, 'Receive Collective Alarm'],
-		[6, 'Radio Link Supervision'],
-		[7, 'Reduced TX Power']
+		[RADIO_SWITCH.SuppressWarnings, 'Suppress Warnings'],
+		[RADIO_SWITCH.SuppressAlarms, 'Suppress Alarms'],
+		[RADIO_SWITCH.SendCollectiveAlarm, 'Send Collective Alarm'],
+		[RADIO_SWITCH.ReceiveCollectiveAlarm, 'Receive Collective Alarm'],
+		[RADIO_SWITCH.RadioLinkSupervision, 'Radio Link Supervision'],
+		[RADIO_SWITCH.ReducedTransmittingPower, 'Reduced TX Power']
 	];
 
 	let warrantyFlags = $derived(
@@ -150,11 +231,35 @@
 	);
 
 	let switchStates = $derived(
-		RADIO_SWITCH_CONFIG.map(([bit, name]) => ({
+		RADIO_SWITCH_CONFIG.map(([mask, name]) => ({
 			name,
-			active: !!(((device.radioModule.radioSwitchMask ?? 0) >> bit) & 1)
+			active: !!((device.radioModule.radioSwitchMask ?? 0) & mask)
 		}))
 	);
+
+	// Current status: status flags received over the air, taken over from the last readout or
+	// reset manually - whichever is newest. A flag the gateway never heard about stays "Unknown".
+	// "Reported missing" says that a report is pending. When it is over, the radio link is not
+	// thereby known to be OK, so its row is shown only while it is active.
+	const STATUS_ROWS = [
+		{ bit: STATUS_BATTERY_LOW, label: 'Battery', activeText: 'Low', icon: IconBattery, activeIcon: IconBatteryOff },
+		{ bit: STATUS_DEVICE_FAULT, label: 'Detector', activeText: 'Fault', icon: IconSmokeDetector, activeIcon: IconSmokeDetector },
+		{ bit: STATUS_RADIO_FAULT, label: 'Radio Link', activeText: 'Fault', icon: IconRadioModule, activeIcon: IconRadioModule },
+		{ bit: STATUS_REPORTED_MISSING, label: 'Radio Module', activeText: 'Reported missing', icon: IconReportedMissing, activeIcon: IconReportedMissing, activeOnly: true },
+		{ bit: STATUS_DISMOUNTED, label: 'Mounting', activeText: 'Dismounted', icon: IconLink, activeIcon: IconLinkOff }
+	];
+	const STATUS_ROW_MASK = STATUS_ROWS.reduce((acc, r) => acc | r.bit, 0);
+
+	let activeFlags = $derived(activeStatusFlags(device));
+	/** Since when and from which source a flag has its state, e.g. "since 11/21/2026, radio". */
+	function stateOrigin(bit: number): string {
+		const state = device.status?.find((s) => s.flag === bit);
+		if (!state) return '';
+		const source = state.source === EVENT_READOUT ? 'readout' : 'radio';
+		return state.since ? `since ${formatDate(state.since)}, ${source}` : source;
+	}
+	// Active flags without a row of their own: "Fault muted" and flags not known yet
+	let otherActiveFlags = $derived(statusFlagLabels(activeFlags & ~STATUS_ROW_MASK));
 
 	function handleReadout() {
 		if (!isSecureContext) {
@@ -173,11 +278,11 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby={titleId}
-		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center overflow-y-auto"
+		class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
 		transition:fly={{ y: 50 }}
 	>
 		<div
-			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex w-full max-w-lg flex-col justify-between p-4 shadow-lg"
+			class="rounded-box bg-base-100 shadow-secondary/30 pointer-events-auto flex max-h-full w-full max-w-lg flex-col justify-between p-4 shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<h2 id={titleId} class="text-base-content flex items-center gap-2 text-2xl font-bold">
@@ -192,9 +297,9 @@
 				</button>
 			</div>
 
-			<div class="divider my-2"></div>
+			<div class="divider my-2 shrink-0"></div>
 
-			<div class="max-h-[70vh] overflow-y-auto space-y-4 pr-1">
+			<div class="max-h-[70vh] min-h-0 overflow-y-auto overscroll-contain space-y-4 pr-1">
 				<!-- General -->
 				<div>
 					<span class="block bg-base-200 px-2 py-1 rounded-sm text-base font-semibold">General</span
@@ -248,6 +353,60 @@
 					</div>
 				</div>
 
+				<!-- Current Status -->
+				<div>
+					<span class="block bg-base-200 px-2 py-1 rounded-sm text-base font-semibold"
+						>Current Status</span
+					>
+					<div class="mt-1 space-y-1 text-sm pl-2">
+						{#each STATUS_ROWS as row}
+							{@const state = flagState(device, row.bit)}
+							{@const origin = stateOrigin(row.bit)}
+							{#if !row.activeOnly || state === 'active'}
+								<DetailRow icon={state === 'active' ? row.activeIcon : row.icon} label={row.label}>
+									{#if state === 'active'}
+										<span class="inline-flex items-center gap-1">
+											<IconError class="h-4 w-4 flex-shrink-0 text-error" />
+											<span class="font-medium text-error">{row.activeText}</span>
+											{#if origin}<span class="text-base-content/50">({origin})</span>{/if}
+										</span>
+									{:else if state === 'ok'}
+										<span class="inline-flex items-center gap-1">
+											<IconCheckCircle class="h-4 w-4 flex-shrink-0 text-success" />
+											<span class="font-medium">OK</span>
+											{#if origin}<span class="text-base-content/50">({origin})</span>{/if}
+										</span>
+									{:else}
+										<span class="inline-flex items-center gap-1">
+											<IconUnknown class="h-4 w-4 flex-shrink-0 text-base-content/40" />
+											<span class="italic text-base-content/50">Unknown</span>
+										</span>
+									{/if}
+								</DetailRow>
+							{/if}
+						{/each}
+
+						{#each otherActiveFlags as flag}
+							<DetailRow icon={IconInfo} label="Flag">
+								<span class="font-medium">{flag}</span>
+							</DetailRow>
+						{/each}
+
+						{#if activeFlags !== 0 && onResetStatus}
+							<div class="flex justify-end pt-1">
+								<button
+									class="btn btn-sm btn-warning inline-flex items-center"
+									type="button"
+									onclick={() => onResetStatus?.()}
+								>
+									<IconRestore class="h-4 w-4" />
+									<span>Reset Status</span>
+								</button>
+							</div>
+						{/if}
+					</div>
+				</div>
+
 				<!-- Smoke Detector -->
 				<div>
 					<span class="block bg-base-200 px-2 py-1 rounded-sm text-base font-semibold"
@@ -272,45 +431,13 @@
 						/>
 
 						{#if device.readoutTime}
-							<!-- Status attributes from acoustic readout -->
-							<div class="divider my-1 mt-3 text-sm text-base-content/40">Status</div>
-
-							<DetailRow icon={IconCheckCircle} label="Detector Status">
-								{#if device.smokeDetector.deviceFault}
-									<span class="inline-flex items-center gap-1">
-										<IconError class="h-4 w-4 flex-shrink-0 text-error" />
-										<span class="font-medium text-error">Fault</span>
-									</span>
-								{:else}
-									<span class="inline-flex items-center gap-1">
-										<IconCheckCircle class="h-4 w-4 flex-shrink-0 text-success" />
-										<span class="font-medium">OK</span>
-									</span>
-								{/if}
-							</DetailRow>
-
-							<DetailRow
-								icon={device.smokeDetector.batteryLowFault ? IconBatteryOff : IconBattery}
-								label="Battery"
-								indent="sm"
-							>
-								{#if device.smokeDetector.batteryLowFault}
-									<span class="inline-flex items-center gap-1">
-										<IconError class="h-4 w-4 flex-shrink-0 text-error" />
-										<span class="font-medium text-error">Low</span>
-									</span>
-								{:else}
-									<span class="inline-flex items-center gap-1">
-										<IconCheckCircle class="h-4 w-4 flex-shrink-0 text-success" />
-										<span class="font-medium">OK</span>
-									</span>
-								{/if}
-							</DetailRow>
+							<!-- Findings of the last acoustic readout that have no status flag. Battery, detector
+							     fault and radio link are part of the Current Status above. -->
+							<div class="divider my-1 mt-3 text-sm text-base-content/40">Readout Findings</div>
 
 							<DetailRow
 								icon={device.smokeDetector.dirtForecastNegative ? IconShieldOff : IconShield}
 								label="Dirt Forecast"
-								indent="sm"
 							>
 								{#if device.smokeDetector.dirtForecastNegative}
 									<span class="inline-flex items-center gap-1">
@@ -329,13 +456,11 @@
 								icon={IconGauge}
 								label="Chamber Drift"
 								value={device.smokeDetector.driftState ?? 0}
-								indent="sm"
 							/>
 
 							<DetailRow
 								icon={(device.smokeDetector.warrantyFlags ?? 0) > 0 ? IconShieldX : IconShield}
 								label="Warranty"
-								indent="sm"
 							>
 								{#if (device.smokeDetector.warrantyFlags ?? 0) > 0}
 									<span class="inline-flex items-center gap-1">
@@ -414,6 +539,24 @@
 							/>
 							<DetailRow icon={IconNumber} label="Serial Number" value={device.radioModule.sn} />
 
+							{#if supervised}
+								<DetailRow icon={IconClock} label="Last Seen">
+									{#if runtime}
+										<span class="font-medium">{formatDateTime(runtime.lastSeen)}</span>
+									{:else}
+										<span class="italic text-base-content/50"
+											>Not heard since the gateway started</span
+										>
+									{/if}
+								</DetailRow>
+								{#if runtime?.rssi !== undefined}
+									<DetailRow icon={IconSignal} label="Signal">
+										<span class="font-medium">{runtime.rssi} dBm</span>
+										<span class="text-base-content/50">({formatDateTime(runtime.rssiTime)})</span>
+									</DetailRow>
+								{/if}
+							{/if}
+
 							{#snippet alarmLineRows()}
 								{#if device.radioModule.lineId}
 									<DetailRow icon={IconHash} label="Line ID" value={device.radioModule.lineId} />
@@ -451,7 +594,8 @@
 
 							{#if isOldModule}
 								<!-- Old FM modules expose only type + serial. Radio status, DIP and
-								     interference are unavailable, and the line is user-entered. -->
+								     interference are unavailable; the rotary position is user-entered, the
+								     alarm line ID is learned from the radio packets of the module. -->
 								<div class="divider my-1 mt-3 text-sm text-base-content/40">Alarm Line</div>
 								{@render alarmLineRows()}
 								<div class="alert alert-info alert-soft mt-3 gap-2 p-3">
@@ -459,14 +603,22 @@
 									<span class="text-sm">
 										FM.Basis / FM.Pro transmit only type and serial number - radio status, DIP
 										switches and interference are not available via acoustic readout.
+										{#if device.radioModule.lineId}
+											The alarm line ID was taken from a radio packet of the module.
+										{:else}
+											The alarm line ID is taken over from the next radio packet the gateway
+											receives from this module - an alarm, a status change or a line test.
+										{/if}
 									</span>
 								</div>
 							{:else if device.readoutTime}
-								<div class="divider my-1 mt-3 text-sm text-base-content/40">Radio Status</div>
+								<!-- What the radio module reported in the last readout. The current state of the
+								     radio link is part of the Current Status above. -->
+								<div class="divider my-1 mt-3 text-sm text-base-content/40">Readout Findings</div>
 
-								<!-- Matches Hekatron Genius Home: bit 0 (FmFault) + bit 3 (FmBatteryLowFault) -->
-								{@const fmFault = !!((device.radioModule.radioStateMask ?? 0) & 0x09)}
-								<DetailRow icon={IconCheckCircle} label="Radio Status">
+								<!-- Matches Hekatron Genius Home: FmFault or FmBatteryLowFault -->
+								{@const fmFault = !!((device.radioModule.radioStateMask ?? 0) & RADIO_FAULT_MASK)}
+								<DetailRow icon={IconCheckCircle} label="Radio Module">
 									{#if fmFault}
 										<span class="inline-flex items-center gap-1">
 											<IconError class="h-4 w-4 flex-shrink-0 text-error" />
@@ -482,8 +634,8 @@
 
 								<DetailRow icon={IconRadar} label="Radio State Flags" />
 
-								{#each RADIO_STATE_FLAGS as flag, i}
-									{@const active = !!(((device.radioModule.radioStateMask ?? 0) >> i) & 1)}
+								{#each RADIO_STATE_FLAGS as flag}
+									{@const active = !!((device.radioModule.radioStateMask ?? 0) & flag.mask)}
 									<div class="flex items-center gap-2 pl-6">
 										{#if active && flag.warn}
 											<IconWarning class="h-3.5 w-3.5 flex-shrink-0 text-warning" />
@@ -537,12 +689,24 @@
 			</div>
 
 			<!-- Footer -->
-			<div class="divider my-2"></div>
+			<div class="divider my-2 shrink-0"></div>
 			<div class="flex justify-end gap-2">
 				<button class="btn btn-neutral text-neutral-content btn-sm" onclick={() => modals.close()}>
 					<Cancel class="h-5 w-5" />
 					Close
 				</button>
+				{#if onEdit}
+					<button
+						class="btn btn-primary text-primary-content btn-sm"
+						onclick={() => {
+							modals.close();
+							onEdit?.();
+						}}
+					>
+						<Edit class="h-5 w-5" />
+						Edit
+					</button>
+				{/if}
 				{#if onReadout}
 					<button
 						class={isSecureContext

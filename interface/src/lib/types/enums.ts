@@ -16,6 +16,16 @@ export enum AlarmLineAcquisition {
   SignalProbe,
 }
 
+// From AlarmLinesService.h
+export enum AlarmLineCodeSource {
+  /** /< From the smoke detectors of the line; A.0 when they do not tell it */
+  Automatic = 0,
+  /** /< Set by hand */
+  Manual = 1,
+  /** /< Taken from a radio packet of the line (the one that added it, or the first one) */
+  Packet = 2,
+}
+
 // From cc1101.h
 export enum Cc1101Mode {
   Idle = 0,
@@ -91,7 +101,7 @@ export enum GeniusDeviceRegistration {
   Acoustic,
 }
 
-// From GeniusGateway.h
+// From GeniusPacket.h
 export enum GeniusPacketType {
   /** /< Unknown packet type */
   Unknown = -1,
@@ -101,16 +111,26 @@ export enum GeniusPacketType {
   CommissioningProbeRequest,
   /** /< CommissioningProbe response packet (smoke detector identification response) */
   CommissioningProbeResponse,
-  /** /< Alarm start packet (smoke detection notification) */
-  AlarmStart,
-  /** /< Alarm stop packet (smoke cleared or alarm silenced) */
-  AlarmStop,
-  /** /< Line test start packet (line test initiation) */
+  /** /< Status change packet: set/cleared status flags of one smoke detector (alarm start/stop is the alarm-bit case) */
+  StatusChange,
+  /** /< Line test start packet (test mode 0x04) */
   LineTestStart,
-  /** /< Line test stop packet (line test completion) */
+  /** /< Line / network test stop packet (test mode 0x00, ends either test) */
   LineTestStop,
   /** /< ConfigCheckProbe request (radio module 0x55-family, subtype 0x06; direct-range probe) */
   ConfigCheckProbeRequest,
-  /** /< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries responder group/line + status) */
+  /** /< ConfigCheckProbe response (radio module 0x55-family, subtype 0x08; carries the responder's line code + status) */
   ConfigCheckProbeResponse,
+  /** /< Network test start packet (test mode 0x06) */
+  NetworkTestStart,
+  /** /< Daily series of the radio link supervision (family 0x33, type 0x00) - a sign of life of the sender */
+  SupervisionSeries,
+  /** /< A radio module reports another one as missing (family 0x33, type 0x02) */
+  ModuleMissing,
+  /** /< Roll call of the radio link supervision (family 0x33, type 0x01) */
+  SupervisionRollCall,
+  /** /< A radio module answers a "module missing" report: it hears the named module (family 0x33, type 0x03) */
+  ModulePresent,
+  /** /< Line clock, distributed in a supervision round (family 0x22, type 0x00) */
+  LineClock,
 }

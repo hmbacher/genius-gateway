@@ -8,12 +8,13 @@ The **Genius Gateway** is a reverse-engineered interface for [Hekatron Genius Pl
 
 ### Key Features
 
-- Manage smoke detectors
-- Manage alarm lines
-- Capture, visualize and analyze packets
-- Manage gateway settings
-- MQTT and WebSocket support
-- Home Assistant integration
+- **Fire alarms in real time** - Every alarm of your smoke detectors, at once in the web interface, over MQTT and in Home Assistant
+- **Detector status and faults** - Low battery, device and radio faults and dismounting, reported over the air, with an activity log per detector
+- **Radio link supervision and range test** - Missing radio modules, last seen and signal strength (FM Pro X), and a range test that shows how well each detector is heard
+- **Smoke detectors and alarm lines** - Acoustic readout, grouping by alarm line and a PDF report; start a line test, commissioning or a fire alarm for a line
+- **Home Assistant integration** - Automatic discovery with entities for smoke detectors and alarm lines
+- **Open interfaces** - MQTT value tree and simple alarm and fault topics for other smart home systems, REST and WebSocket API
+- **Packet visualizer** - Capture, decode and analyze the radio packets
 
 ## ⚠️ Important Disclaimer
 

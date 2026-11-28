@@ -28,8 +28,12 @@ Authorization: Bearer <token>
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/rest/gateway-devices` | GET, POST | 🛡️ | Manage smoke detector devices |
-| `/rest/alarm-lines` | GET, POST | 🛡️ | Manage alarm lines (RF groups) |
+| `/rest/gateway-devices` | GET | 🔒 | Read the smoke detector devices |
+| `/rest/gateway-devices` | POST | 🛡️ | Replace the smoke detector devices |
+| `/rest/gateway-devices/device/reset-status` | POST | 🛡️ | Reset a smoke detector's status flags |
+| `/rest/gateway-devices/runtime` | GET | 🔒 | Last seen / signal of supervised radio modules |
+| `/rest/alarm-lines` | GET | 🔒 | Read the alarm lines (RF groups) |
+| `/rest/alarm-lines` | POST | 🛡️ | Replace the alarm lines |
 | `/rest/alarm-lines/do` | POST | 🛡️ | Execute alarm line actions |
 | `/rest/gateway-settings` | GET, POST | 🛡️ | Configure gateway behavior |
 | `/rest/alarm-publishing` | GET, POST | 🛡️ | Configure simple alarm publishing |
@@ -39,6 +43,7 @@ Authorization: Bearer <token>
 | `/rest/cc1101/state` | GET | 🔒 | Get radio transceiver status |
 | `/rest/cc1101/rx` | POST | 🛡️ | Force radio into RX state |
 | `/rest/wslogger` | GET, POST | 🛡️ | Configure WebSocket logger |
+| `/rest/wslogger/clients` | GET | 🛡️ | Clients connected to the WebSocket logger |
 | `/rest/packet-visualizer` | GET, POST | 🛡️ | Configure packet visualizer |
 | `/rest/migrations` | GET | 🔒 | List config migrations with state |
 | `/rest/migrations/retry` | POST | 🛡️ | Clear migration failure records |
@@ -47,8 +52,8 @@ Authorization: Bearer <token>
 
 #### `/rest/gateway-devices`
 - **Methods:** GET, POST
-- **Auth:** 🛡️ Admin
-- **Description:** Manage registered smoke detector devices
+- **Auth:** GET 🔒 User, POST 🛡️ Admin
+- **Description:** Manage registered smoke detector devices. Every signed-in user can read the list (the Overview page shows it); changing it requires administrator privileges
 
 **GET Response:**
 ```json
@@ -69,12 +74,15 @@ Authorization: Bearer <token>
       "location": "Living Room",
       "isAlarming": false,
       "registration": 1,
-      "alarms": [
-        {
-          "startTime": "2025-01-15T10:30:00Z",
-          "endTime": "2025-01-15T10:35:00Z",
-          "endingReason": 0
-        }
+      "alarmCount": 1,
+      "status": [
+        { "flag": 4, "active": true, "since": "2026-11-12T10:55:53Z", "source": 2 },
+        { "flag": 2, "active": false, "since": "2026-10-28T09:14:03Z", "source": 1 }
+      ],
+      "events": [
+        { "time": "2025-01-15T10:30:00Z", "type": 5, "end": "2025-01-15T10:35:00Z", "endingReason": 0 },
+        { "time": "2026-10-28T09:14:03Z", "type": 1, "set": 0, "cleared": 14 },
+        { "time": "2026-11-12T10:55:53Z", "type": 2, "set": 4, "cleared": 0 }
       ]
     }
   ]
@@ -89,8 +97,24 @@ Authorization: Bearer <token>
 - `location` - Human-readable location string
 - `isAlarming` - Current alarm state
 - `registration` - How device was added (0=built-in, 1=packet, 2=manual)
-- `alarms` - History of alarm events
-- `endingReason` - How alarm ended (-1=active, 0=detector, 1=manual)
+- `alarmCount` - Number of alarms of this smoke detector. The alarms themselves are entries of the activity log (`events`), which only keeps the newest ones
+- `haEntityIdPrefix` - Read-only, only present once set. Entity-ID prefix the gateway last announced to Home Assistant for this detector (see `rename_entity_ids` in [`/rest/haSettings`](#resthasettings)). A value sent by a client is ignored
+- `status` - [Current status](../features/device-management.md#current-status): one entry per status flag whose state is known. A flag without an entry was never reported and is neither OK nor active
+    - `flag` - The [status flag](../reverse-engineering/protocol-analysis.md#status-change): `2` device fault, `4` battery low, `8` radio link fault, `16` fault muted on the detector, `32` dismounted; `65536` is set by the gateway itself when another detector reports this detector's radio module as missing
+    - `active` - `true` = the fault is present, `false` = reported OK
+    - `since` - Since when this state holds (ISO 8601); missing if the gateway's clock was not set at the time
+    - `source` - Where the state comes from: `1` acoustic readout, `2` status change received over the air
+- `events` - Activity log of the device, oldest first, at most 50 entries (the oldest are dropped). Every entry has a `type` and, unless the gateway's clock was not set, a `time`:
+    - `0` device added - `registration`
+    - `1` acoustic readout - `set` (flags reported active) and `cleared` (flags reported OK)
+    - `2` status change received over the air - `set` and `cleared` hold the flags that changed; a packet that changes nothing is not logged
+    - `3` status reset
+    - `4` radio link supervision, in three shapes: this detector reports a radio module as missing (`cause` = that module's serial); this detector is reported missing (`set` = 65536, `cause` = the reporting module); or it is no longer reported missing (`cleared` = 65536, `cause` = the module that confirmed it present - missing if its own radio module was heard again)
+    - `5` alarm - `time` is the start, `end` the end (missing while it lasts), `endingReason` how it ended (-1=active, 0=detector, 1=manual, 2=cleared on import)
+
+    An entry can carry `count` (greater than 1) and `last`: the report was made again while its cause lasted and was counted on its entry instead of logged again - `time` is the first report, `last` the latest. Used for a module that stays missing, which is reported up to three times, about five hours apart.
+
+    `status`, `events` and `alarmCount` are owned by the gateway: they are ignored when a device is updated and only taken over for a new device, e.g. from an import file. Files written before v1.6.0 carry an `alarms` list instead (`startTime`, `endTime`, `endingReason`); it is converted into alarm entries, and the status is derived from the last readout.
 
 **POST Request:** Same format as GET response
 
@@ -98,11 +122,51 @@ Authorization: Bearer <token>
 
 ---
 
+#### `/rest/gateway-devices/device/reset-status`
+- **Method:** POST
+- **Auth:** 🛡️ Admin
+- **Description:** Discard the reported faults of a smoke detector: every active status flag becomes unknown again - not OK - until the smoke detector reports a change or an acoustic readout is performed. Flags reported OK are kept. The reset is recorded in the activity log.
+- **Request:**
+```json
+{
+  "id": 1
+}
+```
+
+**Response:** 200 OK with the updated device (same format as one entry of the device list), 404 if no device has that `id`
+
+---
+
+#### `/rest/gateway-devices/runtime`
+- **Method:** GET
+- **Auth:** 🔒 User
+- **Description:** What the gateway heard of the radio modules with radio link supervision (FM Pro X) since it started. The values are kept in memory only and are not part of the device list; a detector that is not listed has not been heard since the last restart. Changes are announced with the [`device-runtime`](websocket-api.md#device-runtime) WebSocket event
+
+**Response:**
+```json
+{
+  "devices": [
+    {
+      "id": 1758215385,
+      "lastSeen": "2026-11-23T17:14:12.000Z",
+      "rssi": -87,
+      "rssiTime": "2026-11-23T17:14:12.000Z"
+    }
+  ]
+}
+```
+
+- `id` - Device id of the smoke detector
+- `lastSeen` - Last packet the detector's radio module originated or transmitted
+- `rssi`, `rssiTime` - Signal strength in dBm of the last packet the module transmitted itself, and when. Missing while the module was only heard through another module that forwarded its packet
+
+---
+
 ### Alarm Line Management
 
 #### `/rest/alarm-lines`
 - **Methods:** GET, POST
-- **Auth:** 🛡️ Admin
+- **Auth:** GET 🔒 User, POST 🛡️ Admin
 - **Description:** Manage configured alarm lines (RF communication groups)
 
 **GET Response:**
@@ -113,7 +177,9 @@ Authorization: Bearer <token>
       "id": 123456789,
       "name": "Building A",
       "created": "2025-01-15T10:00:00Z",
-      "acquisition": 1
+      "acquisition": 1,
+      "lineCodeSource": 1,
+      "lineCode": 3
     }
   ]
 }
@@ -125,6 +191,8 @@ Authorization: Bearer <token>
 - `name` - Human-readable alarm line name
 - `created` - Creation timestamp
 - `acquisition` - How line was discovered (0=built-in, 1=packet, 2=manual, 3=acoustic, 4=signal probe)
+- `lineCodeSource` - Where the [line setting](../features/alarm-lines-management.md#line-setting) comes from: 0 = automatic (from the smoke detectors, A.0 when they do not tell it), 1 = set by hand, 2 = taken from a radio packet. Optional in a POST; missing = automatic
+- `lineCode` - The line setting as line code, `letter << 4 | number` (A.0 = 0, A.3 = 3, B.2 = 18, H.7 = 119). Only with `lineCodeSource` 1 or 2. Valid: A.0 - G.9, H.0, H.1, H.2, H.4, H.5, H.7; an invalid one makes the line automatic
 
 **POST Request:** Same format as GET response
 
@@ -135,21 +203,22 @@ Authorization: Bearer <token>
 #### `/rest/alarm-lines/do`
 - **Method:** POST
 - **Auth:** 🛡️ Admin
-- **Description:** Execute alarm line action (line test or fire alarm)
+- **Description:** Execute an alarm line action. The packet is sent for the [line setting](../features/alarm-lines-management.md#line-setting) of the line
 - **Request:**
 ```json
 {
-  "action": "linetest",
-  "alarmLineId": 123456789,
-  "duration": 10
+  "lineId": 123456789,
+  "action": "line-test-start"
 }
 ```
 
 **Actions:**
 
-- `linetest` - Trigger RF line test transmission
-- `firealarm` - Trigger RF fire alarm transmission
-- `duration` - Duration in seconds
+- `line-test-start`, `line-test-stop` - Start / stop a line test
+- `fire-alarm-start`, `fire-alarm-stop` - Start / stop a fire alarm
+- `commissioning-start` - Start the radio commissioning of the line
+
+**Responses:** 200 when the transmission started, 500 when the line is not registered or the action is unknown, 503 while another action is still being sent
 
 **Response:**
 ```json
@@ -199,7 +268,11 @@ Authorization: Bearer <token>
 ```json
 {
   "alarmEnabled": true,
-  "alarmTopic": "smarthome/genius-gateway/alarm"
+  "alarmTopic": "smarthome/genius-gateway/alarm",
+  "faultEnabled": true,
+  "faultTopic": "smarthome/genius-gateway/fault",
+  "treeEnabled": false,
+  "treeBaseTopic": ""
 }
 ```
 
@@ -207,6 +280,12 @@ Authorization: Bearer <token>
 
 - `alarmEnabled` - Enable alarm state publishing to a central MQTT topic
 - `alarmTopic` - MQTT topic for global alarm state
+- `faultEnabled` - Enable fault publishing (battery low, device faults) to a central MQTT topic
+- `faultTopic` - MQTT topic for the [global fault state](mqtt-topics.md#global-fault-state-topic)
+- `treeEnabled` - Enable the [MQTT value tree](mqtt-topics.md#mqtt-value-tree)
+- `treeBaseTopic` - Root topic of the value tree; empty = `genius-gateway/{mac}`
+
+A POST may carry any subset of these fields; fields that are left out keep their value.
 
 **POST Response:** 200 OK with updated settings
 
@@ -226,7 +305,8 @@ Authorization: Bearer <token>
   "discovery_prefix": "homeassistant/",
   "device_name": "Genius Gateway",
   "manufacturer": "Genius Gateway Project",
-  "model": "Genius Gateway"
+  "model": "Genius Gateway",
+  "rename_entity_ids": false
 }
 ```
 
@@ -237,8 +317,9 @@ Authorization: Bearer <token>
 - `device_name` - Device name shown in Home Assistant; empty string falls back to the firmware name
 - `manufacturer` - Manufacturer label shown in Home Assistant device info
 - `model` - Model label shown in Home Assistant device info
+- `rename_entity_ids` - Opt-in (default `false`). Name detectors after their location in Home Assistant and let their entity IDs follow it: every detector gets explicit entity IDs, and a changed location removes and re-creates that detector's entities under the new IDs. Switching the option on renames all detectors at once
 
-**POST Response:** 200 OK with updated settings; if MQTT is connected, updated discovery messages are published immediately
+**POST Response:** 200 OK with updated settings; if MQTT is connected, updated discovery messages are published immediately. The response does not wait for an entity-ID rename - its progress is reported through the [`ha-entity-rename`](websocket-api.md#ha-entity-rename) WebSocket event
 
 ---
 
@@ -326,11 +407,45 @@ Authorization: Bearer <token>
 **GET Response / POST Request:**
 ```json
 {
-  "enabled": true
+  "wsLoggerEnabled": true
 }
 ```
 
-**POST Response:** 200 OK with updated settings
+**POST Response:** 200 OK with updated settings. Switching the logger off disconnects the clients that are still connected.
+
+#### `/rest/wslogger/clients`
+- **Methods:** GET
+- **Auth:** 🛡️ Admin
+- **Description:** Clients connected to the WebSocket logger right now, with the age of their connection and what was sent to them
+
+**GET Response:**
+```json
+{
+  "enabled": true,
+  "clients": [
+    {
+      "id": 58,
+      "address": "192.168.178.50",
+      "port": 52144,
+      "name": "packet-visualizer",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...",
+      "connectedMs": 754210,
+      "packets": 1460,
+      "bytes": 116800
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `id` | Socket of the connection, unique while it is open |
+| `address`, `port` | Remote IP address and port |
+| `name` | Name the client gave itself with `?client=...` (missing if none) |
+| `userAgent` | User-Agent of the connection request, shortened to 160 characters (missing if none) |
+| `connectedMs` | Age of the connection in milliseconds - needs no clock on the gateway |
+| `packets` | Radio packets sent to the client, every repetition counted |
+| `bytes` | Data of these packets in bytes (80 per packet) |
 
 ---
 

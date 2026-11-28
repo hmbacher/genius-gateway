@@ -8,7 +8,7 @@ Genius Gateway offers two levels of smart home integration via MQTT, allowing yo
 
 | Approach | Description | Best for |
 |----------|-------------|----------|
-| [Simple Alarm Publishing](#simple-alarm-publishing) | Basic fire alarm notifications forwarded to your smart home system without individual device tracking. | Quick setup, simple alarm notifications for all smart home systems with MQTT interface |
+| [Simple Alarm Publishing](#simple-alarm-publishing) | Basic fire alarm notifications - and optionally battery warnings and faults - forwarded to your smart home system without individual device tracking. | Quick setup, simple alarm notifications for all smart home systems with MQTT interface |
 | [Home Assistant Integration](#home-assistant-integration) |Full device integration with automatic discovery, individual detector tracking, and rich automation possibilities. | Home Assistant users, detailed monitoring, advanced automation scenarios |
 
 | Feature | Simple Alarm Publishing | Home Assistant Integration |
@@ -20,6 +20,7 @@ Genius Gateway offers two levels of smart home integration via MQTT, allowing yo
 | **Automation Capabilities** | :material-star:<br>Basic - single trigger | :material-star::material-star::material-star:<br>Advanced - per detector |
 | **Platform Support** | :material-star::material-star::material-star:<br>Any MQTT platform | :material-star::material-star:<br>Home Assistant optimized |
 | **Unknown Detectors** | **:material-check:**<br>Supported | **:material-check:**<br>Supported |
+| **Battery Warnings & Faults** | **:material-check:**<br>Summary topic (registered detectors) | **:material-check:**<br>Per detector, live |
 | **Historical Data**<br>(besides Genius Gateway) | :material-star:<br>Limited | :material-star::material-star::material-star:<br>Full Home Assistant history |
 | **Alarm Lines** | :material-close: | **:material-check:**<br>Individual Devices |
 | **Line Test Triggering** | :material-close: | **:material-check:**<br>Remote Control |
@@ -49,12 +50,20 @@ Simple alarm publishing provides a straightforward way to integrate fire alarm d
 
 See the [MQTT API - Global Alarm State Topic](../api/mqtt-topics.md#global-alarm-state-topic) for detailed payload format and examples.
 
+### Battery Warnings and Faults
+
+Smoke detectors also announce a **low battery**, **device faults**, **radio link faults** and **dismounting** over the air. With **simple fault publishing** enabled, the gateway publishes a status summary to a second topic whenever one of these changes: how many detectors are faulty or low on battery, and which ones with which flags.
+
+Unlike alarms, these are only tracked for smoke detectors **registered** in Genius Gateway - the status is kept per detector (see [Current Status](device-management.md#current-status)).
+
+See the [MQTT API - Global Fault State Topic](../api/mqtt-topics.md#global-fault-state-topic) for the payload format.
+
 ### Configuration Requirements
 
 To enable simple alarm publishing:
 
 1. **[Configure MQTT broker connection](../setup/connections.md#mqtt)** - Set up connection to your MQTT broker
-2. **[Enable Simple Alarm Publishing](../setup/connections.md#simple-alarm-publishing)** - Configure the alarm topic and enable publishing
+2. **[Enable Simple Alarm Publishing](../setup/connections.md#simple-alarm-publishing)** - Configure the alarm topic and enable publishing; optionally enable fault publishing as well
 3. **[(Optional) Enable unknown detector processing](gateway-settings.md#process-alerts-from-unknown-smoke-detectors)** - Allow detection of detectors not explicitly configured
 
 !!! gg "Works with Known and Unknown Detectors"
@@ -83,8 +92,10 @@ Home Assistant's MQTT Discovery allows devices to automatically register themsel
 
 Multiple Genius Gateway instances can share the same MQTT broker without entity conflicts. Every MQTT discovery config topic is scoped under the individual gateway's unique device identifier, so Home Assistant registers each gateway and its sub-devices (smoke detectors, alarm lines) independently.
 
-!!! warning "Upgrading from an earlier firmware version"
-    The discovery config topic format changed in a firmware update to include the gateway namespace. After upgrading, old retained discovery messages at the previous topic paths will remain in the broker until they expire or are manually cleared. To avoid duplicate entities in Home Assistant, send an empty retained message to each old config topic (or use your broker's retained-message cleanup feature) and remove the orphaned devices from Home Assistant.
+!!! warning "Upgrading from firmware v1.5.0 or earlier"
+    The topic layout changed in v1.6.0: base topics lost a redundant namespace level and no longer derive from the (user-editable) Device Name, so they no longer embed the gateway's MAC address twice.
+
+    The gateway clears its own old retained messages on the first MQTT connect after the upgrade, so no manual broker cleanup is normally needed. See [Home Assistant Integration](../setup/connections.md#home-assistant-integration) for the details and the two things worth verifying afterwards.
 
 ### Configuration Requirements
 
@@ -114,20 +125,26 @@ The gateway device registers with:
 
 - **Device Information** - Manufacturer, model, firmware version, and web interface link
 - **1 Status Sensor** - Online/Offline state
-- **2 Diagnostic Sensors** - Real-time system health monitoring (free heap memory, core temperature)
+- **3 Diagnostic Sensors** - System health (free heap memory, core temperature) and the reason of the last reset
 - **1 Restart Button** - Remote restart capability
 - **4 Configuration Switches** - Remote settings control
 - **1 Update Entity** - Firmware update management with automatic version checking
 
 This integration enables proactive monitoring, remote maintenance, and dynamic configuration without requiring physical access to the gateway.
 
+!!! info "Entities are unavailable while the gateway is offline"
+    When the gateway loses its connection to the MQTT broker - no WiFi, no power, a restart - every entity of the gateway, the smoke detectors and the alarm lines turns *unavailable* in Home Assistant, and the **Status** sensor shows `offline`. Home Assistant therefore never shows a smoke detector as fine while nobody is listening.
+
+    A restart is noticed at once. If the gateway just disappears, the broker notices it after one and a half times the MQTT keep alive - about three minutes with the default of 120 seconds. An automation on the **Status** sensor is an easy way to get notified.
+
 ### Entities Overview
 
 | Entity Type | Name | Purpose | Update Interval | Category |
 |-------------|------|---------|-----------------|----------|
-| **Sensor** | Status | Device registration in Home Assistant | On connect | diagnostic |
+| **Sensor** | Status | Connection state of the gateway: `online` / `offline` | On connect and disconnect | diagnostic |
 | **Sensor** | Free Heap | Memory usage monitoring (percentage) | Every 60 seconds | diagnostic |
 | **Sensor** | Core Temperature | Internal temperature monitoring (°C) | Every 60 seconds | diagnostic |
+| **Sensor** | Last Reset Reason | Why the gateway last restarted (power-on, software restart, watchdog, brownout, ...) | Every 60 seconds | diagnostic |
 | **Button** | Restart | Trigger gateway restart remotely | On demand | - |
 | **Switch** | Alert on Unknown Detectors | Enable/disable processing of unknown detectors | On change | config |
 | **Switch** | Add Line from Commissioning | Auto-add lines from commissioning packets | On change | config |
@@ -259,6 +276,7 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 - **Automatic device discovery** - No manual configuration in Home Assistant
 - **Individual detector tracking** - Monitor each detector's state separately
 - **Rich device information** - Model, manufacturer, serial number, location
+- **Live status** - Battery low, device fault, radio link fault and dismounting as reported by the detector over the air
 - **Diagnostic entities** - Detailed readout data after acoustic service
 - **Automation capabilities** - Create detector-specific automations
 - **Historical data** - Track alarm history per detector
@@ -268,9 +286,10 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 | Entity | Category | Available | Description |
 |--------|----------|-----------|-------------|
 | **Smoke Detector** (binary_sensor) | Control | Always | Alarm state `ON`/`OFF` |
-| **Battery** (binary_sensor) | Diagnostic | After readout | Battery low fault |
-| **Smoke Detector State** (binary_sensor) | Diagnostic | After readout | Internal device fault |
-| **Radio Module State** (binary_sensor) | Diagnostic | After readout | Radio network fault |
+| **Battery** (binary_sensor) | Diagnostic | Once known | Battery low |
+| **Smoke Detector State** (binary_sensor) | Diagnostic | Once known | Internal device fault |
+| **Radio Module State** (binary_sensor) | Diagnostic | Once known | Radio link fault, or radio module [reported missing](device-management.md#radio-link-supervision) |
+| **Dismount** (binary_sensor) | Diagnostic | Once known | Detector dismounted from its base (`tamper`) |
 | **Deinstallation Count** | Diagnostic | After readout | Lifetime deinstall count |
 | **Last Service** | Diagnostic | After readout | Timestamp of last acoustic readout |
 | **Radio Module Model** | Diagnostic | After readout | Model name (e.g. FM Basis X) |
@@ -281,28 +300,56 @@ Each smoke detector registered in Genius Gateway is automatically published to H
 | **Alarms (Total)** | Diagnostic | After readout | Lifetime alarm count |
 | **Alarms (3 Months)** | Diagnostic | After readout | Alarm count in last 3 months |
 | **Radio Interference** | Diagnostic | After readout | Radio interference level (%) |
+| **Last Seen** | Diagnostic | FM Pro X only, once heard | When a packet of the radio module was last received - see [Radio link supervision](device-management.md#radio-link-supervision) |
+| **Signal Strength** | Diagnostic | FM Pro X only, once heard | Signal strength (dBm) of the last packet the radio module transmitted itself |
 
-Diagnostic entities show as **unavailable** until the first acoustic readout is performed via the SmartSonic interface.
+The four status entities (Battery, Smoke Detector State, Radio Module State, Dismount) show the detector's [current status](device-management.md#current-status) and update **live** when the detector reports a change over the air. Each one shows as **unavailable** until its state is known - from a status the detector reported, an acoustic readout (except Dismount) or a manual reset. Smoke detectors report a flag only when it changes, so an "OK" before that would be a guess.
+
+All other diagnostic entities show as **unavailable** until the first acoustic readout is performed via the SmartSonic interface.
 
 !!! info "Shared MQTT State Topic"
-    All 13 diagnostic entities share a single MQTT state topic (`diagnostics/state`) that carries a JSON payload with all values. Availability is folded into the same payload - there is no separate availability topic. This reduces MQTT traffic and keeps the broker's retained-message store lean. See [MQTT API - Readout-Derived Diagnostic Entities](../api/mqtt-topics.md#readout-derived-diagnostic-entities) for the full payload schema.
+    All 14 diagnostic entities share a single MQTT state topic (`diagnostics/state`) that carries a JSON payload with all values. Availability is folded into the same payload - there is no separate availability topic. This reduces MQTT traffic and keeps the broker's retained-message store lean. See [MQTT API - Diagnostic Entities](../api/mqtt-topics.md#diagnostic-entities-status-and-readout) for the full payload schema.
 
 ### Home Assistant Visual Integration
 
 **Overview Dashboard**
 
 ![Multiple smoke detectors displayed in Home Assistant's overview dashboard showing their online status and locations](../assets/images/doc/ha/ha-overview.png)
-*Multiple Genius Plus X smoke detectors automatically discovered and displayed with their configured locations*
+*Genius Plus X smoke detectors on a Home Assistant dashboard, one card per area*
 
 **Detector Detail View**
 
-![Individual smoke detector detail page showing alarm state, device information, and entity controls](../assets/images/doc/ha/ha-details-detecting.png)
-*Detailed view of a single detector showing real-time alarm state, manufacturer information, model, and serial number*
+![Smoke sensor of a single smoke detector with its state history and activity](../assets/images/doc/ha/ha-detector-smoke-sensor.png)
+*Smoke sensor of a single detector: current state (here Clear, no smoke), history and activity; the device page behind it shows manufacturer, model and serial number*
 
 **Device Information**
 
-![Device information panel displaying all smoke detector attributes including location, firmware, and configuration](../assets/images/doc/ha/ha-details2-detecting.png)
-*Complete device information with manufacturer details, model identification, and assigned area for automation purposes*
+![Smoke detector device page with its sensors, status and diagnostic entities](../assets/images/doc/ha/ha-detector-device.png)
+*Complete device information with manufacturer details, model identification, assigned area, status and diagnostic entities*
+
+### Automation Example
+
+#### Low Battery Notification
+
+Notify as soon as a smoke detector reports a low battery over the air. The trigger uses the `battery` device class state `on` (shown as *Low*); the transition from *unavailable* to *Normal* after a gateway restart or the first readout does not fire it.
+
+```yaml
+automation:
+  - alias: "Smoke Detector Battery Low"
+    trigger:
+      - platform: state
+        entity_id: # the "Battery" entities of your smoke detectors
+          - binary_sensor.genius_plus_x_battery
+          - binary_sensor.genius_plus_x_battery_2
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Smoke detector battery low"
+          message: "{{ trigger.to_state.attributes.friendly_name }} reports a low battery."
+```
+
+Faults work the same way with the *Smoke Detector State*, *Radio Module State* (`problem`) and *Dismount* (`tamper`) entities.
 
 !!! abstract "Technical Details"
     See [MQTT API - Smoke Detectors](../api/mqtt-topics.md#smoke-detectors) for complete topic structure, payload formats, and configuration examples.
@@ -325,7 +372,7 @@ The Button Entities provides comparable functionality to the Web Interface for s
 **Alarm Line Device with Entities**
 
 ![Alarm line device showing button controls and transmission state sensor](../assets/images/doc/ha/ha-alarmlines-device.png)
-*Alarm line device with button controls for line test and fire alarm operations, plus transmission state sensor*
+*Alarm line device with button controls for commissioning, line test and fire alarm operations, plus transmission state sensor*
 
 **Transmission State Sensor**
 

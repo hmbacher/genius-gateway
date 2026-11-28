@@ -49,6 +49,8 @@
 #include <HomeAssistant/HASensor.h>
 #include <PsychicMqttClient.h>
 #include <SettingValue.h>
+#include <GeniusLineCode.h>
+#include <functional>
 
 
 #define ALARMLINES_FILE "/config/alarm-lines.json"            ///< Configuration file path
@@ -59,6 +61,7 @@
 #define ALARMLINES_MAX_NUM 100                                ///< Maximum number of alarm lines supported
 
 #define ALARMLINES_NAME_MAX_LENGTH 100                        ///< Maximum length for alarm line names
+#define ALARMLINES_AUTO_NAME_FORMAT "%lu (automatically added)" ///< Name of an alarm line learned from a received packet (%lu: line ID, decimal)
 #define ALARMLINES_ORIGIN_ID "alarm-lines"                    ///< Origin ID for update handler tracking
 #define ALARMLINES_TX_TASK_STACK_SIZE 4096                    ///< Stack size for transmission task in bytes
 #define ALARMLINES_TX_TASK_PRIORITY 20                        ///< Priority level for transmission task
@@ -125,6 +128,14 @@ typedef enum alarm_line_acquisition
     ALA_MAX            ///< Boundary check maximum value
 } alarm_line_acquisition_t;
 
+/// Where the line setting (rotary position) of an alarm line comes from
+typedef enum alarm_line_code_source
+{
+    LCS_AUTOMATIC = 0, ///< From the smoke detectors of the line; A.0 when they do not tell it
+    LCS_MANUAL = 1,    ///< Set by hand
+    LCS_PACKET = 2,    ///< Taken from a radio packet of the line (the one that added it, or the first one)
+} alarm_line_code_source_t;
+
 /// Structure representing a genius alarm line
 typedef struct genius_alarm_line
 {
@@ -132,6 +143,8 @@ typedef struct genius_alarm_line
     String name;                          ///< Human-readable alarm line name
     time_t created;                       ///< Creation timestamp (Unix epoch)
     alarm_line_acquisition_t acquisition; ///< How this line was discovered/added
+    uint8_t lineCode;                     ///< Line setting when lineCodeSource is not LCS_AUTOMATIC (see GeniusLineCode.h)
+    alarm_line_code_source_t lineCodeSource; ///< Where the line setting comes from
     bool published;                       ///< Whether the current line configuration has been published via MQTT (runtime state, not persisted)
 } genius_alarm_line_t;
 
@@ -154,6 +167,9 @@ public:
             jsonLine["name"] = line.name;
             jsonLine["created"] = Utils::time_t_to_iso8601(line.created);
             jsonLine["acquisition"] = line.acquisition;
+            jsonLine["lineCodeSource"] = line.lineCodeSource;
+            if (line.lineCodeSource != LCS_AUTOMATIC)
+                jsonLine["lineCode"] = line.lineCode;
             // Note: 'published' flag is not serialized (runtime state only)
         }
 
@@ -211,6 +227,24 @@ public:
                 newLine.name = jsonLine["name"].as<String>();
                 newLine.created = Utils::iso8601_to_time_t(jsonLine["created"].as<String>());
                 newLine.acquisition = jsonLine["acquisition"].as<alarm_line_acquisition_t>();
+
+                // Line setting: optional (older files and exports have none -> automatic)
+                newLine.lineCode = GENIUS_LINE_CODE_A0;
+                newLine.lineCodeSource = LCS_AUTOMATIC;
+                if (jsonLine["lineCodeSource"].is<int>())
+                {
+                    const int source = jsonLine["lineCodeSource"].as<int>();
+                    const int code = jsonLine["lineCode"].is<int>() ? jsonLine["lineCode"].as<int>() : -1;
+                    if ((source == LCS_MANUAL || source == LCS_PACKET) && code >= 0 && code < 0xFF &&
+                        genius_line_code_valid((uint8_t)code))
+                    {
+                        newLine.lineCode = (uint8_t)code;
+                        newLine.lineCodeSource = (alarm_line_code_source_t)source;
+                    }
+                    else if (source != LCS_AUTOMATIC)
+                        ESP_LOGW(AlarmLines::TAG, "Alarm line %lu: invalid line setting (source %d, code %d), set to automatic.",
+                                 (unsigned long)newLine.id, source, code);
+                }
 
                 // Check if this line existed before and preserve its published state if unchanged
                 newLine.published = false;
@@ -271,7 +305,53 @@ public:
     TxTimingMode getTxTimingMode() const { return _txTimingMode; }
 
     /// Add a new alarm line to the system
-    esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET, bool toFront = false);
+    esp_err_t addAlarmLine(uint32_t id, String name, alarm_line_acquisition_t acquisition = ALA_GENIUS_PACKET, bool toFront = false,
+                           int packetLineCode = -1);
+
+    /**
+     * @brief Add an alarm line learned from a received packet
+     *
+     * The line is named after its ID (ALARMLINES_AUTO_NAME_FORMAT) - the same name whatever
+     * kind of packet it was learned from. A line that is already known is left untouched.
+     *
+     * @param id       Alarm line ID taken from the packet
+     * @param lineCode Line code of the radio module that originated the packet: the new line takes it
+     *                 as its line setting. -1 for a packet originated by a gateway (no line setting).
+     * @return ESP_OK if the line was added, otherwise the error of addAlarmLine()
+     */
+    esp_err_t addAlarmLineFromPacket(uint32_t id, int lineCode = -1);
+
+    /// Tells the line code of an alarm line from its smoke detectors (false: they do not tell it)
+    using LineCodeResolver = std::function<bool(uint32_t lineId, uint8_t &code)>;
+
+    /// Set the source of the automatic line setting (the smoke detectors of a line)
+    void setLineCodeResolver(LineCodeResolver resolver) { _lineCodeResolver = resolver; }
+
+    /**
+     * @brief Line code the gateway transmits for an alarm line (line test, fire alarm, commissioning)
+     *
+     * A line setting set by hand or taken from a packet; automatic: the one of the smoke detectors,
+     * A.0 when they do not tell it.
+     */
+    uint8_t effectiveLineCode(uint32_t lineId);
+
+    /**
+     * @brief Take the line setting of an automatic alarm line from a radio packet of the line
+     *
+     * Only for lines whose smoke detectors do not tell it. Cheap for the reception task: it is settled
+     * on a list of such lines, the state is only touched when a line takes the line code.
+     *
+     * @param lineId   Alarm line ID of the packet
+     * @param lineCode Line code of the radio module that originated the packet (not of a gateway)
+     * @return true if the line took it
+     */
+    bool learnLineCode(uint32_t lineId, uint8_t lineCode);
+
+    /// Rebuild the list of automatic lines whose smoke detectors do not tell the line setting
+    void refreshLineCodeCache();
+
+    /// Snapshot of (id, name) of all configured alarm lines, taken under the state lock
+    std::vector<std::pair<uint32_t, std::string>> getLineNames();
 
     /// Increment packet sequence number and persist it
     uint8_t incPcktSeqNum();
@@ -300,6 +380,9 @@ private:
     static const uint8_t _packet_base_firealarm[]; ///< Base packet template for fire alarm transmissions
     static const uint8_t _packet_base_configcheckprobe[]; ///< Base packet template for ConfigCheckProbe request
     static const uint8_t _packet_base_commissioning[];    ///< Base packet template for Alarm-Line Commissioning (start)
+    LineCodeResolver _lineCodeResolver;            ///< Line code of a line from its smoke detectors
+    SemaphoreHandle_t _lineCodeCacheMutex;         ///< Guards _linesAwaitingCode
+    std::vector<uint32_t> _linesAwaitingCode;      ///< Automatic lines whose smoke detectors do not tell the line code
     uint8_t _packet_sequence_number;               ///< Current packet sequence number (persisted in NVS)
 
     // ========== Member Variables ==========

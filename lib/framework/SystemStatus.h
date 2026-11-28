@@ -21,8 +21,19 @@
 #include <PsychicHttp.h>
 #include <SecurityManager.h>
 #include <ESPFS.h>
+#include <vector>
 
 #define SYSTEM_STATUS_SERVICE_PATH "/rest/systemStatus"
+
+/**
+ * Text for a reset reason (esp_reset_reason()), the same wherever the reason is shown: in the
+ * system status and in Home Assistant. It is one of a fixed set of texts; a code that is not
+ * known gets a text of its own.
+ */
+const char *resetReasonText(int reason);
+
+/// Every text resetReasonText() can return, e.g. as the options of an enum sensor.
+std::vector<const char *> resetReasonTexts();
 
 class SystemStatus
 {
