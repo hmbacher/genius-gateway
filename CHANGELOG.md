@@ -126,7 +126,7 @@ The packet that starts a line test also starts a network test. The byte that was
 ## WebSocket Logger: Connected Clients
 The WebSocket Logger page lists the clients that are connected to the logger right now.
 
-- **Laid out like the MQTT page**: the status on top - *Active* / *Disabled*, the URL to connect to and one entry per connected client - and the settings below
+- **Laid out like the MQTT page**: the status on top - *Active* / *Disabled*, the URL to connect to and, under the heading *Connected Clients*, one entry per connected client - and the settings below
 - **One entry per connection**: what connected - the built-in *Packet Visualizer*, a tool that named itself, or the browser / tool from its User-Agent - with IP address and port, how long the connection has been open, and how many radio packets and how much data were sent to it
 - **No client connected** is shown as such; URL and clients are only listed while the logger is enabled
 - **Clients can name themselves** with `?client=<name>` in the URL; the Packet Visualizer connects as `packet-visualizer`

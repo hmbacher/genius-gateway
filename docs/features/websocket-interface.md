@@ -21,13 +21,13 @@ The upper part of the WebSocket Logger card shows the state of the logger, the s
 
 - **Status** - *Active*, or *Disabled* when the logger refuses connections
 - **URL** - the address logging tools connect to (only while active)
-- **One entry per connected client** - logging tools as well as open [Packet Visualizers](packet-visualizer.md), in this browser or elsewhere (only while active):
+- **Connected Clients** - a heading with the number of connected clients, below it one entry per client - logging tools as well as open [Packet Visualizers](packet-visualizer.md), in this browser or elsewhere (only while active):
     - **Name** - *Packet Visualizer* for the built-in one, the name a tool gave itself (see [Naming a client](#naming-a-client)), otherwise the browser or tool from its User-Agent (e.g. *Chrome on Windows*, *Python/3.13 websockets/13.1*)
     - **Address** - IP address and port of the connection, followed by the browser or tool if the client has a name
-    - **Connected for** - how long the connection has been open; the tooltip shows since when
+    - **connected for** - how long the connection has been open; the tooltip shows since when
     - **Packets and data** - radio packets sent to the client since it connected, and their data (80 bytes per packet). Every repetition of a packet is counted, as the logger forwards each one
 
-The counters live in the gateway's memory and start at zero with every connection. Without a connected client the entry says **No client connected**:
+The counters live in the gateway's memory and start at zero with every connection. Without a connected client the list says **No client connected**:
 
 ![WebSocket Logger without a connected client](../assets/images/software/gg-gateway-websocket-logger-no-clients.png)
 
