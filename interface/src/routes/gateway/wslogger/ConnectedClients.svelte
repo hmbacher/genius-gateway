@@ -45,6 +45,13 @@
 	}
 </script>
 
+<!-- Heading between the status of the logger and its clients: the rows below are connections -->
+<div
+	class="divider divider-start my-1 text-sm font-semibold text-base-content/70"
+	data-testid="wslogger-clients-heading"
+>
+	Connected Clients ({clients.length})
+</div>
 {#each clients as c (c.id)}
 	{@const Icon = iconFor(c)}
 	<div
@@ -63,7 +70,7 @@
 				class="tooltip tooltip-left whitespace-nowrap"
 				data-tip={'Connected since ' + formatDateTimeSeconds(new Date(fetchedAt - c.connectedMs))}
 			>
-				{formatDuration(age(c))}
+				connected for {formatDuration(age(c))}
 			</div>
 			<div
 				class="tooltip tooltip-left block whitespace-nowrap opacity-75"
@@ -83,8 +90,10 @@
 			<IconPlugOff class="h-auto w-full scale-75 text-base-content/60" />
 		</div>
 		<div>
-			<div class="font-bold">Connected Clients</div>
-			<div class="text-sm opacity-75">No client connected</div>
+			<div class="font-bold">No client connected</div>
+			<div class="text-sm opacity-75">
+				Logging tools and open Packet Visualizers appear here as soon as they connect
+			</div>
 		</div>
 	</div>
 {/each}
